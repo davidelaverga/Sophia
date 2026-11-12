@@ -8,9 +8,18 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { canonicalJson } from '../packages/coordination/src/canonical.ts'
 import type { IntakeObservation } from '../packages/coordination/src/intake-observation.ts'
@@ -3229,6 +3238,625 @@ try {
       assert.equal(written.terminated, false, 'completed within the sentinel')
       assert.equal(written.status, 2)
       assert.equal(existsSync(out), false)
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------------------------------------------
+// r29: expected filesystem failures are usage errors with fixed, path-free messages; the CLI's own temporary file is
+// cleaned and foreign files are never touched; malformed fixture declarations refuse the file. Fresh public synthetic
+// data only, in owned temporary directories.
+
+/**
+ * CONTRACT FAULT INJECTION (test-only, process-local): a preload for one child process that wraps a single named fs
+ * function for one exact path (or for the CLI's own temporary report descriptors), counts hits and syncs the builtin
+ * ESM exports so the CLI's named imports see it. It is never part of the product; nothing global is patched here.
+ */
+const FAULT_PRELOAD = `import fs from 'node:fs'
+import { syncBuiltinESMExports } from 'node:module'
+const spec = JSON.parse(process.env.R29_FAULT)
+const real = { ...fs }
+let hits = 0
+let links = 0
+const fds = new Set()
+const paths = new Map()
+// r29 repair1: replace a name with a foreign regular file, or with a symlink to an owned foreign control file.
+const replace = (p) => {
+  real.unlinkSync(p)
+  if (spec.replacement === 'symlink') real.symlinkSync(spec.control, p)
+  else real.writeFileSync(p, spec.foreign)
+}
+const temporary = (p) => typeof p === 'string' && p.startsWith(spec.tmpPrefix ?? '\u0000')
+const fail = (code, syscall) => Object.assign(new Error(code + ': contract fault'), { code, syscall, errno: -1 })
+fs.openSync = function (p, ...rest) {
+  if (spec.fn === 'openSync' && temporary(p)) { hits += 1; throw fail(spec.code, 'open') }
+  const fd = real.openSync(p, ...rest)
+  if (temporary(p)) { fds.add(fd); paths.set(fd, p) }
+  return fd
+}
+const onFd = (name, syscall, after) => {
+  fs[name] = function (fd, ...rest) {
+    if (spec.fn === name && fds.has(fd)) {
+      hits += 1
+      if (spec.kind === 'replaceAfter') { const r = real[name](fd, ...rest); replace(paths.get(fd)); return r }
+      if (spec.kind === 'type') throw new TypeError('contract fault: not a system error')
+      if (after) real[name](fd, ...rest)
+      throw fail(spec.code, syscall)
+    }
+    if (name === 'closeSync' && spec.alsoClose === true && fds.has(fd)) {
+      hits += 1
+      real.closeSync(fd)
+      throw fail('EIO', 'close')
+    }
+    return real[name](fd, ...rest)
+  }
+}
+onFd('fstatSync', 'fstat', false)
+onFd('writeFileSync', 'write', false)
+onFd('fsyncSync', 'fsync', false)
+onFd('closeSync', 'close', true)
+const onPath = (name, syscall) => {
+  fs[name] = function (p, ...rest) {
+    if (name === 'linkSync' && temporary(p)) links += 1
+    const target = spec.fn === name && (p === spec.path || (spec.path === undefined && temporary(p)))
+    if (!target) return real[name](p, ...rest)
+    hits += 1
+    if (spec.kind === 'type') throw new TypeError('contract fault: not a system error')
+    if (spec.kind === 'tooLarge') throw Object.assign(new RangeError('contract fault: file too large'), { code: 'ERR_FS_FILE_TOO_LARGE' })
+    if (spec.kind === 'removeThenCall') { real.unlinkSync(p); return real[name](p, ...rest) }
+    if (spec.kind === 'foreignThenCall') { real.writeFileSync(rest[0], spec.foreign); return real[name](p, ...rest) }
+    if (spec.kind === 'replaceThenFail') { real.unlinkSync(p); real.writeFileSync(p, spec.foreign); throw fail(spec.code, syscall) }
+    if (spec.kind === 'replaceThenCall') { replace(p); return real[name](p, ...rest) }
+    if (spec.kind === 'callThenReplaceOut') { const r = real[name](p, ...rest); real.unlinkSync(rest[0]); real.writeFileSync(rest[0], spec.foreign); return r }
+    throw fail(spec.code, syscall)
+  }
+}
+onPath('statSync', 'stat')
+onPath('realpathSync', 'realpath')
+onPath('readFileSync', 'open')
+onPath('linkSync', 'link')
+onPath('unlinkSync', 'unlink')
+syncBuiltinESMExports()
+process.on('exit', () => real.writeFileSync(spec.hitsFile, JSON.stringify({ hits, links })))
+`
+
+interface FaultRun {
+  status: number | null
+  stdout: string
+  stderr: string
+  hits: number
+  links: number
+  report: boolean
+  leftovers: string[]
+}
+
+/** The written CLI in a child with the fault preload (or none); what it printed, wrote and left behind. */
+function runWithFault(dir: string, args: string[], out: string, spec?: Record<string, unknown>): FaultRun {
+  const preload = join(dir, 'fault-preload.mjs')
+  const hitsFile = join(dir, 'fault-hits.txt')
+  writeFileSync(preload, FAULT_PRELOAD)
+  rmSync(hitsFile, { force: true })
+  const fault = { tmpPrefix: join(dirname(out), `.${basename(out)}.`), hitsFile, ...spec }
+  const flags = spec === undefined ? [] : ['--import', pathToFileURL(preload).href]
+  const r = spawnSync(process.execPath, [...flags, SCRIPT, ...args], {
+    encoding: 'utf8',
+    timeout: SENTINEL_MS,
+    killSignal: 'SIGKILL',
+    env: { ...process.env, R29_FAULT: JSON.stringify(fault) },
+  })
+  const counted = existsSync(hitsFile)
+    ? (JSON.parse(readFileSync(hitsFile, 'utf8')) as { hits: number; links: number })
+    : { hits: 0, links: 0 }
+  const leftovers = readdirSync(dirname(out)).filter((f) => f.startsWith(`.${basename(out)}.`))
+  return { status: r.status, stdout: r.stdout, stderr: r.stderr, ...counted, report: existsSync(out), leftovers }
+}
+
+/** A fixed usage refusal: exactly one line, no stack frame, no path, no errno text. */
+function assertRefusal(r: FaultRun, code: string, message: string, dir: string, label: string): void {
+  assert.equal(r.status, 2, `${label}: ${r.stderr}`)
+  assert.equal(r.stdout, '', label)
+  assert.equal(r.stderr, `intake-observe: ${code}: ${message}\n`, label)
+  assert.ok(!r.stderr.includes(dir) && !/\n\s+at |\bE[A-Z]{3,}\b/.test(r.stderr), label)
+  assert.equal(r.report, false, label)
+}
+
+const UNREADABLE = 'the input is not a readable file'
+const UNUSABLE = 'the report path cannot be used; no report was written'
+
+describe('r29: expected input filesystem failures are input_unreadable (exit 2, fixed message, no report)', () => {
+  it('real paths: a looping link and an over-long name, at the earliest input check', () => {
+    withTmp((dir) => {
+      const { hash } = writeCorpus(dir, corpus())
+      const loop = join(dir, 'loop.json')
+      symlinkSync(loop, loop)
+      const long = join(dir, `${'n'.repeat(300)}.json`)
+      for (const [label, input] of [
+        ['looping link', loop],
+        ['over-long name', long],
+      ] as const) {
+        const out = join(dir, `${label.replace(/\W/g, '-')}.report.json`)
+        assertRefusal(
+          runWithFault(dir, ['--input', input, '--input-sha256', hash, '--out', out], out),
+          'input_unreadable',
+          UNREADABLE,
+          dir,
+          label,
+        )
+      }
+    })
+  })
+
+  it('observed controls keep their meaning: missing, a directory, a file used as a directory (ENOTDIR)', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, corpus())
+      // Observed on Node 24.21.0: statSync(<file>/x, { throwIfNoEntry: false }) returns undefined, as for a missing file.
+      for (const [label, input] of [
+        ['missing', join(dir, 'absent.json')],
+        ['directory', dir],
+        ['file as directory', join(path, 'x')],
+      ] as const) {
+        const out = join(dir, `${label.replace(/\W/g, '-')}.report.json`)
+        assertRefusal(
+          runWithFault(dir, ['--input', input, '--input-sha256', hash, '--out', out], out),
+          'input_unreadable',
+          UNREADABLE,
+          dir,
+          label,
+        )
+      }
+    })
+  })
+
+  it('contract fault injection: denied, failing or vanished reads and resolutions', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, corpus())
+      const cases: [string, Record<string, unknown>][] = [
+        ['read denied', { fn: 'readFileSync', path, code: 'EACCES' }],
+        ['read I/O error', { fn: 'readFileSync', path, code: 'EIO' }],
+        ['removed between stat and read', { fn: 'readFileSync', path, kind: 'removeThenCall' }],
+        ['stat denied', { fn: 'statSync', path, code: 'EACCES' }],
+        ['realpath denied', { fn: 'realpathSync', path, code: 'EACCES' }],
+      ]
+      for (const [label, spec] of cases) {
+        if (!existsSync(path)) writeCorpus(dir, corpus())
+        const out = join(dir, `${label.replace(/\W/g, '-')}.report.json`)
+        const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', out], out, spec)
+        assert.ok(r.hits >= 1, `${label}: the fault was reached`)
+        assertRefusal(r, 'input_unreadable', UNREADABLE, dir, label)
+      }
+    })
+  })
+
+  it('a read refused for growth past a buffer is input_too_large; a programming error stays visible', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, corpus())
+      const grown = join(dir, 'grown.report.json')
+      const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', grown], grown, {
+        fn: 'readFileSync',
+        path,
+        kind: 'tooLarge',
+      })
+      assert.equal(r.hits, 1)
+      assertRefusal(r, 'input_too_large', 'the input grew past the limit', dir, 'grew')
+      const typed = join(dir, 'typed.report.json')
+      const t = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', typed], typed, {
+        fn: 'readFileSync',
+        path,
+        kind: 'type',
+      })
+      assert.equal(t.hits, 1)
+      assert.equal(t.status, 1, 'an unexpected error is not a usage error')
+      assert.match(t.stderr, /TypeError: contract fault: not a system error/)
+      assert.doesNotMatch(t.stderr, /intake-observe: \w+:/)
+      assert.equal(t.report, false)
+    })
+  })
+
+  it('the earlier input and output refusals keep their codes and order', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, corpus())
+      const wrong = join(dir, 'wrong.report.json')
+      const mismatch = runWithFault(dir, ['--input', path, '--input-sha256', '0'.repeat(64), '--out', wrong], wrong)
+      assert.equal(mismatch.status, 2)
+      assert.match(mismatch.stderr, /^intake-observe: input_hash_mismatch: /)
+      const ok = join(dir, 'ok.report.json')
+      const fine = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', ok], ok)
+      assert.ok(fine.status === 0 || fine.status === 1, fine.stderr)
+      assert.equal(fine.stderr, '')
+      assert.match(fine.stdout, /^intake-observe: \d+\/\d+ observed, /)
+      assert.equal(fine.report, true)
+      assert.deepEqual(fine.leftovers, [])
+    })
+  })
+})
+
+describe('r29: expected output filesystem failures are output_unusable; the CLI cleans only what it created', () => {
+  it('real paths: a looping report directory and an over-long report name; a file as directory is still missing', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, corpus())
+      const loop = join(dir, 'loopdir')
+      symlinkSync(loop, loop)
+      const looping = join(loop, 'r.json')
+      const r1 = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', looping], join(dir, 'r1.json'))
+      assertRefusal(r1, 'output_unusable', UNUSABLE, dir, 'looping directory')
+      const long = join(dir, `${'n'.repeat(300)}.json`)
+      const r2 = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', long], join(dir, 'r2.json'))
+      assertRefusal(r2, 'output_unusable', UNUSABLE, dir, 'over-long name')
+      const r3 = runWithFault(
+        dir,
+        ['--input', path, '--input-sha256', hash, '--out', join(path, 'r.json')],
+        join(dir, 'r3.json'),
+      )
+      assertRefusal(r3, 'output_directory_missing', 'the report directory does not exist', dir, 'file as directory')
+    })
+  })
+
+  it('contract fault injection: open, fstat, write, fsync, close and link failures publish nothing', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, corpus())
+      const cases: [string, Record<string, unknown>, number][] = [
+        ['open denied', { fn: 'openSync', code: 'EACCES' }, 0],
+        ['write no space', { fn: 'writeFileSync', code: 'ENOSPC' }, 0],
+        ['fsync I/O error', { fn: 'fsyncSync', code: 'EIO' }, 0],
+        // A close failure after the write failed never replaces it (two faults: write, then close).
+        ['write no space, then close I/O error', { fn: 'writeFileSync', code: 'ENOSPC', alsoClose: true }, 0],
+        ['link I/O error', { fn: 'linkSync', code: 'EIO' }, 0],
+        // Without the identity of what it created, the CLI does not remove the name: the leftover is reported, honestly.
+        ['fstat I/O error', { fn: 'fstatSync', code: 'EIO' }, 1],
+      ]
+      for (const [label, spec, left] of cases) {
+        const out = join(dir, `${label.replace(/\W/g, '-')}.json`)
+        const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', out], out, spec)
+        assert.equal(r.hits, spec.alsoClose === true ? 2 : 1, `${label}: each fault was reached once`)
+        assertRefusal(r, 'output_unusable', UNUSABLE, dir, label)
+        assert.equal(r.leftovers.length, left, `${label}: ${r.leftovers.join(',')}`)
+        for (const f of r.leftovers) rmSync(join(dir, f))
+      }
+    })
+  })
+
+  it('a programming error while writing stays visible, and the temporary file is still removed', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, corpus())
+      const out = join(dir, 'typed.json')
+      const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', out], out, {
+        fn: 'writeFileSync',
+        kind: 'type',
+      })
+      assert.equal(r.hits, 1)
+      assert.equal(r.status, 1)
+      assert.match(r.stderr, /TypeError: contract fault: not a system error/)
+      assert.equal(r.report, false)
+      assert.deepEqual(r.leftovers, [])
+    })
+  })
+
+  it('foreign files are never overwritten or removed: present before, created during, or replacing the temporary', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, corpus())
+      const before = join(dir, 'before.json')
+      writeFileSync(before, 'foreign-before')
+      const r1 = runWithFault(
+        dir,
+        ['--input', path, '--input-sha256', hash, '--out', before],
+        join(dir, 'unused1.json'),
+      )
+      assert.equal(r1.status, 2)
+      assert.equal(r1.stderr, 'intake-observe: output_exists: the report path already exists; nothing is overwritten\n')
+      assert.equal(readFileSync(before, 'utf8'), 'foreign-before')
+      const race = join(dir, 'race.json')
+      const r2 = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', race], race, {
+        fn: 'linkSync',
+        kind: 'foreignThenCall',
+        foreign: 'foreign-race',
+      })
+      assert.equal(r2.hits, 1)
+      assert.equal(r2.status, 2)
+      assert.equal(
+        r2.stderr,
+        'intake-observe: output_exists: the report path appeared while writing; nothing is overwritten\n',
+      )
+      assert.equal(readFileSync(race, 'utf8'), 'foreign-race')
+      assert.deepEqual(r2.leftovers, [])
+      const swapped = join(dir, 'swapped.json')
+      const r3 = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', swapped], swapped, {
+        fn: 'linkSync',
+        kind: 'replaceThenFail',
+        code: 'EIO',
+        foreign: 'foreign-replacement',
+      })
+      assert.equal(r3.hits, 1)
+      assertRefusal(r3, 'output_unusable', UNUSABLE, dir, 'replaced temporary')
+      assert.equal(r3.leftovers.length, 1, 'the replacement is preserved under the temporary name')
+      assert.equal(readFileSync(join(dir, r3.leftovers[0] ?? ''), 'utf8'), 'foreign-replacement')
+    })
+  })
+
+  it('after a synced, linked report, a close failure changes nothing', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, corpus())
+      const out = join(dir, 'closed.json')
+      const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', out], out, {
+        fn: 'closeSync',
+        code: 'EIO',
+      })
+      assert.equal(r.hits, 1)
+      assert.ok(r.status === 0 || r.status === 1, r.stderr)
+      assert.equal(r.stderr, '')
+      assert.equal(r.report, true)
+      assert.deepEqual(r.leftovers, [])
+    })
+  })
+
+  it('after a published report, a failed removal of the temporary copy warns and keeps the report and its exit', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, corpus())
+      const out = join(dir, 'kept.json')
+      const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', out], out, {
+        fn: 'unlinkSync',
+        code: 'EIO',
+      })
+      assert.equal(r.hits, 1)
+      assert.ok(r.status === 0 || r.status === 1, r.stderr)
+      assert.equal(r.report, true)
+      assert.equal(JSON.parse(readFileSync(out, 'utf8')).schema, 'sophia.intake-observation.report.v7')
+      assert.equal(
+        r.stderr,
+        'intake-observe: warning: temporary_report_left: a private temporary copy of the report could not be removed\n',
+      )
+      assert.match(r.stdout, /^intake-observe: \d+\/\d+ observed, /)
+      assert.equal(r.leftovers.length, 1, 'the leftover is real and said to be')
+    })
+  })
+})
+
+/** A corpus whose fixture declarations are replaced by the given JSON text (so __proto__ stays an own data key). */
+function withFixtures(fixturesJson: string | undefined, reference: string | undefined): TestDoc {
+  const doc = corpus()
+  delete doc.authorityFixtures
+  delete doc.authorityFixtureSha256
+  const parsed = JSON.parse(
+    `{${[fixturesJson === undefined ? '' : `"authorityFixtures":${fixturesJson}`, reference === undefined ? '' : `"authorityFixtureSha256":${reference}`].filter((x) => x !== '').join(',')}}`,
+  ) as Record<string, unknown>
+  return Object.assign(doc, parsed)
+}
+
+const BODY = JSON.stringify(fixtureBody())
+const MALFORMED_JSON = ['null', 'true', '7', '"x"', '[]', '[{}]']
+
+describe('r29: malformed fixture declarations refuse the file (input_invalid_authority_fixtures, exit 2, no report)', () => {
+  const invalid: [string, TestDoc][] = [
+    ...MALFORMED_JSON.filter((x) => x !== '[{}]').map((c): [string, TestDoc] => [
+      `container ${c}`,
+      withFixtures(c, `"${FIXTURE_SHA256}"`),
+    ]),
+    ...MALFORMED_JSON.map((e): [string, TestDoc] => [
+      `entry ${e}`,
+      withFixtures(`{"bad":${e}}`, `"${FIXTURE_SHA256}"`),
+    ]),
+    ...MALFORMED_JSON.map((e): [string, TestDoc] => [
+      `valid plus ${e}`,
+      withFixtures(`{"${FIXTURE_ID}":${BODY},"bad":${e}}`, `"${FIXTURE_SHA256}"`),
+    ]),
+    ['all invalid', withFixtures('{"a":null,"b":7,"c":[]}', undefined)],
+    ['valid plus invalid listed first', withFixtures(`{"bad":null,"${FIXTURE_ID}":${BODY}}`, `"${FIXTURE_SHA256}"`)],
+    ...[
+      '7',
+      `"${FIXTURE_SHA256.toUpperCase()}"`,
+      `"${FIXTURE_SHA256.slice(1)}"`,
+      `"${'z'.repeat(64)}"`,
+      'null',
+      `["${FIXTURE_SHA256}"]`,
+    ].map((declared): [string, TestDoc] => [
+      `reference ${declared.slice(0, 12)}`,
+      withFixtures(`{"${FIXTURE_ID}":${BODY}}`, declared),
+    ]),
+    ['reference without fixtures', withFixtures(undefined, '7')],
+    ['shape before depth', withFixtures(`{"deep":${JSON.stringify(nested(40, 'object'))},"bad":null}`, undefined)],
+  ]
+
+  it('in the built report', () => {
+    for (const [label, doc] of invalid)
+      assert.throws(
+        () => report(doc),
+        (err: unknown) => err instanceof UsageError && err.code === 'input_invalid_authority_fixtures',
+        label,
+      )
+  })
+
+  it('in the written report from the command line', () => {
+    withTmp((dir) => {
+      for (const [i, [label, doc]] of invalid.entries()) {
+        const { path, hash } = writeCorpus(dir, doc)
+        const out = join(dir, `f${String(i)}.json`)
+        assertRefusal(
+          runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', out], out),
+          'input_invalid_authority_fixtures',
+          'the declared authority fixtures or their reference are malformed',
+          dir,
+          label,
+        )
+      }
+    })
+  })
+})
+
+describe('r29: valid fixture declarations keep their provenance-only meaning', () => {
+  const baseline = () => {
+    const doc = withFixtures(undefined, undefined)
+    return report(doc).cases.map((c) => c.observation)
+  }
+  const emptyHash = sha256(canonicalJson({}))
+  const other = { purpose: 'second public fixture' }
+  const otherHash = sha256(canonicalJson(other))
+  const valid: [string, TestDoc, { id: string; ref: string | null; match: boolean | null }[]][] = [
+    ['absent', withFixtures(undefined, undefined), []],
+    ['empty map', withFixtures('{}', undefined), []],
+    ['empty map with a reference', withFixtures('{}', `"${FIXTURE_SHA256}"`), []],
+    [
+      'empty body, matching',
+      withFixtures('{"empty":{}}', `"${emptyHash}"`),
+      [{ id: 'empty', ref: emptyHash, match: true }],
+    ],
+    [
+      'one body, matching',
+      withFixtures(`{"${FIXTURE_ID}":${BODY}}`, `"${FIXTURE_SHA256}"`),
+      [{ id: FIXTURE_ID, ref: FIXTURE_SHA256, match: true }],
+    ],
+    [
+      'one body, mismatching',
+      withFixtures(`{"${FIXTURE_ID}":${BODY}}`, `"${'a'.repeat(64)}"`),
+      [{ id: FIXTURE_ID, ref: 'a'.repeat(64), match: false }],
+    ],
+    [
+      'one body, no reference',
+      withFixtures(`{"${FIXTURE_ID}":${BODY}}`, undefined),
+      [{ id: FIXTURE_ID, ref: null, match: null }],
+    ],
+    [
+      'two bodies cannot be corpus-verified',
+      withFixtures(`{"${FIXTURE_ID}":${BODY},"other":${JSON.stringify(other)}}`, `"${otherHash}"`),
+      [
+        { id: FIXTURE_ID, ref: null, match: null },
+        { id: 'other', ref: null, match: null },
+      ],
+    ],
+    [
+      'arbitrary ids are data',
+      withFixtures(`{"":{},"${'k'.repeat(300)}":{},"__proto__":{},"constructor":{}}`, undefined),
+      ['', 'k'.repeat(300), '__proto__', 'constructor'].map((id) => ({ id, ref: null, match: null })),
+    ],
+  ]
+
+  it('built and written: provenance as declared, observations and admissions unchanged', () => {
+    const observations = baseline()
+    withTmp((dir) => {
+      for (const [i, [label, doc, want]] of valid.entries()) {
+        const built = report(doc)
+        const got = built.syntheticAuthority.fixtures.map((f) => ({
+          id: f.id,
+          ref: f.corpusReference,
+          match: f.matchesCorpusReference,
+        }))
+        assert.deepEqual(got, want, label)
+        assert.deepEqual(
+          built.cases.map((c) => c.observation),
+          observations,
+          label,
+        )
+        assert.ok(
+          built.cases.every((c) => c.observation.admission.authority === 'none'),
+          label,
+        )
+        const { path, hash } = writeCorpus(dir, doc)
+        const out = join(dir, `v${String(i)}.json`)
+        const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', out], out)
+        assert.ok(r.status === 0 || r.status === 1, `${label}: ${r.stderr}`)
+        assert.equal(r.stderr, '', label)
+        const written = JSON.parse(readFileSync(out, 'utf8')) as ReturnType<typeof report>
+        assert.deepEqual(written.syntheticAuthority, built.syntheticAuthority, label)
+      }
+    })
+  })
+
+  it('a valid but over-deep body is still input_fixture_too_deep', () => {
+    const doc = withFixtures(`{"deep":${JSON.stringify(nested(40, 'object'))}}`, undefined)
+    assert.throws(
+      () => report(doc),
+      (err: unknown) => err instanceof UsageError && err.code === 'input_fixture_too_deep',
+    )
+  })
+})
+
+// r29 repair1 (R29-F01): a successful link publishes only the regular file this run wrote and synced. The temporary name
+// is fenced right before the link and the report path is verified right after it, so a replacement after the fsync or
+// at the link call itself never becomes successful foreign output. Fresh public data; contract fault seam as above.
+const IDENTITY = 'the report could not be published as written; anything at the report path is not this report'
+
+describe('r29 repair1: a successful link publishes only the file this run wrote', () => {
+  it('a valid report is published as a regular file, linked once, with nothing left over', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, corpus())
+      const out = join(dir, 'valid.json')
+      const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', out], out, { fn: 'none' })
+      assert.ok(r.status === 0 || r.status === 1, r.stderr)
+      assert.equal(r.stderr, '')
+      assert.match(r.stdout, /^intake-observe: \d+\/\d+ observed, /)
+      assert.equal(r.links, 1)
+      assert.ok(lstatSync(out).isFile())
+      assert.equal(
+        (JSON.parse(readFileSync(out, 'utf8')) as { schema: string }).schema,
+        'sophia.intake-observation.report.v7',
+      )
+      assert.deepEqual(r.leftovers, [])
+    })
+  })
+
+  for (const replacement of ['regular', 'symlink'] as const) {
+    it(`a ${replacement} replacement of the temporary after the fsync is fenced: no link, no success`, () => {
+      withTmp((dir) => {
+        const { path, hash } = writeCorpus(dir, corpus())
+        const control = join(dir, 'control.txt')
+        writeFileSync(control, 'FOREIGN-CONTROL')
+        const out = join(dir, `fsync-${replacement}.json`)
+        const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', out], out, {
+          fn: 'fsyncSync',
+          kind: 'replaceAfter',
+          replacement,
+          foreign: 'FOREIGN-REGULAR',
+          control,
+        })
+        assert.equal(r.hits, 1, 'the real fsync ran, then the name was replaced')
+        assert.equal(r.links, 0, 'nothing was linked from the replaced name')
+        assertRefusal(r, 'output_unusable', IDENTITY, dir, `fsync ${replacement}`)
+        assert.equal(r.leftovers.length, 1, 'the replacement is foreign and is left where it is')
+        const left = join(dir, r.leftovers[0] ?? '')
+        if (replacement === 'symlink') assert.ok(lstatSync(left).isSymbolicLink())
+        else assert.equal(readFileSync(left, 'utf8'), 'FOREIGN-REGULAR')
+        assert.equal(readFileSync(control, 'utf8'), 'FOREIGN-CONTROL')
+      })
+    })
+
+    it(`a ${replacement} replacement at the link call, after the fence, is caught by the published-path check`, () => {
+      withTmp((dir) => {
+        const { path, hash } = writeCorpus(dir, corpus())
+        const control = join(dir, 'control.txt')
+        writeFileSync(control, 'FOREIGN-CONTROL')
+        const out = join(dir, `link-${replacement}.json`)
+        const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', out], out, {
+          fn: 'linkSync',
+          kind: 'replaceThenCall',
+          replacement,
+          foreign: 'FOREIGN-REGULAR',
+          control,
+        })
+        assert.equal(r.hits, 1, 'the name was replaced at the link call and the real link ran')
+        assert.equal(r.links, 1)
+        assertRefusal(r, 'output_unusable', IDENTITY, dir, `link ${replacement}`)
+        assert.equal(r.leftovers.length, 1, 'the replacement keeps its own name')
+        const left = join(dir, r.leftovers[0] ?? '')
+        if (replacement === 'symlink') assert.ok(lstatSync(left).isSymbolicLink())
+        else assert.equal(readFileSync(left, 'utf8'), 'FOREIGN-REGULAR')
+        assert.equal(readFileSync(control, 'utf8'), 'FOREIGN-CONTROL')
+      })
+    })
+  }
+
+  it('a report path replaced right after the link is not announced, and the foreign file there is untouched', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, corpus())
+      const out = join(dir, 'swapped-out.json')
+      const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', out], out, {
+        fn: 'linkSync',
+        kind: 'callThenReplaceOut',
+        foreign: 'FOREIGN-AT-OUT',
+      })
+      assert.equal(r.hits, 1)
+      assert.equal(r.status, 2)
+      assert.equal(r.stdout, '')
+      assert.equal(r.stderr, `intake-observe: output_unusable: ${IDENTITY}\n`)
+      assert.equal(readFileSync(out, 'utf8'), 'FOREIGN-AT-OUT', 'what another party put there is not removed')
+      assert.deepEqual(r.leftovers, [], 'the temporary this run created and still owns is removed')
     })
   })
 })

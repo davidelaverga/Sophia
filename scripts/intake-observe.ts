@@ -21,6 +21,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import {
   closeSync,
+  fstatSync,
   fsyncSync,
   linkSync,
   lstatSync,
@@ -122,6 +123,45 @@ export class UsageError extends Error {
   }
 }
 
+/**
+ * An expected filesystem failure (r29): Node's system-error shape, an Error with a string errno `code` and a string
+ * `syscall`. Only these are translated into usage errors. A TypeError, RangeError or any other programming error has
+ * no `syscall` and stays visible, uncaught.
+ */
+function isSystemError(err: unknown): err is Error & { readonly code: string; readonly syscall: string } {
+  return (
+    err instanceof Error &&
+    'code' in err &&
+    typeof err.code === 'string' &&
+    'syscall' in err &&
+    typeof err.syscall === 'string'
+  )
+}
+
+/** The fixed, path-free input refusal: no errno text, no path, no stack. */
+const unreadableInput = () => new UsageError('input_unreadable', 'the input is not a readable file')
+/** The fixed, path-free output refusal (r29): the report path cannot be resolved or written; nothing is published. */
+const unusableOutput = () => new UsageError('output_unusable', 'the report path cannot be used; no report was written')
+/**
+ * The fixed, path-free refusal when publication cannot be proved to be this run's report (r29 repair1): no success is
+ * announced, and nothing is claimed about whatever another party left at the report path.
+ */
+const unverifiedPublication = () =>
+  new UsageError(
+    'output_unusable',
+    'the report could not be published as written; anything at the report path is not this report',
+  )
+
+/** Runs a filesystem step, turning an expected filesystem failure into `failure()`; anything else passes through. */
+function filesystem<T>(step: () => T, failure: () => UsageError): T {
+  try {
+    return step()
+  } catch (err: unknown) {
+    if (isSystemError(err)) throw failure()
+    throw err
+  }
+}
+
 export interface CaseError {
   readonly index: number
   readonly caseId: string | null
@@ -186,18 +226,24 @@ const inside = (root: string, path: string): boolean => {
 /** The report goes to an explicit journal path: outside the repository, not the input, not an existing file. */
 export function checkOutputPath(out: string, input: string, repositoryRoot = REPOSITORY_ROOT): void {
   if (out === input) throw new UsageError('output_is_input', 'the report path is the input')
-  if (!statSync(dirname(out), { throwIfNoEntry: false })?.isDirectory())
-    throw new UsageError('output_directory_missing', 'the report directory does not exist')
+  // Resolving the report location may fail on the filesystem (a looping link, an over-long name): output_unusable (r29).
+  const directory = filesystem(() => statSync(dirname(out), { throwIfNoEntry: false }), unusableOutput)
+  if (!directory?.isDirectory()) throw new UsageError('output_directory_missing', 'the report directory does not exist')
   // Compare real locations, so a symlinked directory cannot carry the report into the repository.
-  const real = join(realpathSync(dirname(out)), basename(out))
+  const real = join(
+    filesystem(() => realpathSync(dirname(out)), unusableOutput),
+    basename(out),
+  )
   const realRoot =
     statSync(repositoryRoot, { throwIfNoEntry: false }) === undefined ? repositoryRoot : realpathSync(repositoryRoot)
   if (inside(repositoryRoot, out) || inside(realRoot, real))
     throw new UsageError('output_inside_repository', 'the report path is inside the repository')
-  if (statSync(input, { throwIfNoEntry: false }) !== undefined && realpathSync(input) === real)
+  // The input is resolved here, before it is read: its filesystem failures are already input_unreadable (r29).
+  const inputStat = filesystem(() => statSync(input, { throwIfNoEntry: false }), unreadableInput)
+  if (inputStat !== undefined && filesystem(() => realpathSync(input), unreadableInput) === real)
     throw new UsageError('output_is_input', 'the report path is the input')
   // linkSync at write time settles a race with a file created after this check.
-  if (lstatSync(out, { throwIfNoEntry: false }) !== undefined)
+  if (filesystem(() => lstatSync(out, { throwIfNoEntry: false }), unusableOutput) !== undefined)
     throw new UsageError('output_exists', 'the report path already exists; nothing is overwritten')
 }
 
@@ -205,36 +251,142 @@ export function readBoundedInput(
   path: string,
   expectedSha256: string,
 ): { readonly bytes: Buffer; readonly sha256: string } {
-  const stat = statSync(path, { throwIfNoEntry: false })
-  if (!stat?.isFile()) throw new UsageError('input_unreadable', 'the input is not a readable file')
+  const stat = filesystem(() => statSync(path, { throwIfNoEntry: false }), unreadableInput)
+  if (!stat?.isFile()) throw unreadableInput()
   if (stat.size > CLI_LIMITS.fileBytes)
     throw new UsageError('input_too_large', `the input exceeds ${CLI_LIMITS.fileBytes} bytes`)
-  const bytes = readFileSync(path)
-  if (bytes.length > CLI_LIMITS.fileBytes) throw new UsageError('input_too_large', 'the input grew past the limit')
+  const grew = () => new UsageError('input_too_large', 'the input grew past the limit')
+  let bytes: Buffer
+  try {
+    bytes = filesystem(() => readFileSync(path), unreadableInput)
+  } catch (err: unknown) {
+    // The read itself refusing a file that grew past what a buffer holds is the same growth (r29); nothing broader.
+    if (err instanceof RangeError && 'code' in err && err.code === 'ERR_FS_FILE_TOO_LARGE') throw grew()
+    throw err
+  }
+  if (bytes.length > CLI_LIMITS.fileBytes) throw grew()
   const digest = sha256(bytes)
   if (digest !== expectedSha256) throw new UsageError('input_hash_mismatch', `input SHA-256 is ${digest}`)
   return { bytes, sha256: digest }
 }
 
-/** Exclusive-create a temporary file beside the target, sync it, then link it to the final name (fails if taken). */
-export function writeReportAtomically(out: string, text: string): void {
-  const tmp = join(dirname(out), `.${basename(out)}.${randomBytes(6).toString('hex')}.tmp`)
-  const fd = openSync(tmp, 'wx', 0o600)
+interface FileIdentity {
+  readonly dev: number
+  readonly ino: number
+}
+
+const sameFile = (a: FileIdentity | undefined, b: FileIdentity | undefined): boolean =>
+  a !== undefined && b !== undefined && a.dev === b.dev && a.ino === b.ino
+
+/** What a name refers to without following it, or undefined when it cannot be observed (an expected failure). */
+function observe(path: string, follow = false) {
   try {
+    return (follow ? statSync : lstatSync)(path, { throwIfNoEntry: false })
+  } catch (err: unknown) {
+    if (isSystemError(err)) return undefined
+    throw err
+  }
+}
+
+/** Whether a name refers, without following it, to the regular file with this identity. */
+function namesFile(path: string, owned: FileIdentity): boolean {
+  const now = observe(path)
+  return now !== undefined && now.isFile() && sameFile(now, owned)
+}
+
+/**
+ * Removes the temporary file this invocation created, and only it: the name is unlinked only while it still names the
+ * file whose identity was recorded at creation, so a replacement or foreign file is left alone. Never throws for an
+ * expected filesystem failure; reports whether nothing of ours is left under the name.
+ */
+function removeOwnTemporary(tmp: string, owned: FileIdentity | undefined): boolean {
+  // Without the recorded identity the file cannot be told apart from a replacement: it is left, and said to be.
+  if (owned === undefined) return false
+  try {
+    const now = lstatSync(tmp, { throwIfNoEntry: false })
+    if (now === undefined || !sameFile(now, owned)) return true
+    unlinkSync(tmp)
+    return true
+  } catch (err: unknown) {
+    if (isSystemError(err)) return false
+    throw err
+  }
+}
+
+/**
+ * After a link this run made whose result is not its report (r29 repair1): the report path is unlinked only when it
+ * names the same file the temporary name holds or resolves to (so it is the link this run just made from it) and that
+ * file has another name (so no foreign data is lost). Otherwise the report path is left untouched: it may be foreign,
+ * or replaced after the link. Nothing is read from it.
+ */
+function withdrawForeignLink(out: string, tmp: string): void {
+  const atOut = observe(out)
+  if (atOut === undefined || atOut.nlink < 2) return
+  if (!sameFile(atOut, observe(tmp)) && !sameFile(atOut, observe(tmp, true))) return
+  try {
+    unlinkSync(out)
+  } catch (err: unknown) {
+    if (!isSystemError(err)) throw err
+  }
+}
+
+/**
+ * Exclusive-create a temporary file beside the target, write and sync it, then link it to the final name (fails if
+ * taken). The descriptor stays open until every identity check and the cleanup are done, so the file it names cannot be
+ * freed and its identity cannot be reused.
+ *
+ * Publication is bound to that file (r29 repair1): right before the link, the temporary name must still be the regular
+ * file this run wrote and synced (a fence); right after it, the report path must be that same regular file (the
+ * verification), which also catches a replacement at the link call itself. If either fails, no success is announced
+ * (output_unusable), a link this run made to something else is withdrawn when that can be proved, and foreign files are
+ * left untouched. The verification boundary is the moment of that check: later changes by whoever can write the
+ * directory, and physical crashes, are outside it.
+ *
+ * Before publication any expected filesystem failure is output_unusable and the temporary file is removed; a cleanup or
+ * close failure never replaces the original failure. After a verified publication the result is whether the private
+ * temporary name was also removed, and a later close failure changes nothing.
+ */
+export function writeReportAtomically(out: string, text: string): boolean {
+  const tmp = join(dirname(out), `.${basename(out)}.${randomBytes(6).toString('hex')}.tmp`)
+  const fd = filesystem(() => openSync(tmp, 'wx', 0o600), unusableOutput)
+  let owned: FileIdentity | undefined
+  let failure: unknown
+  let linking = false
+  let published = false
+  try {
+    const stat = fstatSync(fd)
+    owned = { dev: stat.dev, ino: stat.ino }
     writeFileSync(fd, text)
     fsyncSync(fd)
-  } finally {
-    closeSync(fd)
-  }
-  try {
+    if (!namesFile(tmp, owned)) throw unverifiedPublication()
+    linking = true
     linkSync(tmp, out)
+    if (namesFile(out, owned)) published = true
+    else {
+      withdrawForeignLink(out, tmp)
+      throw unverifiedPublication()
+    }
   } catch (err: unknown) {
-    if (err instanceof Error && 'code' in err && err.code === 'EEXIST')
-      throw new UsageError('output_exists', 'the report path appeared while writing; nothing is overwritten')
-    throw err
-  } finally {
-    unlinkSync(tmp)
+    failure = err
   }
+  const removed = removeOwnTemporary(tmp, owned)
+  try {
+    closeSync(fd)
+  } catch (err: unknown) {
+    // An earlier failure stands; after a verified publication an expected close failure changes nothing.
+    if (failure === undefined && !isSystemError(err)) throw err
+  }
+  if (published) return removed
+  throw publicationFailure(failure, linking)
+}
+
+/** What an unpublished write reports: a deliberate refusal stands; expected filesystem failures become usage errors. */
+function publicationFailure(failure: unknown, linking: boolean): unknown {
+  if (failure instanceof UsageError) return failure
+  // Only the final link can find the target taken: a foreign file is never overwritten or removed.
+  if (linking && isSystemError(failure) && failure.code === 'EEXIST')
+    return new UsageError('output_exists', 'the report path appeared while writing; nothing is overwritten')
+  return isSystemError(failure) ? unusableOutput() : failure
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -322,31 +474,51 @@ function rolesOf(body: Record<string, unknown>): string[] {
   return grants.roles.filter((r): r is string => typeof r === 'string')
 }
 
+const invalidFixtures = () =>
+  new UsageError('input_invalid_authority_fixtures', 'the declared authority fixtures or their reference are malformed')
+const SHA256_HEX = /^[0-9a-f]{64}$/
+
+/**
+ * The declared fixtures, validated whole before any is hashed (r29): an absent container and an empty one are valid;
+ * a container that is present but not an object, any entry whose body is not an object, or a present corpus reference
+ * that is not a lowercase SHA-256 refuses the file. Nothing is filtered out, so the single-fixture rule counts exactly
+ * the declared bodies. Ids stay arbitrary data keys; bodies stay opaque but for the depth bound and the role list.
+ */
+function declaredFixtures(doc: Record<string, unknown>): {
+  readonly bodies: readonly (readonly [string, Record<string, unknown>])[]
+  readonly reference: string | null
+} {
+  const fixtures = doc.authorityFixtures
+  if (fixtures !== undefined && !isRecord(fixtures)) throw invalidFixtures()
+  const entries = fixtures === undefined ? [] : Object.entries(fixtures)
+  const bodies = entries.filter((entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]))
+  if (bodies.length !== entries.length) throw invalidFixtures()
+  const declared = doc.authorityFixtureSha256
+  if (declared !== undefined && !(typeof declared === 'string' && SHA256_HEX.test(declared))) throw invalidFixtures()
+  return { bodies, reference: declared ?? null }
+}
+
 /**
  * Provenance only: each fixture body's recomputed SHA-256 and whether a corpus-level reference matches it. A verified
  * body proves where the fixture came from, not current authority; no admission label is derived from it (r3 F04).
  */
 export function checkFixtures(doc: Record<string, unknown>): FixtureCheck[] {
-  const fixtures = doc.authorityFixtures
-  if (!isRecord(fixtures)) return []
-  const reference = typeof doc.authorityFixtureSha256 === 'string' ? doc.authorityFixtureSha256 : null
+  const { bodies, reference } = declaredFixtures(doc)
+  // Canonical JSON recurses through each body: one nested past the bound refuses the file before any of them is
+  // hashed or anything is reported (r26), once every declaration is known to be well-formed (r29).
+  if (bodies.some(([, body]) => nestingExceeds(body, CLI_LIMITS.fixtureDepth)))
+    throw new UsageError(
+      'input_fixture_too_deep',
+      `an authority fixture nests deeper than ${String(CLI_LIMITS.fixtureDepth)}`,
+    )
   // One corpus-level reference can only vouch for a single fixture; with several, none is corpus-verified.
-  const single = Object.keys(fixtures).length === 1
-  return Object.entries(fixtures)
-    .filter((entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]))
-    .map(([id, body]) => {
-      // Canonical JSON recurses through the body: a body nested past the bound refuses the file before any of it is
-      // hashed or anything is reported (r26).
-      if (nestingExceeds(body, CLI_LIMITS.fixtureDepth))
-        throw new UsageError(
-          'input_fixture_too_deep',
-          `an authority fixture nests deeper than ${String(CLI_LIMITS.fixtureDepth)}`,
-        )
-      const computedSha256 = sha256(canonicalJson(body))
-      const corpusReference = single ? reference : null
-      const matchesCorpusReference = corpusReference === null ? null : corpusReference === computedSha256
-      return { id, computedSha256, corpusReference, matchesCorpusReference, roles: rolesOf(body) }
-    })
+  const single = bodies.length === 1
+  return bodies.map(([id, body]) => {
+    const computedSha256 = sha256(canonicalJson(body))
+    const corpusReference = single ? reference : null
+    const matchesCorpusReference = corpusReference === null ? null : corpusReference === computedSha256
+    return { id, computedSha256, corpusReference, matchesCorpusReference, roles: rolesOf(body) }
+  })
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -907,7 +1079,12 @@ export function main(argv: readonly string[]): number {
       bytes: bytes.length,
       policySourceSha256,
     })
-    writeReportAtomically(args.out, `${JSON.stringify(report, null, 2)}\n`)
+    const cleaned = writeReportAtomically(args.out, `${JSON.stringify(report, null, 2)}\n`)
+    // Published, complete; only the private temporary name may remain (r29): said once, without any path.
+    if (!cleaned)
+      console.error(
+        'intake-observe: warning: temporary_report_left: a private temporary copy of the report could not be removed',
+      )
     const { counts } = report
     console.log(
       `intake-observe: ${counts.observed}/${counts.cases} observed, ${counts.invalidCases} invalid cases (${counts.errorIssues} issues), ${counts.abstentions} abstentions → ${args.out}`,

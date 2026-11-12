@@ -535,8 +535,11 @@ check rather than documented.
 |---|---|---|
 | usage (missing, unknown or repeated argument, URL-like path) | 2 | none written |
 | `input_hash_mismatch`, unreadable/oversized file, invalid JSON, unknown schema, too many cases | 2 | none written |
+| `input_unreadable` also for every expected filesystem failure resolving or reading the input (r29) | 2 | none written |
 | `output_exists`, output inside the repository, output equal to input | 2 | none written |
+| `output_unusable` (r29): an expected filesystem failure resolving the report path or writing, syncing or linking it, or a publication that cannot be verified as this run's report (r29 repair1) | 2 | none written by this run; anything at the path is not this report |
 | an authority fixture body nests deeper than 32 (`input_fixture_too_deep`, r26) | 2 | none written |
+| `input_invalid_authority_fixtures` (r29): a malformed fixture container, entry or corpus reference | 2 | none written |
 | a case fails validation (`invalid_case`, `unknown_context_field`, `label_in_context`, `legacy_ask_missing`, `contradictory_origin`, `unsupported_comparison`, `duplicate_case_id`, `invalid_family`, `label_too_deep` (r26), bounds) | 1 | written; the case appears only in `errors`, never as a classification. `counts.invalidCases` counts cases, `counts.errorIssues` counts issues (one case may have several) |
 | all cases valid | 0 | written |
 
@@ -544,6 +547,72 @@ Bounds: file 2 MiB, 500 cases, text 4000 characters, 64 context keys, strings 20
 label depth 32 and fixture body depth 32 (r26, below).
 The report is written to a temporary file in the target directory with exclusive create, synced, then linked to
 the final name (which fails if it exists) — no silent overwrite of a source, an input or an earlier report.
+
+**Filesystem failures (r29).**
+- **What is translated:** an expected filesystem failure is Node's system-error shape, an `Error` with a string errno
+  `code` and a string `syscall`. Only those become usage errors, with fixed messages: no path, no errno text, no
+  stack.
+- **What stays visible, uncaught:** a `TypeError`, `RangeError` or other programming error, and the
+  installation-integrity reads (the policy source, the repository root).
+- **Input:**
+  - The input is resolved twice: first when checking that the report is not the input (`stat` and `realpath`), then
+    when it is read (`stat` and `read`). Any expected failure at either point is `input_unreadable`.
+  - A read refused because the file grew past what a buffer holds (`ERR_FS_FILE_TOO_LARGE`) is `input_too_large`
+    ("the input grew past the limit"). Nothing broader is mapped.
+  - **Observed on Node 24.21.0:** `stat` of `<file>/x` with `throwIfNoEntry: false` returns nothing, as for a missing
+    file. So a file used as a directory was already `input_unreadable` for an input and `output_directory_missing`
+    for a report. A looping link and an over-long name were not, and raised raw errors.
+- **Output:**
+  - An expected failure resolving the report path, or creating, writing or syncing the temporary file, or linking it,
+    is `output_unusable`. Nothing is published.
+  - The temporary file this invocation created is removed. Its identity (`dev`, `ino`) is recorded at creation and the
+    descriptor stays open until cleanup, so the name is unlinked only while it still names that file. A replacement
+    or foreign file at that name is left alone, and so is a foreign file at the report path (`output_exists`).
+  - A cleanup or close failure never replaces the original failure.
+  - If the identity could not be recorded (`fstat` failed), the name is left, and that leftover is real.
+- **Publication identity (r29 repair1).** A link resolves the temporary *name*, which another party can replace, so a
+  successful link alone does not prove the report was published. Publication is therefore bound to the file this run
+  wrote and synced, and the descriptor stays open until every check and the cleanup are done:
+  - **Fence:** right before the link, the temporary name must still be the regular file with the recorded identity.
+    Otherwise nothing is linked.
+  - **Verification:** right after the link, the report path must be that same regular file. This also catches a
+    replacement at the link call itself.
+  - **On failure:** no success is announced. The refusal is `output_unusable` with the fixed message `the report could
+    not be published as written; anything at the report path is not this report`; it does not claim that the path is
+    absent.
+  - **Withdrawing a link:** a link this run made to something else is withdrawn only when the report path names the
+    same file the temporary name holds or resolves to (so it is this run's link) and that file has another name (so no
+    foreign data is lost). Otherwise the report path is left untouched, and nothing is read from it.
+  - **Boundary:** the verification holds at the moment of that check. Later changes by whoever can write the
+    directory, and physical crashes, are outside it.
+  - **Symlinks:** whether `link` follows a symlink is platform-specific. On Linux it does not, and the published path
+    is the symlink itself, which the verification rejects. The withdrawal therefore compares against both what the
+    name holds and what it resolves to.
+- **After publication:** once the link has succeeded and the report path is verified, the report is complete and
+  synced.
+  - If only removing the private temporary name fails, the run keeps its normal exit (0 or 1) and writes one fixed
+    line to stderr: `intake-observe: warning: temporary_report_left: a private temporary copy of the report could not
+    be removed`. The hidden `.<report>.<hex>.tmp` file may remain beside the report.
+  - A later close failure changes nothing.
+
+**Fixture declarations (r29).**
+- `checkFixtures` validates every declaration before any body is hashed or any case is observed, in the built and the
+  written path:
+  - `authorityFixtures` absent, or `{}`, is valid.
+  - Present but not an object (`null`, a boolean, a number, a string, an array) refuses the file.
+  - Every entry's body must be an object; one that is not refuses the file. Nothing is filtered out, so the
+    single-fixture rule counts exactly the declared bodies, and a malformed sibling can no longer hide a valid body's
+    reference check.
+  - `authorityFixtureSha256` absent means no reference. Present, it must be 64 lowercase hex characters, otherwise
+    the file is refused.
+- The refusal is `input_invalid_authority_fixtures` with a fixed, value-free message.
+- Shape comes first, then the existing depth bound (`input_fixture_too_deep`), then hashing.
+- **Unchanged:**
+  - A well-formed but mismatching reference reports `matchesCorpusReference: false`.
+  - With two or more bodies, no corpus reference is compared.
+  - Fixture ids are arbitrary data keys (empty, long, `__proto__`, `constructor`).
+  - Bodies stay opaque but for the depth bound and the role list.
+  - Fixtures remain provenance only: no observation or admission depends on them.
 
 ## Report
 
