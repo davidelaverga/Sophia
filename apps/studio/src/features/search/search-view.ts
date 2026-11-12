@@ -2,9 +2,10 @@
 // words are unit-tested; the dates' formats come from the page (Intl).
 import type { QueryClient } from '@tanstack/react-query'
 import type { Goal } from '@sophia/contracts'
-import { SEARCH_WORD, searchWords, textWords } from '@sophia/contracts/search-words'
+import { SEARCH_WORD, searchWords } from '@sophia/contracts/search-words'
 import type { MeetingSummary, SearchHit, SearchPage } from '../../api/vision.ts'
 import { closedDoor } from '../studio/project-door.ts'
+import { hasAll, hasAny } from './word-match.ts'
 import type { DateWords } from '../updates/updates-view.ts'
 
 const KIND: Record<SearchHit['kind'], string> = {
@@ -60,20 +61,7 @@ export interface LocalHit {
 /** What a task's line says before its doer. */
 export const TASK_LEAD = 'Task · '
 
-/** Whether a text has every word: each one begins a word of it, in any order (the API's rule, A38). */
-const hasAll = (text: string, words: readonly string[]) => {
-  const own = textWords(text)
-  return words.every((w) => own.some((o) => o.startsWith(w)))
-}
-
-/** Whether a text has a word that one of the words begins. */
-const hasAny = (text: string, words: readonly string[]) => words.some((w) => hasAll(text, [w]))
-
-/** Whether a text says what the query asks, by the API's rule: its words, each a beginning, all of them (A38). */
-export const says = (text: string, query: string): boolean => {
-  const words = searchWords(query)
-  return words.length > 0 && hasAll(text, words)
-}
+export { says } from './word-match.ts'
 
 /** A goal's health in words; null while it isn't known (its notes unread): then none is said (search-honest.md). */
 type HealthWords = (goal: Goal) => string | null
