@@ -53,7 +53,15 @@ import {
 } from '../packages/coordination/src/intake-observation.ts'
 
 export const REPORT_SCHEMA = 'sophia.intake-observation.report.v7'
-export const CLI_LIMITS = { fileBytes: 2 * 1024 * 1024, cases: 500, idChars: 200 } as const
+export const CLI_LIMITS = {
+  fileBytes: 2 * 1024 * 1024,
+  cases: 500,
+  idChars: 200,
+  /** How deep a scored label may nest (r26): the report retains it, and a deeper value could overflow serializing it. */
+  labelDepth: 32,
+  /** How deep a declared authority fixture body may nest (r26): its provenance digest canonicalizes it recursively. */
+  fixtureDepth: 32,
+} as const
 
 /** Corpus schemas this tool reads, and the interaction a case without an `interaction` member is observed under. */
 const CORPUS_SCHEMAS = {
@@ -251,6 +259,31 @@ export interface PreparedCase {
  */
 const boundedCaseId = (raw: unknown): string | null => (isRecord(raw) && isBoundedId(raw.caseId) ? raw.caseId : null)
 
+/**
+ * Whether a JSON value nests deeper than `limit` (r26). Depth: a scalar is 0; an array or an object is 1 + its deepest
+ * member, so an empty one is 1. One walk with an explicit stack, each node visited once and the walk ending at the first
+ * node past the limit: linear work, never recursion, so no nesting the parser accepted can overflow it.
+ */
+export function nestingExceeds(value: unknown, limit: number): boolean {
+  const stack: Array<{ node: unknown; above: number }> = [{ node: value, above: 0 }]
+  for (let top = stack.pop(); top !== undefined; top = stack.pop()) {
+    const { node, above } = top
+    if (typeof node !== 'object' || node === null) continue
+    const depth = above + 1
+    if (depth > limit) return true
+    for (const member of Array.isArray(node) ? node : Object.values(node)) stack.push({ node: member, above: depth })
+  }
+  return false
+}
+
+/** The scored label that nests past CLI_LIMITS.labelDepth, first in SCORED_FIELDS order, by its corpus key. */
+function tooDeepLabel(expected: Record<string, unknown> | null): string | undefined {
+  if (expected === null) return undefined
+  return SCORED_FIELDS.map((field) => LABEL_SOURCE[field]).find(
+    (key) => Object.hasOwn(expected, key) && nestingExceeds(expected[key], CLI_LIMITS.labelDepth),
+  )
+}
+
 export function prepareCase(raw: unknown, index: number, defaultInteraction: unknown): PreparedCase | CaseError {
   if (!isRecord(raw)) return { index, caseId: null, code: 'invalid_case', path: `cases[${index}]` }
   const caseId = boundedCaseId(raw)
@@ -262,12 +295,12 @@ export function prepareCase(raw: unknown, index: number, defaultInteraction: unk
   // A family is any string; absent or null means no family (r18). Anything else is an error, never "unlabelled".
   const family = raw.family ?? null
   if (family !== null && typeof family !== 'string') return fail('invalid_family', '.family')
-  const meta: CaseMeta = {
-    index,
-    caseId,
-    family,
-    expected: isRecord(raw.expected) ? raw.expected : null,
-  }
+  const expected = isRecord(raw.expected) ? raw.expected : null
+  // Last, after the case's identity and its earlier checks (r26): the report retains every scored label, so one nested
+  // past the bound makes the case invalid and is never kept, compared or serialized. Unscored labels are not retained.
+  const deep = tooDeepLabel(expected)
+  if (deep !== undefined) return fail('label_too_deep', `.expected.${deep}`)
+  const meta: CaseMeta = { index, caseId, family, expected }
   const interaction = Object.hasOwn(raw, 'interaction') ? raw.interaction : defaultInteraction
   return { meta, policyInput: { interaction, text: raw.input, context: raw.context } }
 }
@@ -302,6 +335,13 @@ export function checkFixtures(doc: Record<string, unknown>): FixtureCheck[] {
   return Object.entries(fixtures)
     .filter((entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]))
     .map(([id, body]) => {
+      // Canonical JSON recurses through the body: a body nested past the bound refuses the file before any of it is
+      // hashed or anything is reported (r26).
+      if (nestingExceeds(body, CLI_LIMITS.fixtureDepth))
+        throw new UsageError(
+          'input_fixture_too_deep',
+          `an authority fixture nests deeper than ${String(CLI_LIMITS.fixtureDepth)}`,
+        )
       const computedSha256 = sha256(canonicalJson(body))
       const corpusReference = single ? reference : null
       const matchesCorpusReference = corpusReference === null ? null : corpusReference === computedSha256

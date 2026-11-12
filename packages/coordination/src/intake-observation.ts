@@ -20,7 +20,7 @@
 import { createHash } from 'node:crypto'
 import { canonicalJson } from './canonical.ts'
 
-export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v21'
+export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v24'
 
 export const INTAKE_LIMITS = { textChars: 4000, contextKeys: 64, stringChars: 200, listItems: 16 } as const
 
@@ -540,6 +540,8 @@ interface Clause {
   readonly also: boolean
   /** The clause opened with an acknowledgement, peeled off its words (r9 F01). */
   readonly ack: boolean
+  /** Which authored sentence the clause belongs to (its subclauses split at commas, "and", "then"). */
+  readonly sentence: number
 }
 
 interface TextIntent {
@@ -646,6 +648,8 @@ interface SingleQuoteResult {
   readonly text: string
   readonly spans: number
   readonly ambiguous: boolean
+  /** The fenced pair's range in the text it was found in (both marks included), when one was fenced. */
+  readonly range?: Range
 }
 
 const isSupportedPair = (text: string, open: BoundaryMark, close: BoundaryMark): boolean =>
@@ -681,8 +685,14 @@ function fenceSingleQuotes(text: string): SingleQuoteResult {
   const [open, close] = marks
   const paired = marks.length === 2 && open !== undefined && close !== undefined && isSupportedPair(text, open, close)
   if (marks.length !== 0 && !paired) return { text, spans: 0, ambiguous: true }
-  const fenced = paired ? `${text.slice(0, open.index)} ${text.slice(close.index + 1)}` : text
-  return { text: fenced, spans: paired ? 1 : 0, ambiguous: marksMayEncloseWords(fenced) }
+  if (!paired) return { text, spans: 0, ambiguous: marksMayEncloseWords(text) }
+  const fenced = `${text.slice(0, open.index)} ${text.slice(close.index + 1)}`
+  return {
+    text: fenced,
+    spans: 1,
+    ambiguous: marksMayEncloseWords(fenced),
+    range: { start: open.index, end: close.index + 1 },
+  }
 }
 
 const MENTION_TEXT = /@[\p{L}\p{N}_.-]+/gu
@@ -736,7 +746,7 @@ function importOccurrences(text: string, literal: string): ImportSpan[] {
 function fenceImports(
   text: string,
   literals: readonly string[],
-): { readonly text: string; readonly spans: number; readonly ambiguous: boolean } {
+): { readonly text: string; readonly spans: number; readonly ambiguous: boolean; readonly kept: readonly Range[] } {
   const found = literals.flatMap((literal) => importOccurrences(text, literal))
   const unique = [...new Map(found.map((s) => [`${s.start}:${s.end}`, s])).values()]
   const ordered = unique.toSorted((a, b) => a.start - b.start || b.end - a.end)
@@ -745,7 +755,7 @@ function fenceImports(
     const last = kept.at(-1)
     const inside = last !== undefined && span.start < last.end
     if (inside && last.complete && span.end <= last.end) continue
-    if (inside || !span.complete) return { text, spans: 0, ambiguous: true }
+    if (inside || !span.complete) return { text, spans: 0, ambiguous: true, kept: [] }
     kept.push(span)
   }
   let out = ''
@@ -754,7 +764,138 @@ function fenceImports(
     out += `${text.slice(from, span.start)} `
     from = span.end
   }
-  return { text: out + text.slice(from), spans: kept.length, ambiguous: false }
+  return { text: out + text.slice(from), spans: kept.length, ambiguous: false, kept }
+}
+
+interface Range {
+  readonly start: number
+  readonly end: number
+}
+
+/**
+ * What stands in, in the eligibility text (v23), for a removed span the actor explicitly adopted and whose own content
+ * has words. Only its position is read, never the character: wherever the eligibility text differs from the authored
+ * text, an adopted request was removed there, so an authored occurrence of this character means nothing.
+ */
+const ADOPTED = '\u2063'
+/** The marks a fenced span is delimited by; its content is what is left between them. */
+const FENCE_MARKS = /^[ \t]*>|[`"“”«»„]/g
+/** Every escaped or encoded quote form, each matched whole (the ESCAPED_QUOTE class, everywhere in the content). */
+const ESCAPED_QUOTES = new RegExp(ESCAPED_QUOTE.source, 'g')
+
+/** Single-quote-like marks that bound content rather than sit inside a word as a provable apostrophe (v24). */
+function withoutBoundaryMarks(content: string): string {
+  let out = ''
+  let from = 0
+  for (const { index } of boundaryMarks(content)) {
+    out += `${content.slice(from, index)} `
+    from = index + 1
+  }
+  return out + content.slice(from)
+}
+
+/**
+ * Whether a removed span's own content keeps words once its delimiters, fillers and acknowledgements are gone (v23,
+ * delimiter-aware in v24). The same reading for a declared import, a fenced span and a single-quote pair: escaped and
+ * encoded quotes first (whole, so no backslash or entity is left behind), then fence marks, then every single-quote-like
+ * mark the apostrophe classifier calls a boundary (apostrophes inside words stay), then mentions. Quote framing alone is
+ * never words; anything else is read as the authored text is.
+ */
+const contentHasWords = (content: string): boolean =>
+  clausesOf(
+    withoutBoundaryMarks(content.replace(ESCAPED_QUOTES, ' ').replace(FENCE_MARKS, ' ')).replace(MENTION_TEXT, ' '),
+  ).some((c) => c.words.length > 0)
+
+/**
+ * Collapses each range of `text` to one character, as the authored-text pass always has: a space in the authored text,
+ * and in the eligibility text the adopted mark when `substance` holds for the range's content, else a space. Both texts
+ * keep the same length, so every later range and sentence indexes both.
+ */
+function collapse(
+  text: string,
+  eligible: string,
+  ranges: readonly Range[],
+  substance: (content: string) => boolean,
+): string {
+  let out = ''
+  let from = 0
+  for (const { start, end } of ranges) {
+    out += eligible.slice(from, start) + (substance(text.slice(start, end)) ? ADOPTED : ' ')
+    from = end
+  }
+  return out + eligible.slice(from)
+}
+
+const rangesOf = (text: string, pattern: RegExp): Range[] =>
+  [...text.matchAll(pattern)].map((m) => ({ start: m.index, end: m.index + m[0].length }))
+
+interface AuthoredScan {
+  readonly text: string
+  readonly fencedSpans: number
+  readonly malformed: boolean
+  /**
+   * The authored text with every removed span the actor explicitly adopted, and that has words of its own, marked in
+   * place (v23). The same length as `text` and decided by the same removals; equal to `text` without adoption.
+   */
+  readonly eligible: string
+}
+
+/** Removes every FENCES span in order, as the authored-text pass always has; marks adopted ones when `words` is given. */
+function removeFences(
+  text: string,
+  eligible: string,
+  words: ((content: string) => boolean) | undefined,
+): { readonly text: string; readonly eligible: string; readonly spans: number } {
+  let t = text
+  let e = eligible
+  let spans = 0
+  for (const fence of FENCES) {
+    if (words !== undefined) e = collapse(t, e, rangesOf(t, fence), words)
+    spans += t.match(fence)?.length ?? 0
+    t = t.replace(fence, ' ')
+  }
+  return { text: t, eligible: words === undefined ? t : e, spans }
+}
+
+/**
+ * The authored-text pass. Every removal is decided on the authored text exactly as before v23; the eligibility text
+ * only records, at the same positions, which removed spans were adopted requests. Nothing is matched on it.
+ */
+function scanAuthored(text: string, facts: Facts): AuthoredScan {
+  // Declared imports are data, removed before any quotation analysis, so their own unmatched, escaped or paired
+  // marks cannot make the authored text around them malformed (r8 F02); only as complete spans (r17 F01).
+  const literals = [facts.str('quotedText'), facts.str('attachmentInstruction')]
+    .filter((literal) => literal !== undefined)
+    .map((literal) => literal.toLowerCase())
+  // Explicit, structured adoption only (the same fact quotationRule honours); unadopted spans give nothing.
+  const adopted = facts.bool('actorExplicitlyAdopts') === true
+  const words = (content: string) => adopted && contentHasWords(content)
+  const lowered = text.toLowerCase()
+  const imports = fenceImports(lowered, literals)
+  let t = imports.text
+  let eligible = adopted ? collapse(lowered, lowered, imports.kept, words) : t
+  // Escaping is judged on the authored text as written, before any authored span is removed.
+  const escaped = ESCAPED_QUOTE.test(t)
+  const fenced = removeFences(t, eligible, adopted ? words : undefined)
+  t = fenced.text
+  eligible = fenced.eligible
+  let fencedSpans = imports.spans + fenced.spans
+  const single = fenceSingleQuotes(t)
+  if (adopted && single.range !== undefined) {
+    const { start, end } = single.range
+    eligible = collapse(t, eligible, [single.range], () => words(t.slice(start + 1, end - 1)))
+  }
+  t = single.text
+  fencedSpans += single.spans
+  const ambiguous = imports.ambiguous || escaped || single.ambiguous
+  if (adopted) eligible = collapse(t, eligible, rangesOf(t, MENTION_TEXT), () => false)
+  const authored = t.replace(MENTION_TEXT, ' ')
+  return {
+    text: authored,
+    fencedSpans,
+    malformed: ambiguous || UNBALANCED.test(t),
+    eligible: adopted ? eligible : authored,
+  }
 }
 
 /** Removes quoted, fenced and imported spans and text-only @mentions; counts what it fenced; flags what it cannot. */
@@ -762,25 +903,8 @@ export function authoredText(
   text: string,
   facts: Facts,
 ): { readonly text: string; readonly fencedSpans: number; readonly malformed: boolean } {
-  // Declared imports are data, removed before any quotation analysis, so their own unmatched, escaped or paired
-  // marks cannot make the authored text around them malformed (r8 F02); only as complete spans (r17 F01).
-  const literals = [facts.str('quotedText'), facts.str('attachmentInstruction')]
-    .filter((literal) => literal !== undefined)
-    .map((literal) => literal.toLowerCase())
-  const imports = fenceImports(text.toLowerCase(), literals)
-  let t = imports.text
-  let fencedSpans = imports.spans
-  // Escaping is judged on the authored text as written, before any authored span is removed.
-  const escaped = ESCAPED_QUOTE.test(t)
-  for (const fence of FENCES) {
-    fencedSpans += t.match(fence)?.length ?? 0
-    t = t.replace(fence, ' ')
-  }
-  const single = fenceSingleQuotes(t)
-  t = single.text
-  fencedSpans += single.spans
-  const ambiguous = imports.ambiguous || escaped || single.ambiguous
-  return { text: t.replace(MENTION_TEXT, ' '), fencedSpans, malformed: ambiguous || UNBALANCED.test(t) }
+  const { text: authored, fencedSpans, malformed } = scanAuthored(text, facts)
+  return { text: authored, fencedSpans, malformed }
 }
 
 function stripFillers(words: string): { readonly words: string; readonly also: boolean } {
@@ -830,14 +954,20 @@ function peelAcknowledgements(words: string): {
 
 function clausesOf(text: string): Clause[] {
   const clauses: Clause[] = []
-  for (const sentence of text.match(SENTENCE) ?? []) {
+  for (const [index, sentence] of (text.match(SENTENCE) ?? []).entries()) {
     const question = sentence.trim().endsWith('?')
     const parts = sentence.replace(/[.;!?:]+$/, '').split(SUBCLAUSE)
     parts.forEach((part, i) => {
       const filled = stripFillers(part.replace(/\s+/g, ' '))
       const { words, ack, also } = peelAcknowledgements(filled.words)
       if (words.length > 0 || ack || filled.also || also)
-        clauses.push({ words, question: question && i === parts.length - 1, also: filled.also || also, ack })
+        clauses.push({
+          words,
+          question: question && i === parts.length - 1,
+          also: filled.also || also,
+          ack,
+          sentence: index,
+        })
     })
   }
   return clauses
@@ -900,9 +1030,39 @@ function combine(families: readonly Family[], unread: boolean): Family | 'mixed'
   return only ?? 'none'
 }
 
+/**
+ * The sentences (as clausesOf numbers them) holding a removed span the actor explicitly adopted and that has words of
+ * its own (v23): where the eligibility text differs from the authored text. Both have the same length and sentence
+ * marks, so the authored sentences index both. Linear in the text.
+ */
+function adoptedSentences(authored: string, eligible: string): ReadonlySet<number> {
+  const found = new Set<number>()
+  if (eligible === authored) return found
+  for (const [index, m] of [...authored.matchAll(SENTENCE)].entries()) {
+    for (let i = m.index; i < m.index + m[0].length; i += 1) {
+      if (eligible[i] !== authored[i]) {
+        found.add(index)
+        break
+      }
+    }
+  }
+  return found
+}
+
+/**
+ * Whether an "also" marker adds to a mission: only when its own sentence keeps authored words once fillers and
+ * acknowledgements are peeled (v22), or holds an explicitly adopted quoted or imported request with words of its own
+ * (v23). "Also, thanks.", "Thanks also." and "Also." add nothing; "Also, <words>." and, adopted, `Also, "<words>".` do.
+ * Unadopted quoted and imported spans are blanked before the clauses are read, so they never give a sentence its words.
+ */
+function alsoWithWords(clauses: readonly Clause[], adopted: ReadonlySet<number>): boolean {
+  const worded = new Set(clauses.filter((c) => c.words.length > 0).map((c) => c.sentence))
+  return clauses.some((c) => c.also && (worded.has(c.sentence) || adopted.has(c.sentence)))
+}
+
 /** The lexical reading of the authored text. Never an identity, a target or a grant. */
 export function readIntent(text: string, facts: Facts): TextIntent {
-  const authored = authoredText(text, facts)
+  const authored = scanAuthored(text, facts)
   const clauses = clausesOf(authored.text)
   const families = clauses.map(clauseFamily)
   const unread = clauses.some((c, i) => c.words.length > 0 && families[i] === 'none')
@@ -910,7 +1070,7 @@ export function readIntent(text: string, facts: Facts): TextIntent {
   return {
     family,
     question: clauses.some((c) => c.question),
-    also: clauses.some((c) => c.also),
+    also: alsoWithWords(clauses, adoptedSentences(authored.text, authored.eligible)),
     extraRequests: new Set(families.filter((f) => f !== 'none' && f !== 'ack')).size > 1,
     fencedSpans: authored.fencedSpans,
     malformedQuote: authored.malformed,
@@ -1955,6 +2115,7 @@ export const INTAKE_OBSERVATION_POLICY = {
       'a redelivery correlates to the operation it returns to (originalAdmission, else redeliveryOf), the same id as its target; supplied causedBy, operationId or voiceUtterance do not replace it; generated origin decides first',
     ledgerConflict:
       'a changed payload under a stored operation id is not interpreted: the conflict keeps its digest and contract and the stored operation identity, audience scope and origin only',
+    also: 'an also marker counts only when its sentence has authored words left after fillers and acknowledgements are peeled (v22), or holds a quoted or imported span the actor explicitly adopts whose own content has words left after the same peel (v23), its content read without its own quotation, escaped-quote and encoded-quote delimiters while apostrophes inside words stay (v24); an all-acknowledgement, marker-only or empty-adopted sentence adds nothing to a mission, and unadopted quoted or imported data gives no words and asks no adoption',
   },
   limits: INTAKE_LIMITS,
   contextFields: CONTEXT_FIELDS,

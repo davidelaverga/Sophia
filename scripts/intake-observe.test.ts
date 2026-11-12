@@ -23,6 +23,7 @@ import {
   REPOSITORY_ROOT,
   UsageError,
 } from './intake-observe.ts'
+import * as cli from './intake-observe.ts'
 
 const SCRIPT = fileURLToPath(new URL('./intake-observe.ts', import.meta.url))
 const sha256 = (b: string | Buffer) => createHash('sha256').update(b).digest('hex')
@@ -2646,5 +2647,588 @@ describe('r25 through the consumer: legacy target labels of any length are read 
       'W-op-near': ['mismatch', 'legacy_label'],
     })
     assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+  })
+})
+
+// ---------------------------------------------------------------------------------------------------------------
+// r26: policy v22 through the consumer, and the bounded depth of retained metadata. Fresh public synthetic cases.
+
+const R26_MISSION = {
+  audience: 'project',
+  activeMission: 'm-r26',
+  manager: 'pm-r26',
+  managerGeneration: 4,
+  control: 'running',
+}
+
+/** v22 through the consumer: every case, its context, and the proposal it must give. */
+function r26AckCorpus(): { doc: TestDoc; want: Map<string, string> } {
+  const doc = corpus()
+  const want = new Map<string, string>()
+  const add = (id: string, input: string, context: Record<string, unknown>, kind: string) => {
+    doc.cases.push(testCase(id, input, context, { proposedAction: kind }))
+    want.set(id, kind)
+  }
+  doc.cases = []
+  const terms = ['thanks', 'thank you', 'thx', 'got it', 'ok', 'okay', 'great', 'perfect']
+  for (const [i, t] of terms.entries())
+    for (const [j, text] of [`Also, ${t}.`, `${t} also.`, `Also ${t}.`, `${t}, also.`].entries())
+      add(`K-${String(i)}-${String(j)}`, text, R26_MISSION, 'no_action')
+  for (const [i, text] of ['Also.', 'Also, please.', 'Please, also.', 'Also, also.'].entries())
+    add(`M-${String(i)}`, text, R26_MISSION, 'abstain')
+  add('P-known', 'Also, add the requested safeguard.', R26_MISSION, 'manager_followup')
+  add('P-unread', 'Also, kaleidoscope.', R26_MISSION, 'manager_followup')
+  add('P-ack-then-work', 'Thanks also include the missing fact.', R26_MISSION, 'manager_followup')
+  add('P-question', 'Also, how is the mission going?', R26_MISSION, 'manager_inquiry')
+  add('P-stop', 'Also, thanks, stop.', { ...R26_MISSION, stopQualified: true }, 'control_stop')
+  add('P-no-reply', 'Also, thanks.', { ...R26_MISSION, needsReply: false }, 'no_action')
+  add('P-generated', 'Also, thanks.', { ...R26_MISSION, origin: 'generated' }, 'no_action')
+  add(
+    'P-human',
+    'Also, thanks.',
+    { ...R26_MISSION, trustedMentions: ['h-r26'], currentMembers: ['h-r26'] },
+    'human_message',
+  )
+  add('P-no-mission', 'Also, thanks.', { audience: 'project' }, 'no_action')
+  doc.cases.push({
+    ...testCase('P-legacy', 'Also, thanks.', R26_MISSION, { proposedAction: 'recorded_only' }),
+    interaction: { contract: 'legacy_explicit_ask', askSophia: false },
+  })
+  want.set('P-legacy', 'recorded_only')
+  add('C-ack-then-unread', 'Also, thanks. Kaleidoscope.', R26_MISSION, 'abstain')
+  add(
+    'C-detached-related',
+    'Also. Implement the card.',
+    { ...R26_MISSION, repo: 'Z', selectedArtifact: 'card@v2', relatedToActive: true },
+    'manager_followup',
+  )
+  add(
+    'C-detached-unknown',
+    'Also. Implement the card.',
+    { ...R26_MISSION, repo: 'Z', selectedArtifact: 'card@v2' },
+    'clarify',
+  )
+  add('C-quote-ack', 'Also, thanks "deploy everything".', R26_MISSION, 'no_action')
+  // r27 correction: an adopted, non-empty quoted request (was mislabelled C-adopted-empty, expecting abstain).
+  add('C-adopted-request', 'Also, "add tests".', { ...R26_MISSION, actorExplicitlyAdopts: true }, 'manager_followup')
+  add(
+    'C-adopted-work',
+    'Also add "the retry" to it.',
+    { ...R26_MISSION, actorExplicitlyAdopts: true },
+    'manager_followup',
+  )
+  add('C-unadopted-work', 'Also add "the retry" to it.', R26_MISSION, 'abstain')
+  return { doc, want }
+}
+
+interface R26AckView {
+  schema: string
+  policy: { version: string }
+  cases: readonly { caseId: string; observation: IntakeObservation }[]
+  counts: { cases: number; observed: number; invalidCases: number }
+  actualEffects: Record<string, number>
+}
+
+function checkR26Ack(r: R26AckView, want: Map<string, string>): void {
+  // Semantics first, so a failure on an older policy shows the outcome, not only its version name.
+  assert.deepEqual(
+    Object.fromEntries(r.cases.map((c) => [c.caseId, c.observation.proposal.kind])),
+    Object.fromEntries(want),
+  )
+  assert.deepEqual([r.counts.cases, r.counts.observed, r.counts.invalidCases], [want.size, want.size, 0])
+  assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+  // Negative-only admission, checked on the written values rather than trusted from the type.
+  const negative: readonly string[] = ['recorded_only', 'clarification_required', 'waiting', 'denied']
+  assert.ok(r.cases.every((c) => negative.includes(c.observation.admission.outcome)))
+  assert.equal(r.policy.version, 'sophia.intake-observation.policy.v24')
+}
+
+describe('r26 through the consumer: an empty "also" adds nothing (policy v22, kept in v23)', () => {
+  it('in the built report', () => {
+    const { doc, want } = r26AckCorpus()
+    checkR26Ack(report(doc), want)
+  })
+
+  it('in the written report from the command line', () => {
+    const { doc, want } = r26AckCorpus()
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, doc)
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
+      const written = JSON.parse(readFileSync(out, 'utf8')) as R26AckView
+      assert.equal(written.schema, 'sophia.intake-observation.report.v7')
+      checkR26Ack(written, want)
+    })
+  })
+})
+
+// r27 (R26-F01): an explicitly adopted quoted or imported request beside "also" is its substance (policy v23). The
+// receipt's twenty public rows plus fresh positive, empty and detached forms; built and written; every proposal
+// labelled so the comparison is exercised too.
+const R27_MISSION = {
+  audience: 'project',
+  activeMission: 'm-r27',
+  manager: 'pm-r27',
+  managerGeneration: 5,
+  control: 'running',
+}
+
+function r27AdoptionCorpus(): { doc: TestDoc; want: Map<string, string> } {
+  const doc = corpus()
+  const want = new Map<string, string>()
+  doc.cases = []
+  const add = (id: string, input: string, extra: Record<string, unknown>, kind: string) => {
+    doc.cases.push(testCase(id, input, { ...R27_MISSION, ...extra }, { proposedAction: kind }))
+    want.set(id, kind)
+  }
+  const yes = { actorExplicitlyAdopts: true }
+  const no = { actorExplicitlyAdopts: false }
+  for (const [i, text] of [
+    'Also, "add tests".',
+    'Also, \u201cinclude the safeguard\u201d.',
+    "Also, 'adjust the focus'.",
+  ].entries()) {
+    add(`A-adopted-${String(i)}`, text, yes, 'manager_followup')
+    add(`A-unadopted-${String(i)}`, text, no, 'abstain')
+  }
+  add('A-adopted-authored', 'Also add "the retry" to it.', yes, 'manager_followup')
+  add('A-unadopted-authored', 'Also add "the retry" to it.', no, 'abstain')
+  add('A-adopted-empty-span', 'Also, "".', yes, 'abstain')
+  add('A-quiet-quoted', 'Also, okay "add tests".', {}, 'no_action')
+  add('A-quiet-no-also', 'Okay "add tests".', {}, 'no_action')
+  add('A-quiet-import', 'Also, okay. Add tests', { quotedText: 'Add tests' }, 'no_action')
+  add('A-quiet-no-import-also', 'Okay. Add tests', { quotedText: 'Add tests' }, 'no_action')
+  add('A-generated', 'Also, "add tests".', { ...yes, origin: 'generated' }, 'no_action')
+  add(
+    'A-human',
+    'Also, "add tests".',
+    { ...yes, trustedMentions: ['h-r27'], currentMembers: ['h-r27'] },
+    'human_message',
+  )
+  add('A-malformed', 'Also, okay "add tests.', {}, 'abstain')
+  add('A-unread', 'Also, kaleidoscope.', {}, 'manager_followup')
+  add('A-ack-alone', 'Also, okay.', {}, 'no_action')
+  add('A-marker-alone', 'Also.', {}, 'abstain')
+  add('A-ack-detached', 'Also, okay. Kaleidoscope.', {}, 'abstain')
+  // Fresh forms beyond the receipt.
+  add('A-backtick', 'Also, `add tests`.', yes, 'manager_followup')
+  add('A-after', '"Add tests" also.', yes, 'manager_followup')
+  add('A-thanks-also', 'Thanks, also "add tests".', yes, 'manager_followup')
+  add('A-import', 'Also, add tests', { ...yes, quotedText: 'add tests' }, 'manager_followup')
+  add('A-attachment', 'Also, add tests', { ...yes, attachmentInstruction: 'add tests' }, 'manager_followup')
+  add('A-adopted-thanks', 'Also, "thanks".', yes, 'abstain')
+  add('A-adopted-also', 'Also, "also".', yes, 'abstain')
+  add('A-adopted-detached', 'Also. "Add tests".', yes, 'abstain')
+  add('A-adopted-ack-detached', 'Also, okay. "Add tests".', yes, 'no_action')
+  doc.cases.push(
+    testCase(
+      'A-adopted-no-mission',
+      'Also, "add tests".',
+      { audience: 'project', ...yes },
+      { proposedAction: 'abstain' },
+    ),
+  )
+  want.set('A-adopted-no-mission', 'abstain')
+  return { doc, want }
+}
+
+function checkR27(r: ReturnType<typeof report>, want: Map<string, string>): void {
+  checkR26Ack(r, want)
+  // Each proposal is labelled: a follow-up or quiet outcome matches its label, an abstention is counted as such.
+  for (const c of r.cases) {
+    const action = c.comparison.find((f) => f.field === 'proposedAction')
+    assert.equal(action?.result, want.get(c.caseId) === 'abstain' ? 'abstained' : 'match', c.caseId)
+  }
+}
+
+describe('r27 through the consumer: an adopted request beside "also" follows up (policy v23)', () => {
+  it('in the built report', () => {
+    const { doc, want } = r27AdoptionCorpus()
+    checkR27(report(doc), want)
+  })
+
+  it('in the written report from the command line', () => {
+    const { doc, want } = r27AdoptionCorpus()
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, doc)
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
+      const written = JSON.parse(readFileSync(out, 'utf8')) as ReturnType<typeof report>
+      assert.equal(written.schema, 'sophia.intake-observation.report.v7')
+      checkR27(written, want)
+    })
+  })
+})
+
+// r28 (R27-F01): quotation, escaped-quote and encoded-quote framing around adopted content is never its words
+// (policy v24), through both import fields and ordinary quotations. One batched corpus, every proposal labelled.
+const R28_MISSION = {
+  audience: 'project',
+  activeMission: 'm-r28',
+  manager: 'pm-r28',
+  managerGeneration: 7,
+  control: 'running',
+}
+
+function r28DelimiterCorpus(): { doc: TestDoc; want: Map<string, string> } {
+  const doc = corpus()
+  const want = new Map<string, string>()
+  doc.cases = []
+  const add = (id: string, input: string, context: Record<string, unknown>, kind: string, interaction?: unknown) => {
+    const c = testCase(id, input, context, { proposedAction: kind })
+    doc.cases.push(interaction === undefined ? c : { ...c, interaction })
+    want.set(id, kind)
+  }
+  const yes = { ...R28_MISSION, actorExplicitlyAdopts: true }
+  const no = { ...R28_MISSION, actorExplicitlyAdopts: false }
+  const wrappers: [string, string, string][] = [
+    ['straight', "'", "'"],
+    ['curly', '\u2018', '\u2019'],
+    ['escaped', "\\'", "\\'"],
+    ['encoded', '&apos;', '&apos;'],
+  ]
+  const empty = ['', 'thanks', 'okay, thanks', 'please', 'also', '@person']
+  const real = ['add tests', "don't add tests", "check o'brien's note"]
+  for (const importField of ['quotedText', 'attachmentInstruction'])
+    for (const [w, open, close] of wrappers) {
+      for (const [i, content] of empty.entries()) {
+        const literal = `${open}${content}${close}`
+        add(
+          `D-${importField}-${w}-empty-${String(i)}`,
+          `Also, okay ${literal}.`,
+          { ...yes, [importField]: literal },
+          'no_action',
+        )
+      }
+      for (const [i, content] of real.entries()) {
+        const literal = `${open}${content}${close}`
+        add(
+          `D-${importField}-${w}-real-${String(i)}`,
+          `Also, okay ${literal}.`,
+          { ...yes, [importField]: literal },
+          'manager_followup',
+        )
+      }
+      add(
+        `D-${importField}-${w}-unadopted`,
+        `Also, okay ${open}add tests${close}.`,
+        { ...no, [importField]: `${open}add tests${close}` },
+        'no_action',
+      )
+    }
+  // Ordinary quotations: single pairs, and a double quotation around single-quoted content.
+  add('D-ordinary-single-thanks', "Also, okay 'thanks'.", yes, 'no_action')
+  add('D-ordinary-curly-real', 'Also, okay \u2018don\u2019t add tests\u2019.', yes, 'manager_followup')
+  add('D-ordinary-nested-thanks', `Also, "'thanks'".`, yes, 'abstain')
+  add('D-ordinary-nested-real', `Also, "'add tests'".`, yes, 'manager_followup')
+  add('D-ordinary-nested-unadopted', `Also, "'add tests'".`, no, 'abstain')
+  // Opaque content as aa reads it: "-" is a word; "..." is none; framing adds nothing to either.
+  add('D-opaque-dash', "Also, okay '-'.", { ...yes, quotedText: "'-'" }, 'manager_followup')
+  add('D-opaque-dots', "Also, okay '...'.", { ...yes, quotedText: "'...'" }, 'no_action')
+  // Precedence controls with wrapped adopted content.
+  add('D-malformed-escaped', "Also, okay \\'add tests\\'.", yes, 'abstain')
+  add('D-generated', "Also, 'add tests'.", { ...yes, origin: 'generated' }, 'no_action')
+  add(
+    'D-human',
+    "Also, 'add tests'.",
+    { ...yes, trustedMentions: ['h-r28'], currentMembers: ['h-r28'] },
+    'human_message',
+  )
+  add('D-no-reply', "Also, 'add tests'.", { ...yes, needsReply: false }, 'no_action')
+  add('D-no-mission', "Also, 'add tests'.", { audience: 'project', actorExplicitlyAdopts: true }, 'abstain')
+  add('D-stop', "Also, 'add tests', stop.", { ...yes, stopQualified: true }, 'control_stop')
+  add('D-detached', "Also. 'Add tests'.", yes, 'abstain')
+  add('D-legacy', "Also, 'add tests'.", yes, 'recorded_only', { contract: 'legacy_explicit_ask', askSophia: false })
+  return { doc, want }
+}
+
+describe('r28 through the consumer: framing around adopted content is never its words (policy v24)', () => {
+  it('in the built report', () => {
+    const { doc, want } = r28DelimiterCorpus()
+    checkR27(report(doc), want)
+  })
+
+  it('in the written report from the command line', () => {
+    const { doc, want } = r28DelimiterCorpus()
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, doc)
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
+      const written = JSON.parse(readFileSync(out, 'utf8')) as ReturnType<typeof report>
+      assert.equal(written.schema, 'sophia.intake-observation.report.v7')
+      checkR27(written, want)
+    })
+  })
+})
+
+/** A value nested exactly `depth` deep (a scalar is 0; an array or object is 1 + its deepest member). */
+function nested(depth: number, shape: 'array' | 'object', bottom: unknown = 'leaf'): unknown {
+  let value: unknown = bottom
+  for (let i = 0; i < depth; i += 1) value = shape === 'array' ? [value] : { k: value }
+  return value
+}
+
+/** How deep a value nests, counted here independently of the consumer (an explicit stack; scalar 0, container 1+). */
+function depthOf(value: unknown): number {
+  let deepest = 0
+  const stack: [unknown, number][] = [[value, 0]]
+  for (let top = stack.pop(); top !== undefined; top = stack.pop()) {
+    const [node, above] = top
+    if (typeof node !== 'object' || node === null) continue
+    deepest = Math.max(deepest, above + 1)
+    for (const member of Object.values(node)) stack.push([member, above + 1])
+  }
+  return deepest
+}
+
+/** The 8 scored labels, by their corpus key. */
+const SCORED_KEYS = [
+  'audience',
+  'addressee',
+  'proposedAction',
+  'target',
+  'clarificationRequired',
+  'admission',
+  'admissionDenialOrWaitReason',
+  'actualObservationModeEffects',
+] as const
+
+describe('r26: how deep a value nests, measured without recursion', () => {
+  it('a scalar is 0, an empty container 1, a container 1 + its deepest member', () => {
+    const nestingExceeds = cli.nestingExceeds
+    assert.equal(typeof nestingExceeds, 'function', 'the consumer measures nesting')
+    assert.equal(nestingExceeds('x', 0), false)
+    assert.equal(nestingExceeds([], 0), true)
+    assert.equal(nestingExceeds([], 1), false)
+    assert.equal(nestingExceeds({}, 1), false)
+    assert.equal(nestingExceeds(nested(31, 'array', []), 32), false, 'an empty container 31 deep is 32')
+    assert.equal(nestingExceeds(nested(32, 'array', {}), 32), true, 'an empty container 32 deep is 33')
+    for (const shape of ['array', 'object'] as const) {
+      assert.equal(nestingExceeds(nested(32, shape), 32), false, shape)
+      assert.equal(nestingExceeds(nested(33, shape), 32), true, shape)
+    }
+    // Wide and shallow is not deep; depth is the deepest member, not the count.
+    assert.equal(nestingExceeds({ a: [1, 2, 3], b: { c: [[]] }, d: nested(30, 'object') }, 32), false)
+    assert.equal(nestingExceeds({ a: 1, b: nested(32, 'array') }, 32), true)
+  })
+})
+
+/** Depth cases for every scored label, as arrays and objects, at 31, 32 and 33. */
+function r26DepthCorpus(): TestDoc {
+  const doc = corpus()
+  const base = { audience: 'project' }
+  doc.cases = SCORED_KEYS.flatMap((key) =>
+    (['array', 'object'] as const).flatMap((shape) =>
+      [31, 32, 33].map((depth) =>
+        testCase(`D-${key}-${shape}-${String(depth)}`, 'Thanks.', base, { [key]: nested(depth, shape) }),
+      ),
+    ),
+  )
+  doc.cases.push(testCase('D-empty-32', 'Thanks.', base, { target: nested(31, 'array', []) }))
+  doc.cases.push(testCase('D-empty-33', 'Thanks.', base, { target: nested(32, 'object', {}) }))
+  return doc
+}
+
+interface R26DepthView {
+  cases: readonly { caseId: string; comparison: readonly { field: string; expected: unknown }[] }[]
+  errors: readonly Record<string, unknown>[]
+  counts: { cases: number; observed: number; invalidCases: number; errorIssues: number }
+  actualEffects: Record<string, number>
+}
+
+function checkR26Depth(r: R26DepthView): void {
+  const refused = r.errors.map((e) => [e.caseId, e.code, e.path])
+  // Case order is label × shape × [31, 32, 33], then D-empty-32 (index 48) and D-empty-33 (index 49).
+  const want: unknown[] = SCORED_KEYS.flatMap((key, k) =>
+    ['array', 'object'].map((shape, h) => [
+      `D-${key}-${shape}-33`,
+      'label_too_deep',
+      `cases[${String(k * 6 + h * 3 + 2)}].expected.${key}`,
+    ]),
+  )
+  want.push(['D-empty-33', 'label_too_deep', 'cases[49].expected.target'])
+  assert.deepEqual(refused, want)
+  // An error names where, never the value: nothing deep is retained.
+  for (const e of r.errors) assert.deepEqual(Object.keys(e).toSorted(), ['caseId', 'code', 'index', 'path'])
+  const observed = r.cases.map((c) => c.caseId)
+  assert.equal(observed.length, 33)
+  assert.ok(observed.includes('D-empty-32') && !observed.some((id) => id.endsWith('-33')))
+  assert.deepEqual([r.counts.cases, r.counts.observed, r.counts.invalidCases, r.counts.errorIssues], [50, 33, 17, 17])
+  assert.ok(depthOf(r) <= 32 + 8, 'the report holds nothing nested past the bound')
+  assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+}
+
+describe('r26: scored labels nest at most 32 deep; deeper makes the case invalid, never retained', () => {
+  it('in the built report (all 8 labels, arrays and objects, 31/32/33, the empty-container convention)', () => {
+    const r = report(r26DepthCorpus()) as unknown as R26DepthView
+    checkR26Depth(r)
+    assert.doesNotThrow(() => JSON.stringify(r))
+  })
+
+  it('in the written report from the command line: written, exit 1', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, r26DepthCorpus())
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 1)
+      checkR26Depth(JSON.parse(readFileSync(out, 'utf8')) as R26DepthView)
+    })
+  })
+
+  it('identity first, then the earlier checks, then depth; a later duplicate is a duplicate only', () => {
+    const doc = corpus()
+    const deep = { target: nested(40, 'array') }
+    doc.cases = [
+      testCase('I-1', 'Thanks.', { audience: 'project' }, deep),
+      testCase('I-1', 'Thanks.', { audience: 'project' }, {}),
+      testCase('I-1', 'Thanks.', { audience: 'project' }, deep),
+      { ...testCase('I-2', 'Thanks.', { audience: 'project' }, deep), family: 7 },
+      { ...testCase('I-3', 'Thanks.', { audience: 'project' }, deep), extra: true },
+      testCase('I-4', 'Thanks.', { audience: 'project' }, { proposedAction: 'no_action' }),
+    ]
+    const r = report(doc) as unknown as R26DepthView
+    assert.deepEqual(
+      r.errors.map((e) => [e.index, e.caseId, e.code, e.path]),
+      [
+        [0, 'I-1', 'label_too_deep', 'cases[0].expected.target'],
+        [1, 'I-1', 'duplicate_case_id', 'cases[1].caseId'],
+        [2, 'I-1', 'duplicate_case_id', 'cases[2].caseId'],
+        [3, 'I-2', 'invalid_family', 'cases[3].family'],
+        [4, 'I-3', 'unknown_case_field', 'cases[4].extra'],
+      ],
+    )
+    assert.deepEqual(
+      r.cases.map((c) => c.caseId),
+      ['I-4'],
+    )
+  })
+
+  it('deep unscored data is not retained and stays accepted (written, in a bounded child)', () => {
+    // Written as text: the deep values are spliced into a shallow file (JSON.stringify of them would itself overflow).
+    const holes = ['status', 'split', 'labelAuthority', 'fixtureAuthority', 'notes'] as const
+    const doc = corpus()
+    doc.cases = holes.map((key) =>
+      key === 'notes'
+        ? testCase('U-notes', 'Thanks.', { audience: 'project' }, { notes: `@${key}@`, proposedAction: 'no_action' })
+        : { ...testCase(`U-${key}`, 'Thanks.', { audience: 'project' }, {}), [key]: `@${key}@` },
+    )
+    withTmp((dir) => {
+      const { path: shallow } = writeCorpus(dir, doc)
+      const deep = `${'['.repeat(100_000)}0${']'.repeat(100_000)}`
+      let text = readFileSync(shallow, 'utf8')
+      for (const key of holes) text = text.replace(`"@${key}@"`, deep)
+      const path = join(dir, 'deep.json')
+      writeFileSync(path, text)
+      const out = join(dir, 'r.json')
+      const written = bounded([SCRIPT, '--input', path, '--input-sha256', sha256(readFileSync(path)), '--out', out])
+      assert.equal(written.terminated, false, 'completed within the sentinel')
+      assert.equal(written.status, 0)
+      const r = JSON.parse(readFileSync(out, 'utf8')) as R26DepthView
+      assert.deepEqual([r.counts.observed, r.counts.invalidCases], [5, 0])
+      assert.ok(depthOf(r) <= 32, 'nothing deep reached the report')
+    })
+  })
+})
+
+describe('r26: a declared authority fixture body nests at most 32 deep; deeper refuses the file', () => {
+  const withFixture = (body: unknown): TestDoc => {
+    const doc = corpus()
+    doc.authorityFixtures = { [FIXTURE_ID]: body as never }
+    doc.cases = [testCase('F-1', 'Thanks.', { audience: 'project' }, {})]
+    return doc
+  }
+
+  it('31 and 32 are hashed as before; 33 is input_fixture_too_deep, built and written (exit 2, no report)', () => {
+    for (const depth of [31, 32]) {
+      const body = { grants: { roles: [] }, deep: nested(depth - 1, 'object') }
+      const r = report(withFixture(body))
+      assert.equal(r.syntheticAuthority.fixtures[0]?.computedSha256, sha256(canonicalJson(body)), String(depth))
+    }
+    const tooDeep = withFixture({ deep: nested(32, 'array') })
+    assert.throws(
+      () => report(tooDeep),
+      (err: unknown) => err instanceof UsageError && err.code === 'input_fixture_too_deep',
+    )
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, tooDeep)
+      const out = join(dir, 'r.json')
+      const r = run(['--input', path, '--input-sha256', hash, '--out', out])
+      assert.equal(r.status, 2)
+      assert.match(r.stderr, /input_fixture_too_deep/)
+      assert.equal(existsSync(out), false)
+    })
+  })
+})
+
+describe('r26: nesting near the 2 MiB file limit is refused in linear work, built and written', () => {
+  /** The built report's errors and counts, or the usage error's code, from a child. */
+  function builtSummary(path: string): BoundedRun {
+    const code = `import { readFileSync } from 'node:fs'
+import { buildReport, parseCorpus, UsageError } from ${JSON.stringify(pathToFileURL(SCRIPT).href)}
+const bytes = readFileSync(${JSON.stringify(path)})
+const { doc, cases } = parseCorpus(bytes)
+try {
+  const r = buildReport(doc, cases, { name: 'c.json', sha256: '0'.repeat(64), bytes: bytes.length, policySourceSha256: '0'.repeat(64) })
+  JSON.stringify(r)
+  process.stdout.write(JSON.stringify({ errors: r.errors, counts: r.counts, effects: r.actualEffects }))
+} catch (err) {
+  process.stdout.write(JSON.stringify({ usage: err instanceof UsageError ? err.code : String(err) }))
+}`
+    return bounded(['--input-type=module', '-e', code])
+  }
+  const LEVELS = 1_000_000
+
+  it('a scored label about 2 MB deep: label_too_deep; the report is written (exit 1)', () => {
+    const doc = corpus()
+    doc.cases = [testCase('N-1', 'Thanks.', { audience: 'project' }, { target: 0 })]
+    withTmp((dir) => {
+      const { path: shallow } = writeCorpus(dir, doc)
+      const text = readFileSync(shallow, 'utf8').replace(
+        '"target":0',
+        `"target":${'['.repeat(LEVELS)}0${']'.repeat(LEVELS)}`,
+      )
+      const path = join(dir, 'deep.json')
+      writeFileSync(path, text)
+      assert.ok(text.length > 2_000_000 && text.length <= CLI_LIMITS.fileBytes, String(text.length))
+      const built = builtSummary(path)
+      assert.equal(built.terminated, false, 'completed within the sentinel')
+      const summary = JSON.parse(built.stdout) as {
+        usage?: string
+        errors: { code: string; path: string }[]
+        counts: { invalidCases: number }
+      }
+      assert.equal(summary.usage, undefined, 'the built report completed without an error')
+      assert.deepEqual(
+        summary.errors.map((e) => [e.code, e.path]),
+        [['label_too_deep', 'cases[0].expected.target']],
+      )
+      const out = join(dir, 'r.json')
+      const written = bounded([SCRIPT, '--input', path, '--input-sha256', sha256(readFileSync(path)), '--out', out])
+      assert.equal(written.terminated, false, 'completed within the sentinel')
+      assert.equal(written.status, 1)
+      assert.ok(readFileSync(out).length < 100_000, 'the deep value is not in the report')
+    })
+  })
+
+  it('a fixture body about 2 MB deep: input_fixture_too_deep, built and written (exit 2, no report)', () => {
+    const doc = corpus()
+    doc.authorityFixtures = { [FIXTURE_ID]: { deep: 0 } as never }
+    withTmp((dir) => {
+      const { path: shallow } = writeCorpus(dir, doc)
+      const text = readFileSync(shallow, 'utf8').replace(
+        '"deep":0',
+        `"deep":${'['.repeat(LEVELS)}0${']'.repeat(LEVELS)}`,
+      )
+      const path = join(dir, 'deep.json')
+      writeFileSync(path, text)
+      assert.ok(text.length > 2_000_000 && text.length <= CLI_LIMITS.fileBytes, String(text.length))
+      const built = builtSummary(path)
+      assert.equal(built.terminated, false, 'completed within the sentinel')
+      assert.deepEqual(JSON.parse(built.stdout), { usage: 'input_fixture_too_deep' })
+      const out = join(dir, 'r.json')
+      const written = bounded([SCRIPT, '--input', path, '--input-sha256', sha256(readFileSync(path)), '--out', out])
+      assert.equal(written.terminated, false, 'completed within the sentinel')
+      assert.equal(written.status, 2)
+      assert.equal(existsSync(out), false)
+    })
   })
 })

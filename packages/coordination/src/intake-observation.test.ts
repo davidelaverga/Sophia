@@ -1,7 +1,9 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  INTAKE_OBSERVATION_POLICY,
   INTAKE_OBSERVATION_POLICY_VERSION,
+  LEXICON,
   ZERO_EFFECTS,
   observeIntake,
   observeWithLedger,
@@ -2913,5 +2915,384 @@ describe('r22 (R21-F02 comment 4544778335): the addressee notation is injective'
       renderAddressee(ids),
     )
     assert.equal(new Set(forms).size, forms.length, JSON.stringify(forms))
+  })
+})
+
+/** A proposal's kind and the rule that produced it. */
+const ruleOf = (o: IntakeObservation) => `${o.proposal.kind} ${o.proposal.rule}`
+
+/** An acknowledgement term with "also" placed before, after and between, with fillers, separators and repetition. */
+const alsoForms = (t: string) => [
+  `Also, ${t}.`,
+  `Also ${t}.`,
+  `${t} also.`,
+  `${t}, also!`,
+  `Please also ${t}, ${t}.`,
+  `${t} \u2014 also, please.`,
+]
+
+// v22 (R25-F01): an "also" marker counts only on a clause with authored words left after its fillers and
+// acknowledgements are peeled. Fresh public sentences written for the rule; no corpus case.
+describe('v22: an empty "also" adds nothing to a mission', () => {
+  const live = {
+    audience: 'project',
+    activeMission: 'm-r26',
+    manager: 'pm-r26',
+    managerGeneration: 4,
+    control: 'running',
+  }
+  it('every acknowledgement with "also" in any place, with fillers, separators and repetition, stays quiet', () => {
+    for (const term of LEXICON.ack)
+      for (const text of alsoForms(term)) {
+        const o = observe(text, live)
+        assert.equal(ruleOf(o), 'no_action family.acknowledgement', text)
+        assert.deepEqual(o.addressee.ids, [], text)
+      }
+  })
+
+  it('a marker or filler with no words of its own is outside the lexicon, never a follow-up', () => {
+    for (const text of ['Also.', 'Also, please.', 'Please, also.', 'Also, also.', 'Just also, now!']) {
+      const o = observe(text, live)
+      assert.equal(kindOf(o), 'abstain', text)
+      assert.ok(o.uncertainty.includes('outside_lexicon'), text)
+    }
+  })
+
+  it('a marked clause with words of its own still follows up; questions, controls and the other barriers are kept', () => {
+    const cases: Array<[string, Record<string, unknown>, string]> = [
+      ['Also, add the requested safeguard.', live, 'manager_followup family.followup'],
+      ['Also, kaleidoscope.', live, 'manager_followup family.followup'],
+      ['Kaleidoscope, also.', live, 'manager_followup family.followup'],
+      ['Also, thanks, kaleidoscope.', live, 'manager_followup family.followup'],
+      ['Thanks also include the missing fact.', live, 'manager_followup family.followup'],
+      ['Thanks, also add a loading state.', live, 'manager_followup family.followup'],
+      ['Also, how is the mission going?', live, 'manager_inquiry family.inquiry'],
+      ['Also, thanks, stop.', { ...live, stopQualified: true }, 'control_stop family.control_stop'],
+      ['Also pause the job.', live, 'control_hold family.control_hold'],
+      ['Also, thanks.', { ...live, needsReply: false }, 'no_action family.no_reply_needed'],
+      ['Also, thanks.', { ...live, origin: 'generated' }, 'no_action origin.output_not_instruction'],
+      [
+        'Also, add the requested safeguard.',
+        { ...live, origin: 'generated' },
+        'no_action origin.output_not_instruction',
+      ],
+      [
+        'Also, thanks.',
+        { ...live, trustedMentions: ['h-r26'], currentMembers: ['h-r26'] },
+        'human_message address.human_directed',
+      ],
+      ['Also, thanks.', project, 'no_action family.acknowledgement'],
+      ['Thanks.', live, 'no_action family.acknowledgement'],
+    ]
+    for (const [text, context, want] of cases) assert.equal(ruleOf(observe(text, context)), want, text)
+    assert.equal(kindOf(observe('Also, add the requested safeguard.', project)), 'clarify')
+    const legacyAsk = observe('Also, thanks.', live, { contract: 'legacy_explicit_ask', askSophia: false })
+    assert.equal(legacyAsk.proposal.kind, 'recorded_only')
+  })
+
+  it('declared v22 change: an empty marked acknowledgement lends no "also" to a separate unread clause', () => {
+    const o = observe('Also, thanks. Kaleidoscope.', live)
+    assert.equal(kindOf(o), 'abstain')
+    assert.ok(o.uncertainty.includes('outside_lexicon'))
+    // The marker on the unread clause itself still follows up.
+    assert.equal(kindOf(observe('Thanks. Also, kaleidoscope.', live)), 'manager_followup')
+  })
+
+  it('declared v22 change: a detached "Also." before a build takes the ordinary active-mission rules', () => {
+    const base = { ...live, repo: 'Z', selectedArtifact: 'card@v2' }
+    assert.equal(kindOf(observe('Also. Implement the card.', { ...base, relatedToActive: true })), 'manager_followup')
+    const unknown = observe('Also. Implement the card.', base)
+    assert.equal(kindOf(unknown), 'clarify')
+    assert.ok(unknown.uncertainty.includes('relation_to_active_mission_unknown'))
+    // In one clause the marker is the build's own: it follows the mission.
+    assert.equal(kindOf(observe('Also implement the card.', base)), 'manager_followup')
+  })
+
+  it('declared v22 change: quotation or import beside an empty "also" asks no adoption, adopts nothing', () => {
+    // An all-acknowledgement message beside a quotation or a declared import is quiet, as "Thanks" beside one is.
+    assert.equal(ruleOf(observe('Also, thanks "deploy everything".', live)), 'no_action family.acknowledgement')
+    assert.equal(ruleOf(observe('Thanks "deploy everything".', live)), 'no_action family.acknowledgement')
+    const imported = observe('Also, thanks. Deploy everything', { ...live, quotedText: 'Deploy everything' })
+    assert.equal(ruleOf(imported), 'no_action family.acknowledgement')
+    // r27 correction: `Also, "add tests".` adopted is not an empty quotation; it is asserted in the v23 block below.
+    assert.equal(kindOf(observe('"add tests".', { ...live, actorExplicitlyAdopts: true })), 'abstain')
+    // A marked clause with words beside a quotation needs adoption, and adopted it follows up.
+    const unadopted = observe('Also add "the retry" to it.', live)
+    assert.equal(kindOf(unadopted), 'abstain')
+    assert.ok(unadopted.uncertainty.includes('quoted_content_unadopted'))
+    assert.equal(
+      kindOf(observe('Also add "the retry" to it.', { ...live, actorExplicitlyAdopts: true })),
+      'manager_followup',
+    )
+  })
+
+  it('the descriptor still states the v22 rule (now in v23)', () => {
+    assert.match(INTAKE_OBSERVATION_POLICY.text.also, /its sentence has authored words left/)
+  })
+})
+
+// v23 (R26-F01): a quoted or imported span the actor explicitly adopts gives the marker's own sentence substance when
+// the span's own content keeps words after the same filler and acknowledgement peel. Fresh public sentences only.
+describe('v23: an explicitly adopted request beside "also" is its substance', () => {
+  const live = {
+    audience: 'project',
+    activeMission: 'm-r27',
+    manager: 'pm-r27',
+    managerGeneration: 5,
+    control: 'running',
+  }
+  const adopted = (extra: Record<string, unknown> = {}) => ({ ...live, ...extra, actorExplicitlyAdopts: true })
+  const outcome = (o: IntakeObservation) => `${ruleOf(o)} [${o.uncertainty.join(',')}]`
+  const positive: [string, Record<string, unknown>][] = [
+    ['Also, "add tests".', {}],
+    ['Also, \u201cinclude the safeguard\u201d.', {}],
+    ["Also, 'adjust the focus'.", {}],
+    ['Also, \u00abadd tests\u00bb.', {}],
+    ['Also, `add tests`.', {}],
+    ['Also, ```add tests```.', {}],
+    ['Also, "kaleidoscope".', {}],
+    ['"Add tests", also.', {}],
+    ['"Add tests" also.', {}],
+    ['Thanks, also "add tests".', {}],
+    ['Also "add tests" please.', {}],
+    ['Also, "" "add tests".', {}],
+    ['Also, "x" add tests', { quotedText: 'add tests' }],
+    ['Also, add tests', { quotedText: 'add tests' }],
+    ['Also, add tests', { attachmentInstruction: 'add tests' }],
+    ['Unrelated words. Also, "add tests".', {}],
+  ]
+  const empty: [string, Record<string, unknown>][] = [
+    ['Also, "".', {}],
+    ['Also, "also".', {}],
+    ['Also, "please".', {}],
+    ['Also, "thanks".', {}],
+    ['Also, "okay, thanks".', {}],
+    ["Also, 'thanks'.", {}],
+    ['Also, "@sam".', {}],
+    ['Also, "" "thanks".', {}],
+    ['Also, thanks', { quotedText: 'thanks' }],
+  ]
+
+  it('adopted substantive content follows up in every quotation and import form, before or after the marker', () => {
+    for (const [text, extra] of positive) {
+      const o = observe(text, adopted(extra))
+      assert.equal(ruleOf(o), 'manager_followup family.followup', text)
+      assert.deepEqual(o.proposal.target, {
+        kind: 'mission',
+        id: 'm-r27',
+        manager: 'pm-r27',
+        generation: 5,
+        binding: null,
+      })
+      assert.notEqual(kindOf(observe(text, { ...live, ...extra })), 'manager_followup', `unadopted: ${text}`)
+    }
+  })
+
+  it('empty, marker, filler, acknowledgement or mention-only adopted content invents no work', () => {
+    for (const [text, extra] of empty) {
+      const o = observe(text, adopted(extra))
+      assert.notEqual(kindOf(o), 'manager_followup', text)
+      // Adopting nothing changes nothing.
+      assert.equal(outcome(o), outcome(observe(text, { ...live, ...extra })), text)
+    }
+  })
+
+  it("only the marker's own sentence counts; with no marker, adoption adds nothing", () => {
+    const cases: [string, Record<string, unknown>, string][] = [
+      ['Also. "Add tests".', {}, 'abstain abstain [outside_lexicon,semantic_assessment_required]'],
+      ['Also, okay. "Add tests".', {}, 'no_action family.acknowledgement []'],
+      ['Also, okay. Add tests', { quotedText: 'Add tests' }, 'no_action family.acknowledgement []'],
+      ['"add tests".', {}, 'abstain abstain [outside_lexicon,semantic_assessment_required]'],
+      ['Okay "add tests".', {}, 'no_action family.acknowledgement []'],
+      ['Also: \n> add tests', {}, 'abstain abstain [outside_lexicon,semantic_assessment_required]'],
+    ]
+    for (const [text, extra, want] of cases) {
+      assert.equal(outcome(observe(text, adopted(extra))), want, text)
+      assert.equal(outcome(observe(text, { ...live, ...extra })), want, `unadopted: ${text}`)
+    }
+    // A second marker inside the adopted request's own sentence is what counts, not the earlier detached one.
+    assert.equal(ruleOf(observe('Also, okay. "Add tests", also.', adopted())), 'manager_followup family.followup')
+  })
+
+  it('unadopted data supplies nothing and keeps each of its own reasons', () => {
+    const cases: [string, Record<string, unknown>, string][] = [
+      ['Also, "add tests".', {}, 'abstain abstain [outside_lexicon,semantic_assessment_required]'],
+      ['Also add "the retry" to it.', {}, 'abstain abstain [quoted_content_unadopted,semantic_assessment_required]'],
+      ['Also, okay "add tests".', {}, 'no_action family.acknowledgement []'],
+      ['Also, okay. Add tests', { quotedText: 'Add tests' }, 'no_action family.acknowledgement []'],
+      [
+        'Also, add tests',
+        { quotedText: 'add tests' },
+        'abstain abstain [outside_lexicon,semantic_assessment_required]',
+      ],
+    ]
+    for (const [text, extra, want] of cases) assert.equal(outcome(observe(text, { ...live, ...extra })), want, text)
+    assert.equal(ruleOf(observe('Also add "the retry" to it.', adopted())), 'manager_followup family.followup')
+  })
+
+  it('malformed bounds, origin, reply, address, Stop, mission and legacy decide as before', () => {
+    const cases: [string, Record<string, unknown>, unknown, string][] = [
+      ['Also, "add tests.', {}, AUTO, 'abstain abstain [malformed_quotation,semantic_assessment_required]'],
+      ['Also, \\"add tests\\".', {}, AUTO, 'abstain abstain [malformed_quotation,semantic_assessment_required]'],
+      ['Also, okay "add tests.', {}, AUTO, 'abstain abstain [malformed_quotation,semantic_assessment_required]'],
+      ['Also, "add tests".', { origin: 'generated' }, AUTO, 'no_action origin.output_not_instruction []'],
+      ['Also, "add tests".', { needsReply: false }, AUTO, 'no_action family.no_reply_needed []'],
+      [
+        'Also, "add tests".',
+        { trustedMentions: ['h-r27'], currentMembers: ['h-r27'] },
+        AUTO,
+        'human_message address.human_directed []',
+      ],
+      ['Also, "add tests", stop.', { stopQualified: true }, AUTO, 'control_stop family.control_stop []'],
+      ['Also, "add tests".', {}, legacy(false), 'recorded_only legacy.ask_false []'],
+    ]
+    for (const [text, extra, interaction, want] of cases) {
+      assert.equal(outcome(observe(text, adopted(extra), interaction)), want, text)
+      assert.equal(outcome(observe(text, { ...live, ...extra }, interaction)), want, `unadopted: ${text}`)
+    }
+    const noMission = observe('Also, "add tests".', { audience: 'project', actorExplicitlyAdopts: true })
+    assert.equal(outcome(noMission), 'abstain abstain [outside_lexicon,semantic_assessment_required]')
+  })
+
+  it('quoted words stay fenced for families: an adopted quoted "stop" is a follow-up, as in v21, never a control', () => {
+    assert.equal(ruleOf(observe('Also, "stop".', adopted())), 'manager_followup family.followup')
+    assert.equal(ruleOf(observe('Also, "add tests"?', adopted())), 'manager_followup family.followup')
+  })
+
+  it('an authored U+2063 is ordinary authored text, never a mark of adoption', () => {
+    // The invisible separator is a word of the authored text, so the v22 rule already counts it, adopted or not.
+    for (const text of ['Also, \u2063 "thanks".', 'Also, "thanks" \u2063.', 'Also, "add tests" \u2063.']) {
+      assert.equal(ruleOf(observe(text, adopted())), 'manager_followup family.followup', text)
+      const unadopted = observe(text, live)
+      assert.equal(outcome(unadopted), 'abstain abstain [quoted_content_unadopted,semantic_assessment_required]', text)
+    }
+  })
+
+  it('apostrophes, quote lines and a fence beside an import keep their bounds', () => {
+    assert.equal(ruleOf(observe("Also, it's 'add tests'.", adopted())), 'manager_followup family.followup')
+    assert.equal(ruleOf(observe("Also, 'don't add tests'.", adopted())), 'manager_followup family.followup')
+    assert.equal(ruleOf(observe('> add tests\nAlso.', adopted())), 'manager_followup family.followup')
+    for (const [text, extra] of [...positive, ...empty]) {
+      const spans = observe(text, adopted(extra)).fenced.quotedSpans
+      assert.equal(spans, observe(text, { ...live, ...extra }).fenced.quotedSpans, text)
+      assert.ok(spans >= 1, text)
+    }
+  })
+
+  it('the descriptor still states the v23 rule (now in v24)', () => {
+    assert.match(INTAKE_OBSERVATION_POLICY.text.also, /explicitly adopts whose own content has words left/)
+  })
+})
+
+interface DelimiterShape {
+  carrier: string
+  wrapper: string
+  content: string
+  literal: string
+}
+/** A shape the matrix can write: an ordinary quotation needs a wrapper, an import needs a non-empty literal. */
+const validShape = (x: DelimiterShape) => (x.carrier === 'ordinary' ? x.wrapper !== 'none' : x.literal !== '')
+
+// v24 (R27-F01): an adopted span's content is read without its own quotation, escaped-quote and encoded-quote
+// delimiters, the same way for a declared import (either field), a fenced span and a single-quote pair; apostrophes
+// inside words stay. Fresh public sentences only; every expectation is the contract for that shape.
+describe('v24: quotation and escape framing around adopted content is never its words', () => {
+  const live = {
+    audience: 'project',
+    activeMission: 'm-r28',
+    manager: 'pm-r28',
+    managerGeneration: 7,
+    control: 'running',
+  }
+  const outcome = (o: IntakeObservation) => `${ruleOf(o)} [${o.uncertainty.join(',')}]`
+  const FOLLOW = 'manager_followup family.followup []'
+  const QUIET = 'no_action family.acknowledgement []'
+  const UNREAD = 'abstain abstain [outside_lexicon,semantic_assessment_required]'
+  const MALFORMED = 'abstain abstain [malformed_quotation,semantic_assessment_required]'
+  // No words once framing, fillers, acknowledgements, markers and mentions are gone ("..." has no word at all).
+  const empty = ['', 'thanks', 'okay, thanks', 'please', 'also', '@person', '...']
+  // Words: known and unread requests, contractions and name prefixes kept whole, and opaque "-" as aa reads it.
+  const words = ['add tests', 'kaleidoscope', "don't add tests", "check o'brien's note", '-']
+  const wrappers: [string, string, string][] = [
+    ['none', '', ''],
+    ['straight single', "'", "'"],
+    ['curly single', '\u2018', '\u2019'],
+    ['straight double', '"', '"'],
+    ['curly double', '\u201c', '\u201d'],
+    ['backtick', '`', '`'],
+    ['guillemets', '\u00ab', '\u00bb'],
+    ['escaped single', "\\'", "\\'"],
+    ['encoded single', '&apos;', '&apos;'],
+    ['double around single', `"'`, `'"`],
+  ]
+  const surfaces: [string, (x: string) => string][] = [
+    ['okay', (x) => `Also, okay ${x}.`],
+    ['bare', (x) => `Also, ${x}.`],
+  ]
+  /** The contract for one shape: what it must give, adopted or not. */
+  function expected(carrier: string, wrapper: string, content: string, surface: string, adopted: boolean): string {
+    // Escaped or encoded quotes written in the authored text cannot be bounded: they abstain, whatever is inside.
+    if (carrier === 'ordinary' && (wrapper === 'escaped single' || wrapper === 'encoded single')) return MALFORMED
+    // A declared "..." overlaps itself inside the authored "....": the import's bounds are unknown (r17), kept.
+    if (carrier !== 'ordinary' && wrapper === 'none' && content === '...') return MALFORMED
+    if (adopted && words.includes(content)) return FOLLOW
+    return surface === 'okay' ? QUIET : UNREAD
+  }
+  const shapes: DelimiterShape[] = ['ordinary', 'quotedText', 'attachmentInstruction'].flatMap((carrier) =>
+    wrappers.flatMap(([wrapper, open, close]) =>
+      [...empty, ...words].map((content) => ({ carrier, wrapper, content, literal: `${open}${content}${close}` })),
+    ),
+  )
+  const cases = shapes.filter(validShape).flatMap((x) =>
+    surfaces.flatMap(([surface, write]) =>
+      [true, false].map((adopted) => ({
+        label: `${x.carrier} / ${x.wrapper} / ${JSON.stringify(x.content)} / ${surface} / adopted ${String(adopted)}`,
+        text: write(x.literal),
+        context: {
+          ...live,
+          actorExplicitlyAdopts: adopted,
+          ...(x.carrier === 'ordinary' ? {} : { [x.carrier]: x.literal }),
+        },
+        want: expected(x.carrier, x.wrapper, x.content, surface, adopted),
+      })),
+    ),
+  )
+
+  it('every carrier, wrapper, content and surface gives its contract outcome', () => {
+    assert.ok(cases.length > 1000, String(cases.length))
+    for (const c of cases) assert.equal(outcome(observe(c.text, c.context)), c.want, c.label)
+  })
+
+  it('the reported failures: single-quoted acknowledgements, fillers, markers and mentions in either import field', () => {
+    for (const field of ['quotedText', 'attachmentInstruction'])
+      for (const literal of [
+        "''",
+        "'thanks'",
+        "'okay, thanks'",
+        "'please'",
+        "'also'",
+        "'@public'",
+        '\u2018thanks\u2019',
+      ]) {
+        const o = observe(`Also, okay ${literal}.`, { ...live, actorExplicitlyAdopts: true, [field]: literal })
+        assert.equal(outcome(o), QUIET, `${field} ${literal}`)
+      }
+  })
+
+  it('a double quotation around single-quoted thanks is no work; around a real request it follows up', () => {
+    assert.equal(outcome(observe(`Also, "'thanks'".`, { ...live, actorExplicitlyAdopts: true })), UNREAD)
+    assert.equal(outcome(observe(`Also, "'add tests'".`, { ...live, actorExplicitlyAdopts: true })), FOLLOW)
+  })
+
+  it('fence counts are the same adopted or not (malformed bounds are in the contract above)', () => {
+    for (const c of cases.filter((x) => !x.context.actorExplicitlyAdopts)) {
+      const adopted = observe(c.text, { ...c.context, actorExplicitlyAdopts: true })
+      assert.equal(adopted.fenced.quotedSpans, observe(c.text, c.context).fenced.quotedSpans, c.label)
+    }
+  })
+
+  it('names v24 in the version and the descriptor', () => {
+    assert.equal(INTAKE_OBSERVATION_POLICY_VERSION, 'sophia.intake-observation.policy.v24')
+    assert.match(INTAKE_OBSERVATION_POLICY.text.also, /without its own quotation, escaped-quote and encoded-quote/)
   })
 })
