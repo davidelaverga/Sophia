@@ -35,7 +35,7 @@ import {
   type PersonalAnswerProfile,
 } from '@sophia/persistence'
 import type { CompanionRunner } from '../companion.ts'
-import { idempotencyHeader, UUID_PATTERN } from './schemas.ts'
+import { idempotencyHeader } from './schemas.ts'
 
 /**
  * What the routes need of the database: 0101's three writers and its decisions, and 0102's guard (named in two parts,
@@ -61,13 +61,22 @@ const headers = {
   required: [...idempotencyHeader.required, 'x-sophia-personal-epoch'],
 } as const
 
-/** An input id as the database reads it: a canonical lowercase UUID. */
+/**
+ * An input id as A53 declares it (`format: uuid`: the hex form in any case, optionally `urn:uuid:`), as the A51
+ * resource routes check theirs; the shared lowercase UUID_PATTERN would refuse spellings the contract allows.
+ */
 const params = {
   type: 'object',
   additionalProperties: false,
-  properties: { inputId: { type: 'string', pattern: UUID_PATTERN } },
+  properties: { inputId: { type: 'string', format: 'uuid' } },
   required: ['inputId'],
 } as const
+
+/**
+ * The one spelling the database and the idempotency semantic read: lowercase, without the prefix. Applied only to a
+ * value the format already accepted (36 hex-and-dash characters, at the end), so every spelling of one input names it.
+ */
+const canonicalId = (id: string): string => id.slice(-36).toLowerCase()
 
 const NO_ANSWER = 'Sophia can’t answer here yet. Nothing was kept.'
 const NOT_WAITING = 'This input is not waiting for a decision.'
@@ -178,7 +187,7 @@ function decidingRoutes(app: FastifyInstance, { pool, companion, installed }: De
       const receipt: PersonalAnswerReceipt = await decided(() =>
         withActor(pool, req.actorId, 'write', (c) =>
           retryPersonalAnswerInput(c, req.headers['idempotency-key'], {
-            inputId: req.params.inputId,
+            inputId: canonicalId(req.params.inputId),
             expectedSeq: req.body.expectedSeq,
             epoch: epochOf(req.headers),
             profile,
@@ -208,7 +217,7 @@ function cancelRoute(app: FastifyInstance, { pool, installed }: Deps): void {
       const receipt: PersonalAnswerReceipt = await decided(() =>
         withActor(pool, req.actorId, 'write', (c) =>
           cancelPersonalAnswerInput(c, req.headers['idempotency-key'], {
-            inputId: req.params.inputId,
+            inputId: canonicalId(req.params.inputId),
             expectedSeq: req.body.expectedSeq,
             epoch: epochOf(req.headers),
           }),
@@ -253,7 +262,7 @@ function readRoute(app: FastifyInstance, { pool, installed }: Deps): void {
     async (req) => {
       await installed()
       const records = await withActor(pool, req.actorId, 'read', (c) =>
-        readPersonalAnswerDecisions(c, req.params.inputId),
+        readPersonalAnswerDecisions(c, canonicalId(req.params.inputId)),
       )
       const list = listOf(records)
       if (!list) throw new DomainError('not_found', NO_INPUT)

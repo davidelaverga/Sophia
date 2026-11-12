@@ -200,3 +200,47 @@ A1r1 `8c4d3019`. It is a source-only base, not runtime or PRE accepted.
 - activation.
 
 This guard pins the declared profile fields. It does not prove vendor account, key ownership, endpoints or quotas.
+
+## Repair A2-F01: the declared UUID language on the three input routes
+
+Written before this repair's code. Task `INC03-CC-003-A2-UUID-REPAIR-001` (`81fbe0ee…`), from the independent whole226
+review `0979fc57…`. Base `c529286b` (tree `8eb17a26`). The repair is one signed child of `c529`, and it writes four
+paths only: `routes/personal-answers.ts`, `personal-answers.db.test.ts`, this plan and the A2 handoff.
+
+**The finding.**
+- A53 declares `inputId` as `type: string, format: uuid` on `GET …/decisions`, `POST …/retry` and `POST …/cancel`.
+- The pinned validators accept that format's whole language: lowercase, uppercase, and `urn:uuid:`-prefixed hex.
+- The route validated the path with the shared lowercase-only `UUID_PATTERN` instead, so a valid uppercase or URN
+  spelling of an existing input answered 422 before the handler ran.
+
+**The repair, route-local, as A51's project-resources boundary already does** (inspected, not edited):
+- Validate `inputId` with the declared `{ type: 'string', format: 'uuid' }`.
+- Then read it in one spelling: the last 36 characters, lowercased. This is applied only to a value the format already
+  accepted, so it parses nothing coercively and accepts nothing new.
+- The canonical id is what the A1 writers and the decision read receive. Their idempotency semantic is
+  `{inputId, expectedSeq}` with that canonical id, so:
+  - the same key and expected seq under any accepted spelling replays the original immutable receipt, with no second
+    decision, reservation or paid call;
+  - a different input under the same key is still a conflict.
+- Unchanged:
+  - the shared `UUID_PATTERN` and every legacy route;
+  - A53 and the generated files;
+  - SQL, 0102 and the persistence helpers;
+  - validator options;
+  - the owner, epoch, closed body, server actor, readiness, default-off and paid-effect rules;
+  - R2 after a committed retry, and no wake on cancel or GET.
+- Malformed values still fail validation (422). Another owner's or an unknown input still reads `not_found`, the same
+  as an unknown id.
+
+**Checks.**
+- Lowercase, uppercase and URN spellings of fresh inputs, on all three routes:
+  - a GET that reads the same list;
+  - a retry, admitted under the current seq;
+  - a cancel of a fresh waiting input at its correct current seq that actually succeeds.
+- Same-key alias replays that return the identical receipt, with unchanged decision and effect counts and the
+  canonical `inputId`.
+- Malformed ids, and the other-owner/unknown, epoch, closed-body and zero-effect-GET/cancel controls, kept.
+- Fail-before of the new cases on exact `c529`.
+- One reached mutant that restores the lowercase-only validation, with its bytes restored afterwards.
+- The changed API DB file, plus the affected static and type checks.
+- ONE ordinary on the new signed head.

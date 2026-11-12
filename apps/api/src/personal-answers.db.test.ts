@@ -730,3 +730,153 @@ describe('A2 the Answer HTTP surface (A53)', () => {
     assert.equal((await on.inject({ method: 'GET', url: '/ready' })).statusCode, 200)
   })
 })
+
+/** The spellings A53's `format: uuid` accepts for one id: lowercase, uppercase, and with the URN prefix. */
+const spellings = (id: string) => ({
+  lower: id,
+  upper: id.toUpperCase(),
+  urn: `urn:uuid:${id}`,
+  URN: `URN:UUID:${id.toUpperCase()}`,
+})
+
+describe('A2-F01 the declared UUID language (format uuid) on the three input routes', () => {
+  const decisionCount = async (inputId: string) =>
+    Number(
+      (
+        await owner<{ n: string }>('SELECT count(*) AS n FROM sophia.personal_input_decisions WHERE input_id=$1', [
+          inputId,
+        ])
+      )[0]?.n,
+    )
+
+  it('reads, retries and cancels one input under every accepted spelling, and replays one receipt across them', async () => {
+    const { person, payer } = await enrolled()
+    const llm = new FakeLlm()
+    const app = api(live(person, payer, llm), { personalAnswers: true })
+    const url = '/api/v1/personal/answers'
+    // Fresh waiting inputs (the payer moved away by the operator): three to retry, three to cancel.
+    await owner('UPDATE sophia.personal_companion_payers SET owner_id=$2 WHERE payer=$1', [payer, randomUUID()])
+    const waitingInput = async (text: string) => {
+      const r = await call(app, ['POST', url], person, { answerContract: 'personal_answer_v1', text })
+      assert.equal(r.status, 202, r.body)
+      const receipt = wire.parsePersonalAnswerReceipt(r.json)
+      assert.equal(receipt.decision.outcome, 'waiting')
+      return receipt.inputId
+    }
+    const forms = ['lower', 'upper', 'urn'] as const
+    const toRetry = [
+      await waitingInput('Retry lower'),
+      await waitingInput('Retry upper'),
+      await waitingInput('Retry urn'),
+    ]
+    const toCancel = [
+      await waitingInput('Cancel lower'),
+      await waitingInput('Cancel upper'),
+      await waitingInput('Cancel urn'),
+    ]
+
+    // GET: every spelling reads the same list, named by its one canonical id.
+    const [first] = toRetry
+    assert.ok(first)
+    const reads = await Promise.all(
+      Object.values(spellings(first)).map((id) => call(app, ['GET', `${url}/${id}/decisions`], person)),
+    )
+    for (const read of reads) {
+      assert.equal(read.status, 200, read.body)
+      assert.equal(read.body, reads[0]?.body)
+      assert.equal(wire.parsePersonalAnswerDecisionList(read.json).inputId, first)
+    }
+
+    // Cancel at the correct current seq (1) under each spelling: each actually cancelled, nothing woken or paid.
+    const cancels: { key: string; body: string; inputId: string }[] = []
+    for (const [i, form] of forms.entries()) {
+      const inputId = toCancel[i] ?? ''
+      const key = `k-cancel-${form}`
+      const r = await call(app, ['POST', `${url}/${spellings(inputId)[form]}/cancel`], person, { expectedSeq: 1 }, key)
+      assert.equal(r.status, 202, `${form}: ${r.body}`)
+      const receipt = wire.parsePersonalAnswerReceipt(r.json)
+      assert.deepEqual([receipt.inputId, receipt.decision.seq, receipt.decision.outcome], [inputId, 2, 'cancelled'])
+      cancels.push({ key, body: r.body, inputId })
+    }
+    assert.equal(llm.prepared, 0)
+
+    // Retry at the correct current seq once the payer is admitted again: admitted under each spelling, then answered.
+    await owner('UPDATE sophia.personal_companion_payers SET owner_id=$2 WHERE payer=$1', [payer, person])
+    const retries: { key: string; body: string; inputId: string; turnId: string }[] = []
+    for (const [i, form] of forms.entries()) {
+      const inputId = toRetry[i] ?? ''
+      const key = `k-retry-${form}`
+      const r = await call(app, ['POST', `${url}/${spellings(inputId)[form]}/retry`], person, { expectedSeq: 1 }, key)
+      assert.equal(r.status, 202, `${form}: ${r.body}`)
+      const receipt = wire.parsePersonalAnswerReceipt(r.json)
+      assert.deepEqual([receipt.inputId, receipt.decision.seq, receipt.decision.outcome], [inputId, 2, 'admitted'])
+      retries.push({ key, body: r.body, inputId, turnId: receipt.turnId })
+    }
+    for (const r of retries) assert.equal(await settled(r.turnId), 'answered')
+    assert.equal(llm.prepared, 3)
+    const paid = (await usage(person)).length
+
+    // Same key and expected seq under every other spelling: the identical receipt, no second decision or effect.
+    for (const done of [
+      ...cancels.map((c) => ({ ...c, op: 'cancel' })),
+      ...retries.map((r) => ({ ...r, op: 'retry' })),
+    ]) {
+      for (const id of Object.values(spellings(done.inputId))) {
+        const again = await call(app, ['POST', `${url}/${id}/${done.op}`], person, { expectedSeq: 1 }, done.key)
+        assert.equal(again.status, 202, again.body)
+        assert.equal(again.body, done.body)
+      }
+      assert.equal(await decisionCount(done.inputId), 2)
+    }
+    await new Promise((r) => setTimeout(r, 300))
+    assert.equal(llm.prepared, 3)
+    assert.equal((await usage(person)).length, paid)
+
+    // A different input under a used key is still a conflict, whatever its spelling.
+    const conflict = await call(
+      app,
+      ['POST', `${url}/${spellings(toCancel[1] ?? '').upper}/cancel`],
+      person,
+      { expectedSeq: 1 },
+      'k-cancel-lower',
+    )
+    assert.deepEqual([conflict.status, conflict.json?.code], [409, 'idempotency_conflict'])
+  })
+
+  it("still refuses what format uuid refuses, and reads another owner's or an unknown input alike in any spelling", async () => {
+    const { person, payer } = await enrolled()
+    const llm = new FakeLlm()
+    const app = api(live(person, payer, llm), { personalAnswers: true })
+    const url = '/api/v1/personal/answers'
+    const id = randomUUID()
+    for (const bad of [
+      'not-a-uuid',
+      id.slice(1),
+      `${id}0`,
+      `{${id}}`,
+      `urn:uuid:${id.slice(1)}`,
+      `urn:${id}`,
+      id.replaceAll('-', ''),
+      `${id.slice(0, 8)}_${id.slice(9)}`,
+    ]) {
+      const path = encodeURIComponent(bad)
+      assert.equal((await call(app, ['GET', `${url}/${path}/decisions`], person)).status, 422, bad)
+      assert.equal((await call(app, ['POST', `${url}/${path}/retry`], person, { expectedSeq: 1 })).status, 422, bad)
+      assert.equal((await call(app, ['POST', `${url}/${path}/cancel`], person, { expectedSeq: 1 })).status, 422, bad)
+    }
+    const sent = await call(app, ['POST', url], person, { answerContract: 'personal_answer_v1', text: 'Mine' })
+    const mine = wire.parsePersonalAnswerReceipt(sent.json).inputId
+    await settled(wire.parsePersonalAnswerReceipt(sent.json).turnId)
+    const stranger = randomUUID()
+    const unknown = await call(app, ['GET', `${url}/${randomUUID().toUpperCase()}/decisions`], person)
+    for (const form of Object.values(spellings(mine))) {
+      const foreign = await call(app, ['GET', `${url}/${form}/decisions`], stranger)
+      assert.deepEqual([foreign.status, foreign.json?.code], [unknown.status, unknown.json?.code])
+      assert.equal(foreign.json?.code, 'not_found')
+    }
+    // A stranger's cancel of the owner's input, in any spelling, finds no input of theirs.
+    const cancel = await call(app, ['POST', `${url}/${spellings(mine).urn}/cancel`], stranger, { expectedSeq: 1 })
+    assert.equal(cancel.json?.code, 'not_found')
+    assert.equal(await decisionCount(mine), 1)
+  })
+})
