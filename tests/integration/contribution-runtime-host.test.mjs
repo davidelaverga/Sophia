@@ -146,6 +146,18 @@ describe('contribution runtime with an explicit custodian (real API, PostgreSQL,
       await c.end()
     }
   }
+  /**
+   * INC04-S02a (0105): a pinned contributed admission also needs the operator's account qualification for the
+   * connection's CURRENT credential revision (the function binds that revision, route, model and effort), recorded by the
+   * migration owner like the route's above. SYNTHETIC fixture evidence: nothing real is qualified; no key or capability
+   * is stored.
+   */
+  async function qualifyCurrentCredential() {
+    await owner(
+      `SELECT sophia.qualify_api_account($1, '{research}', 'operator_verified_call', 'synthetic fixture: not a live account qualification', now()-interval '1 minute', now()+interval '1 day')`,
+      [w.connectionId],
+    )
+  }
   async function until(predicate, what, timeoutMs = 90000) {
     const deadline = Date.now() + timeoutMs
     for (;;) {
@@ -252,6 +264,12 @@ describe('contribution runtime with an explicit custodian (real API, PostgreSQL,
     await owner(`SELECT sophia.set_research_grant($1, 'enabled', 5, 40, 'web-pilot-v1', 'approval:test')`, [w.projectId])
     const account = await api(OWNER, 'POST', '/api/v1/me/api-accounts', { label: 'Owner API', totalCapUsd: 20 })
     assert.equal(account.status, 201, JSON.stringify(account.json))
+    // INC04-S02a (0105): the owner's explicit (synthetic) protection declaration, through the owner's own route.
+    const declared = await api(OWNER, 'PATCH', `/api/v1/me/api-accounts/${account.json.accountId}`, {
+      expectedRevision: 1,
+      patch: { protection: { applicability: 'none_applicable', operations: ['research'], roles: ['sophia-research-md-v1'] } },
+    })
+    assert.equal(declared.status, 200, JSON.stringify(declared.json))
     const conn = await api(OWNER, 'POST', '/api/v1/me/api-connections', { accountId: account.json.accountId, label: 'Research key', custodianLabel: 'Owner host' })
     assert.equal(conn.status, 201, JSON.stringify(conn.json))
     w.connectionId = conn.json.connectionId
@@ -269,6 +287,7 @@ describe('contribution runtime with an explicit custodian (real API, PostgreSQL,
     const first = register()
     w.first = first
     assert.equal(first.binding.credentialRevision, 1)
+    await qualifyCurrentCredential() // INC04-S02a: revision 1, before the original pin and admission
     assert.equal(first.binding.serviceOrigin, base)
     w.custody = privateDir('custody')
     placeKey(w.custody, first.binding, KEY1)
@@ -421,6 +440,9 @@ describe('contribution runtime with an explicit custodian (real API, PostgreSQL,
     const before = llm.requests.length
     const second = register(true)
     assert.equal(second.binding.credentialRevision, 2)
+    // INC04-S02a: revision 2's account qualification first, so the drain below is decided by the real old-runtime and
+    // current-runtime guards, never masked by account_unqualified.
+    await qualifyCurrentCredential()
     // The old runtime drains: a new admission is refused or never dispatched to it, and nothing reaches the provider.
     script()
     let refusal = null

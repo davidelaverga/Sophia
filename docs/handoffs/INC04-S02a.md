@@ -61,3 +61,16 @@ All records are synthetic.
 ## Next bounded action
 
 Independent review of this candidate. It inherits 950d's open P1/P2 hold until a separately checked coherent join with Host's 0106 repair.
+
+## R1: integration qualification fixtures (append only)
+
+- **New identity:** a local fixture-only sole child of `d9f88836` on `inc04-s02a-r1-integration-fixtures-001` (lease INC04-S02A-R1-INTEGRATION-QUALIFICATION-FIXTURES-001, two paths).
+- **Why:** d9's ONE ordinary failed. 2 tests in `tests/integration/contribution-runtime-host.test.mjs` were refused with `account_unqualified` because the fixture predates 0105. That failure is spent and unchanged.
+- **Fixture, all synthetic:**
+  - The owner declares `none_applicable` protection through the owner route.
+  - The operator records an account qualification (migration owner) for the connection's current credential revision: revision 1 before the original admission, revision 2 right after rotation. That keeps the drain decided by the real old-runtime guard (`runtime_unavailable`).
+  - No assertion, timeout, guard or production byte changed. All nine S02a paths are byte-identical to d9.
+- **Checks:** the whole affected integration file 10/10, including rotation and the S5c r2/r3 UID 65534 crossings; format, lint and typecheck exit 0.
+- **Limits:**
+  - The child inherits 950d's open PR519 F01/F02 until a separately checked 0105 + 0106 coherent candidate.
+  - No publication; native, owner, deployed and app gates and all 18 AC-04 cases stay open.
