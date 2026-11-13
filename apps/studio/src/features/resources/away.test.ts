@@ -232,3 +232,10 @@ describe('a stored glance', () => {
     assert.equal(asSeen(null), null)
   })
 })
+
+describe('sessions not reported (A51’s catalog, INC01-DES-002)', () => {
+  it('gives no work to compare: never a session gone, nor none', () => {
+    const r = resource('c', 'davide', { sessions: null })
+    assert.deepEqual(glance([r], [], [], now)['c']?.work, {})
+  })
+})
