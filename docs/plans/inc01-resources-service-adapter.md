@@ -33,7 +33,9 @@ Nothing is filtered and nothing becomes an empty page.
 - `owner.isYou === (canonical(owner.id) === canonical(subject))`, where the subject is the token's own.
 - `mine !== null` exactly when `owner.isYou`.
 - `operations` duplicate-free, in create, input, stop order; empty exactly when `state === 'none'`.
-- Row ids strictly ascending, each greater than the requested `after`. A `nextCursor` greater than `after`.
+- Row ids strictly ascending, each greater than the requested `after`.
+- A `nextCursor` on a page with rows equal to its last row's id, canonically (CUR01: the server's boundary, 0097
+  79–89). On a page with no row, a `nextCursor` greater than `after`.
 
 `canonical(id)` is the id's last 36 characters in lower case: A51's one spelling, which sorts as the server's UUID
 order. It is used only to compare; the wire values are kept as sent.
@@ -430,4 +432,51 @@ doesn't waive the finding. The work is on the local branch `inc01-des-002-rec01-
   - **Simulated EPERM on the group query, during a stalled start:** a reporting witness that shows both causes, not an
     OS permission event.
   - **Focused:** both catalog specs at desktop and phone, 2 workers, retries 0; static and typecheck.
+  - **Then:** one signed child; ONE ordinary.
+
+## CUR01: a continuation is the page's own last row (a child of `9a1d105f`)
+
+Written before the repair's code. Assignment `INC01-DES-002-CUR01-CURSOR-BOUNDARY-001` (`124f5fbd…bdc0`), on #512's
+Codex P2 at `9a1d105f` (review 5885584200, comment 4559340415, thread `PRRT_kwDOUqJnR8628QYD`, `native-resources.ts`
+49–50). Root and the same reviewer confirmed it from the source (`abb9b788…b273`). The work is on the local branch
+`inc01-des-002-cur01`, in a fresh public worktree at `9a1d105f`. `9a1d105f`, the integration `19e654c6` and `8c1077b3`
+stay as they are, and so do their running checks. Six leased paths: the reader and its unit test, the catalog fixture and
+its spec, this plan and the handoff.
+
+- **What the source does now (`9a1d105f`, inherited unchanged from `8c1077b3`).**
+  - `checkPage` binds a `nextCursor` only to the cursor asked with, and only on a later page: past it.
+  - Nothing binds it to the page's own rows. A nonempty, incomplete page whose cursor lies past its last row, or behind
+    it, passes. On the first page no cursor relation is checked at all.
+  - The reducer stores that cursor, and More sends it. The rows between the last returned and the cursor are never
+    asked for, and a later complete page then says the catalog complete.
+  - 0097 (79–89) sets the cursor to the page's last id when a 201st row exists, and the service plan says so. A51's
+    generated parser checks shape and can't say this cross-row relation, so the reader's relational check is the place.
+  - This is a defensive gap for a malformed page, not a server omission that has been observed.
+- **The repair**, in the reader only:
+  - **The relation.** For a nonempty incomplete page, `canonicalId(nextCursor)` must equal `canonicalId(last row id)`,
+    on the first page and every later one. This catches a cursor past the last row and a cursor behind it.
+  - **Canonical comparison.** Case and `urn:uuid:` make no difference. The cursor is still sent as the server spelled
+    it.
+  - **Empty incomplete unchanged.** With no row there is no last row. The existing check stays: a cursor past the one
+    asked with. The reducer still reads the page as `partial('inconsistent')`, with no More, and the first page still
+    shows the existing incomplete notice. It never becomes a failed or empty view.
+  - **Unchanged:** every other relation, the complete/null rule, an empty complete page as observed empty, and the
+    `contract_violation`/`safe_read` classification by the client.
+  - **Untouched:** the reducer, ProjectResources, the app, styles, kit, config, backend, A51 and generated code.
+  - **What failure looks like.** A bad first page is the existing failed read: no row, no More, nothing followed. A bad
+    later page is the existing partial: the rows read before are kept, with their time. The bad page's rows aren't added
+    and its cursor is never asked with.
+- **Evidence.**
+  - **Unit, at the reader's entry** (`readCatalogPage` and through `listProjectNativeResources`). Cases: a first page and
+    a later page whose cursor is past the last row; a cursor between the cursor asked with and the last row; an exact
+    last row in another spelling (positive); a complete empty page; the existing empty incomplete page (accepted, as
+    before).
+  - **Fail-before on `9a1d105f`'s reader bytes:** the new refusal cases are expected to fail because the bad page is
+    accepted, not because a helper is missing.
+  - **Browser, fixture cases.** `skipfirst`: the first page's cursor is past its last row. `skiplater`: the second
+    page's cursor is past its last row. Each runs through the real reader and ProjectResources, at desktop and phone.
+    Each checks the request ledger: no read past a bad cursor, no complete or empty claim, and the rows read before
+    are kept after a later bad page. The existing `more` case stays the positive control.
+  - **Focused:** the reader and catalog unit files; static checks, typecheck and Studio build; both catalog browser
+    specs complete, at desktop and phone, 2 workers, retries 0.
   - **Then:** one signed child; ONE ordinary.

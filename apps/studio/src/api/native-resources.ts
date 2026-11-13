@@ -34,7 +34,8 @@ const ownerHolds = (row: ProjectNativeResource, subject: string): boolean =>
 /**
  * The relations a page must keep, beyond its schema: complete exactly when no cursor follows; each row its reader's or
  * not, with its private part only then; operations as recorded; ids strictly ascending past the cursor asked with; a
- * next cursor past it too. Throws on the first broken one.
+ * next cursor that is the page's own last row, or, on a page with no row, past the cursor asked with. Throws on the
+ * first broken one.
  */
 export function checkPage(page: ProjectNativeResourcePage, subject: string, after: string | null): void {
   if (page.complete !== (page.nextCursor === null)) throw new CatalogViolation('complete and nextCursor disagree')
@@ -46,7 +47,20 @@ export function checkPage(page: ProjectNativeResourcePage, subject: string, afte
     if (!operationsHold(row)) throw new CatalogViolation('recorded operations are not a set in order')
     last = id
   }
-  if (page.nextCursor !== null && after !== null && canonicalId(page.nextCursor) <= canonicalId(after)) {
+  checkCursor(page, last, after)
+}
+
+/**
+ * Where the next page starts. A page with rows goes on from its own last row (0097): a cursor past it would skip the
+ * rows between, one behind it would read some again. A page with none has no last row; its cursor need only advance
+ * past the one asked with (the catalog then says what was read partial).
+ */
+function checkCursor(page: ProjectNativeResourcePage, last: string | null, after: string | null): void {
+  if (page.nextCursor === null) return
+  const next = canonicalId(page.nextCursor)
+  if (page.resources.length > 0) {
+    if (next !== last) throw new CatalogViolation('the next cursor is not the last row')
+  } else if (after !== null && next <= canonicalId(after)) {
     throw new CatalogViolation('the next cursor does not advance')
   }
 }

@@ -380,6 +380,52 @@ test('@phone an empty first page at 390: the incomplete notice and Try again in 
   await expect(page.locator('main')).toContainText(ENROLLED)
 })
 
+// CUR01 (docs/plans/inc01-resources-service-adapter.md): a page with rows goes on from its own last row. One whose cursor
+// lies past it is refused by the reader, never followed: past it the fixture answers as if it were, so a followed cursor
+// shows in the requests and in rows 4 and 5 never read under a catalog said complete.
+const afters = (page: Page) => page.evaluate(() => window.nativeFixture?.requests.map((r) => r.after) ?? [])
+
+async function skippingFirstRefused(page: Page) {
+  await page.goto(`${PAGE}?case=skipfirst`)
+  await expect(page.locator('.resources-read')).toHaveAttribute('data-read', 'failed')
+  await expect(page.locator('.resources-read')).toHaveText(/Couldn’t read the resources\.\s*Try again/)
+  await expect(tiles(page)).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'More resources' })).toHaveCount(0)
+  await expect(page.locator('main')).not.toContainText(ENROLLED)
+  // Only the first page was asked for (StrictMode may ask it twice); its cursor never was.
+  expect((await afters(page)).every((a) => a === null)).toBe(true)
+}
+
+async function skippingLaterPartial(page: Page) {
+  await page.goto(`${PAGE}?case=skiplater`)
+  await expect(tiles(page)).toHaveCount(3)
+  await page.getByRole('button', { name: 'More resources' }).click()
+  await expect(page.locator('.resources-partial')).toContainText('3 loaded · couldn’t read the rest.')
+  await expect(page.locator('.resources-partial time')).toHaveAttribute('datetime', '2026-11-12T14:00:00.000Z')
+  // The rows read before stay, the bad page's row isn't added, and nothing says the catalog is complete or empty.
+  await expect(tiles(page)).toHaveCount(3)
+  await expect(view(page)).not.toContainText('Unknown name')
+  await expect(page.getByRole('button', { name: 'More resources' })).toHaveCount(0)
+  await expect(page.locator('main')).not.toContainText(ENROLLED)
+  // The good cursor was asked with, once; the bad one never.
+  expect((await afters(page)).filter((a) => a !== null)).toEqual(['10000000-0000-4000-8000-000000000003'])
+}
+
+test('a page whose cursor skips past its last row is never followed: first page failed, a later one partial', async ({
+  page,
+}) => {
+  await skippingFirstRefused(page)
+  await skippingLaterPartial(page)
+})
+
+test('@phone a skipping cursor at 390: first page failed, a later one partial, Try again in view', async ({ page }) => {
+  await skippingFirstRefused(page)
+  await expect(page.getByRole('button', { name: 'Try again' })).toBeInViewport()
+  await skippingLaterPartial(page)
+  await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+})
+
 // UX iteration 001 (docs/plans/inc01-resources-service-adapter.md): what the catalog is, said at every width; search and
 // counts as far as read; the cue before the tiles; recovery that does what it asks; the owner's evidence closed and a
 // teammate's absent; contrast measured on the actual surfaces.

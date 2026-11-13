@@ -59,6 +59,15 @@ const refusal = (p: Promise<unknown>) =>
     () => null,
     (error: unknown) => error,
   )
+/** Whether reading refused the page for a broken relation (CatalogViolation), not for its shape or not at all. */
+const violates = (read: () => unknown) => {
+  try {
+    read()
+    return false
+  } catch (error) {
+    return error instanceof CatalogViolation
+  }
+}
 const withinMs = <T>(ms: number, p: Promise<T>) =>
   Promise.race([
     p,
@@ -142,6 +151,41 @@ describe('the catalog page, read and checked (A51)', () => {
   it('a complete empty page is an observed empty catalog, read as such', () => {
     assert.deepEqual(readCatalogPage(ME, null)(page([])).resources, [])
   })
+
+  // CUR01: the cursor of a page with rows is its last row (0097 79–89); one past it would skip the rows between.
+  it('refuses an incomplete page whose cursor isn’t its own last row, on the first page or a later one', () => {
+    const more = (rows: number[], next: number) =>
+      page(
+        rows.map((n) => ownRow(n)),
+        { nextCursor: id(next), complete: false },
+      )
+    const cases: [string, ProjectNativeResourcePage, string | null][] = [
+      ['first page, cursor past its last row', more([1, 2], 5), null],
+      ['first page, cursor behind its last row', more([1, 3], 2), null],
+      ['later page, cursor past its last row', more([3, 4], 8), id(2)],
+      ['later page, cursor past the one asked with but behind its last row', more([3, 5], 4), id(2)],
+    ]
+    const accepted = cases.filter(([, value, after]) => !violates(() => readCatalogPage(ME, after)(value)))
+    assert.deepEqual(
+      accepted.map(([label]) => label),
+      [],
+    )
+  })
+
+  it('takes a cursor that is its last row in any spelling, as sent; an empty page keeps its own reading', () => {
+    const last = id(2).toUpperCase()
+    assert.equal(
+      readCatalogPage(ME, null)(page([ownRow(1), ownRow(2)], { nextCursor: last, complete: false })).nextCursor,
+      last,
+    )
+    const later = page([ownRow(3), { ...ownRow(4), id: `urn:uuid:${id(4)}` }], { nextCursor: id(4), complete: false })
+    assert.doesNotThrow(() => readCatalogPage(ME, id(2))(later))
+    // Empty and incomplete has no last row: still read (the catalog says it partial, with no More), first or later.
+    const emptyMore = page([], { nextCursor: id(9), complete: false })
+    assert.deepEqual(readCatalogPage(ME, null)(emptyMore), emptyMore)
+    assert.deepEqual(readCatalogPage(ME, id(2))(emptyMore), emptyMore)
+    assert.throws(() => readCatalogPage(ME, id(9))(emptyMore), CatalogViolation)
+  })
 })
 
 describe('the catalog read through the client (memberRead)', () => {
@@ -169,6 +213,15 @@ describe('the catalog read through the client (memberRead)', () => {
     const error = await refusal(listProjectNativeResources('t', PROJECT, ME, null))
     assert.ok(error instanceof ApiError)
     assert.deepEqual([error.code, error.retry], ['contract_violation', 'safe_read'])
+  })
+
+  it('a page whose cursor skips past its last row is a contract violation, safe to read again', async () => {
+    globalThis.fetch = () =>
+      Promise.resolve(Response.json(page([ownRow(3), ownRow(4)], { nextCursor: id(8), complete: false })))
+    const error = await refusal(listProjectNativeResources('t', PROJECT, ME, id(2)))
+    assert.ok(error instanceof ApiError, 'refused')
+    assert.deepEqual([error.code, error.retry], ['contract_violation', 'safe_read'])
+    assert.ok(error.cause instanceof CatalogViolation)
   })
 
   for (const status of [401, 403, 404]) {
