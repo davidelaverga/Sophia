@@ -220,13 +220,15 @@ export interface Candidate {
   share: readonly { viewerRef: string; fields: readonly ShareField[] }[]
 }
 /**
- * Which effective strict settings a disclosure speaks for: the manual request, or the exact winning Pin record.
- * A trusted caller derives it, with its viewers, from a genuine current read permission on that request or policy
- * record (the submitter's own manual request, the Pin target's owner, an explicit settings disclosure). The kernel
- * authenticates nothing: it only matches the origin exactly, and otherwise discloses nothing (R4, PR #516).
+ * Which effective strict settings a disclosure speaks for: the exact manual request read (its `requestRevision` and
+ * the current `manualStrictReadSnapshotRef`), or the exact winning Pin record. A trusted caller derives it, with its
+ * viewers, from a genuine current read permission on that request or policy record (the submitter's own manual
+ * request, the Pin target's owner, an explicit settings disclosure). The kernel authenticates nothing: it only matches
+ * the origin exactly, and otherwise discloses nothing (R4, PR #516; R5, PR #517).
  */
 export type StrictOrigin =
-  { kind: 'manual' } | { kind: 'pin'; level: ScopeLevel; targetRef: string; revisionRef: string }
+  | { kind: 'manual'; requestRevision: string; readSnapshotRef: string }
+  | { kind: 'pin'; level: ScopeLevel; targetRef: string; revisionRef: string }
 export interface StrictSettingsDisclosure {
   origin: StrictOrigin
   viewerRefs: readonly string[]
@@ -244,6 +246,17 @@ export interface SelectionInput {
   summaryViewerRefs: readonly string[]
   /** Viewers permitted to read the effective strict settings. Absent: nobody, whoever sees the summary. */
   strictSettingsDisclosure?: StrictSettingsDisclosure | null
+  /**
+   * The current read of a manual strict request, as the trusted resolver supplies it: an opaque ref scoped to the
+   * actual manual request record (identity and version) and its current settings and read-audience generation, renewed
+   * whenever the request, its settings or who may read them change, even under an unchanged `requestRevision`, and
+   * from the same read the disclosure's viewers come from. It is never derived from settings values or the public
+   * correlation alone. A manual disclosure applies only to this exact read and `requestRevision`; absent, nobody may
+   * read the manual strict settings. Equality checks provenance only: it proves no right, and cannot reveal a
+   * revocation if a caller presents a whole old input as current. Current permission, rechecked before any effect,
+   * stays the resolver's. `requestRevision` stays a correlation ref.
+   */
+  manualStrictReadSnapshotRef?: string | null
   candidates: readonly Candidate[]
 }
 
@@ -708,13 +721,24 @@ function checkCandidates(input: SelectionInput, out: Issues) {
 
 const ORIGIN_KINDS: ReadonlySet<string> = new Set(['manual', 'pin'])
 
+/** A ref field of trusted typed input that may be absent at run time (an older descriptor shape): absent fails too. */
+function checkTypedRef(v: unknown, path: string, out: Issues) {
+  if (typeof v !== 'string' || !isRef(v)) out.push({ code: 'malformed_ref', path })
+}
+
 function checkDisclosure(input: SelectionInput, out: Issues) {
+  const snapshot = input.manualStrictReadSnapshotRef
+  if (snapshot !== undefined && snapshot !== null) checkTypedRef(snapshot, '/manualStrictReadSnapshotRef', out)
   const d = input.strictSettingsDisclosure
   if (d === undefined || d === null) return
   const p = '/strictSettingsDisclosure'
   checkRefSet(d.viewerRefs, `${p}/viewerRefs`, out)
   const o = d.origin
   if (!ORIGIN_KINDS.has(o.kind)) out.push({ code: 'malformed_origin', path: `${p}/origin` })
+  if (o.kind === 'manual') {
+    checkTypedRef(o.requestRevision, `${p}/origin/requestRevision`, out)
+    checkTypedRef(o.readSnapshotRef, `${p}/origin/readSnapshotRef`, out)
+  }
   if (o.kind !== 'pin') return
   if (!LEVEL_ORDER.includes(o.level)) out.push({ code: 'malformed_origin', path: `${p}/origin` })
   checkRef(o.targetRef, `${p}/origin/targetRef`, out)
@@ -772,17 +796,28 @@ function effectiveStrict(input: SelectionInput, scope: PolicyScope | null): Sett
   return scope?.mode === 'pin' ? scope.settings : null
 }
 
-/** The origin of the effective strict settings, by the same precedence as `effectiveStrict`. */
+/**
+ * The origin of the effective strict settings, by the same precedence as `effectiveStrict`. A manual request has one
+ * only with a current read: without it the manual settings still apply to selection, but nobody may read them.
+ */
 function strictOrigin(input: SelectionInput, scope: PolicyScope | null): StrictOrigin | null {
-  if (input.request.strictSettings !== null) return { kind: 'manual' }
+  if (input.request.strictSettings !== null) {
+    const read = input.manualStrictReadSnapshotRef
+    if (read === undefined || read === null) return null
+    return { kind: 'manual', requestRevision: input.requestRevision, readSnapshotRef: read }
+  }
   if (scope?.mode !== 'pin' || scope.settings === null || scope.targetRef === null) return null
   return { kind: 'pin', level: scope.level, targetRef: scope.targetRef, revisionRef: scope.revisionRef }
 }
 
-const sameOrigin = (a: StrictOrigin, b: StrictOrigin) =>
-  a.kind === 'manual' || b.kind === 'manual'
-    ? a.kind === b.kind
-    : a.level === b.level && a.targetRef === b.targetRef && a.revisionRef === b.revisionRef
+/** Exactly the same origin: the same manual request revision and read, or the same Pin level, target and revision. */
+function sameOrigin(a: StrictOrigin, b: StrictOrigin): boolean {
+  if (a.kind === 'manual' || b.kind === 'manual') {
+    if (a.kind !== 'manual' || b.kind !== 'manual') return false
+    return a.requestRevision === b.requestRevision && a.readSnapshotRef === b.readSnapshotRef
+  }
+  return a.level === b.level && a.targetRef === b.targetRef && a.revisionRef === b.revisionRef
+}
 
 /**
  * Viewers of the strict settings: those the disclosure names, only when it speaks for their exact origin. Nothing is

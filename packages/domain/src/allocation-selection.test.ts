@@ -1618,7 +1618,9 @@ describe('R2: a native candidate needs a current host', () => {
 // --- R4 regressions (PR #516 finding 4562079386 and the same-cause row-seed sink) ----------------------------------
 
 const m1 = () => strict('high')
-const manualOrigin = { kind: 'manual' } as const
+/** The current manual read snapshot a trusted resolver would supply with a genuine manual origin (R5 fixture provenance). */
+const MANUAL_READ = 'manual-read-1'
+const manualOrigin = { kind: 'manual', requestRevision: 'req-1', readSnapshotRef: MANUAL_READ } as const
 const pinOrigin = (targetRef: string, over: Partial<{ level: ScopeLevel; revisionRef: string }> = {}) => ({
   kind: 'pin' as const,
   level: 'action' as const,
@@ -1630,7 +1632,10 @@ const disclose =
   (origin: StrictSettingsDisclosure['origin'], viewerRefs: string[] = [ACTOR]) =>
   (i: SelectionInput) =>
     (i.strictSettingsDisclosure = { origin, viewerRefs })
-const manual = (i: SelectionInput) => (i.request.strictSettings = m1())
+const manual = (i: SelectionInput) => {
+  i.request.strictSettings = m1()
+  i.manualStrictReadSnapshotRef = MANUAL_READ
+}
 const pinTo = (targetRef: string) => (i: SelectionInput) =>
   (i.policy.scopes = [scope('pin', targetRef, { settings: m1() })])
 const all =
@@ -1855,7 +1860,7 @@ describe('R4: strict settings are shown only to the viewers of their exact origi
   })
 
   it('the descriptor stays the caller’s, and reordered or repeated viewers give the same decision', () => {
-    const descriptor: StrictSettingsDisclosure = { origin: { kind: 'manual' }, viewerRefs: [OTHER, ACTOR, OTHER] }
+    const descriptor: StrictSettingsDisclosure = { origin: { ...manualOrigin }, viewerRefs: [OTHER, ACTOR, OTHER] }
     const i = input(
       [ownApi('a')],
       all(explore, manual, (x) => (x.strictSettingsDisclosure = descriptor)),
@@ -1872,7 +1877,7 @@ describe('R4: strict settings are shown only to the viewers of their exact origi
     assert.deepEqual(d.strictViewerRefs, [ACTOR, OTHER])
     const reordered = evaluateSelection({
       ...i,
-      strictSettingsDisclosure: { origin: { kind: 'manual' }, viewerRefs: [ACTOR, OTHER] },
+      strictSettingsDisclosure: { origin: { ...manualOrigin }, viewerRefs: [ACTOR, OTHER] },
     })
     assert.deepEqual(plain(reordered), plain(d))
     const view = clone(projectSelection(d, ACTOR))
@@ -1932,6 +1937,219 @@ describe('R4: strict settings are shown only to the viewers of their exact origi
       assert.deepEqual(d.strictViewerRefs, [])
     }
     assert.equal(bad({ origin: pinOrigin('nowhere'), viewerRefs: [ACTOR] }).outcome, 'selected')
+  })
+})
+
+// --- R5 regressions (PR #517 finding 4562616410): a manual disclosure is bound to its exact current read --------
+
+const READER = OTHER
+const OLD_STRICT = { providerInstanceRef: 'codex', model: 'm1', options: [{ id: 'effort', value: 'low' }] }
+const NEW_STRICT = { providerInstanceRef: 'codex', model: 'm2', options: [{ id: 'effort', value: 'high' }] }
+const sharedRow = (ref: string, mutate: (c: Candidate) => void = () => {}) =>
+  candidate(ref, (c) => {
+    c.share = [{ viewerRef: READER, fields: ['settings'] }]
+    c.settings.declared = {
+      providerInstanceRef: 'codex',
+      models: ['m1', 'm2'].map((model) => ({ model, options: [{ id: 'effort', values: ['high', 'low'] }] })),
+    }
+    mutate(c)
+  })
+const readOrigin = (requestRevision: string, readSnapshotRef: string) =>
+  ({ kind: 'manual', requestRevision, readSnapshotRef }) as const
+/**
+ * A manual strict request seen by READER through a selected and a busy (excluded) row, both shared with settings, and
+ * the proposal. `snapshot` is the current read the trusted resolver supplies; `disclosure` is the descriptor given.
+ */
+function manualRead(o: {
+  revision: string
+  strict: Settings
+  snapshot: string | null
+  disclosure?: StrictSettingsDisclosure
+}) {
+  return run([sharedRow('chosen'), sharedRow('waiting', busy)], (i) => {
+    i.requestRevision = o.revision
+    i.request.strictSettings = clone(o.strict)
+    i.manualStrictReadSnapshotRef = o.snapshot
+    i.summaryViewerRefs = [ACTOR, READER]
+    if (o.disclosure) i.strictSettingsDisclosure = clone(o.disclosure)
+  })
+}
+/** Everything READER can read of the strict settings: the top level, each visible row and the proposal. */
+const readerSees = (d: Decision, viewer = READER) => {
+  const v = shared(projectSelection(d, viewer))
+  return { top: v.strictSettings, seeds: seeds(v) }
+}
+const withheld = {
+  top: null,
+  seeds: [
+    ['chosen', 'absent'],
+    ['waiting', 'absent'],
+    ['chosen', 'absent'],
+  ],
+}
+const shown = (s: Settings) => ({
+  top: s,
+  seeds: [
+    ['chosen', s],
+    ['waiting', s],
+    ['chosen', s],
+  ],
+})
+
+describe('R5: a manual disclosure is bound to its request revision and current read', () => {
+  it('a descriptor for an earlier request revision discloses nothing, even with the same settings and read', () => {
+    const old = { origin: readOrigin('req-1', 'read-1'), viewerRefs: [READER] }
+    const later = manualRead({ revision: 'req-2', strict: OLD_STRICT, snapshot: 'read-1', disclosure: old })
+    assert.deepEqual(
+      [later.outcome, later.proposedRef, row(later, 'waiting').status],
+      ['selected', 'chosen', 'excluded'],
+    )
+    assert.deepEqual(readerSees(later), withheld)
+    const current = manualRead({ revision: 'req-1', strict: OLD_STRICT, snapshot: 'read-1', disclosure: old })
+    assert.deepEqual(readerSees(current), shown(OLD_STRICT))
+    assert.deepEqual(selectionOf(later), { ...selectionOf(current), strict: later.settings.strict })
+  })
+
+  it('changed settings under the same revision need the refreshed read: the old descriptor shows nothing', () => {
+    const stale = { origin: readOrigin('req-1', 'read-1'), viewerRefs: [READER] }
+    const changed = manualRead({ revision: 'req-1', strict: NEW_STRICT, snapshot: 'read-2', disclosure: stale })
+    assert.deepEqual(readerSees(changed), withheld)
+    const refreshed = { origin: readOrigin('req-1', 'read-2'), viewerRefs: [READER] }
+    const fresh = manualRead({ revision: 'req-1', strict: NEW_STRICT, snapshot: 'read-2', disclosure: refreshed })
+    assert.deepEqual(readerSees(fresh), shown(NEW_STRICT))
+    assert.deepEqual(selectionOf(changed), selectionOf(fresh))
+  })
+
+  it('a changed read audience under the same revision and settings follows the current read only', () => {
+    const at = (disclosure: StrictSettingsDisclosure) =>
+      manualRead({ revision: 'req-1', strict: OLD_STRICT, snapshot: 'read-2', disclosure })
+    assert.deepEqual(readerSees(at({ origin: readOrigin('req-1', 'read-1'), viewerRefs: [READER] })), withheld)
+    assert.deepEqual(readerSees(at({ origin: readOrigin('req-1', 'read-2'), viewerRefs: [] })), withheld)
+    const reshared = at({ origin: readOrigin('req-1', 'read-2'), viewerRefs: [ACTOR] })
+    assert.deepEqual(readerSees(reshared), withheld)
+    assert.deepEqual(readerSees(reshared, ACTOR), {
+      top: OLD_STRICT,
+      seeds: [
+        ['chosen', OLD_STRICT],
+        ['waiting', OLD_STRICT],
+        ['chosen', OLD_STRICT],
+      ],
+    })
+  })
+
+  it('without a current manual read nothing is disclosed, whatever the descriptor', () => {
+    const disclosure = { origin: readOrigin('req-1', 'read-1'), viewerRefs: [READER] }
+    const d = manualRead({ revision: 'req-1', strict: OLD_STRICT, snapshot: null, disclosure })
+    assert.equal(d.outcome, 'selected')
+    assert.deepEqual(readerSees(d), withheld)
+    assert.deepEqual(d.strictViewerRefs, [])
+  })
+
+  it('a legacy kind-only manual descriptor is never a wildcard: it is invalid input', () => {
+    const legacy = { origin: { kind: 'manual' }, viewerRefs: [READER] } as unknown as StrictSettingsDisclosure
+    const d = manualRead({ revision: 'req-1', strict: OLD_STRICT, snapshot: 'read-1', disclosure: legacy })
+    assert.deepEqual(readerSees(d), { top: null, seeds: [] })
+    assert.equal(d.outcome, 'invalid_input')
+    assert.deepEqual(d.errors, [
+      { code: 'malformed_ref', path: '/strictSettingsDisclosure/origin/readSnapshotRef' },
+      { code: 'malformed_ref', path: '/strictSettingsDisclosure/origin/requestRevision' },
+    ])
+  })
+
+  it('malformed provenance refs are invalid input and the errors carry no value', () => {
+    const cases: [string | null, StrictSettingsDisclosure['origin'], string, string][] = [
+      ['bad read', readOrigin('req-1', 'read-1'), '/manualStrictReadSnapshotRef', 'bad read'],
+      ['read-1', readOrigin('req 1', 'read-1'), '/strictSettingsDisclosure/origin/requestRevision', 'req 1'],
+      ['read-1', readOrigin('req-1', ' read-1'), '/strictSettingsDisclosure/origin/readSnapshotRef', ' read-1'],
+    ]
+    for (const [snapshot, origin, path, value] of cases) {
+      const d = manualRead({ revision: 'req-1', strict: OLD_STRICT, snapshot, disclosure: { origin, viewerRefs: [] } })
+      assert.equal(d.outcome, 'invalid_input', path)
+      assert.deepEqual(d.errors, [{ code: 'malformed_ref', path }])
+      assert.ok(!JSON.stringify(d.errors).includes(value))
+    }
+  })
+
+  it('the genuine current manual read shows every sink; a summary reader it does not name sees none', () => {
+    const disclosure = { origin: readOrigin('req-1', 'read-1'), viewerRefs: [ACTOR] }
+    const d = manualRead({ revision: 'req-1', strict: OLD_STRICT, snapshot: 'read-1', disclosure })
+    assert.deepEqual(readerSees(d), withheld)
+    assert.equal(shared(projectSelection(d, ACTOR)).strictSettings?.model, 'm1')
+    const named = manualRead({
+      revision: 'req-1',
+      strict: OLD_STRICT,
+      snapshot: 'read-1',
+      disclosure: { origin: readOrigin('req-1', 'read-1'), viewerRefs: [ACTOR, READER] },
+    })
+    assert.deepEqual(readerSees(named), shown(OLD_STRICT))
+  })
+
+  it('a Pin needs no manual read; its exact origin still binds, and manual still takes precedence', () => {
+    const pinned = (disclosure: StrictSettingsDisclosure, m: (i: SelectionInput) => void = () => {}) =>
+      run([sharedRow('chosen'), sharedRow('waiting', busy)], (i) => {
+        i.summaryViewerRefs = [ACTOR, READER]
+        i.policy.scopes = [scope('pin', 'chosen', { settings: clone(OLD_STRICT) })]
+        i.strictSettingsDisclosure = clone(disclosure)
+        m(i)
+      })
+    const exact = { origin: pinOrigin('chosen'), viewerRefs: [READER] }
+    assert.deepEqual(readerSees(pinned(exact)), {
+      top: OLD_STRICT,
+      seeds: [
+        ['chosen', OLD_STRICT],
+        ['waiting', OLD_STRICT],
+        ['chosen', OLD_STRICT],
+      ],
+    })
+    const old = { origin: pinOrigin('chosen', { revisionRef: 'policy-rev-0' }), viewerRefs: [READER] }
+    assert.deepEqual(readerSees(pinned(old)), withheld)
+    const manualWins = (i: SelectionInput) => {
+      i.request.strictSettings = clone(OLD_STRICT)
+      i.manualStrictReadSnapshotRef = 'read-1'
+    }
+    assert.deepEqual(readerSees(pinned(exact, manualWins)), withheld)
+    const manualRead1 = { origin: readOrigin('req-1', 'read-1'), viewerRefs: [READER] }
+    assert.deepEqual(readerSees(pinned(manualRead1, manualWins)).top, OLD_STRICT)
+    assert.equal(readerSees(pinned(manualRead1)).top, null)
+  })
+
+  it('no provenance ref reaches the view, and only the existing request revision is shown', () => {
+    const disclosure = { origin: readOrigin('req-1', 'snapshot-secret-1'), viewerRefs: [READER] }
+    const d = manualRead({ revision: 'req-1', strict: OLD_STRICT, snapshot: 'snapshot-secret-1', disclosure })
+    for (const viewer of [ACTOR, READER]) {
+      const text = JSON.stringify(projectSelection(d, viewer))
+      assert.ok(!text.includes('snapshot-secret-1'))
+      assert.equal(text.split('req-1').length - 1, 1)
+    }
+  })
+
+  it('reordered viewers, a frozen input and every valid variation give the same selection', () => {
+    const base = (snapshot: string | null, disclosure?: StrictSettingsDisclosure) =>
+      input([sharedRow('chosen'), sharedRow('waiting', busy)], (i) => {
+        i.request.strictSettings = clone(OLD_STRICT)
+        i.manualStrictReadSnapshotRef = snapshot
+        i.summaryViewerRefs = [ACTOR, READER]
+        if (disclosure) i.strictSettingsDisclosure = disclosure
+      })
+    const a = evaluateSelection(base('read-1', { origin: readOrigin('req-1', 'read-1'), viewerRefs: [READER, ACTOR] }))
+    const b = evaluateSelection(
+      base('read-1', { origin: readOrigin('req-1', 'read-1'), viewerRefs: [ACTOR, READER, ACTOR] }),
+    )
+    assert.deepEqual(plain(a), plain(b))
+    assert.deepEqual(a.strictViewerRefs, [ACTOR, READER])
+    const frozenInput = base('read-1', { origin: readOrigin('req-1', 'read-1'), viewerRefs: [READER] })
+    const before = clone(frozenInput)
+    frozen(frozenInput)
+    assert.deepEqual(readerSees(evaluateSelection(frozenInput)), shown(OLD_STRICT))
+    assert.deepEqual(frozenInput, before)
+    const reference = selectionOf(evaluateSelection(base(null)))
+    for (const variant of [
+      base('read-1'),
+      base('read-2', { origin: readOrigin('req-1', 'read-1'), viewerRefs: [READER] }),
+      base('read-1', { origin: readOrigin('req-0', 'read-1'), viewerRefs: [READER] }),
+      base(null, { origin: readOrigin('req-1', 'read-1'), viewerRefs: [READER] }),
+    ])
+      assert.deepEqual(selectionOf(evaluateSelection(variant)), reference)
   })
 })
 
