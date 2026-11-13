@@ -61,6 +61,7 @@ import {
   BLOCK_NEW_CALLS_POLICY,
   setResearchFundingPin,
   updateContributionGrant,
+  type AccountProtection,
 } from './api-contributions.ts'
 
 let db: TestDatabase
@@ -150,6 +151,26 @@ async function contributionRuntime(projectId: string, connectionId: string, rota
   return { ...reg, who }
 }
 
+/**
+ * 0105 (S02a): a pinned contributed admission also needs the account's own current qualification for the connection's
+ * CURRENT credential revision, and the owner's explicit protection declaration. Both SYNTHETIC: recorded by the
+ * operator (migration owner) and the owner here; nothing is verified against a real provider or account.
+ */
+const qualifyAccount = (connectionId: string) =>
+  qualifyApiAccount(ownerPool, {
+    connectionId,
+    operations: ['research'],
+    verification: 'operator_verified_call',
+    evidenceRef: 'synthetic: not a live account qualification',
+    observedAt: new Date(Date.now() - 60_000).toISOString(),
+    expiresAt: new Date(Date.now() + 86400_000).toISOString(),
+  })
+const NONE_APPLICABLE: AccountProtection = {
+  applicability: 'none_applicable',
+  operations: ['research'],
+  roles: ['sophia-research-md-v1'],
+}
+
 const grantSettings = (over: Record<string, unknown> = {}) => ({
   expiresAt: new Date(Date.now() + 30 * 86400_000).toISOString(),
   taskCapUsd: 1,
@@ -164,7 +185,14 @@ const grantSettings = (over: Record<string, unknown> = {}) => ({
  * connection and a grant to it; a registered, connected contribution runtime; a requester, an admin, a viewer.
  */
 async function world(
-  opts: { grant?: boolean; settings?: Record<string, unknown>; owner?: string; accountCap?: number } = {},
+  opts: {
+    grant?: boolean
+    settings?: Record<string, unknown>
+    owner?: string
+    accountCap?: number
+    /** 0105: without the owner's protection declaration and the account qualification (the 0104 record tests). */
+    bare?: boolean
+  } = {},
 ) {
   const OWNER = opts.owner ?? randomUUID()
   const REQ = randomUUID()
@@ -185,6 +213,9 @@ async function world(
           createApiAccount(c, { label: 'My API', totalCapUsd: opts.accountCap ?? 10 }),
         )
       ).accountId
+  // 0105: the owner's explicit protection declaration, once per account (an alias world shares its owner's).
+  if (!opts.owner && !opts.bare)
+    await withActor(api, OWNER, 'write', (c) => updateApiAccount(c, account, 1, { protection: NONE_APPLICABLE }))
   const conn = await withActor(api, OWNER, 'write', (c) =>
     createApiConnection(c, account, 'Research key', 'Operator host'),
   )
@@ -197,6 +228,7 @@ async function world(
     ).grantId
   }
   const contribution = await contributionRuntime(projectId, conn.connectionId)
+  if (!opts.bare) await qualifyAccount(conn.connectionId)
   const input = await withActor(api, REQ, 'write', (c) =>
     submitContribution(c, projectId, randomUUID(), {
       source: null,
@@ -631,6 +663,8 @@ describe('3.4 credential rotation', () => {
     const open = await model(s.who, s.at, 'm1')
     const rotated = await contributionRuntime(w.projectId, w.connectionId, true)
     assert.equal(rotated.credentialRevision, 2)
+    // 0105: the rotated credential needs its own account qualification before new work (the old one is stale now).
+    await qualifyAccount(w.connectionId)
     assert.equal(await codeOf(model(s.who, s.at, 'm2')), 'credential_revision_changed')
     await settle(s.who, s.at, open.reservationId, 'settled', { costUsd: 0.07 })
     const link = await one<{ credential_revision: string; state: string }>(
@@ -1712,7 +1746,7 @@ describe('the operator CLI (synthetic, disposable)', () => {
 // recording one qualifies nothing live, and no application role can record it.
 describe('0104 owner protection and operator account qualification', () => {
   it('lets the owner alone declare and withdraw protection, and reads it back to the owner alone', async () => {
-    const w = await world()
+    const w = await world({ bare: true })
     const initial = (await withActor(api, w.OWNER, 'read', readMyContributions)).accounts[0]!
     assert.equal(initial.protection, null, 'no declaration by default, no backfill')
     const r = await withActor(api, w.OWNER, 'write', (c) =>
@@ -1741,7 +1775,7 @@ describe('0104 owner protection and operator account qualification', () => {
   })
 
   it('records an account qualification for the migration owner only, bound to the current credential revision', async () => {
-    const w = await world()
+    const w = await world({ bare: true })
     const input = {
       connectionId: w.connectionId,
       operations: ['research'] as ['research'],

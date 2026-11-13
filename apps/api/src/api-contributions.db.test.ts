@@ -130,8 +130,12 @@ describe('member API contributions over HTTP (A48, 0094)', () => {
   }
   type World = Awaited<ReturnType<typeof world>>
 
-  /** Owner records over HTTP; the operator registers the runtime (migration owner) and it connects (synthetic). */
-  async function contributed(w: World) {
+  /**
+   * Owner records over HTTP; the operator registers the runtime (migration owner) and it connects (synthetic). With
+   * `admissible` (0105, S02a), the owner also declares protection over HTTP and the operator records the account's own
+   * qualification for its current credential: what a pinned contributed admission now needs. SYNTHETIC, not live.
+   */
+  async function contributed(w: World, { admissible = false }: { admissible?: boolean } = {}) {
     const account = await http(app, w.OWNER, 'POST /api/v1/me/api-accounts', { label: 'My API', totalCapUsd: 10 })
     assert.equal(account.status, 201, JSON.stringify(account.json))
     const conn = await http(app, w.OWNER, 'POST /api/v1/me/api-connections', {
@@ -160,6 +164,20 @@ describe('member API contributions over HTTP (A48, 0094)', () => {
       runtimeHello(c, who, { bundle: 'test', protocolVersion: 1, dshVersion: 'x', roles: [MD] }),
     )
     await withService(pool, (c) => recordRuntimeReady(c, who, { state: 'ready', reason: null, unrecovered: [] }))
+    if (admissible) {
+      const declared = await http(app, w.OWNER, `PATCH /api/v1/me/api-accounts/${account.json.accountId}`, {
+        expectedRevision: 1,
+        patch: {
+          protection: { applicability: 'none_applicable', operations: ['research'], roles: ['sophia-research-md-v1'] },
+        },
+      })
+      assert.equal(declared.status, 200, JSON.stringify(declared.json))
+      await owner.query(
+        `SELECT sophia.qualify_api_account($1, '{research}', 'operator_verified_call', 'synthetic: not live evidence',
+          now()-interval '1 minute', now()+interval '1 day')`,
+        [conn.json.connectionId],
+      )
+    }
     return {
       accountId: account.json.accountId as string,
       connectionId: conn.json.connectionId as string,
@@ -387,7 +405,7 @@ describe('member API contributions over HTTP (A48, 0094)', () => {
 
   it('pins through HTTP, funds a real admission by the contributor for model calls only, and clears without fallback', async () => {
     const w = await world()
-    const c = await contributed(w)
+    const c = await contributed(w, { admissible: true })
     const pkey = randomUUID()
     const pinned = await http(
       app,
@@ -1006,7 +1024,7 @@ describe('member API contributions over HTTP (A48, 0094)', () => {
 
   it('reads one project and task in every accepted path spelling, and pins and clears through any spelling', async (t) => {
     const w = await world()
-    const c = await contributed(w)
+    const c = await contributed(w, { admissible: true })
     const pkey = randomUUID()
     const pins = []
     for (const p of variants(w.projectId).toReversed())
