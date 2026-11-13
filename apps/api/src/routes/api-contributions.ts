@@ -13,12 +13,14 @@
 //
 // Mounted only when the API is built with apiContributions (off by default; server.ts and the environment do not turn
 // it on). A database without everything these routes promise (0094, 0100, 0104's owner protection and account
-// qualification, and 0106's viewer boundary) answers projection_unavailable (503) before any read or write reaches
-// SQL, never an empty list, a refused setting or a database message (R2, F02).
+// qualification, 0105's atomic admission and 0106's viewer boundary) answers projection_unavailable (503) before any
+// read or write reaches SQL, never an empty list, a refused setting or a database message (R2, F02; INC04-S02a
+// coherent: 0106 can be installed without 0105).
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import { DomainError } from '@sophia/domain'
 import {
+  ATOMIC_ADMISSION_INSTALLED,
   contributionWrite,
   readMyContributions,
   readProjectContributions,
@@ -52,6 +54,8 @@ const bodyCalls = (fn: string, callee: string) =>
  * - 0104: owner protection and account qualification (A56): the refusal, the views, the qualification table, the
  *   protection columns, and the replaced update and owner's projection that use them; 0094's update refuses a
  *   protection patch;
+ * - 0105: the atomic contributed admission (persistence's shared catalog proof: its claim table, lineage holds,
+ *   dispatch funding and checked facts), which no 0104 or 0106 object implies;
  * - 0106: the selection preview's viewer boundary.
  */
 export const API_CONTRIBUTIONS_SCHEMA = `SELECT to_regprocedure('sophia.api_contribution_write(text,text,jsonb)') IS NOT NULL
@@ -65,6 +69,7 @@ export const API_CONTRIBUTIONS_SCHEMA = `SELECT to_regprocedure('sophia.api_cont
     AND attname IN (${PROTECTION_COLUMNS.map((c) => `'${c}'`).join(', ')}) AND NOT attisdropped) = ${String(PROTECTION_COLUMNS.length)}
   AND ${bodyCalls('sophia.api_account_update(uuid,bigint,jsonb)', 'account_protection_refusal')}
   AND ${bodyCalls('sophia.api_contributions_mine()', 'account_protection_view')}
+  AND ${ATOMIC_ADMISSION_INSTALLED}
   AND ${SELECTION_VIEWER_BOUNDARY} AS ok`
 
 /** A path id as A48 declares it. Not the shared lowercase pattern, which legacy routes keep. */

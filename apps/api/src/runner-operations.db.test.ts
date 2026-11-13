@@ -1,9 +1,11 @@
 // Owner-runner operations through the API's real routes (amendment A47, migration 0092), level: sql-run on real
 // PostgreSQL. Admissions off (the default) refuses only NEW work (create, input): the owner still reads work already
 // admitted, and a qualified owner's Stop of a running binding is still admitted with every check (r3, R2-F08).
-// A database that never had 0092 answers reads projection_unavailable, never an empty list, and the API with
-// admissions off stays ready on it. The qualification rows are SYNTHETIC fixtures: no route, account or T3 install
-// is qualified by them.
+// A database that never had 0092 answers reads projection_unavailable, never an empty list. Such a database also
+// lacks the atomic contributed admission (0105), which this API requires whatever its switches say (INC04-S02a
+// coherent), so no API is ready on it; that admissions off needs nothing of 0092 or 0096 is shown on a database with
+// the whole core, where one 0096 prerequisite alone is hidden (a labelled SYNTHETIC catalog change, restored). The
+// qualification rows are SYNTHETIC fixtures: no route, account or T3 install is qualified by them.
 import { randomUUID } from 'node:crypto'
 import { mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -14,6 +16,7 @@ import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import {
+  atomicAdmissionInstalled,
   claimRunnerOutbox,
   createPool,
   prepareRunnerSend,
@@ -472,7 +475,7 @@ describe('on a database that never had 0092', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  it('answers reads projection_unavailable, never an empty list, and stays ready with admissions off', async () => {
+  it('answers reads projection_unavailable, never an empty list; not ready, without the core atomic admission (0105)', async () => {
     const p = await seedProject(db.ownerUrl, { admin: A })
     const base = `/api/v1/projects/${p.projectId}/runner-operations`
     const list = await call(off, A, base)
@@ -488,7 +491,11 @@ describe('on a database that never had 0092', () => {
       'projection_unavailable',
       'a Stop reaches the installation check, and is never an empty success',
     )
-    assert.equal((await off.inject({ method: 'GET', url: '/ready' })).statusCode, 200)
+    assert.equal(
+      (await off.inject({ method: 'GET', url: '/ready' })).statusCode,
+      503,
+      'admissions off: not ready without the core atomic admission (0105)',
+    )
     // An API set to admit is not ready here: it would call what this database does not have.
     assert.equal((await admit.inject({ method: 'GET', url: '/ready' })).statusCode, 503)
     assert.equal(
@@ -605,8 +612,8 @@ for (const [upTo, label] of [
       )
       assert.equal(refused.status, 503, JSON.stringify(refused.json))
       assert.equal(refused.json.code, 'projection_unavailable')
-      assert.equal(await ready(admit), 503, 'admissions on: not ready without 0096')
-      assert.equal(await ready(off), 200, 'admissions off: ready as before')
+      assert.equal(await ready(admit), 503, 'admissions on: not ready without 0096 (nor 0105)')
+      assert.equal(await ready(off), 503, 'admissions off: not ready without the core atomic admission (0105)')
       const input = {
         kind: 'input',
         resourceId: w.resourceId,
@@ -637,7 +644,9 @@ for (const [upTo, label] of [
           w.qualificationId,
           JSON.stringify(A50_POLICY),
         ])
-        assert.equal(await ready(admit), 200, 'ready once 0096 is installed')
+        // The route recovers with 0096 alone (below); /ready waits for the whole core, 0105 included.
+        assert.equal(await ready(admit), 503, 'still not ready: 0096 alone does not complete the core (0105)')
+        assert.equal(await ready(off), 503, 'admissions off: not ready either, without 0105')
         const invalid = await call(admit, A, base, create(w, [w.sourceId]))
         assert.notEqual(invalid.status, 202, JSON.stringify(invalid.json))
         assert.equal(await writes(w.projectId), 0, "0096's source check refuses the ineligible source before a write")
@@ -649,6 +658,78 @@ for (const [upTo, label] of [
         )
         assert.equal(rows[0]?.v, 2, 'admitted as a v2 operation with its source facts')
         assert.equal((await call(off, A, base)).status, 200, 'reads answer once installed')
+        // The rest of this tree's migrations, as written and in order (0097 on, 0105 among them): the same instances,
+        // never restarted, are ready once the core is complete.
+        for (const f of readdirSync(resolve('db/migrations'))
+          .filter((n) => n.endsWith('.sql') && n > '0096_owner_runner_source_authority.sql')
+          .toSorted())
+          await owner.query(readFileSync(resolve('db/migrations', f), 'utf8'))
+        assert.equal(await atomicAdmissionInstalled(pool), true, 'the core atomic admission is installed now')
+        assert.equal(await ready(admit), 200, 'admissions on: ready once 0096 and the whole core are installed')
+        assert.equal(await ready(off), 200, 'admissions off: ready with the core')
       })
   })
 }
+
+// ---- INC04-S02a coherent: owner-runner admission stays optional for readiness once the core is complete ----
+// A database with every migration of this tree, on which ONE prerequisite of OWNER_RUNNER_SCHEMA (0096's source-policy
+// declaration) is hidden by a committed, reversible rename. SYNTHETIC missing capability, never a real installation
+// history: the function object, its ACL and its body are kept and restored, and the database is this suite's own.
+const HIDDEN = 'declare_owner_runner_source_policy__hidden_synthetic'
+
+/** The function's identity: object, ACL, body, security, by its current name. */
+const identity = async (owner: pg.Pool, signature: string) =>
+  (
+    await owner.query<{ oid: string; acl: string | null; src: string; definer: boolean }>(
+      `SELECT p.oid::text AS oid, p.proacl::text AS acl, p.prosrc AS src, p.prosecdef AS definer
+         FROM pg_catalog.pg_proc p WHERE p.oid = to_regprocedure($1)`,
+      [signature],
+    )
+  ).rows[0]
+
+describe('with the whole core installed and one 0096 admission prerequisite SYNTHETICALLY hidden', () => {
+  let db: TestDatabase
+  let pool: pg.Pool
+  let owner: pg.Pool
+  let off: FastifyInstance
+  let admit: FastifyInstance
+
+  before(async () => {
+    db = await createTestDatabase()
+    pool = createPool(db.apiUrl, { max: 2 })
+    owner = new pg.Pool({ connectionString: db.ownerUrl, max: 2 })
+    off = buildApp({ pool, verifyActor })
+    admit = buildApp({ pool, verifyActor, ownerRunnerAdmissions: 'admit' })
+    await off.ready()
+    await admit.ready()
+  })
+  after(async () => {
+    await off.close()
+    await admit.close()
+    await pool.end()
+    await owner.end()
+    await db.drop()
+  })
+
+  it('stays ready with admissions off and is not ready to admit; restored, both are ready', async () => {
+    assert.equal(await atomicAdmissionInstalled(pool), true, 'the core atomic admission is installed')
+    assert.deepEqual([await ready(off), await ready(admit)], [200, 200], 'everything installed')
+    const original = await identity(owner, 'sophia.declare_owner_runner_source_policy(uuid,uuid,jsonb)')
+    assert.ok(original)
+    await owner.query(`ALTER FUNCTION sophia.declare_owner_runner_source_policy(uuid,uuid,jsonb) RENAME TO ${HIDDEN}`)
+    try {
+      assert.deepEqual(await identity(owner, `sophia.${HIDDEN}(uuid,uuid,jsonb)`), original, 'the same object, renamed')
+      assert.equal(await atomicAdmissionInstalled(pool), true, 'the core is untouched')
+      assert.equal(await ready(off), 200, 'admissions off: ready, needing nothing of 0096')
+      assert.equal(await ready(admit), 503, 'admissions on: not ready without its 0096 prerequisite')
+    } finally {
+      await owner.query(`ALTER FUNCTION sophia.${HIDDEN}(uuid,uuid,jsonb) RENAME TO declare_owner_runner_source_policy`)
+    }
+    assert.deepEqual(
+      await identity(owner, 'sophia.declare_owner_runner_source_policy(uuid,uuid,jsonb)'),
+      original,
+      'restored: the same object, ACL and body',
+    )
+    assert.deepEqual([await ready(off), await ready(admit)], [200, 200], 'restored: both ready')
+  })
+})

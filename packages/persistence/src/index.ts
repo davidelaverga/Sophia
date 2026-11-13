@@ -81,6 +81,14 @@ export {
   type RuntimeCaller,
 } from './runtime.ts'
 export {
+  ATOMIC_ADMISSION_COLUMNS,
+  ATOMIC_ADMISSION_INSTALLED,
+  ATOMIC_ADMISSION_SCHEMA,
+  atomicAdmissionInstalled,
+  requireAtomicAdmission,
+  type CatalogReader,
+} from './contribution-installation.ts'
+export {
   admitResearchTask,
   researchGateOpen,
   runtimeResearchCapture,

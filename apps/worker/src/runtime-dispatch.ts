@@ -9,9 +9,18 @@
 //   2. reconciles those rows from what the database recorded (queued → keep the result; never queued → pending),
 //   3. claims pending native rows, Hold/Stop first, and dispatches each under its lease: the database rechecks
 //      authority and either queues one runtime command or records an explicit denial.
+// New work (a claimed row the database returned with cleanup false) is dispatched only where 0105's atomic admission
+// is installed (INC04-S02a coherent): a database without it keeps 0075's same-signature dispatch, which would run a
+// contributed create unfunded. There it is HELD: not dispatched, funded, queued or assembled, and nothing is recorded
+// for it. Its claim keeps the state and lease the claim already committed (dispatching); when the lease expires, step 1
+// marks it outcome_unknown and step 2 returns it to pending (after a second) only if no runtime command exists, so a
+// later pass, after the migration, dispatches it. A row with a command reconciles from that command and is never
+// resent. Cleanup (Hold/Stop, native.stop and control.settle) is dispatched as before, and a failed installation lookup
+// never ends a pass before it. The delay is the lease and the passes after it; nothing here retries sooner.
 import type pg from 'pg'
 import {
   assembleReply,
+  atomicAdmissionInstalled,
   checkedLimits,
   claimRuntimeOutbox,
   dispatchRuntimeOutbox,
@@ -57,6 +66,11 @@ export interface PassResult {
   outcomes: DispatchOutcome[]
   /** Rows whose lease was lost before the dispatch could record (reconciled on a later pass). */
   lost: number
+  /**
+   * New work claimed but not dispatched because 0105 is not installed, or the check could not be made: each stays
+   * dispatching under the lease it was claimed with, with no outcome, until expiry and reconciliation (above).
+   */
+  held: number
 }
 
 export interface DispatcherOptions {
@@ -125,6 +139,19 @@ async function sweep(what: string, run: () => Promise<number>, options: Dispatch
   }
 }
 
+/**
+ * Whether new work may be dispatched in this pass: asked at most once, and only when a pass claims new work. A failed
+ * lookup is logged and answers no, so the pass goes on with its cleanup rows.
+ */
+function newWorkInstalled(pool: pg.Pool, options: DispatcherOptions): () => Promise<boolean> {
+  let answer: Promise<boolean> | null = null
+  return () =>
+    (answer ??= atomicAdmissionInstalled(pool).catch((err: unknown) => {
+      options.log?.(`installation check failed: ${err instanceof Error ? err.message : String(err)}`)
+      return false
+    }))
+}
+
 /** One pass. Safe to run concurrently from several workers: claims skip locked rows. */
 export async function dispatchOnce(pool: pg.Pool, options: DispatcherOptions): Promise<PassResult> {
   const voiceEvidenceExpired = await sweep('voice evidence', () => expireVoiceEvidence(pool), options)
@@ -132,10 +159,21 @@ export async function dispatchOnce(pool: pg.Pool, options: DispatcherOptions): P
   const expired = await expireDispatchLeases(pool)
   const reconciled = await reconcileRuntimeOutbox(pool)
   const claimed = await claimRuntimeOutbox(pool, options.workerId, options.batchSize ?? 10, options.leaseSeconds ?? 30)
+  const installed = newWorkInstalled(pool, options)
   const outcomes: DispatchOutcome[] = []
   let lost = 0
+  let held = 0
   for (const row of claimed) {
     if (!row.lease_token) continue
+    // The database's own cleanup flag on the row it claimed (Hold/Stop first), never a payload or destination string.
+    if (!row.cleanup && !(await installed())) {
+      held += 1
+      options.log?.(
+        `dispatch outbox ${row.id}: installation hold (0105 not installed): stays dispatching under its lease; ` +
+          'reconciled to pending after it expires, only if no runtime command exists',
+      )
+      continue
+    }
     try {
       const outcome = await dispatchRuntimeOutbox(pool, row.project_id, row.id, row.lease_token)
       outcomes.push(outcome)
@@ -147,7 +185,7 @@ export async function dispatchOnce(pool: pg.Pool, options: DispatcherOptions): P
       options.log?.(`dispatch of outbox ${row.id} did not record: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
-  return { voiceEvidenceExpired, liveCallKeysExpired, expired, reconciled, outcomes, lost }
+  return { voiceEvidenceExpired, liveCallKeysExpired, expired, reconciled, outcomes, lost, held }
 }
 
 /**
@@ -186,6 +224,7 @@ export class RuntimeDispatcher {
     while (!this.stopped) {
       try {
         const pass = await dispatchOnce(this.pool, this.options)
+        // A held row is not progress: a pass that only held new work waits like an idle one, never spins on it.
         if (pass.outcomes.length > 0 || pass.expired > 0 || pass.reconciled > 0) continue
       } catch (err: unknown) {
         this.options.log?.(`dispatch pass failed: ${err instanceof Error ? err.message : String(err)}`)

@@ -11,7 +11,7 @@ import { SignJWT } from 'jose'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { createPool } from '@sophia/persistence'
+import { atomicAdmissionInstalled, createPool } from '@sophia/persistence'
 import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
@@ -215,13 +215,86 @@ describe('on a database that never had 0097', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  it('answers projection_unavailable (503), never an empty list, and stays ready', async () => {
+  it('answers projection_unavailable (503), never an empty list; /ready needs the core atomic admission (0105)', async () => {
     const projectId = (await seedProject(db.ownerUrl, { admin: O })).projectId
     const r = await get(off, O, url(projectId))
     assert.equal(r.status, 503)
     assert.equal((JSON.parse(r.body) as { code: string }).code, 'projection_unavailable')
     assert.doesNotMatch(r.body, PRIVATE)
-    assert.equal((await off.inject({ method: 'GET', url: '/ready' })).statusCode, 200)
+    // INC04-S02a coherent: this database also lacks 0105, which every API requires whatever its switches say; that the
+    // catalog is not a /ready dependency is shown below, on a database with the whole core.
+    assert.equal(
+      (await off.inject({ method: 'GET', url: '/ready' })).statusCode,
+      503,
+      'not ready without the core atomic admission (0105)',
+    )
+  })
+})
+
+// The catalog stays optional for readiness: a database with every migration, on which 0097's catalog function alone is
+// hidden by a committed, reversible rename. A SYNTHETIC missing capability, never a real installation history: the
+// function object, its ACL and its body are kept and restored, and the database is this suite's own. The catalog route
+// remembers only a true installation check, so the app that reads during the hiding has never read before, and the
+// restored read uses a fresh app.
+describe('with the whole core installed and the 0097 catalog function SYNTHETICALLY hidden', () => {
+  const CATALOG = 'project_native_resources(uuid,uuid)'
+  const HIDDEN = 'project_native_resources__hidden_synthetic'
+  let db: TestDatabase
+  let api: pg.Pool
+  let owner: pg.Pool
+  const O = randomUUID()
+  const opened: FastifyInstance[] = []
+  const fresh = async () => {
+    const app = buildApp({ pool: api, verifyActor })
+    opened.push(app)
+    await app.ready()
+    return app
+  }
+  const identity = async (signature: string) =>
+    (
+      await owner.query<{ oid: string; acl: string | null; src: string; definer: boolean }>(
+        `SELECT p.oid::text AS oid, p.proacl::text AS acl, p.prosrc AS src, p.prosecdef AS definer
+           FROM pg_catalog.pg_proc p WHERE p.oid = to_regprocedure($1)`,
+        [signature],
+      )
+    ).rows[0]
+
+  before(async () => {
+    db = await createTestDatabase()
+    api = createPool(db.apiUrl, { max: 2 })
+    owner = new pg.Pool({ connectionString: db.ownerUrl, max: 1 })
+  })
+  after(async () => {
+    for (const a of opened) await a.close()
+    await api.end()
+    await owner.end()
+    await db.drop()
+  })
+
+  it('answers the catalog projection_unavailable, never an empty list, while /ready stays 200; restored, it reads', async () => {
+    const projectId = (await seedProject(db.ownerUrl, { admin: O })).projectId
+    assert.equal(await atomicAdmissionInstalled(api), true, 'the core atomic admission is installed')
+    const hiding = await fresh()
+    const original = await identity(`sophia.${CATALOG}`)
+    assert.ok(original)
+    await owner.query(`ALTER FUNCTION sophia.${CATALOG} RENAME TO ${HIDDEN}`)
+    try {
+      assert.deepEqual(await identity(`sophia.${HIDDEN}(uuid,uuid)`), original, 'the same object, renamed')
+      assert.equal(await atomicAdmissionInstalled(api), true, 'the core is untouched')
+      const r = await get(hiding, O, url(projectId))
+      assert.equal(r.status, 503, r.body)
+      assert.equal((JSON.parse(r.body) as { code: string }).code, 'projection_unavailable')
+      assert.doesNotMatch(r.body, PRIVATE)
+      assert.equal((await hiding.inject({ method: 'GET', url: '/ready' })).statusCode, 200, 'the catalog is optional')
+    } finally {
+      await owner.query(`ALTER FUNCTION sophia.${HIDDEN}(uuid,uuid) RENAME TO project_native_resources`)
+    }
+    assert.deepEqual(await identity(`sophia.${CATALOG}`), original, 'restored: the same object, ACL and body')
+    const restored = await fresh()
+    const page = await get(restored, O, url(projectId))
+    assert.equal(page.status, 200, page.body)
+    assert.equal((JSON.parse(page.body) as { complete: boolean }).complete, true)
+    assert.equal((await restored.inject({ method: 'GET', url: '/ready' })).statusCode, 200)
   })
 })
 

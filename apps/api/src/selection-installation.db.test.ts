@@ -4,10 +4,16 @@
 //   relation lock are regression witnesses that the viewer's request never enters the pool's helpers or tables; the
 //   matched editor request does. These are new causal checks, not evidence that a deployed database ever failed.
 // * F02: with contributions on, /ready and the contribution routes' own installation check require everything they
-//   promise (0094, 0100, 0104's protection and qualification, 0106). Real partial schemas are built from exact prefixes
-//   of this tree's own migrations. A refused write leaves no account change, idempotency row or command.
+//   promise (0094, 0100, 0104's protection and qualification, 0105, 0106). Real partial schemas are built from exact
+//   prefixes of this tree's own migrations. A refused write leaves no account change, idempotency row or command.
+// * INC04-S02a coherent: 0105's atomic admission is core. A database of the earlier source (every migration but 0105,
+//   0106 included: no prefix) proves nothing installed: /ready refuses on and off, and the contribution routes, the
+//   preview, the maintained research admission and the runtime's paid reserve all refuse before their SQL, while the
+//   same fixtures through the old SQL still succeed there (the gap the guards close for the maintained callers only).
+//   The real migrator, on a ledger that already records 0106, applies the pending 0105 and keeps 0106; the same
+//   running API instances then serve, nothing having cached the refusal.
 // Every account, grant, resource and token is SYNTHETIC; nothing here qualifies a real owner, account or route.
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { mkdtempSync, readdirSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -16,9 +22,37 @@ import { SignJWT } from 'jose'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
+import type { RuntimeCommand, RuntimeRole } from '@sophia/contracts'
 import { parseSelectionView } from '@sophia/contracts/validate'
-import { contributionWrite, createPool, withActor } from '@sophia/persistence'
-import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
+import { DomainError } from '@sophia/domain'
+import {
+  admitResearchTask,
+  atomicAdmissionInstalled,
+  claimRuntimeOutbox,
+  contributionWrite,
+  createPool,
+  dispatchRuntimeOutbox,
+  migrate,
+  readMigrations,
+  recordRuntimeReady,
+  recordRuntimeReceipts,
+  runtimeHello,
+  runtimePoll,
+  runtimeResearchReserve,
+  runtimeTokenHash,
+  withActor,
+  withService,
+  type RuntimeCaller,
+} from '@sophia/persistence'
+import {
+  createEmptyDatabase,
+  createTestDatabase,
+  registerRuntime,
+  seedProject,
+  withClusterMigrationLock,
+  type EmptyDatabase,
+  type TestDatabase,
+} from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
 
@@ -350,10 +384,13 @@ async function footprint(owner: pg.Pool, accountId: string) {
   }
 }
 
-for (const [upTo, label] of [
-  ['0101', 'through 0100'],
-  ['0104', 'through 0102, without 0104'],
-  ['0106', 'with 0104, without 0106'],
+// Each prefix's /ready with contributions off (INC04-S02a coherent): this source requires 0105's atomic admission
+// whatever the switch says, so a prefix without 0105 is not ready either way (the earlier source's off 200 there was
+// true for that source); the prefix before 0106 holds 0105 and is ready off, needing nothing of 0106 then.
+for (const [upTo, label, off200] of [
+  ['0101', 'through 0100', false],
+  ['0104', 'through 0102, without 0104', false],
+  ['0106', 'with 0104 and 0105, without 0106', true],
 ] as const) {
   describe(`on a database ${label} (F02)`, () => {
     let db: TestDatabase
@@ -412,7 +449,13 @@ for (const [upTo, label] of [
           preview: [preview.status, preview.json?.code],
         }),
       )
-      assert.deepEqual(readiness, { on: 503, off: 200 }, 'not ready with contributions on; off (the default) as before')
+      assert.deepEqual(
+        readiness,
+        { on: 503, off: off200 ? 200 : 503 },
+        off200
+          ? 'not ready with contributions on (no 0106); off (the default): ready, with 0105'
+          : 'not ready on or off: without 0105, the core atomic admission',
+      )
       for (const r of [patch, mine, create]) {
         assert.deepEqual(
           [r.status, r.json.code, r.json.message],
@@ -491,5 +534,344 @@ describe('with 0104 and 0106 installed (F02)', () => {
     const last = (afterwards.json.accounts as Body[]).find((a: Body) => a.accountId === account.json.accountId)
     assert.equal(last.protection, null)
     assert.equal((await http(off, OWNER, 'GET /api/v1/me/api-resources')).status, 404, 'off (the default): not served')
+  })
+})
+
+// ---- INC04-S02a coherent: 0105's atomic admission is core, and 0106 can be installed without it ----
+
+/** Every migration of this tree except `omit`, linked into a fresh directory: no prefix can express this set. */
+function allBut(omit: string): string {
+  const dir = mkdtempSync(join(tmpdir(), `sophia-without-${omit}-`))
+  const migrations = resolve('db/migrations')
+  for (const f of readdirSync(migrations).filter((n) => n.endsWith('.sql') && !n.startsWith(`${omit}_`))) {
+    symlinkSync(join(migrations, f), join(dir, f))
+  }
+  return dir
+}
+
+const MD: RuntimeRole = { id: 'sophia-research-md-v1', route: 'research-sol-medium-v1', presetDigest: 'sha256:md' }
+const QUESTION = { question: 'Which sandboxes do PDF rendering services use?', outputs: ['markdown'] as const }
+
+/** A project with an enabled research gate (the project's own funding) and a ready SYNTHETIC runtime. */
+async function researchProject(ownerUrl: string, api: pg.Pool) {
+  const [ADMIN, EDIT, VIEW] = [randomUUID(), randomUUID(), randomUUID()]
+  const { projectId } = await seedProject(ownerUrl, { admin: ADMIN, editors: [EDIT], viewers: [VIEW] })
+  const o = new pg.Client({ connectionString: ownerUrl })
+  await o.connect()
+  try {
+    await o.query(`SELECT sophia.set_research_grant($1, 'enabled', 5, 40, 'web-pilot-v1', 'approval:test')`, [
+      projectId,
+    ])
+  } finally {
+    await o.end()
+  }
+  const rt = await registerRuntime(ownerUrl, { projectId, admin: ADMIN })
+  const who: RuntimeCaller = {
+    tokenSha256: runtimeTokenHash(rt.token),
+    runtimeUnitId: rt.runtimeUnitId,
+    bridgeInstanceId: randomUUID(),
+  }
+  await withService(api, (c) =>
+    runtimeHello(c, who, { bundle: 'test', protocolVersion: 1, dshVersion: 'x', roles: [MD] }),
+  )
+  await withService(api, (c) => recordRuntimeReady(c, who, { state: 'ready', reason: null, unrecovered: [] }))
+  return { projectId, ADMIN, EDIT, VIEW, who, token: rt.token }
+}
+type ResearchProject = Awaited<ReturnType<typeof researchProject>>
+
+/** The maintained admission, as research-tools calls it (inside withActor write). */
+const admitMaintained = (api: pg.Pool, p: ResearchProject) =>
+  withActor(api, p.EDIT, 'write', (c) =>
+    admitResearchTask(c, p.projectId, {
+      key: randomUUID(),
+      exchangeId: randomUUID(),
+      request: QUESTION,
+      specialist: { role: MD.id, route: MD.route },
+    }),
+  )
+
+/** The same admission through the old SQL directly, as an earlier API binary would: the gap this guard closes. */
+const admitThroughOldSql = (api: pg.Pool, p: ResearchProject) =>
+  withActor(api, p.EDIT, 'write', async (c) => {
+    const { rows } = await c.query<{ r: { taskId: string; attemptId: string } }>(
+      `SELECT sophia.admit_research_task($1, $2, $3, $4, $5, $6) AS r`,
+      [p.projectId, randomUUID(), randomUUID(), JSON.stringify(QUESTION), MD.id, MD.route],
+    )
+    return rows[0]!.r
+  })
+
+/** Dispatch through the worker's SQL as an earlier worker binary would, and deliver the create to the runtime. */
+async function deliverCreate(api: pg.Pool, worker: pg.Pool, p: ResearchProject, attemptId: string) {
+  for (const row of await claimRuntimeOutbox(worker, 'earlier-worker', 50, 30))
+    if (row.project_id === p.projectId) await dispatchRuntimeOutbox(worker, row.project_id, row.id, row.lease_token!)
+  const create = (await withService(api, (c) => runtimePoll(c, p.who, 0))).commands
+    .map((q) => q.command as RuntimeCommand)
+    .find((cmd) => cmd.binding.attemptId === attemptId)
+  assert.ok(create, 'the create reached its runtime')
+  await withService(api, (c) =>
+    recordRuntimeReceipts(c, p.who, [
+      {
+        commandId: create.commandId,
+        attemptId,
+        stage: 'delivered',
+        nativeSessionId: `sophia-${attemptId}`,
+        nativeSequence: 1,
+        evidenceRefs: [],
+        observedAt: new Date().toISOString(),
+        reason: null,
+      },
+    ]),
+  )
+  return { attemptId, nativeSessionId: `sophia-${attemptId}` }
+}
+
+/** Rows of every ledger an effect would touch (those this database has). */
+async function ledgerRows(owner: pg.Pool) {
+  const out: Record<string, number> = {}
+  for (const t of [...LEDGERS, 'research_tasks']) {
+    const { rows } = await owner.query<{ n: string | null }>(
+      `SELECT CASE WHEN to_regclass('sophia.${t}') IS NULL THEN NULL
+         ELSE (xpath('/row/n/text()', query_to_xml('SELECT count(*) AS n FROM sophia.${t}', false, true, '')))[1]::text END AS n`,
+    )
+    if (rows[0]?.n !== null && rows[0]?.n !== undefined) out[t] = Number(rows[0].n)
+  }
+  return out
+}
+
+const codeOf = async (p: Promise<unknown>) => {
+  try {
+    await p
+    return 'resolved'
+  } catch (err) {
+    return err instanceof DomainError ? `${err.code}: ${err.message}` : `raw: ${String(err)}`
+  }
+}
+const NOT_INSTALLED =
+  'projection_unavailable: The atomic contributed admission (0105) is not installed on this database'
+
+const runtimeHeaders = (p: ResearchProject) => ({
+  authorization: `Bearer ${p.token}`,
+  'x-sophia-runtime-unit': p.who.runtimeUnitId,
+  'x-sophia-bridge-instance': p.who.bridgeInstanceId,
+  'x-sophia-bridge-protocol': '1',
+})
+
+describe('on a database of the earlier source: 0106 installed, 0105 not (no prefix; coherent)', () => {
+  let db: TestDatabase
+  let pool: pg.Pool
+  let worker: pg.Pool
+  let owner: pg.Pool
+  let on: FastifyInstance
+  let off: FastifyInstance
+  const dir = allBut('0105')
+
+  before(async () => {
+    db = await createTestDatabase(dir)
+    pool = createPool(db.apiUrl, { max: 4 })
+    worker = createPool(db.workerUrl, { max: 2 })
+    owner = new pg.Pool({ connectionString: db.ownerUrl, max: 2 })
+    on = buildApp({ pool, verifyActor, apiContributions: true })
+    off = buildApp({ pool, verifyActor })
+    await on.ready()
+    await off.ready()
+  })
+  after(async () => {
+    await on.close()
+    await off.close()
+    await pool.end()
+    await worker.end()
+    await owner.end()
+    await db.drop()
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('proves nothing installed although 0106 and every old signature are: not ready on or off', async () => {
+    const present = (
+      await owner.query<{ marker: boolean; admit: boolean; reserve: boolean }>(
+        `SELECT to_regprocedure('sophia.selection_viewer_boundary_0106()') IS NOT NULL AS marker,
+                to_regprocedure('sophia.admit_research_task(uuid,text,text,jsonb,text,text)') IS NOT NULL AS admit,
+                to_regprocedure('sophia.runtime_research_reserve(bytea,text,text,jsonb)') IS NOT NULL AS reserve`,
+      )
+    ).rows[0]
+    assert.deepEqual(present, { marker: true, admit: true, reserve: true }, 'the earlier source’s installation')
+    assert.equal(await atomicAdmissionInstalled(pool), false, 'the API login reads 0105 missing')
+    assert.equal(await atomicAdmissionInstalled(worker), false, 'the worker login reads 0105 missing')
+    for (const app of [on, off]) {
+      const r = await app.inject({ method: 'GET', url: '/ready' })
+      assert.deepEqual([r.statusCode, r.json()], [503, { ready: false, reason: 'schema' }])
+    }
+  })
+
+  it('refuses the contribution routes and the preview for every role before SQL, writing nothing', async () => {
+    const OWNER = randomUUID()
+    const acc = await withActor(pool, OWNER, 'write', (c) =>
+      contributionWrite(c, 'account_create', randomUUID(), { label: 'PRIVATE account', totalCapUsd: 10 }),
+    )
+    const accountId = String(acc.accountId)
+    const initial = await footprint(owner, accountId)
+    const patch = await http(on, OWNER, `PATCH /api/v1/me/api-accounts/${accountId}`, {
+      expectedRevision: 1,
+      patch: { protection: PROTECTION },
+    })
+    assert.deepEqual(
+      [patch.status, patch.json.code, patch.json.message],
+      [503, 'projection_unavailable', 'Member API contributions are not installed on this database'],
+      patch.body,
+    )
+    assert.deepEqual(await footprint(owner, accountId), initial, 'no account change, idempotency row or command')
+    const p = await researchProject(db.ownerUrl, pool)
+    for (const who of [p.EDIT, p.VIEW]) {
+      const r = await http(off, who, previewUrl(p.projectId))
+      assert.deepEqual([r.status, r.json.code], [503, 'projection_unavailable'], r.body)
+      assert.doesNotMatch(r.body, PRIVATE)
+    }
+  })
+
+  it('refuses the maintained admission and the paid reserve before their SQL; the old SQL itself still runs here', async () => {
+    const p = await researchProject(db.ownerUrl, pool)
+    const initial = await ledgerRows(owner)
+    assert.equal(await codeOf(admitMaintained(pool, p)), NOT_INSTALLED)
+    assert.deepEqual(await ledgerRows(owner), initial, 'no task, job, command, outbox row, allowance or event')
+
+    // Positive control on the same fixtures: the old same-signature SQL admits (an earlier binary would reach it).
+    const old = await admitThroughOldSql(pool, p)
+    assert.ok(old.taskId && old.attemptId, JSON.stringify(old))
+    const at = await deliverCreate(pool, worker, p, old.attemptId)
+    const reserve = { ...at, callId: 'm1', kind: 'model' as const, provider: 'openai-research', amountUsd: 0.4 }
+    const delivered = await ledgerRows(owner)
+    assert.equal(await codeOf(withService(pool, (c) => runtimeResearchReserve(c, p.who, reserve))), NOT_INSTALLED)
+    const viaHttp = await off.inject({
+      method: 'POST',
+      url: '/v1/runtime/research/reserve',
+      headers: runtimeHeaders(p),
+      payload: reserve,
+    })
+    assert.deepEqual(
+      [viaHttp.statusCode, viaHttp.json().code],
+      [503, 'projection_unavailable'],
+      'the always-served runtime route refuses too, with contributions off',
+    )
+    assert.deepEqual(await ledgerRows(owner), delivered, 'no reservation was made by either refused reserve')
+    // Positive control: the old reserve SQL, with the same authenticated runtime and session, reserves here.
+    await withService(pool, (c) =>
+      c.query(`SELECT sophia.runtime_research_reserve($1, $2, $3, $4) AS r`, [
+        p.who.tokenSha256,
+        p.who.runtimeUnitId,
+        p.who.bridgeInstanceId,
+        JSON.stringify(reserve),
+      ]),
+    )
+    assert.equal(
+      (await ledgerRows(owner)).research_reservations,
+      (delivered.research_reservations ?? 0) + 1,
+      'the fixtures were valid: only the guard refused',
+    )
+  })
+})
+
+describe('the real migrator on a ledger that already records 0106, without 0105 (coherent upgrade)', () => {
+  let empty: EmptyDatabase
+  let owner: pg.Pool
+  let pool: pg.Pool
+  let worker: pg.Pool
+  let on: FastifyInstance
+  let off: FastifyInstance
+  const dir = allBut('0105')
+  const suffix = randomBytes(6).toString('hex')
+  const logins = [`sophia_api_u_${suffix}`, `sophia_worker_u_${suffix}`]
+
+  /** A login granted `group`, like the production logins (test-support's own, made here for a migrated database). */
+  async function login(role: string, group: string, password: string): Promise<string> {
+    await owner.query(
+      `CREATE ROLE ${role} LOGIN PASSWORD '${password}' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE`,
+    )
+    await owner.query(`GRANT ${group} TO ${role}`)
+    await owner.query(`GRANT CONNECT ON DATABASE ${new URL(empty.ownerUrl).pathname.slice(1)} TO ${role}`)
+    const u = new URL(empty.ownerUrl)
+    u.username = role
+    u.password = password
+    return u.toString()
+  }
+
+  before(async () => {
+    empty = await createEmptyDatabase('sophia_u')
+    await withClusterMigrationLock(() => migrate(empty.ownerUrl, dir))
+    owner = new pg.Pool({ connectionString: empty.ownerUrl, max: 2 })
+    const password = randomBytes(12).toString('hex')
+    pool = createPool(await login(logins[0]!, 'sophia_api', password), { max: 4 })
+    worker = createPool(await login(logins[1]!, 'sophia_worker', password), { max: 2 })
+    on = buildApp({ pool, verifyActor, apiContributions: true })
+    off = buildApp({ pool, verifyActor })
+    await on.ready()
+    await off.ready()
+  })
+  after(async () => {
+    await on.close()
+    await off.close()
+    await pool.end()
+    await worker.end()
+    for (const role of logins) await owner.query(`DROP OWNED BY ${role}; DROP ROLE ${role}`)
+    await owner.end()
+    await empty.drop()
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('applies only the pending 0105, keeps 0106 exactly, and the same running API instances then serve', async () => {
+    const ledger = async () =>
+      new Map(
+        (
+          await owner.query<{ version: string; sha256: string }>(
+            `SELECT version, sha256 FROM sophia_meta.schema_migrations`,
+          )
+        ).rows.map((r) => [r.version, r.sha256]),
+      )
+    const snapshotDef = async () =>
+      (
+        await owner.query<{ d: string }>(
+          `SELECT pg_get_functiondef('sophia.selection_snapshot(uuid,uuid[])'::regprocedure) AS d`,
+        )
+      ).rows[0]?.d
+    const files = new Map(readMigrations(resolve('db/migrations')).map((f) => [f.version, f.sha256]))
+    const first = await ledger()
+    assert.equal(first.get('0106'), files.get('0106'), 'the ledger already records 0106, as written')
+    assert.equal(first.has('0105'), false, 'and not 0105')
+    const snapshotBefore = await snapshotDef()
+
+    // Refused while 0105 is missing (each answer is asked again, never remembered as false).
+    const p = await researchProject(empty.ownerUrl, pool)
+    assert.deepEqual([await ready(on), await ready(off)], [503, 503])
+    assert.equal((await http(on, p.EDIT, 'GET /api/v1/me/api-resources')).status, 503)
+    assert.equal((await http(off, p.VIEW, previewUrl(p.projectId))).status, 503)
+    assert.equal(await codeOf(admitMaintained(pool, p)), NOT_INSTALLED)
+
+    const report = await withClusterMigrationLock(() => migrate(empty.ownerUrl, resolve('db/migrations')))
+    assert.deepEqual(
+      report.rows.filter((r) => r.status !== 'already_applied').map((r) => [r.version, r.status]),
+      [['0105', 'applied']],
+      'only the pending 0105 was applied',
+    )
+    const second = await ledger()
+    assert.equal(second.get('0106'), first.get('0106'), '0106 keeps its recorded checksum')
+    assert.equal(second.get('0105'), files.get('0105'))
+    assert.equal(await snapshotDef(), snapshotBefore, '0106’s role-first snapshot is unchanged by 0105')
+    assert.equal(await atomicAdmissionInstalled(pool), true)
+    assert.equal(await atomicAdmissionInstalled(worker), true)
+
+    // The same instances, never restarted: ready, served, and the viewer still answered role first.
+    assert.deepEqual([await ready(on), await ready(off)], [200, 200])
+    assert.equal((await http(on, p.EDIT, 'GET /api/v1/me/api-resources')).status, 200)
+    const viewer = await http(off, p.VIEW, previewUrl(p.projectId))
+    assert.equal(viewer.status, 200, viewer.body)
+    assert.deepEqual(
+      Object.fromEntries(
+        Object.keys(RESTRICTED).map((k) => [k, parseSelectionView(viewer.json)[k as keyof typeof RESTRICTED]]),
+      ),
+      RESTRICTED,
+      'a viewer gets the uniform restricted view',
+    )
+    // An editor evaluates (200, shared disclosure; sharedCount asserts both): no API contribution is granted here.
+    assert.equal(sharedCount(await http(off, p.EDIT, previewUrl(p.projectId))), 0)
+    const admitted = await admitMaintained(pool, p)
+    assert.ok('admitted' in admitted, JSON.stringify(admitted))
   })
 })

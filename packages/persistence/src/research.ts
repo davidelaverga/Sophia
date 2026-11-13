@@ -22,6 +22,7 @@ import type {
   ResearchSubmission,
   ResearchSubmitRequest,
 } from '@sophia/contracts'
+import { requireAtomicAdmission } from './contribution-installation.ts'
 import { freezeDesignPackage } from './design.ts'
 import { onlyRow } from './rows.ts'
 import type { RuntimeCaller } from './runtime.ts'
@@ -56,11 +57,17 @@ export interface ResearchAdmissionCall {
   readonly specialist: ResearchSpecialist
 }
 
+/**
+ * Admit research (the project's own funding, or a member's pinned contribution). A database without 0105 has the same
+ * signature but not the atomic contributed admission, so its SQL is never reached there: refused before any effect,
+ * whatever the API's contribution switch says (INC04-S02a coherent).
+ */
 export async function admitResearchTask(
   c: pg.PoolClient,
   projectId: string,
   { key, exchangeId, request, specialist }: ResearchAdmissionCall,
 ): Promise<ResearchAdmission> {
+  await requireAtomicAdmission(c)
   const { rows } = await c.query<{
     result: NativeTaskReceipt | { existingTaskId: string; receipt: NativeTaskReceipt }
   }>(`SELECT sophia.admit_research_task($1, $2, $3, $4, $5, $6) AS result`, [
@@ -101,8 +108,18 @@ async function operation<T>(c: pg.PoolClient, fn: string, who: RuntimeCaller, re
 export const runtimeResearchContext = (c: pg.PoolClient, who: RuntimeCaller, request: ResearchContextRequest) =>
   operation<ResearchContextReply>(c, 'runtime_research_context', who, request)
 
-export const runtimeResearchReserve = (c: pg.PoolClient, who: RuntimeCaller, request: ResearchReserveRequest) =>
-  operation<ResearchReservation>(c, 'runtime_research_reserve', who, request)
+/**
+ * A new paid reservation: only where 0105 decides a contributed lineage's call at one instant. A database without it is
+ * refused before the SQL; settlement and the other operations here stay available for work already under way.
+ */
+export async function runtimeResearchReserve(
+  c: pg.PoolClient,
+  who: RuntimeCaller,
+  request: ResearchReserveRequest,
+): Promise<ResearchReservation> {
+  await requireAtomicAdmission(c)
+  return operation<ResearchReservation>(c, 'runtime_research_reserve', who, request)
+}
 
 export const runtimeResearchSettle = (c: pg.PoolClient, who: RuntimeCaller, request: ResearchSettleRequest) =>
   operation<ResearchSettlement>(c, 'runtime_research_settle', who, request)

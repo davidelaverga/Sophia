@@ -9,8 +9,9 @@
 // provider, model, companion or runner, and reserves, admits, wakes, notifies or dispatches nothing. Existing admission
 // stays the authority and rechecks everything before any effect.
 //
-// A nonmember and a missing project answer 404 alike. A database without 0104, or with 0104 but without the 0106
-// viewer boundary, answers projection_unavailable (503), never an empty preview. A current viewer always answers the one
+// A nonmember and a missing project answer 404 alike. A database without 0104, without the 0106 viewer boundary, or
+// without 0105's atomic admission (whose promised money the preview counts; 0106 can be installed without it) answers
+// projection_unavailable (503) for every role, before any snapshot is read, never an empty preview. A current viewer always answers the one
 // uniform restricted view, whatever the pool holds: the database decides the role first and returns a restricted
 // snapshot before it reads the pool, budget, Pin or sources (R2, 0106), so a healthy viewer's answer depends on none of
 // them. Nothing promises constant time, and a database failure still answers unavailable. For a current admin or editor,
@@ -18,7 +19,7 @@
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import { DomainError } from '@sophia/domain'
-import { readSelectionSnapshot, withActor } from '@sophia/persistence'
+import { ATOMIC_ADMISSION_INSTALLED, readSelectionSnapshot, withActor } from '@sophia/persistence'
 import { previewSelection } from '../selection-snapshot.ts'
 
 /**
@@ -27,8 +28,12 @@ import { previewSelection } from '../selection-snapshot.ts'
  */
 export const SELECTION_VIEWER_BOUNDARY = `to_regprocedure('sophia.selection_viewer_boundary_0106()') IS NOT NULL`
 
-/** What the boundary calls: the snapshot (0104), with the role decided first (0106). */
+/**
+ * What the boundary calls: the snapshot (0104), with the role decided first (0106), over the ledger 0105 makes atomic
+ * (the shared catalog proof of persistence's contribution-installation).
+ */
 export const SELECTION_PREVIEW_SCHEMA = `SELECT to_regprocedure('sophia.selection_snapshot(uuid,uuid[])') IS NOT NULL
+  AND ${ATOMIC_ADMISSION_INSTALLED}
   AND ${SELECTION_VIEWER_BOUNDARY} AS ok`
 
 const UUID = '[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}'
@@ -69,7 +74,10 @@ const notFound = (requestId: string) => ({
   requestId,
 })
 
-/** Whether 0104 and 0106 are installed: remembered once seen (a migration is never undone under a running API). */
+/**
+ * Whether 0104, 0105 and 0106 are installed: remembered once seen (a migration is never undone under a running API);
+ * a missing one is asked again on the next request, so the same API serves once the migration has run.
+ */
 function installation(pool: pg.Pool): () => Promise<void> {
   let installed = false
   return async () => {

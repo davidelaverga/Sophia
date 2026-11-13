@@ -2345,8 +2345,25 @@ const retirementInsertions: Record<string, string> = {
   dispatch_runtime_outbox: 'RETIRE-KIND',
   runtime_hello: 'RETIRE-HELLO',
 }
+/**
+ * 0105's own marked insertion (INC04-S02a, the dispatch-only claim write), recognized ONLY in dispatch_runtime_outbox and
+ * only as exactly one paired S02A-FUND-BEGIN/-END block; everything outside it stays byte-identical to the baseline.
+ */
+const s02aInsertions: Record<string, string> = {
+  dispatch_runtime_outbox: 'S02A-FUND',
+}
+function removeS02aInsertion(body: string, marker: string): string {
+  const begins = body.match(new RegExp(String.raw`^[ \t]*-- ${marker}-BEGIN[^\n]*$`, 'gm')) ?? []
+  const ends = body.match(new RegExp(String.raw`^[ \t]*-- ${marker}-END[^\n]*$`, 'gm')) ?? []
+  assert.deepEqual([begins.length, ends.length], [1, 1], `exactly one ${marker} pair`)
+  const pattern = new RegExp(String.raw`^[ \t]*-- ${marker}-BEGIN[^\n]*\n[\s\S]*?^[ \t]*-- ${marker}-END[^\n]*\n`, 'm')
+  assert.match(body, pattern, `marked ${marker}`)
+  return body.replace(pattern, '')
+}
 function restoredShared(identity: FunctionIdentity) {
   let definition = identity.definition
+  const s02a = s02aInsertions[identity.proname]
+  if (s02a) definition = removeS02aInsertion(definition, s02a)
   const retirement = retirementInsertions[identity.proname]
   if (retirement) {
     const pattern = new RegExp(

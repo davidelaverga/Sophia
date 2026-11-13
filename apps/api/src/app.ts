@@ -4,6 +4,7 @@ import type pg from 'pg'
 import { componentSchemas, type Error as ApiError } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import {
+  ATOMIC_ADMISSION_SCHEMA,
   checkRoleSafety,
   claimObjectWrite,
   RUNTIME_COMMANDS_CHANNEL,
@@ -153,7 +154,8 @@ export interface AppDeps {
   /**
    * Member API contributions (A48, migration 0094): the owner's account and connection metadata, selected-project grants,
    * admin narrowing, a member's funding pin and task funding. Off unless set: server.ts does not set it, so only a test
-   * (or a later, separately approved activation) mounts the boundary.
+   * (or a later, separately approved activation) mounts the boundary. Off does not turn off what is always served: the
+   * research admission and the runtime's paid reservation, which /ready and their own guard require 0105 for anyway.
    */
   apiContributions?: boolean
 }
@@ -638,6 +640,12 @@ async function schemaReady(
   const part = async (on: boolean, sql: string) => !on || (await pool.query<{ ok: boolean }>(sql)).rows[0]?.ok === true
   return (
     (await part(true, REQUIRED_SCHEMA)) &&
+    // The atomic contributed admission (0105; INC04-S02a coherent), whatever the switches say: research admission and
+    // the runtime's paid reservation are always served (researchRoutes, runtimeRoutes), and a database without 0105
+    // keeps their old same-signature SQL, so it takes no traffic. This is this API's own new minimum: the previous
+    // source's readiness without 0105 was true for that source, not for this one, which also refuses those calls
+    // before their SQL. Shared with the guards (persistence's contribution-installation), so they cannot drift.
+    (await part(true, ATOMIC_ADMISSION_SCHEMA)) &&
     (await part(stores, STORE_SCHEMA)) &&
     (await part(conversations, CONVERSATION_SCHEMA)) &&
     (await part(conversationInputs, CONVERSATION_INPUTS_SCHEMA)) &&
@@ -645,8 +653,8 @@ async function schemaReady(
     (await part(voice, VOICE_SCHEMA)) &&
     (await part(ownerRunners, OWNER_RUNNER_SCHEMA)) &&
     // Member API contributions on (A48, A56): the routes' own installation predicate (0094, 0100's rebuild funding
-    // guard, 0104's owner protection and account qualification, 0106's viewer boundary; R2, F02). Off, the default:
-    // nothing of them is required.
+    // guard, 0104's owner protection and account qualification, 0105, 0106's viewer boundary; R2, F02). Off, the
+    // default: nothing more of them is required, so a database with 0105 and without 0106 is ready with them off.
     (await part(apiContributions, API_CONTRIBUTIONS_SCHEMA))
   )
 }
