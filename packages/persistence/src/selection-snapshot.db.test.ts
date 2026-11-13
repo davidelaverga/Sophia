@@ -7,6 +7,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
+import { DomainError } from '@sophia/domain'
 import type { RuntimeCommand, RuntimeReceipt, RuntimeRole } from '@sophia/contracts'
 import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
 import {
@@ -372,6 +373,87 @@ async function record(w: World, over: Partial<CapacityObservationInput> = {}) {
     ...over,
   })
 }
+// R3 (CI fixture F01): an instant a reading is ordered by comes from the DATABASE clock, as UTC microsecond text. A
+// JavaScript Date keeps only milliseconds and its own clock, so `Date.now() - 500 ms` is neither guaranteed to be at or
+// after the qualifications nor strictly after an earlier reading.
+const MICRO = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`
+/** The database clock, strictly after `earlier`: a bounded condition check, never a fixed delay. */
+async function instantAfter(earlier: string) {
+  for (let i = 0; i < 100; i++) {
+    const { rows } = await ownerPool.query<{ t: string; later: boolean }>(
+      `SELECT to_char(c AT TIME ZONE 'UTC', ${MICRO}) AS t, c > $1::timestamptz AS later FROM clock_timestamp() c`,
+      [earlier],
+    )
+    if (rows[0]?.later === true) return rows[0].t
+  }
+  throw new Error(`the database clock did not pass ${earlier}`)
+}
+/** `instant` plus `ms`, computed by the database at microsecond precision. */
+async function plus(instant: string, ms: number) {
+  const { rows } = await ownerPool.query<{ t: string }>(
+    `SELECT to_char(($1::timestamptz + $2::integer * interval '1 millisecond') AT TIME ZONE 'UTC', ${MICRO}) AS t`,
+    [instant, ms],
+  )
+  return String(rows[0]?.t)
+}
+/** Waits, by bounded checks, until the database clock has passed `instant`. */
+async function untilPassed(instant: string, boundMs = 10_000) {
+  for (let waited = 0; waited <= boundMs; waited += 20) {
+    const { rows } = await ownerPool.query<{ passed: boolean }>(
+      `SELECT clock_timestamp() > $1::timestamptz AS passed`,
+      [instant],
+    )
+    if (rows[0]?.passed === true) return
+    await wait(20)
+  }
+  throw new Error(`the database clock did not pass ${instant} within ${String(boundMs)} ms`)
+}
+/** A reading's recorded observation instant, as the database holds it. */
+async function observedAtOf(observationId: string) {
+  const { rows } = await ownerPool.query<{ t: string }>(
+    `SELECT to_char(observed_at AT TIME ZONE 'UTC', ${MICRO}) AS t FROM sophia.capacity_observations WHERE id=$1`,
+    [observationId],
+  )
+  return String(rows[0]?.t)
+}
+/** How `instant` stands, as database facts, against both qualifications, an earlier reading and the clock. */
+async function orderOf(instant: string, q: Awaited<ReturnType<typeof qualificationsOf>>, earlierId: string) {
+  const { rows } = await ownerPool.query<{
+    atOrAfterAccount: boolean
+    atOrAfterRoute: boolean
+    afterEarlier: boolean
+    notLaterThanEarlier: boolean
+    notFuture: boolean
+    accountObservedAt: string
+    routeQualifiedAt: string
+    earlierObservedAt: string
+    clock: string
+  }>(
+    `SELECT $1::timestamptz >= a.observed_at AS "atOrAfterAccount", $1::timestamptz >= r.qualified_at AS "atOrAfterRoute",
+      $1::timestamptz > o.observed_at AS "afterEarlier", $1::timestamptz <= o.observed_at AS "notLaterThanEarlier",
+      $1::timestamptz <= c AS "notFuture",
+      to_char(a.observed_at AT TIME ZONE 'UTC', ${MICRO}) AS "accountObservedAt",
+      to_char(r.qualified_at AT TIME ZONE 'UTC', ${MICRO}) AS "routeQualifiedAt",
+      to_char(o.observed_at AT TIME ZONE 'UTC', ${MICRO}) AS "earlierObservedAt",
+      to_char(c AT TIME ZONE 'UTC', ${MICRO}) AS clock
+     FROM sophia.api_account_qualifications a, sophia.api_route_qualifications r, sophia.capacity_observations o,
+      clock_timestamp() c WHERE a.id=$2 AND r.id=$3 AND o.id=$4`,
+    [instant, q.ids.accountQualificationId, q.ids.routeQualificationId, earlierId],
+  )
+  const row = rows[0]
+  assert.ok(row, 'the qualifications and the earlier reading exist')
+  return { instant, ...row }
+}
+const codeOf = async (p: Promise<unknown>) => {
+  try {
+    await p
+    return 'accepted'
+  } catch (err: unknown) {
+    return err instanceof DomainError ? err.code : String(err)
+  }
+}
+const observationCount = async () =>
+  Number((await ownerPool.query<{ n: string }>(`SELECT count(*) AS n FROM sophia.capacity_observations`)).rows[0]?.n)
 /** Every ledger, reservation, claim and binding row an observation must never touch, as one comparable value. */
 async function ledgers() {
   const tables = [
@@ -431,7 +513,7 @@ describe('the selection snapshot with scoped readings (0107)', () => {
     assert.deepEqual([f2.capacity, f2.slotsBusy], [f.capacity, f.slotsBusy])
   })
 
-  it('changes no ledger, reservation, claim or binding by recording, revoking or a reset passing', async () => {
+  it('changes no ledger, reservation, claim or binding by recording, revoking or a reset passing', async (ctx) => {
     const w = await world()
     const t = await started(w)
     const m = await reserve(w, t.at, 'model', 0.2)
@@ -441,11 +523,20 @@ describe('the selection snapshot with scoped readings (0107)', () => {
     const beforeAll = await ledgers()
     const a = await record(w)
     await revokeCapacityObservation(ownerPool, a.observationId, 'synthetic: superseded')
-    // A reading whose window resets in 1.5 s, fresh for 1 s (never past the reset): after it, stale, never replenished.
+    // A reading whose window resets 1.5 s after its observation, fresh for 1 s (never past the reset): after the reset,
+    // stale, never replenished. Its one instant is the database clock, strictly after the revoked reading (equal times
+    // would be a conflict) and so at or after both qualifications; fresh and reset derive from that same instant.
+    const q = await qualificationsOf(w.connectionId)
+    const observedAt = await instantAfter(await observedAtOf(a.observationId))
+    const [freshUntil, resetAt] = [await plus(observedAt, 1_000), await plus(observedAt, 1_500)]
+    const order = await orderOf(observedAt, q, a.observationId)
+    ctx.diagnostic(`R3 second reading: ${JSON.stringify({ since: q.since, ...order, freshUntil, resetAt })}`)
+    assert.ok(order.atOrAfterAccount && order.atOrAfterRoute, 'at or after both qualifications, as database facts')
+    assert.ok(order.afterEarlier, 'strictly after the revoked reading, as a database fact')
+    assert.ok(order.notFuture, 'not in the future')
     const b = await record(w, {
-      // Later than the revoked one (observed when the qualifications began): equal times would be a conflict.
-      observedAt: at(-500),
-      freshUntil: at(1_000),
+      observedAt,
+      freshUntil,
       windows: [
         {
           windowRef: 'requests-per-day',
@@ -453,13 +544,13 @@ describe('the selection snapshot with scoped readings (0107)', () => {
           unit: 'requests',
           verdict: 'exhausted',
           applicability: 'known',
-          resetAt: at(1_500),
+          resetAt,
         },
       ],
     })
     const during = apiFacts(await snap(w.projectId, w.REQ), w.grantId).observation
     assert.ok(during?.state === 'recorded' && during.fresh && during.observationId === b.observationId)
-    await wait(1_700)
+    await untilPassed(resetAt)
     const passed = apiFacts(await snap(w.projectId, w.REQ), w.grantId)
     assert.ok(
       passed.observation?.state === 'recorded' && !passed.observation.fresh,
@@ -467,6 +558,64 @@ describe('the selection snapshot with scoped readings (0107)', () => {
     )
     assert.equal(passed.uncertainEffects, true, 'the uncertain reservation still holds')
     assert.deepEqual(await ledgers(), beforeAll, 'every ledger row is byte-equal')
+  })
+
+  it('refuses the old fixture construction when it lands before the qualifications, conflicts when not later, and selects the database instant', async (ctx) => {
+    // Causal control for the CI fixture defect F01, with production unchanged. The old second reading was
+    // `Date.now() - 500 ms`. Evaluated on a fast schedule, 300 ms after the qualifications began, it is 200 ms BEFORE
+    // them; evaluated exactly 500 ms after, it EQUALS the first reading's instant. Both are computed here
+    // deterministically from the database's own qualification instant, not from any historical CI timestamp.
+    const w = await world()
+    const q = await qualificationsOf(w.connectionId)
+    const a = await record(w)
+    await revokeCapacityObservation(ownerPool, a.observationId, 'synthetic: superseded')
+    const exhausted = {
+      freshUntil: await plus(q.since, 600_000),
+      windows: [
+        {
+          windowRef: 'requests-per-day',
+          scope: 'account' as const,
+          unit: 'requests',
+          verdict: 'exhausted' as const,
+          applicability: 'known' as const,
+        },
+      ],
+    }
+    // 1. Before the qualifications: the unchanged guard refuses it, and nothing is written.
+    const fast = await orderOf(await plus(q.since, 300 - 500), q, a.observationId)
+    ctx.diagnostic(
+      `R3 old construction, 300 ms after the qualifications: ${JSON.stringify({ since: q.since, ...fast })}`,
+    )
+    assert.ok(!(fast.atOrAfterAccount && fast.atOrAfterRoute), 'before a qualification, as a database fact')
+    const rows = await observationCount()
+    assert.equal(
+      await codeOf(record(w, { ...exhausted, observedAt: fast.instant })),
+      'invalid_request',
+      'the unchanged guard refuses a reading observed before its qualifications',
+    )
+    assert.equal(await observationCount(), rows, 'nothing written')
+    // 2. Not later than the revoked reading: recorded, but the unchanged read can order neither, so a conflict.
+    const equal = await orderOf(await plus(q.since, 500 - 500), q, a.observationId)
+    ctx.diagnostic(
+      `R3 old construction, 500 ms after the qualifications: ${JSON.stringify({ since: q.since, ...equal })}`,
+    )
+    assert.ok(
+      equal.notLaterThanEarlier && !equal.afterEarlier,
+      'not later than the revoked reading, as a database fact',
+    )
+    await record(w, { ...exhausted, observedAt: equal.instant })
+    assert.deepEqual(apiFacts(await snap(w.projectId, w.REQ), w.grantId).observation, { state: 'conflict' })
+    // 3. The corrected construction: the database clock, strictly after both, is recorded and selected.
+    const fixed = await orderOf(await instantAfter(equal.instant), q, a.observationId)
+    ctx.diagnostic(`R3 corrected construction: ${JSON.stringify({ since: q.since, ...fixed })}`)
+    assert.ok(fixed.atOrAfterAccount && fixed.atOrAfterRoute && fixed.afterEarlier && fixed.notFuture)
+    const c = await record(w, {
+      ...exhausted,
+      observedAt: fixed.instant,
+      freshUntil: await plus(fixed.instant, 600_000),
+    })
+    const selected = apiFacts(await snap(w.projectId, w.REQ), w.grantId).observation
+    assert.ok(selected?.state === 'recorded' && selected.fresh && selected.observationId === c.observationId)
   })
 
   it('leaves an old reading unbound when its account qualification expires or is replaced', async () => {
