@@ -406,10 +406,14 @@ function optionMap(options: readonly SettingOption[]): Map<string, string> | nul
   return out
 }
 
-/** Settings with options sorted by id and identical duplicates removed (call only when `settingsKey` is not null). */
+/**
+ * Settings with options sorted by id and identical duplicates removed (call only when `settingsKey` is not null).
+ * Every object is new: a decision never holds, and so never freezes, an object the caller owns (R1, 69FC-F02).
+ */
 function canonicalSettings(s: Settings): Settings {
-  const seen = new Map(s.options.map((o) => [o.id, o]))
-  return { ...s, options: [...seen.values()].toSorted((a, b) => cmp(a.id, b.id)) }
+  const seen = new Map(s.options.map((o) => [o.id, o.value]))
+  const options = [...seen].map(([id, value]) => ({ id, value })).toSorted((a, b) => cmp(a.id, b.id))
+  return { providerInstanceRef: s.providerInstanceRef, model: s.model, options }
 }
 
 /** Share grants sorted by viewer, each viewer's fields sorted and unique. */
@@ -1496,11 +1500,15 @@ function proposalView(
   return v === undefined ? { withheld: true } : { ...v, accepted: 'unknown', observed: 'unknown' }
 }
 
-/** A fallback's payer change is shown only when both resources are visible and the proposal's payer is shared. */
+/**
+ * A fallback's payer relationship is shown only when BOTH payers passed the viewer's whitelist (owner or a current
+ * `payer_scope` share); otherwise it is withheld, uniformly. Visibility or summary sharing alone never discloses
+ * whether a private payer equals a visible one (R1, 69FC-F01).
+ */
 function fallbackView(d: Decision, visible: ReadonlyMap<string, ViewCandidate>) {
   if (d.fallback === null || d.proposedRef === null) return null
   const proposal = visible.get(d.proposedRef)
   const target = visible.get(d.fallback.targetRef)
-  if (proposal?.payerScopeRef === undefined || target === undefined) return null
+  if (proposal?.payerScopeRef === undefined || target?.payerScopeRef === undefined) return null
   return { crossPayer: d.fallback.crossPayer, targetLimitation: target.limitation }
 }

@@ -15,6 +15,8 @@ import {
   type ResolvedProof,
   type Role,
   type SelectionInput,
+  type Settings,
+  type ShareField,
 } from './allocation-selection.ts'
 
 const AT = '2026-11-13T08:00:00Z'
@@ -1344,6 +1346,185 @@ describe('C06: one viewer-safe projection', () => {
 
   it('an internal decision does not serialize by accident', () => {
     assert.throws(() => JSON.stringify(run([candidate('a')])), /selection_decision_not_serializable/)
+  })
+})
+
+// --- R1 regressions (INC04-S01A-69FC-F01, -F02) ------------------------------------------------------------------
+
+const explorePayer = (c: Candidate, fromPayer: string) => {
+  const base = proof('cross_payer_fallback', c)
+  return {
+    ...base,
+    scope: {
+      ...base.scope,
+      fromPayerScopeRef: fromPayer,
+      family: 'explore' as const,
+      operationRef: 'op-explore',
+      roles: ['explorer' as const],
+    },
+  }
+}
+const ownApi = (ref: string, mutate: (c: Candidate) => void = () => {}) =>
+  candidate(ref, (c) => {
+    c.routeKind = 'api'
+    mutate(c)
+  })
+
+/** A Prefer fallback for the viewer ACTOR: the preferred target is busy and `alt` is proposed. */
+function fallbackCase(o: {
+  targetPayer: string
+  targetFields: readonly ShareField[]
+  targetOwnedByViewer?: boolean
+  /** No share grant at all: the target is hidden from the viewer. */
+  targetHidden?: boolean
+  proposalFields?: readonly ShareField[]
+}) {
+  const target = o.targetOwnedByViewer
+    ? ownApi('target', (c) => busy(c))
+    : grantCandidate('target', (c) => {
+        busy(c)
+        c.share = o.targetHidden ? [] : [{ viewerRef: ACTOR, fields: o.targetFields }]
+      })
+  target.payerScopeRef = o.targetPayer
+  const alt =
+    o.proposalFields === undefined
+      ? ownApi('alt')
+      : grantCandidate('alt', (c) => (c.share = [{ viewerRef: ACTOR, fields: o.proposalFields ?? [] }]))
+  alt.payerScopeRef = 'visible-payer'
+  const d = run([target, alt], (i) => {
+    explore(i)
+    i.policy.scopes = [scope('prefer', 'target', { crossPayer: [explorePayer(alt, o.targetPayer)] })]
+  })
+  return { d, view: projectSelection(d, ACTOR) }
+}
+const fallbackOf = (v: ReturnType<typeof projectSelection>) => (v.disclosure === 'shared' ? v.fallback : 'restricted')
+
+describe('R1 F01: a fallback payer relationship needs both payers visible', () => {
+  it('a target whose payer is not shared gives the same view whether its private payer matches or not', () => {
+    const same = fallbackCase({ targetPayer: 'visible-payer', targetFields: ['route_kind'] })
+    const different = fallbackCase({ targetPayer: 'private-other-payer', targetFields: ['route_kind'] })
+    assert.deepEqual([same.d.proposedRef, different.d.proposedRef], ['alt', 'alt'])
+    assert.deepEqual(different.view, same.view)
+    assert.equal(fallbackOf(different.view), null)
+  })
+
+  it('the internal decision keeps the reviewed fallback unchanged', () => {
+    const { d } = fallbackCase({ targetPayer: 'private-other-payer', targetFields: ['route_kind'] })
+    assert.deepEqual(d.fallback, { targetRef: 'target', crossPayer: true })
+  })
+
+  it('a proposal whose payer is not shared withholds the comparison', () => {
+    const v = fallbackCase({
+      targetPayer: 'private-other-payer',
+      targetFields: ['route_kind', 'payer_scope'],
+      proposalFields: ['route_kind'],
+    }).view
+    assert.equal(fallbackOf(v), null)
+  })
+
+  it('with neither payer shared the comparison is withheld', () => {
+    const v = fallbackCase({
+      targetPayer: 'private-other-payer',
+      targetFields: ['route_kind'],
+      proposalFields: ['route_kind'],
+    }).view
+    assert.equal(fallbackOf(v), null)
+  })
+
+  it('a target shared with no fields at all still keeps its payer relationship private', () => {
+    assert.equal(fallbackOf(fallbackCase({ targetPayer: 'private-other-payer', targetFields: [] }).view), null)
+  })
+
+  it('a hidden target or a restricted summary gives no fallback', () => {
+    const hidden = fallbackCase({ targetPayer: 'private-other-payer', targetFields: [], targetHidden: true }).view
+    assert.equal(fallbackOf(hidden), null)
+    assert.ok(hidden.disclosure === 'shared' && !hidden.candidates.some((c) => c.candidateRef === 'target'))
+    const { d } = fallbackCase({ targetPayer: 'private-other-payer', targetFields: ['route_kind', 'payer_scope'] })
+    assert.equal(fallbackOf(projectSelection(d, OTHER)), 'restricted')
+  })
+
+  it('both payers shared, or both owned by the viewer, keep the useful comparison', () => {
+    const shared = (targetPayer: string) =>
+      fallbackOf(
+        fallbackCase({ targetPayer, targetFields: ['route_kind', 'payer_scope'], proposalFields: ['payer_scope'] })
+          .view,
+      )
+    assert.deepEqual(shared('private-other-payer'), { crossPayer: true, targetLimitation: 'unavailable_now' })
+    assert.deepEqual(shared('visible-payer'), { crossPayer: false, targetLimitation: 'unavailable_now' })
+    const owned = fallbackCase({ targetPayer: 'payer-target', targetFields: [], targetOwnedByViewer: true })
+    assert.deepEqual(fallbackOf(owned.view), { crossPayer: true, targetLimitation: 'unavailable_now' })
+  })
+})
+
+const mutableSettings = (value: string): Settings => ({
+  providerInstanceRef: 'codex',
+  model: 'm1',
+  options: [{ id: 'effort', value }],
+})
+
+/** Every object reachable from a value, by identity. */
+function reachable(v: unknown, out = new Set<object>()): Set<object> {
+  if (typeof v === 'object' && v !== null && !out.has(v)) {
+    out.add(v)
+    for (const x of Object.values(v)) reachable(x, out)
+  }
+  return out
+}
+
+const descriptors = (s: Settings) => s.options.map((o) => Object.getOwnPropertyDescriptors(o))
+const states = (s: Settings) =>
+  [s, s.options, ...s.options].map((o) => [Object.isFrozen(o), Object.isExtensible(o)] as const)
+
+/**
+ * The caller's input stays theirs: no object of the whole input is held by the decision or its view, the settings are
+ * never frozen or re-described, and a later edit by the caller changes neither.
+ */
+function assertCallerOwned(whole: SelectionInput, owned: Settings, read: (d: Decision) => unknown) {
+  const before = { descriptors: descriptors(owned), states: states(owned), value: clone(owned) }
+  const d = evaluateSelection(whole)
+  const callerObjects = reachable(whole)
+  for (const o of reachable(d)) {
+    assert.ok(!callerObjects.has(o), 'a decision object is the caller’s')
+    assert.ok(Object.isFrozen(o), 'every decision object stays frozen')
+  }
+  const view = projectSelection(d, ACTOR)
+  for (const o of reachable(view)) assert.ok(!callerObjects.has(o), 'a view object is the caller’s')
+  assert.deepEqual(descriptors(owned), before.descriptors)
+  assert.deepEqual(states(owned), before.states)
+  assert.deepEqual(owned, before.value)
+  const seen = clone(read(d))
+  const viewBefore = clone(view)
+  const option = owned.options[0]
+  assert.ok(option)
+  option.value = 'low'
+  assert.equal(option.value, 'low')
+  assert.deepEqual(read(d), seen)
+  assert.deepEqual(projectSelection(d, ACTOR), viewBefore)
+}
+
+describe('R1 F02: evaluation never takes ownership of caller settings', () => {
+  it('a manual strict request', () => {
+    const owned = mutableSettings('high')
+    const i = input([candidate('a')], (x) => (x.request.strictSettings = owned))
+    assertCallerOwned(i, owned, (d) => d.settings.strict)
+  })
+
+  it('a winning Pin', () => {
+    const owned = mutableSettings('high')
+    const i = input([candidate('a')], (x) => (x.policy.scopes = [scope('pin', 'a', { settings: owned })]))
+    assertCallerOwned(i, owned, (d) => d.settings.strict)
+  })
+
+  it('a Prefer soft seed', () => {
+    const owned = mutableSettings('low')
+    const i = input([candidate('a')], (x) => (x.policy.scopes = [scope('prefer', 'a', { settings: owned })]))
+    assertCallerOwned(i, owned, (d) => row(d, 'a').seed)
+  })
+
+  it('a candidate default seed', () => {
+    const owned = mutableSettings('low')
+    const i = input([candidate('a', (c) => (c.settings.defaultSeed = owned))])
+    assertCallerOwned(i, owned, (d) => row(d, 'a').seed)
   })
 })
 
