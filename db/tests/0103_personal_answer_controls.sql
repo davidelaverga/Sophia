@@ -60,6 +60,10 @@ CREATE FUNCTION pg_temp.q103_launch(p_call uuid) RETURNS sophia.personal_answer_
 AS $$ SELECT * FROM sophia.personal_answer_launches WHERE call_id=p_call $$;
 CREATE FUNCTION pg_temp.q103_withheld(p_call uuid) RETURNS sophia.personal_withheld_results LANGUAGE sql SECURITY DEFINER
 AS $$ SELECT * FROM sophia.personal_withheld_results WHERE call_id=p_call $$;
+CREATE FUNCTION pg_temp.q103_staged(p_call uuid) RETURNS sophia.personal_answer_staged_results LANGUAGE sql
+SECURITY DEFINER AS $$ SELECT * FROM sophia.personal_answer_staged_results WHERE call_id=p_call $$;
+CREATE FUNCTION pg_temp.q103_staged_all() RETURNS SETOF sophia.personal_answer_staged_results LANGUAGE sql
+SECURITY DEFINER AS $$ SELECT * FROM sophia.personal_answer_staged_results $$;
 CREATE FUNCTION pg_temp.q103_kept(p_turn uuid) RETURNS integer LANGUAGE sql SECURITY DEFINER
 AS $$ SELECT count(*)::integer FROM sophia.personal_settled_answers WHERE turn_id=p_turn $$;
 CREATE FUNCTION pg_temp.q103_reply(p_turn uuid) RETURNS text LANGUAGE sql
@@ -347,25 +351,100 @@ BEGIN
  res:=pg_temp.q103_reserve(t,c,pg_temp.q103_p(),pg_temp.q103_p());
  IF pg_temp.q103_control('x14-cancel',i,'cancel',0)->'receipt'->>'phase'<>'before_launch' THEN
   RAISE EXCEPTION 'Not before launch'; END IF;
- IF sophia.retain_personal_withheld_answer(res.call,'Words never asked for',NULL)<>'not_withdrawn'
+ IF sophia.retain_personal_withheld_answer(res.call,'Words never asked for',NULL)<>'not_bound'
   OR (pg_temp.q103_withheld(res.call)).call_id IS NOT NULL THEN RAISE EXCEPTION 'An unlaunched call retained'; END IF;
  PERFORM sophia.end_companion_call(res.call);
 END $$;
 
--- S13 (R1): a complete answer of the original call whose cost could not be settled (stopped, or usage unknown) is
--- retained privately, its money left exactly as it is: uncertain, no amount, never settled, released or reconciled
--- here; the replacement stays held on the unresolved cost. Only that binding retains: a call never launched, one whose
--- input is not withdrawn, and another owner's call write nothing. Identical replay; a different body is refused.
+-- S13 (R2): withdrawn first, then a whole answer of the original call: kept at once, never staged. Then published
+-- first, withdrawn later: the staged body is kept privately and no reply is added. Each cost is then reconciled by the
+-- operator, so the synthetic payer is free again.
+DO $$ DECLARE r jsonb:=pg_temp.q103_send('x15'); t uuid:=(r->>'turnId')::uuid; i uuid:=(r->>'inputId')::uuid;
+ c uuid:=pg_temp.q103_claim(t); res record;
+BEGIN
+ res:=pg_temp.q103_reserve(t,c,pg_temp.q103_p(),pg_temp.q103_p());
+ IF sophia.begin_personal_answer_launch(res.call,c,res.digest)<>'granted' THEN RAISE EXCEPTION 'Not granted'; END IF;
+ IF pg_temp.q103_control('x15-cancel',i,'cancel',0)->'receipt'->>'phase'<>'after_launch' THEN
+  RAISE EXCEPTION 'Not after launch'; END IF;
+ IF NOT sophia.hold_personal_companion(res.call,'usage_unknown') THEN RAISE EXCEPTION 'Not held'; END IF;
+ IF sophia.retain_personal_withheld_answer(res.call,'Direct words',NULL)<>'retained'
+  OR (pg_temp.q103_withheld(res.call)).body<>'Direct words' OR (pg_temp.q103_staged(res.call)).call_id IS NOT NULL
+  OR (pg_temp.q103_usage(res.call)).state<>'uncertain' OR (pg_temp.q103_usage(res.call)).used_micros IS NOT NULL THEN
+  RAISE EXCEPTION 'Withdrawn first: not kept directly'; END IF;
+ PERFORM sophia.end_companion_call(res.call);
+ INSERT INTO q103 VALUES('x15',jsonb_build_object('call',res.call));
+END $$;
+RESET ROLE;
+SELECT sophia.reconcile_personal_companion((SELECT (v->>'call')::uuid FROM q103 WHERE k='x15'),55,
+ '{"inputTokens":1,"outputTokens":1}');
+SET LOCAL ROLE sophia_api;
+DO $$ DECLARE r jsonb:=pg_temp.q103_send('x16'); t uuid:=(r->>'turnId')::uuid; i uuid:=(r->>'inputId')::uuid;
+ c uuid:=pg_temp.q103_claim(t); res record; rc jsonb;
+BEGIN
+ res:=pg_temp.q103_reserve(t,c,pg_temp.q103_p(),pg_temp.q103_p());
+ IF sophia.begin_personal_answer_launch(res.call,c,res.digest)<>'granted' THEN RAISE EXCEPTION 'Not granted'; END IF;
+ IF NOT sophia.hold_personal_companion(res.call,'usage_unknown') THEN RAISE EXCEPTION 'Not held'; END IF;
+ IF sophia.retain_personal_withheld_answer(res.call,'Published words','A note')<>'staged' THEN
+  RAISE EXCEPTION 'Not staged'; END IF;
+ IF sophia.record_personal_reply(t,c,'Published words','A note') IS NULL OR pg_temp.q103_answers(t)<>1 THEN
+  RAISE EXCEPTION 'Not published'; END IF;
+ PERFORM sophia.end_companion_call(res.call);
+ rc:=pg_temp.q103_control('x16-cancel',i,'cancel',0)->'receipt';
+ IF rc->>'phase'<>'after_publication' OR pg_temp.q103_reply(t)<>'answered' OR pg_temp.q103_answers(t)<>1
+  OR (pg_temp.q103_withheld(res.call)).body<>'Published words' OR (pg_temp.q103_withheld(res.call)).suggestion<>'A note'
+  OR (pg_temp.q103_withheld(res.call)).source<>'late_settlement' OR (pg_temp.q103_staged(res.call)).call_id IS NOT NULL
+  OR (pg_temp.q103_usage(res.call)).state<>'uncertain' THEN
+  RAISE EXCEPTION 'Published first: not kept privately: %', rc; END IF;
+ INSERT INTO q103 VALUES('x16',jsonb_build_object('call',res.call));
+END $$;
+RESET ROLE;
+SELECT sophia.reconcile_personal_companion((SELECT (v->>'call')::uuid FROM q103 WHERE k='x16'),55,
+ '{"inputTokens":1,"outputTokens":1}');
+SET LOCAL ROLE sophia_api;
+-- S13 (R2): a body staged and never withdrawn stays private, for the erasure below (S12).
+DO $$ DECLARE r jsonb:=pg_temp.q103_send('x17'); t uuid:=(r->>'turnId')::uuid; c uuid:=pg_temp.q103_claim(t); res record;
+BEGIN
+ res:=pg_temp.q103_reserve(t,c,pg_temp.q103_p(),pg_temp.q103_p());
+ IF sophia.begin_personal_answer_launch(res.call,c,res.digest)<>'granted' THEN RAISE EXCEPTION 'Not granted'; END IF;
+ IF NOT sophia.hold_personal_companion(res.call,'usage_unknown') THEN RAISE EXCEPTION 'Not held'; END IF;
+ IF sophia.retain_personal_withheld_answer(res.call,'Staged words',NULL)<>'staged' THEN RAISE EXCEPTION 'Not staged'; END IF;
+ -- Its turn fails (it is never written here), so the next turn can be claimed; the staged body stays private.
+ PERFORM sophia.fail_personal_reply(t,c);
+ PERFORM sophia.end_companion_call(res.call);
+ IF (pg_temp.q103_staged(res.call)).body<>'Staged words' THEN RAISE EXCEPTION 'The staged body went'; END IF;
+ INSERT INTO q103 VALUES('x17',jsonb_build_object('call',res.call));
+END $$;
+RESET ROLE;
+SELECT sophia.reconcile_personal_companion((SELECT (v->>'call')::uuid FROM q103 WHERE k='x17'),55,
+ '{"inputTokens":1,"outputTokens":1}');
+SET LOCAL ROLE sophia_api;
+
+-- S13 (R1, R2): a complete answer of the original call whose cost could not be settled (stopped, or usage unknown) is
+-- kept privately, its money left exactly as it is: uncertain, no amount, never settled, released or reconciled here;
+-- the replacement stays held on the unresolved cost. While its input is active it is staged (R2): the control that
+-- withdraws the input moves it to the withheld store in its own transaction. Only that binding keeps anything: a call
+-- never launched and another owner's call write nothing. Identical replay; a different body is refused.
 DO $$ DECLARE r jsonb:=pg_temp.q103_send('x13'); t uuid:=(r->>'turnId')::uuid; i uuid:=(r->>'inputId')::uuid;
  c uuid:=pg_temp.q103_claim(t); res record; rc jsonb; y uuid; u sophia.personal_companion_usage; refused jsonb;
 BEGIN
  res:=pg_temp.q103_reserve(t,c,pg_temp.q103_p(),pg_temp.q103_p());
  IF sophia.begin_personal_answer_launch(res.call,c,res.digest)<>'granted' THEN RAISE EXCEPTION 'Not granted'; END IF;
- IF sophia.retain_personal_withheld_answer(res.call,'Too early',NULL)<>'not_withdrawn'
-  OR (pg_temp.q103_withheld(res.call)).call_id IS NOT NULL THEN RAISE EXCEPTION 'Retained while not withdrawn'; END IF;
+  IF sophia.retain_personal_withheld_answer(res.call,'Whole late words','A note')<>'staged'
+  OR (pg_temp.q103_withheld(res.call)).call_id IS NOT NULL OR (pg_temp.q103_staged(res.call)).body<>'Whole late words'
+  OR (pg_temp.q103_staged(res.call)).suggestion<>'A note' OR (pg_temp.q103_staged(res.call)).input_id<>i
+  OR (pg_temp.q103_usage(res.call)).state<>'reserved' OR pg_temp.q103_reply(t)<>'pending' THEN
+  RAISE EXCEPTION 'Not staged while active, or money or the turn changed'; END IF;
+ IF sophia.retain_personal_withheld_answer(res.call,'Whole late words','A note')<>'staged' THEN
+  RAISE EXCEPTION 'An identical staged replay was not idempotent'; END IF;
+ BEGIN
+  PERFORM sophia.retain_personal_withheld_answer(res.call,'Whole late words',NULL);
+  RAISE EXCEPTION 'A different staged answer was accepted';
+ EXCEPTION WHEN unique_violation THEN NULL; END;
  rc:=pg_temp.q103_control('x13-replace',i,'replace',0,'Instead words')->'receipt';
  y:=(rc->'replacement'->>'inputId')::uuid;
  IF rc->>'phase'<>'after_launch' THEN RAISE EXCEPTION 'Not after launch: %', rc; END IF;
+ IF (pg_temp.q103_withheld(res.call)).body<>'Whole late words' OR (pg_temp.q103_staged(res.call)).call_id IS NOT NULL THEN
+  RAISE EXCEPTION 'The control did not move the staged body'; END IF;
  -- The call was stopped: its usage is not known, so it is held, as the live companion holds it.
  IF NOT sophia.hold_personal_companion(res.call,'stopped_usage_unknown') THEN RAISE EXCEPTION 'Not held'; END IF;
  IF sophia.retain_personal_withheld_answer(res.call,'Whole late words','A note')<>'retained' THEN
@@ -395,7 +474,7 @@ BEGIN
   RAISE EXCEPTION 'The replacement was admitted on an unresolved cost: %', refused; END IF;
  -- Another owner's view of the same call: nothing.
  PERFORM set_config('sophia.actor_id','00000000-0000-0000-0000-00000000103b',true);
- IF sophia.retain_personal_withheld_answer(res.call,'Whole late words','A note')<>'not_withdrawn' THEN
+ IF sophia.retain_personal_withheld_answer(res.call,'Whole late words','A note')<>'not_bound' THEN
   RAISE EXCEPTION 'Another owner retained'; END IF;
  PERFORM set_config('sophia.actor_id','00000000-0000-0000-0000-00000000103a',true);
  INSERT INTO q103 VALUES('x13',jsonb_build_object('input',i,'call',res.call));
@@ -429,9 +508,15 @@ BEGIN
  EXCEPTION WHEN serialization_failure THEN NULL; END;
  -- R1: an erased call's answer is not resurrected by a late retention.
  IF sophia.retain_personal_withheld_answer((SELECT (v->>'call')::uuid FROM q103 WHERE k='x13'),'Whole late words',
-   'A note')<>'not_withdrawn'
+   'A note')<>'not_bound'
   OR (pg_temp.q103_withheld((SELECT (v->>'call')::uuid FROM q103 WHERE k='x13'))).call_id IS NOT NULL THEN
   RAISE EXCEPTION 'An erased answer was retained again'; END IF;
+ -- R2: a body staged and never withdrawn goes with the erasure; retaining it again binds nothing.
+ IF (pg_temp.q103_staged((SELECT (v->>'call')::uuid FROM q103 WHERE k='x17'))).call_id IS NOT NULL
+  OR EXISTS(SELECT FROM pg_temp.q103_staged_all()) THEN RAISE EXCEPTION 'A staged body survived the erasure'; END IF;
+ IF sophia.retain_personal_withheld_answer((SELECT (v->>'call')::uuid FROM q103 WHERE k='x17'),'Staged words',NULL)
+   <>'not_bound' OR EXISTS(SELECT FROM pg_temp.q103_staged_all()) THEN
+  RAISE EXCEPTION 'An erased staged body was staged again'; END IF;
 END $$;
 
 -- Grants: no write or direct read of the function-only tables; no execute on the internal helpers.
@@ -446,7 +531,9 @@ DO $$ BEGIN
   OR NOT has_function_privilege('sophia_api',
    'sophia.settle_personal_companion_answer(uuid,bigint,jsonb,text,text)','EXECUTE')
   OR NOT has_function_privilege('sophia_api','sophia.retain_personal_withheld_answer(uuid,text,text)','EXECUTE')
-  OR has_function_privilege('sophia_worker','sophia.retain_personal_withheld_answer(uuid,text,text)','EXECUTE') THEN
+  OR has_function_privilege('sophia_worker','sophia.retain_personal_withheld_answer(uuid,text,text)','EXECUTE')
+  OR has_table_privilege('sophia_api','sophia.personal_answer_staged_results','SELECT')
+  OR has_table_privilege('sophia_api','sophia.personal_answer_staged_results','INSERT') THEN
   RAISE EXCEPTION 'Grants'; END IF;
 END $$;
 ROLLBACK;

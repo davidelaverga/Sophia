@@ -15,7 +15,8 @@
 --   moved to personal_withheld_results, and a late answer of its original call is kept there (settlement below), whether
 --   or not its cost was settled already. Financial state stays 0073's own; nothing is refunded, reset or forgiven.
 --   One whose cost could not be settled (stopped, or its usage unknown) is kept there too (R1:
---   retain_personal_withheld_answer), its money left as held.
+--   retain_personal_withheld_answer), its money left as held; while its input is still active it is staged privately
+--   (R2: personal_answer_staged_results) and moved there by the control that withdraws the input.
 -- * The owner reads it all through the functions below; old unversioned reads are refused by the API (C5).
 -- No earlier migration is edited. One existing function is replaced under its own signature, language, search path,
 -- SECURITY DEFINER and grants: settle_personal_companion_answer (late retention). Only the turn reply CHECK widens.
@@ -139,6 +140,25 @@ CREATE TABLE sophia.personal_withheld_results (
 );
 ALTER TABLE sophia.personal_withheld_results ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON sophia.personal_withheld_results FROM PUBLIC;
+
+-- R2: the whole answer of an original call whose cost could not be settled, kept privately while its input is still
+-- active (retain_personal_withheld_answer), so a withdrawal that commits before its acknowledgement or its final write
+-- cannot lose it: the control that withdraws the input moves it to personal_withheld_results in its own transaction.
+-- Internal: never money, never kept for publication, never on the wire; erased with the turns. Function-only.
+CREATE TABLE sophia.personal_answer_staged_results (
+ call_id uuid PRIMARY KEY,
+ owner_id uuid NOT NULL,
+ turn_id uuid NOT NULL,
+ epoch bigint NOT NULL CHECK(epoch>=0),
+ input_id uuid NOT NULL,
+ body text NOT NULL CHECK(length(body) BETWEEN 1 AND 4000),
+ suggestion text,
+ staged_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+ FOREIGN KEY(owner_id,turn_id) REFERENCES sophia.personal_turns(owner_id,id) ON DELETE CASCADE,
+ FOREIGN KEY(owner_id,input_id) REFERENCES sophia.personal_inputs(owner_id,id) ON DELETE CASCADE
+);
+ALTER TABLE sophia.personal_answer_staged_results ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON sophia.personal_answer_staged_results FROM PUBLIC;
 
 -- A call's frozen execution snapshot, as the live companion builds it from its settings (the answer profile's shape,
 -- but as permissive as the settings: an effort of any length up to 64, for a legacy turn). Malformed: 22023; another
@@ -422,6 +442,16 @@ BEGIN
    FROM sophia.personal_settled_answers ka WHERE ka.owner_id=a AND ka.turn_id=t.id AND ka.epoch=e
    ON CONFLICT (call_id) DO NOTHING;
   DELETE FROM sophia.personal_settled_answers WHERE owner_id=a AND turn_id=t.id AND epoch=e;
+  -- R2: a whole answer staged for the turn's original call, in any phase (published first included), is withheld here,
+  -- never written. One already withheld differently stays staged: never overwritten, never lost.
+  INSERT INTO sophia.personal_withheld_results(call_id,owner_id,turn_id,epoch,input_id,body,suggestion,source)
+   SELECT sr.call_id,a,sr.turn_id,sr.epoch,p_input,sr.body,sr.suggestion,'late_settlement'
+   FROM sophia.personal_answer_staged_results sr
+   WHERE sr.owner_id=a AND sr.turn_id=t.id AND sr.epoch=e AND sr.input_id=p_input
+   ON CONFLICT (call_id) DO NOTHING;
+  DELETE FROM sophia.personal_answer_staged_results sr USING sophia.personal_withheld_results w
+   WHERE sr.owner_id=a AND sr.turn_id=t.id AND sr.epoch=e AND sr.input_id=p_input AND w.call_id=sr.call_id
+    AND w.owner_id=a AND w.body=sr.body AND w.suggestion IS NOT DISTINCT FROM sr.suggestion;
   SELECT * INTO p FROM sophia.personal_answer_prior(t.id,e);
   v_phase:=CASE WHEN t.reply='answered' THEN 'after_publication' WHEN p.effect='possible' THEN 'after_launch'
    WHEN p.bound THEN 'before_launch' ELSE 'before_reservation' END;
@@ -654,15 +684,19 @@ BEGIN
  RETURN CASE WHEN kept IS NULL THEN 'settled' ELSE 'kept' END;
 END $$;
 
--- R1 (A3-CC87-F01): the whole answer of a withdrawn input's original call whose cost could not be settled here (it was
--- stopped, or its usage was missing or ambiguous): the settlement above cannot take it, since 0073's settler requires a
--- used amount and its counts. It is kept withheld as the settlement keeps one (once; an identical replay changes
--- nothing; a different one is refused, 23505), only for the caller's own call, granted ('launching') for that same
--- input, at the current epoch, its turn's control withdrawn; anything else is 'not_withdrawn' and writes nothing. Its
--- money is never read or written here: the call stays as it was held (uncertain, no amount) until reconciled.
+-- R1 (A3-CC87-F01) and R2 (A3-R1-934D-F01): the whole answer of an original call whose cost could not be settled here
+-- (it was stopped, or its usage was missing or ambiguous): the settlement above cannot take it, since 0073's settler
+-- requires a used amount and its counts. Bound to the caller's own call, at the current epoch, with its usage row,
+-- granted ('launching') for its input X; anything else is 'not_bound' and writes nothing. Under the owner's lock:
+-- * X withdrawn: kept withheld as the settlement keeps one ('retained'); an identical staged copy is moved.
+-- * X still active: kept staged (R2, 'staged'), so a withdrawal committed before this call's acknowledgement or its
+--   final write cannot lose it: that control moves it to the withheld store.
+-- Once, for the call: an identical replay changes nothing; a different one is refused (23505), never overwritten. Its
+-- money is never read or written: the call stays as it was held (uncertain, no amount) until reconciled.
 CREATE FUNCTION sophia.retain_personal_withheld_answer(p_call uuid, p_body text, p_suggestion text) RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE a uuid:=sophia.personal_owner(); b sophia.personal_answer_calls; v_input uuid; w sophia.personal_withheld_results;
+DECLARE a uuid:=sophia.personal_owner(); b sophia.personal_answer_calls; l sophia.personal_answer_launches;
+ w sophia.personal_withheld_results; st sophia.personal_answer_staged_results; withdrawn boolean;
 BEGIN
  IF p_body IS NULL OR length(p_body) NOT BETWEEN 1 AND 4000 THEN
   RAISE EXCEPTION 'A kept answer has its words' USING ERRCODE='22023';
@@ -671,22 +705,34 @@ BEGIN
  SELECT * INTO b FROM sophia.personal_answer_calls WHERE call_id=p_call AND owner_id=a;
  IF NOT FOUND OR b.epoch<>coalesce((SELECT s.epoch FROM sophia.personal_spaces s WHERE s.owner_id=a),0)
   OR NOT EXISTS(SELECT FROM sophia.personal_companion_usage u WHERE u.call_id=p_call AND u.owner_id=a) THEN
-  RETURN 'not_withdrawn';
+  RETURN 'not_bound';
  END IF;
- SELECT c.input_id INTO v_input FROM sophia.personal_answer_controls c
-  JOIN sophia.personal_answer_launches l ON l.call_id=p_call AND l.owner_id=a AND l.turn_id=b.turn_id AND l.epoch=b.epoch
-   AND l.state='launching' AND l.input_id=c.input_id
-  WHERE c.owner_id=a AND c.turn_id=b.turn_id AND c.state='withdrawn';
- IF v_input IS NULL THEN RETURN 'not_withdrawn'; END IF;
+ SELECT * INTO l FROM sophia.personal_answer_launches WHERE call_id=p_call AND owner_id=a AND turn_id=b.turn_id
+  AND epoch=b.epoch AND state='launching' AND input_id IS NOT NULL;
+ IF NOT FOUND THEN RETURN 'not_bound'; END IF;
+ withdrawn:=EXISTS(SELECT FROM sophia.personal_answer_controls c WHERE c.owner_id=a AND c.turn_id=b.turn_id
+  AND c.input_id=l.input_id AND c.state='withdrawn');
+ SELECT * INTO st FROM sophia.personal_answer_staged_results WHERE call_id=p_call FOR UPDATE;
+ IF FOUND AND (st.owner_id<>a OR st.body<>p_body OR st.suggestion IS DISTINCT FROM p_suggestion) THEN
+  RAISE EXCEPTION 'A kept answer is kept as it was' USING ERRCODE='23505'; END IF;
  SELECT * INTO w FROM sophia.personal_withheld_results WHERE call_id=p_call FOR UPDATE;
  IF FOUND THEN
   IF w.owner_id<>a OR w.body<>p_body OR w.suggestion IS DISTINCT FROM p_suggestion THEN
    RAISE EXCEPTION 'A withheld answer is kept as it was' USING ERRCODE='23505'; END IF;
- ELSE
-  INSERT INTO sophia.personal_withheld_results(call_id,owner_id,turn_id,epoch,input_id,body,suggestion,source)
-  VALUES(p_call,a,b.turn_id,b.epoch,v_input,p_body,p_suggestion,'late_settlement');
+  DELETE FROM sophia.personal_answer_staged_results WHERE call_id=p_call;
+  RETURN 'retained';
  END IF;
- RETURN 'retained';
+ IF withdrawn THEN
+  INSERT INTO sophia.personal_withheld_results(call_id,owner_id,turn_id,epoch,input_id,body,suggestion,source)
+  VALUES(p_call,a,b.turn_id,b.epoch,l.input_id,p_body,p_suggestion,'late_settlement');
+  DELETE FROM sophia.personal_answer_staged_results WHERE call_id=p_call;
+  RETURN 'retained';
+ END IF;
+ IF st.call_id IS NULL THEN
+  INSERT INTO sophia.personal_answer_staged_results(call_id,owner_id,turn_id,epoch,input_id,body,suggestion)
+  VALUES(p_call,a,b.turn_id,b.epoch,l.input_id,p_body,p_suggestion);
+ END IF;
+ RETURN 'staged';
 END $$;
 REVOKE ALL ON FUNCTION sophia.retain_personal_withheld_answer(uuid,text,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.retain_personal_withheld_answer(uuid,text,text) TO sophia_api;

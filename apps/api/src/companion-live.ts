@@ -28,6 +28,7 @@ import {
   readPersonalSettledAnswer,
   readPersonalWithheldAnswer,
   retainPersonalWithheldAnswer,
+  type PersonalAnswerRetention,
   reserveControlledPersonalAnswer,
   reserveGuardedPersonalAnswer,
   releasePersonalCompanion,
@@ -632,21 +633,22 @@ class LiveCall {
   }
 
   /**
-   * R1: a whole answer of this call whose cost could not be settled here (it was stopped, or its usage was not known)
-   * is kept privately when its input was withdrawn (0103), its money left as held: only one the stream itself finished
-   * ('stop', no tool call, no failure) and that can be stored. Tried a bounded number of times with the same answer,
-   * never asked again; a different answer already kept is not retried. True when kept for this very call.
+   * R1/R2: a whole answer of this call whose cost could not be settled here (it was stopped, or its usage was missing
+   * or ambiguous) is kept privately (0103), its money left as held: 'retained' when its input was withdrawn, 'staged'
+   * while it is still active (a withdrawal that commits before this answer is written moves it to the withheld store),
+   * 'not_bound' when it is not this input's granted original call. Only an answer the stream itself finished ('stop', no
+   * tool call, no failure) and that can be stored; else null. Tried a bounded number of times with the same answer (a
+   * lost acknowledgement is recovered by the identical replay), never asked again; a conflict is not retried.
    */
-  async retain(result: Collected): Promise<boolean> {
-    if (this.protocol !== 'controlled' || result.reported !== 'stop' || result.toolCall) return false
+  async retain(result: Collected): Promise<PersonalAnswerRetention | null> {
+    if (this.protocol !== 'controlled' || result.reported !== 'stop' || result.toolCall) return null
     const reply = personalReply(result.text)
-    if (!reply) return false
+    if (!reply) return null
     for (let tried = 1; ; tried += 1) {
       try {
-        return (await this.owned((c, callId) => retainPersonalWithheldAnswer(c, callId, reply))) === 'retained'
+        return await this.owned((c, callId) => retainPersonalWithheldAnswer(c, callId, reply))
       } catch (err: unknown) {
-        const conflict = typeof err === 'object' && err !== null && 'code' in err && err.code === '23505'
-        if (conflict || tried >= SETTLE_TRIES) throw err
+        if (conflicted(err) || tried >= SETTLE_TRIES) throw err
         await new Promise((resolve) => setTimeout(resolve, SETTLE_PAUSE_MS * 2 ** (tried - 1)))
       }
     }
@@ -681,9 +683,10 @@ class LiveCall {
 }
 
 /**
- * After the one call: its cost settled with its answer when there is one to keep, or (R1) a whole answer whose cost was
- * not settled (stopped, or its usage unknown) kept privately if its input was withdrawn, never written, its cost held.
- * Then the answer is given, or refused.
+ * After the one call: its cost settled with its answer when there is one to keep, or (R1/R2) a whole answer whose cost
+ * was not settled (stopped, or its usage unknown) kept privately, its cost held: withheld at once if its input was
+ * withdrawn (never written), else staged, so a withdrawal before the final write still keeps it. Then the answer is
+ * given (the final writer still refuses withdrawn work), or refused.
  */
 async function concluded(
   live: LiveCall,
@@ -694,13 +697,22 @@ async function concluded(
   const answered = !stopped(signal) && !result.toolCall && result.finish === 'stop'
   const reply = answered ? personalReply(result.text) : null
   if (used) await live.settle(used, reply, signal)
-  const retained = !used && (await live.retain(result))
+  const kept = used ? null : await live.retain(result)
   // Told to stop (time up, or an erasure): its cost is settled or held above, and nothing of it is shown.
   if (stopped(signal)) throw new Error('The companion was told to stop')
-  if (retained) throw new CompanionRefused('withdrawn')
+  if (kept === 'retained') throw new CompanionRefused('withdrawn')
   if (result.toolCall || result.finish !== 'stop') throw new CompanionRefused('no_answer')
   if (!reply) throw new CompanionRefused('unstorable')
   return reply
+}
+
+/** A unique violation (23505), raw or as the domain error withActor maps it to (its cause): a different answer kept. */
+function conflicted(err: unknown): boolean {
+  for (let e: unknown = err, depth = 0; depth < 3 && typeof e === 'object' && e !== null; depth += 1) {
+    if ('code' in e && e.code === '23505') return true
+    e = 'cause' in e ? e.cause : null
+  }
+  return false
 }
 
 /** The live companion: `llm` is the composed model service, `pool` the API's, settings parsed by liveSettings. */

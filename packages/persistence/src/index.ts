@@ -342,6 +342,7 @@ export {
   readPersonalWithheldAnswer,
   reserveControlledPersonalAnswer,
   retainPersonalWithheldAnswer,
+  type PersonalAnswerRetention,
   type PersonalAnswerAuthority,
   type PersonalAnswerControlAction,
   type PersonalAnswerControlReceipt,

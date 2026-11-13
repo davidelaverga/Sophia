@@ -110,7 +110,7 @@ function held(t: TestContext) {
       p.then(done, done)
       return p
     },
-    gated(base: pg.Pool, at: string, how: 'before' | 'commit' | 'lostAck') {
+    gated(base: pg.Pool, at: string, how: 'before' | 'commit' | 'lostAck' | 'ackHeld') {
       const g = gated(base, at, how)
       latches.push(g.release)
       return g
@@ -148,7 +148,7 @@ class FakeLlm implements PersonalLlm {
   mode: Prepare = 'ok'
   streamGate: Promise<void> | null = null
   /** What the stream gives after its text: a whole answer, one without usage, one cut off, or one that fails. */
-  shape: 'whole' | 'no_usage' | 'no_finish' | 'error' = 'whole'
+  shape: 'whole' | 'no_usage' | 'ambiguous_usage' | 'no_finish' | 'error' = 'whole'
   /** A noncooperative stream ignores its stop and waits at its latch anyway, as a generic adapter may. */
   noncooperative = false
   /** The stream was entered; its own signal reported the stop (seen by the stream itself, not inferred). */
@@ -194,6 +194,7 @@ class FakeLlm implements PersonalLlm {
         if (gate) await waitAt(gate, options.signal)
         yield { type: 'text-delta', index: 0, text }
         if (shape !== 'no_usage') yield { type: 'usage', usage: { inputTokens: 10, outputTokens: 5 } }
+        if (shape === 'ambiguous_usage') yield { type: 'usage', usage: { inputTokens: 12, outputTokens: 5 } }
         if (shape === 'error') throw new Error('synthetic stream failure')
         if (shape !== 'no_finish') yield { type: 'finish', reason: { kind: 'stop' } }
       },
@@ -373,13 +374,14 @@ async function lockWaiter(blocker: number, ms = REACH_MS): Promise<void> {
 /**
  * The companion's own pool, with one barrier on its connections: before the first statement matching `at` (`before`),
  * or before the COMMIT of the transaction that ran it (`commit`); or, `lostAck`, that COMMIT succeeds and its
- * acknowledgement is lost (an error after it committed). `reached` resolves, bounded, when the barrier is met, with
+ * acknowledgement is lost (an error after it committed); or, `ackHeld`, that COMMIT succeeds and its acknowledgement is
+ * held until released. `reached` resolves, bounded, when the barrier is met, with
  * the backend pid of the connection held there. The gate is a registered latch.
  */
 function gated(
   base: pg.Pool,
   at: string,
-  how: 'before' | 'commit' | 'lostAck',
+  how: 'before' | 'commit' | 'lostAck' | 'ackHeld',
 ): { pool: pg.Pool; reached: () => Promise<number>; release: () => void } {
   const reached = Promise.withResolvers<number>()
   const gate = latch()
@@ -406,8 +408,13 @@ function gated(
           await gate.wait
           return run()
         }
-        await run()
+        const result = await run()
         reached.resolve(backend)
+        if (how === 'ackHeld') {
+          // Committed on the server; its acknowledgement waits here until released (R2).
+          await gate.wait
+          return result
+        }
         throw Object.assign(new Error('synthetic lost acknowledgement'), { code: '08006' })
       }
       return run()
@@ -977,5 +984,151 @@ describe('A3 R1: an answer completed after its stop is retained privately; its c
     assert.equal(llm.observedAbort, false)
     assert.deepEqual(await withheld(person), [{ body: 'Whole, its usage missing', source: 'late_settlement' }])
     await heldUnknown(person, x.turnId, llm, 'usage_unknown')
+  })
+})
+
+const withheldFull = (person: string) =>
+  owner<{ body: string; suggestion: string | null; source: string }>(
+    'SELECT body, suggestion, source FROM sophia.personal_withheld_results WHERE owner_id=$1',
+    [person],
+  )
+/** The private staged bodies of the owner's calls (R2); none where the store does not exist. */
+async function staged(person: string): Promise<Array<{ body: string; suggestion: string | null }>> {
+  const [exists] = await owner<{ r: string | null }>(
+    `SELECT to_regclass('sophia.personal_answer_staged_results')::text AS r`,
+  )
+  if (!exists?.r) return []
+  return owner<{ body: string; suggestion: string | null }>(
+    'SELECT body, suggestion FROM sophia.personal_answer_staged_results WHERE owner_id=$1',
+    [person],
+  )
+}
+
+const R2_TEXT = 'Whole, while still active\nNote: A synthetic note'
+const R2_KEPT = { body: 'Whole, while still active', suggestion: 'A synthetic note', source: 'late_settlement' }
+
+/**
+ * R2 (A3-R1-934D-F01): an admitted input whose call completes whole while it is still active, its usage missing or
+ * ambiguous (no stop: a 60 s watch). Its retention transaction is gated by `how` on its own statement; the stream is
+ * released at once. Every latch and the answer are registered (F01).
+ */
+async function activeComplete(t: TestContext, shape: FakeLlm['shape'], how: 'ackHeld' | 'lostAck' | null) {
+  const s = held(t)
+  const { person, payer } = await enrolled()
+  const llm = new FakeLlm(R2_TEXT)
+  llm.shape = shape
+  const stream = s.latch()
+  llm.streamGate = stream.wait
+  const g = how ? s.gated(pool, 'retain_personal_withheld_answer', how) : null
+  const errors: unknown[] = []
+  const r = runner(live(person, payer, llm, g?.pool ?? pool), errors, 60_000)
+  const app = api(null)
+  const x = await admitted(person, payer)
+  const answering = s.track(r.answer(person, x.turnId))
+  await within(llm.entered.promise, REACH_MS, 'the stream')
+  stream.open()
+  return { person, payer, x, llm, g, errors, app, answering, s }
+}
+
+/** Until `check` holds, bounded (an observation of a committed effect, never a completion by time alone). */
+async function until(check: () => Promise<boolean>, what: string): Promise<void> {
+  const end = Date.now() + REACH_MS
+  while (!(await check())) {
+    if (Date.now() > end) assert.fail(`${what}: not within ${String(REACH_MS)} ms`)
+    await new Promise((res) => setTimeout(res, 20))
+  }
+}
+
+const turnCount = async (person: string) =>
+  Number(
+    (await owner<{ n: string }>('SELECT count(*) AS n FROM sophia.personal_turns WHERE owner_id=$1', [person]))[0]?.n,
+  )
+
+const notUnknown = (errors: unknown[]) =>
+  assert.ok(!errors.some((e) => e instanceof Error && e.message.includes('outcome is not known')))
+
+describe('A3 R2: a whole answer completed while its input is active is kept through the withdrawal race', () => {
+  it('missing usage: retention commits, the owner cancels before its acknowledgement; the body is kept privately', async (t) => {
+    const { person, x, llm, g, errors, app, answering } = await activeComplete(t, 'no_usage', 'ackHeld')
+    await g?.reached()
+    assert.equal(await reply(x.turnId), 'pending', 'still active when its retention committed')
+    const c = await control(app, person, x.inputId, { action: 'cancel', expectedRevision: 0 })
+    assert.equal(wire.parsePersonalAnswerControlReceipt(c.json).phase, 'after_launch')
+    g?.release()
+    await answering
+    assert.deepEqual(await withheldFull(person), [R2_KEPT])
+    assert.deepEqual(await staged(person), [], 'moved, not copied')
+    assert.equal(llm.observedAbort, false)
+    await heldUnknown(person, x.turnId, llm, 'usage_unknown')
+    notUnknown(errors)
+  })
+
+  it('ambiguous usage: the same race with a replacement; kept privately, the replacement held on the unknown cost', async (t) => {
+    const { person, payer, x, llm, g, app, answering } = await activeComplete(t, 'ambiguous_usage', 'ackHeld')
+    await g?.reached()
+    assert.equal(await reply(x.turnId), 'pending')
+    const receipt = wire.parsePersonalAnswerControlReceipt(
+      (await control(app, person, x.inputId, { action: 'replace', expectedRevision: 0, text: 'Instead' })).json,
+    )
+    assert.equal(receipt.phase, 'after_launch')
+    g?.release()
+    await answering
+    assert.deepEqual(await withheldFull(person), [R2_KEPT])
+    assert.deepEqual(await staged(person), [])
+    await heldUnknown(person, x.turnId, llm, 'usage_unknown')
+    const y = receipt.replacement
+    assert.ok(y)
+    const fresh = new FakeLlm()
+    const on = api(live(person, payer, fresh), { personalAnswers: true, personalAnswerReplacementAdmission: true })
+    const admission = wire.parsePersonalAnswerControlReceipt(
+      (await admit(on, person, y.inputId, { controlId: receipt.controlId, expectedRevision: 1 })).json,
+    )
+    assert.equal(admission.outcome, 'refused')
+    assert.equal(admission.heldReason, 'prior_cost_unresolved')
+    assert.equal(fresh.prepared, 0)
+  })
+
+  it('published first, withdrawn later: the original body is kept privately; no reply is added', async (t) => {
+    const { person, x, llm, app, answering } = await activeComplete(t, 'no_usage', null)
+    await answering
+    assert.equal(await reply(x.turnId), 'answered')
+    assert.equal(await answers(x.turnId), 1)
+    const c = await control(app, person, x.inputId, { action: 'cancel', expectedRevision: 0 })
+    assert.equal(wire.parsePersonalAnswerControlReceipt(c.json).phase, 'after_publication')
+    assert.deepEqual(await withheldFull(person), [R2_KEPT])
+    assert.deepEqual(await staged(person), [])
+    assert.equal(await answers(x.turnId), 1, 'no new public reply or suggestion')
+    assert.equal(llm.prepared, 1)
+    assert.equal(llm.asked, 1)
+    assert.deepEqual(
+      (await usage(person)).map((u) => [u.state, u.reason, u.used]),
+      [['uncertain', 'usage_unknown', null]],
+    )
+  })
+
+  it('a lost retention acknowledgement is recovered once; a later withdrawal keeps that one body', async (t) => {
+    const { person, x, llm, errors, app, answering } = await activeComplete(t, 'no_usage', 'lostAck')
+    await answering
+    assert.equal(await answers(x.turnId), 1, 'published once')
+    await control(app, person, x.inputId, { action: 'cancel', expectedRevision: 0 })
+    assert.deepEqual(await withheldFull(person), [R2_KEPT])
+    assert.deepEqual(await staged(person), [])
+    assert.equal(llm.asked, 1, 'never asked again')
+    notUnknown(errors)
+  })
+
+  it('an erasure between the retention and the final write leaves nothing: no staged, withheld or written body', async (t) => {
+    const { person, x, g, app, answering, s } = await activeComplete(t, 'no_usage', 'ackHeld')
+    await g?.reached()
+    // The erasure commits at once, then waits for the call still in flight (0021): it is answered when the call ends.
+    const erasing = s.track(call(app, 'POST', '/api/v1/personal/erasure', person, { body: { confirm: 'delete' } }))
+    await until(async () => (await turnCount(person)) === 0, 'the erasure committed')
+    g?.release()
+    await answering
+    assert.equal((await erasing).status, 202)
+    assert.deepEqual(await staged(person), [])
+    assert.deepEqual(await withheldFull(person), [])
+    assert.equal(await answers(x.turnId), 0)
+    assert.equal(await turnCount(person), 0, 'nothing resurrected')
   })
 })

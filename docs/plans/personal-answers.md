@@ -686,3 +686,45 @@ and its counts.
   - no resurrection after erasure;
   - grants.
 - **Fail-before / pass-after:** the tests fail on cc87's production, then pass on the repair.
+
+## Repair A3-R2: a durable private handoff for the original call's answer (A3-R1-934D-F01)
+
+**The finding** (independent CORE on 934d, P2): a whole answer whose usage is missing or ambiguous completes while
+its input is still active, so R1's retention answers "not withdrawn" and keeps nothing. If the owner's withdrawal
+commits after that retention transaction and before the runner's final write, the writer correctly refuses to publish,
+and the body is lost. Another precheck cannot close that gap.
+
+**The repair** (root-selected: durable, private, separate from money):
+- **0103 gains `personal_answer_staged_results`**: private, function-only (RLS, no grants), keyed by the call, bound to
+  the owner, turn, epoch and input, and erased with the turns.
+- **`retain_personal_withheld_answer`** now has three outcomes, under the owner's lock, for the caller's own granted
+  original call at the current epoch (with its usage row):
+  - `'retained'`: the input is withdrawn; the answer is kept withheld (`late_settlement`) and an identical staged copy is
+    moved;
+  - `'staged'`: the input is still active; the answer is kept privately;
+  - `'not_bound'`: nothing is written.
+  - Once per call: an identical replay changes nothing; a different answer is refused (23505), never overwritten.
+  - Money is never read or written.
+- **`control_personal_answer_input`**, in the transaction that withdraws an admitted input (in every phase, published
+  first included), moves the turn's staged original-call answers to the withheld store. A staged answer that conflicts
+  with a different withheld one stays staged: never overwritten, and it never fails the owner's control.
+- **The live companion** stages or keeps the answer through the same bounded retention. A lost acknowledgement is
+  recovered by the identical replay, and a conflict is recognized also when `withActor` reports it as a domain error.
+  A staged answer is still returned to the unchanged Runner and final writer: it is published if its input is still
+  pending, and refused if withdrawn, where it is already safe.
+- **Unchanged:** the Runner, the old writer, personal.ts, A54, GEN, 0001–0102, money (no settle, release or reconcile;
+  the replacement stays held on the unresolved cost), and the wire.
+
+**Checks:**
+- **API (real runner, live companion, counting fake, F01 latches):** the retention COMMIT completes on the server and
+  its acknowledgement is held at that boundary; the owner's control commits; then the acknowledgement is released and
+  the final writer runs.
+  - Missing usage with a cancel, and ambiguous usage with a replacement: the body and suggestion are withheld, 0 staged,
+    0 public replies, cost uncertain with no amount, one prepare and one stream, and the replacement is refused
+    admission on the unresolved cost.
+  - Published first, then withdrawn: withheld, with no added reply.
+  - A lost retention acknowledgement: recovered once.
+  - An erasure between the retention and the final write: nothing staged, withheld or resurrected.
+  - R1's and A3's earlier cases are unchanged.
+- **SQL:** staging while active, replay and conflict; the control's move after launch and after publication; withdrawn
+  first, kept directly; erasure of a staged body; not_bound; grants.
