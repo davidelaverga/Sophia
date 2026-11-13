@@ -1,0 +1,1092 @@
+diff --git a/apps/server/src/mcp/OrchestratorMcpService.test.ts b/apps/server/src/mcp/OrchestratorMcpService.test.ts
+index f52ac95174277f9a521b8914cf26ff40504a76b3..19b9aee7b5ffd7bb83ecf7f4c0cfbe15deb1c4df 100644
+--- a/apps/server/src/mcp/OrchestratorMcpService.test.ts
++++ b/apps/server/src/mcp/OrchestratorMcpService.test.ts
+@@ -11,6 +11,11 @@ import {
+   ORCHESTRATOR_MCP_RUNNING_TASK_NEXT,
+   type OrchestratorMcpCapabilitiesResult,
+   OrchestratorMcpTarget,
++  OrchestratorMcpThreadReadResult,
++  OrchestratorMcpThreadRun,
++  type OrchestrationV2ProviderTurn,
++  type OrchestrationV2Run,
++  type OrchestrationV2RunAttempt,
+   type OrchestrationV2ThreadShell,
+   type ScheduledTask,
+   type ScheduledTaskUpsertInput,
+@@ -20,6 +25,7 @@ import {
+   ProviderInstanceId,
+   ProviderThreadId,
+   ProviderTurnId,
++  RunAttemptId,
+   RunId,
+   ThreadId,
+   type OrchestrationV2ServerCommand,
+@@ -3744,3 +3750,461 @@ describe("OrchestratorMcpService thread stop", () => {
+     ),
+   );
+ });
++
++const decodeThreadReadResult = Schema.decodeEffect(OrchestratorMcpThreadReadResult);
++const decodeThreadRun = Schema.decodeUnknownSync(OrchestratorMcpThreadRun);
++
++describe("OrchestratorMcpService provider-reported models on a thread read", () => {
++  const threadId = ThreadId.make("thread:reported-models");
++  const shell = liveThreadShell(threadId);
++  const instanceId = ProviderInstanceId.make("codex");
++  const EPOCH = DateTime.makeUnsafe(0);
++  const REQUESTED = "requested-model-never-reported";
++  const client: McpInvocationScope = {
++    environmentId: EnvironmentId.make("environment:reported-models"),
++    requestNamespace: "client:reported-models",
++    thread: undefined,
++    client: { sessionId: "reported-models", label: "Claude Code", access: "full-access" },
++    capabilities: new Set(["orchestration"]),
++    issuedAt: 1,
++  };
++
++  const run = (
++    ordinal: number,
++    status: OrchestrationV2Run["status"],
++    activeAttemptId: string | null,
++  ) =>
++    ({
++      id: RunId.make(`run:reported-${ordinal}`),
++      ordinal,
++      status,
++      modelSelection: { instanceId, model: REQUESTED },
++      activeAttemptId: activeAttemptId === null ? null : RunAttemptId.make(activeAttemptId),
++      requestedAt: EPOCH,
++      startedAt: null,
++      completedAt: null,
++    }) as unknown as OrchestrationV2Run;
++  const attempt = (
++    id: string,
++    runOrdinal: number,
++    attemptOrdinal: number,
++    reason: OrchestrationV2RunAttempt["reason"],
++    status: OrchestrationV2RunAttempt["status"],
++  ): OrchestrationV2RunAttempt => ({
++    id: RunAttemptId.make(id),
++    runId: RunId.make(`run:reported-${runOrdinal}`),
++    attemptOrdinal,
++    rootNodeId: NodeId.make(`node:root:${id}`),
++    providerInstanceId: instanceId,
++    providerThreadId: ProviderThreadId.make(`provider-thread:${id}`),
++    providerTurnId: null,
++    reason,
++    status,
++    startedAt: null,
++    completedAt: null,
++  });
++  let turnOrdinal = 0;
++  /** A provider turn. `models: "erased"` drops turnTokenUsage, as the store's upsert hazard can. */
++  const turn = (
++    owner: OrchestrationV2RunAttempt | null,
++    status: OrchestrationV2ProviderTurn["status"],
++    models: ReadonlyArray<unknown> | "erased" | "absent",
++    binding: { readonly node?: string; readonly providerThread?: string } = {},
++  ) => {
++    turnOrdinal += 1;
++    return {
++      id: ProviderTurnId.make(`provider-turn:${turnOrdinal}`),
++      providerThreadId:
++        binding.providerThread === undefined
++          ? (owner?.providerThreadId ?? ProviderThreadId.make("provider-thread:child"))
++          : ProviderThreadId.make(binding.providerThread),
++      nodeId:
++        binding.node === undefined
++          ? (owner?.rootNodeId ?? NodeId.make("node:child"))
++          : NodeId.make(binding.node),
++      runAttemptId: owner?.id ?? null,
++      nativeTurnRef: null,
++      ordinal: turnOrdinal,
++      status,
++      startedAt: null,
++      completedAt: null,
++      ...(models === "erased"
++        ? {}
++        : {
++            turnTokenUsage: {
++              usageScope: "main_agent",
++              hasSubagents: false,
++              usageStatus: "complete",
++              inputTokens: 1,
++              outputTokens: 1,
++              ...(models === "absent" ? {} : { models }),
++            },
++          }),
++    } as unknown as OrchestrationV2ProviderTurn;
++  };
++
++  type Call = { readonly fields: ReadonlyArray<string>; readonly filter: unknown };
++  /**
++   * A LABELLED FAKE ThreadManagementService. Its provider-turn load applies providerTurnAttemptIds as the store's
++   * SQL does (run_attempt_id IN ...), so a null-attempt turn is never returned. `turns: "fail"` fails that load and
++   * `turns: "omit"` returns no providerTurns key; `attempts: "omit"` ignores the requested fields as a fake would.
++   */
++  const readWith = (
++    fixture: {
++      readonly runs: ReadonlyArray<OrchestrationV2Run>;
++      readonly attempts: ReadonlyArray<OrchestrationV2RunAttempt> | "omit";
++      readonly turns: ReadonlyArray<OrchestrationV2ProviderTurn> | "fail" | "omit";
++    },
++    runLimit?: number,
++  ) =>
++    Effect.gen(function* () {
++      const calls: Array<Call> = [];
++      const { attempts: _attempts, ...base } = idleThreadProjection(shell);
++      const layer = layerOrchestratorService.pipe(
++        Layer.provide(
++          Layer.mergeAll(
++            NodeServices.layer,
++            NodeCrypto.layer,
++            Layer.mock(ThreadManagementService.ThreadManagementService)({
++              getThreadShell: (id) => Effect.succeed(id === threadId ? shell : null),
++              getTimelinePage: () => Effect.succeed({ items: [], totalItems: 0, hasMore: false }),
++              getProjectThreadRecords: (input, fields, filter) => {
++                calls.push({ fields: [...fields], filter });
++                if (input.threadId !== threadId) return Effect.die(`unexpected ${input.threadId}`);
++                if (!(fields as ReadonlyArray<string>).includes("providerTurns")) {
++                  return Effect.succeed({
++                    ...base,
++                    runs: fixture.runs,
++                    ...(fixture.attempts === "omit" ? {} : { attempts: fixture.attempts }),
++                  } as never);
++                }
++                if (fixture.turns === "fail") {
++                  return Effect.fail(
++                    new ThreadManagementService.ThreadManagementProjectionLoadError({
++                      projectId: input.projectId,
++                      threadId: input.threadId,
++                      cause: "synthetic provider-turn load failure",
++                    }),
++                  );
++                }
++                if (fixture.turns === "omit")
++                  return Effect.succeed({ thread: base.thread } as never);
++                const ids = filter?.providerTurnAttemptIds;
++                return Effect.succeed({
++                  thread: base.thread,
++                  providerTurns:
++                    ids === undefined
++                      ? fixture.turns
++                      : fixture.turns.filter(
++                          (row) => row.runAttemptId !== null && ids.includes(row.runAttemptId),
++                        ),
++                } as never);
++              },
++            }),
++            ServerSettings.layerTest(),
++            Layer.mock(ProviderRegistry.ProviderRegistry)({ getProviders: Effect.succeed([]) }),
++            Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({
++              list: () => Effect.succeed([]),
++            }),
++            Layer.mock(ProjectService.ProjectService)({}),
++            Layer.mock(SecretRequests.SecretRequests)({}),
++            Layer.mock(RemoteDelegation.RemoteDelegation)({}),
++            Layer.mock(ScheduledTaskService.ScheduledTaskService)({}),
++          ),
++        ),
++      );
++      const result = yield* Effect.gen(function* () {
++        const mcp = yield* OrchestratorMcpService.OrchestratorMcpService;
++        return yield* mcp.readThread(client, {
++          threadId,
++          ...(runLimit === undefined ? {} : { runLimit }),
++        });
++      }).pipe(Effect.provide(layer));
++      return { result, calls };
++    });
++
++  const byOrdinal = (result: OrchestratorMcpThreadReadResult, ordinal: number) => {
++    const found = result.recentRuns.find((row) => row.ordinal === ordinal);
++    assert.isDefined(found);
++    return found!.providerReportedModels;
++  };
++  const collected = (result: OrchestratorMcpThreadReadResult, ordinal: number) => {
++    const evidence = byOrdinal(result, ordinal);
++    assert.equal(evidence?.evidence, "collected");
++    return evidence as Extract<NonNullable<typeof evidence>, { evidence: "collected" }>;
++  };
++  const keysOf = (value: unknown): Array<string> =>
++    Array.isArray(value)
++      ? value.flatMap(keysOf)
++      : typeof value === "object" && value !== null
++        ? Object.entries(value).flatMap(([key, inner]) => [key, ...keysOf(inner)])
++        : [];
++
++  // Four runs; the read returns the latest three. Run 2 restarted once, run 3 has no attempt yet.
++  const a1 = attempt("attempt:r1", 1, 1, "initial", "completed");
++  const a2a = attempt("attempt:r2-initial", 2, 1, "initial", "superseded");
++  const a2b = attempt("attempt:r2-restart", 2, 2, "steering_restart", "completed");
++  const a4 = attempt("attempt:r4", 4, 1, "initial", "running");
++  const scenario = () => ({
++    runs: [
++      run(1, "completed", a1.id),
++      run(2, "completed", a2b.id),
++      run(3, "queued", null),
++      run(4, "running", a4.id),
++    ],
++    attempts: [a1, a2a, a2b, a4],
++    turns: [
++      turn(a1, "completed", ["model-outside-the-run-limit"]),
++      turn(a2a, "completed", ["model-b", "model-a", "model-b"]),
++      turn(a2a, "interrupted", ["model-c", "", " padded", 42]),
++      turn(a2a, "completed", ["model-foreign"], { providerThread: "provider-thread:foreign" }),
++      turn(a2b, "completed", ["model-z"]),
++      turn(a2b, "completed", ["model-subagent"], { node: "node:subagent" }),
++      turn(a2b, "completed", "erased"),
++      turn(a2b, "completed", []),
++      turn(a2b, "failed", "absent"),
++      turn(a2b, "pending", ["model-pending"]),
++      turn(null, "completed", ["model-child"]),
++      turn(a4, "running", ["model-in-flight"]),
++    ],
++  });
++
++  it.effect(
++    "reports each attempt's terminal root-turn models separately, bound to the read's own runs",
++    () =>
++      Effect.gen(function* () {
++        const { result, calls } = yield* readWith(scenario(), 3);
++        assert.deepEqual(
++          calls.map((call) => call.fields),
++          [["runs", "runtimeRequests", "attempts"], ["providerTurns"]],
++        );
++        // Only the selected attempts of the returned runs, latest run and attempt first; never an undefined filter.
++        assert.deepEqual(calls[1]?.filter, {
++          providerTurnAttemptIds: [a4.id, a2b.id, a2a.id],
++        });
++        assert.deepEqual(
++          result.recentRuns.map((row) => [row.ordinal, row.model]),
++          [
++            [4, REQUESTED],
++            [3, REQUESTED],
++            [2, REQUESTED],
++          ],
++          "model stays the requested selection",
++        );
++
++        const restarted = collected(result, 2);
++        assert.equal(restarted.activeAttemptId, a2b.id);
++        assert.deepEqual(
++          [
++            restarted.attemptPolicy,
++            restarted.attemptLimit,
++            restarted.attemptsOwned,
++            restarted.attemptsOmitted,
++          ],
++          ["latest_by_attempt_ordinal", 8, 2, 0],
++        );
++        assert.deepEqual(restarted.attempts, [
++          {
++            attemptId: a2b.id,
++            attemptOrdinal: 2,
++            reason: "steering_restart",
++            status: "completed",
++            active: true,
++            providerInstanceId: instanceId,
++            rootTurns: 5,
++            terminalRootTurns: 4,
++            reportingRootTurns: 1,
++            unboundTurns: 1,
++            modelEvidence: "reported",
++            models: ["model-z"],
++            modelsOmitted: 0,
++            excludedModelValues: 0,
++          },
++          {
++            attemptId: a2a.id,
++            attemptOrdinal: 1,
++            reason: "initial",
++            status: "superseded",
++            active: false,
++            providerInstanceId: instanceId,
++            rootTurns: 2,
++            terminalRootTurns: 2,
++            reportingRootTurns: 2,
++            unboundTurns: 1,
++            modelEvidence: "reported",
++            models: ["model-a", "model-b", "model-c"],
++            modelsOmitted: 0,
++            excludedModelValues: 3,
++          },
++        ]);
++
++        const queued = collected(result, 3);
++        assert.deepEqual(
++          [queued.activeAttemptId, queued.attemptsOwned, queued.attempts],
++          [null, 0, []],
++        );
++
++        const running = collected(result, 4);
++        assert.deepEqual(
++          running.attempts.map((row) => [
++            row.attemptId,
++            row.active,
++            row.rootTurns,
++            row.terminalRootTurns,
++            row.modelEvidence,
++            row.models,
++          ]),
++          [[a4.id, true, 1, 0, "unknown", []]],
++          "a running root turn is counted but its models are not read",
++        );
++
++        const evidence = JSON.stringify(result.recentRuns.map((row) => row.providerReportedModels));
++        for (const absent of [
++          REQUESTED,
++          "gpt-5",
++          "model-child",
++          "model-subagent",
++          "model-foreign",
++          "model-pending",
++          "model-in-flight",
++          "model-outside-the-run-limit",
++        ]) {
++          assert.notInclude(evidence, absent);
++        }
++        const keys = new Set(keysOf(result.recentRuns.map((row) => row.providerReportedModels)));
++        for (const forbidden of [
++          "complete",
++          "completed",
++          "final",
++          "finalized",
++          "accepted",
++          "effort",
++        ]) {
++          assert.isFalse(keys.has(forbidden), `no ${forbidden} key`);
++        }
++        const stamps = new Set(
++          result.recentRuns.map((row) => row.providerReportedModels?.collectedAt),
++        );
++        assert.deepEqual([...stamps], [DateTime.formatIso(EPOCH)], "one collection time per read");
++        // The whole result still decodes through the published schema.
++        yield* decodeThreadReadResult(result);
++      }),
++  );
++
++  it.effect("a failed provider-turn load is unavailable evidence, never an empty success", () =>
++    Effect.gen(function* () {
++      const { result, calls } = yield* readWith({ ...scenario(), turns: "fail" }, 3);
++      assert.equal(calls.length, 2);
++      for (const ordinal of [4, 2]) {
++        assert.deepEqual(byOrdinal(result, ordinal), {
++          evidence: "unavailable",
++          reason: "provider_turns_load_failed",
++          collectedAt: DateTime.formatIso(EPOCH),
++        });
++      }
++      // A run with no attempt needs no provider turn: its empty attempt list is what this read returned.
++      assert.deepEqual(collected(result, 3).attempts, []);
++    }),
++  );
++
++  it.effect("a producer that omits a requested list is unavailable evidence", () =>
++    Effect.gen(function* () {
++      const omittedAttempts = yield* readWith({ ...scenario(), attempts: "omit" }, 3);
++      assert.equal(omittedAttempts.calls.length, 1, "no provider-turn load without attempts");
++      for (const row of omittedAttempts.result.recentRuns) {
++        assert.deepEqual(row.providerReportedModels, {
++          evidence: "unavailable",
++          reason: "attempts_not_loaded",
++          collectedAt: DateTime.formatIso(EPOCH),
++        });
++      }
++      const omittedTurns = yield* readWith({ ...scenario(), turns: "omit" }, 3);
++      assert.equal(byOrdinal(omittedTurns.result, 2)?.evidence, "unavailable");
++      assert.deepEqual(byOrdinal(omittedTurns.result, 4), {
++        evidence: "unavailable",
++        reason: "provider_turns_not_loaded",
++        collectedAt: DateTime.formatIso(EPOCH),
++      });
++    }),
++  );
++
++  it.effect("bounds attempts, models and ids, and records what it left out", () =>
++    Effect.gen(function* () {
++      const attempts = Array.from({ length: 10 }, (_, index) =>
++        attempt(
++          `attempt:bounded-${String(index + 1).padStart(2, "0")}`,
++          1,
++          index + 1,
++          "retry",
++          "failed",
++        ),
++      );
++      const latest = attempts[9]!;
++      const many = Array.from({ length: 10 }, (_, index) => `model-${String(9 - index)}`);
++      const { result, calls } = yield* readWith({
++        runs: [run(1, "failed", latest.id)],
++        attempts,
++        turns: [
++          turn(latest, "completed", [...many, "x".repeat(201), "x".repeat(200), "Model-0"]),
++          turn(attempts[0]!, "completed", ["model-of-an-omitted-attempt"]),
++        ],
++      });
++      assert.deepEqual(
++        calls[1]?.filter,
++        {
++          providerTurnAttemptIds: attempts
++            .toReversed()
++            .slice(0, 8)
++            .map((row) => row.id),
++        },
++        "only the eight latest attempts are loaded",
++      );
++      const bounded = collected(result, 1);
++      assert.deepEqual(
++        [bounded.attemptsOwned, bounded.attemptsOmitted, bounded.attempts.length],
++        [10, 2, 8],
++      );
++      assert.deepEqual(
++        bounded.attempts.map((row) => row.attemptOrdinal),
++        [10, 9, 8, 7, 6, 5, 4, 3],
++      );
++      const top = bounded.attempts[0]!;
++      // Code-unit order: "M" < "m" < "x"; exact strings, no case folding.
++      assert.deepEqual(top.models, [
++        "Model-0",
++        "model-0",
++        "model-1",
++        "model-2",
++        "model-3",
++        "model-4",
++        "model-5",
++        "model-6",
++      ]);
++      assert.deepEqual([top.modelsOmitted, top.excludedModelValues], [4, 1]);
++      assert.notInclude(JSON.stringify(bounded), "model-of-an-omitted-attempt");
++      yield* decodeThreadReadResult(result);
++    }),
++  );
++
++  it("is additive: a run without the field still decodes, and the field never replaces model", () => {
++    const legacy = {
++      runId: "run:legacy",
++      ordinal: 1,
++      status: "completed",
++      providerInstanceId: "codex",
++      model: REQUESTED,
++      requestedAt: "1970-01-01T00:00:00.000Z",
++      startedAt: null,
++      completedAt: null,
++    };
++    const decoded = decodeThreadRun(legacy);
++    assert.isUndefined(decoded.providerReportedModels);
++    assert.equal(decoded.model, REQUESTED);
++    assert.throws(() =>
++      decodeThreadRun({
++        ...legacy,
++        providerReportedModels: { evidence: "collected", collectedAt: "x" },
++      }),
++    );
++  });
++});
+diff --git a/apps/server/src/mcp/OrchestratorMcpService.ts b/apps/server/src/mcp/OrchestratorMcpService.ts
+index 9d15408483a3eac9fe4b09ff20c6c987a46711f7..5b9014da90ee9cb8cb0f4878e6f1a07ad3afe487 100644
+--- a/apps/server/src/mcp/OrchestratorMcpService.ts
++++ b/apps/server/src/mcp/OrchestratorMcpService.ts
+@@ -117,6 +117,11 @@ import {
+   threadLinkFor,
+ } from "./McpInvocationContext.ts";
+ import * as Metrics from "../observability/Metrics.ts";
++import {
++  providerReportedModels,
++  selectProviderReportedAttempts,
++  type ProviderTurnLoad,
++} from "./providerReportedModels.ts";
+ import {
+   interactionModeRank,
+   resolveInteractionMode,
+@@ -875,7 +880,10 @@ function threadDetail(
+   };
+ }
+ 
+-function threadRun(run: OrchestrationV2Run): OrchestratorMcpThreadRun {
++function threadRun(
++  run: OrchestrationV2Run,
++  reportedModels?: OrchestratorMcpThreadRun["providerReportedModels"],
++): OrchestratorMcpThreadRun {
+   return {
+     runId: run.id,
+     ordinal: run.ordinal,
+@@ -885,6 +893,7 @@ function threadRun(run: OrchestrationV2Run): OrchestratorMcpThreadRun {
+     requestedAt: DateTime.formatIso(run.requestedAt),
+     startedAt: run.startedAt === null ? null : DateTime.formatIso(run.startedAt),
+     completedAt: run.completedAt === null ? null : DateTime.formatIso(run.completedAt),
++    ...(reportedModels === undefined ? {} : { providerReportedModels: reportedModels }),
+   };
+ }
+ 
+@@ -1276,21 +1285,64 @@ const make = Effect.gen(function* () {
+       );
+     }
+     const input = { projectId: shell.projectId, threadId };
+-    // Transfers are needed only to acknowledge a caller's child-task result.
++    // Transfers are needed only to acknowledge a caller's child-task result. Attempts are read in the same load as
++    // runs, so provider-reported models bind to the attempts of the runs this read returns.
+     const records =
+       parent === undefined
+         ? threadManagement
+-            .getProjectThreadRecords(input, ["runs", "runtimeRequests"])
++            .getProjectThreadRecords(input, ["runs", "runtimeRequests", "attempts"])
+             .pipe(Effect.map((target) => ({ ...target, contextTransfers: [] })))
+         : threadManagement.getProjectThreadRecords(input, [
+             "runs",
+             "runtimeRequests",
++            "attempts",
+             "contextTransfers",
+           ]);
+     const target = yield* records.pipe(Effect.mapError(threadManagementFailure));
+-    return { parent, target, shell } as const;
++    return { parent, target, shell, input } as const;
+   });
+ 
++  /**
++   * Provider-reported models for the runs a thread read returns. Read-only: one more load, of the provider turns of
++   * the selected attempts only, inside the same thread. A failed or missing load is reported per run as
++   * `unavailable`, never as an empty success, and the read itself keeps its existing outcome.
++   */
++  const loadProviderReportedModels = Effect.fn("OrchestratorMcpService.loadProviderReportedModels")(
++    function* (
++      input: { readonly projectId: ProjectId; readonly threadId: ThreadId },
++      runs: ReadonlyArray<OrchestrationV2Run>,
++      attempts: unknown,
++    ) {
++      const attemptIds = runs.flatMap(
++        (run) =>
++          selectProviderReportedAttempts(run, attempts)?.selected.map((attempt) => attempt.id) ??
++          [],
++      );
++      // Never an undefined filter: the store would then load every provider turn of the thread.
++      const turnLoad: ProviderTurnLoad =
++        attemptIds.length === 0
++          ? { _tag: "skipped" }
++          : yield* threadManagement
++              .getProjectThreadRecords(input, ["providerTurns"], {
++                providerTurnAttemptIds: attemptIds,
++              })
++              .pipe(
++                Effect.map((records): ProviderTurnLoad => ({
++                  _tag: "loaded",
++                  turns: (records as { readonly providerTurns?: unknown }).providerTurns,
++                })),
++                Effect.orElseSucceed((): ProviderTurnLoad => ({ _tag: "failed" })),
++              );
++      const collectedAt = DateTime.formatIso(DateTime.makeUnsafe(yield* Clock.currentTimeMillis));
++      return new Map(
++        runs.map((run) => [
++          run.id,
++          providerReportedModels({ run, attempts, turnLoad, collectedAt }),
++        ]),
++      );
++    },
++  );
++
+   const loadProviders = providerRegistry.getProviders;
+ 
+   const loadOrchestrationCapableInstanceIds = () =>
+@@ -3031,7 +3083,21 @@ const make = Effect.gen(function* () {
+       } satisfies OrchestratorMcpThreadListResult;
+     }),
+     readThread: Effect.fn("OrchestratorMcpService.readThread")(function* (scope, input) {
+-      const { parent, target, shell } = yield* loadReadableThread(scope, input.threadId);
++      const {
++        parent,
++        target,
++        shell,
++        input: recordsInput,
++      } = yield* loadReadableThread(scope, input.threadId);
++      const recentRuns = target.runs
++        .toSorted((left, right) => right.ordinal - left.ordinal)
++        .slice(0, input.runLimit ?? DEFAULT_THREAD_RUN_LIMIT);
++      // A producer that ignores the requested fields returns no attempts list; that stays visible as unavailable.
++      const reportedModels = yield* loadProviderReportedModels(
++        recordsInput,
++        recentRuns,
++        (target as { readonly attempts?: unknown }).attempts,
++      );
+       const view = input.view ?? "messages";
+       const afterPosition = input.afterPosition ?? -1;
+       const limit = input.limit ?? DEFAULT_THREAD_READ_LIMIT;
+@@ -3124,10 +3190,7 @@ const make = Effect.gen(function* () {
+           shell,
+           yield* Clock.currentTimeMillis,
+         ),
+-        recentRuns: target.runs
+-          .toSorted((left, right) => right.ordinal - left.ordinal)
+-          .slice(0, input.runLimit ?? DEFAULT_THREAD_RUN_LIMIT)
+-          .map(threadRun),
++        recentRuns: recentRuns.map((run) => threadRun(run, reportedModels.get(run.id))),
+         items: page.map((row) =>
+           timelineItem({
+             row,
+diff --git a/apps/server/src/mcp/providerReportedModels.test.ts b/apps/server/src/mcp/providerReportedModels.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..26dff74a1e4d94d727756bf802546c29a687b759
+--- /dev/null
++++ b/apps/server/src/mcp/providerReportedModels.test.ts
+@@ -0,0 +1,185 @@
++import { describe, expect, it } from "@effect/vitest";
++import {
++  NodeId,
++  type OrchestrationV2ProviderTurn,
++  type OrchestrationV2RunAttempt,
++  ProviderInstanceId,
++  ProviderThreadId,
++  ProviderTurnId,
++  RunAttemptId,
++  RunId,
++} from "@t3tools/contracts";
++
++import {
++  isValidReportedModelId,
++  providerReportedModels,
++  selectProviderReportedAttempts,
++} from "./providerReportedModels.ts";
++
++const runId = RunId.make("run:pure");
++const run = { id: runId, activeAttemptId: RunAttemptId.make("attempt:pure-2") };
++const attempt = (id: string, attemptOrdinal: number, owner = runId): OrchestrationV2RunAttempt => ({
++  id: RunAttemptId.make(id),
++  runId: owner,
++  attemptOrdinal,
++  rootNodeId: NodeId.make(`node:${id}`),
++  providerInstanceId: ProviderInstanceId.make("claude"),
++  providerThreadId: ProviderThreadId.make(`provider-thread:${id}`),
++  providerTurnId: null,
++  reason: attemptOrdinal === 1 ? "initial" : "provider_recovery",
++  status: "completed",
++  startedAt: null,
++  completedAt: null,
++});
++const turn = (
++  owner: OrchestrationV2RunAttempt,
++  models: unknown,
++  override: Partial<
++    Record<"runAttemptId" | "nodeId" | "providerThreadId" | "status", unknown>
++  > = {},
++) =>
++  ({
++    id: ProviderTurnId.make(`provider-turn:${owner.id}:${JSON.stringify(models)}`),
++    providerThreadId: owner.providerThreadId,
++    nodeId: owner.rootNodeId,
++    runAttemptId: owner.id,
++    nativeTurnRef: null,
++    ordinal: 1,
++    status: "completed",
++    startedAt: null,
++    completedAt: null,
++    turnTokenUsage: {
++      usageScope: "main_agent",
++      hasSubagents: false,
++      usageStatus: "partial",
++      models,
++    },
++    ...override,
++  }) as unknown as OrchestrationV2ProviderTurn;
++
++const first = attempt("attempt:pure-1", 1);
++const second = attempt("attempt:pure-2", 2);
++const evidence = (turns: unknown, attempts: unknown = [first, second]) =>
++  providerReportedModels({
++    run,
++    attempts,
++    turnLoad: { _tag: "loaded", turns },
++    collectedAt: "2026-11-13T00:00:00.000Z",
++  });
++const attemptsOf = (value: ReturnType<typeof evidence>) => {
++  expect(value.evidence).toBe("collected");
++  return value.evidence === "collected" ? value.attempts : [];
++};
++
++describe("providerReportedModels (pure binding and bounds)", () => {
++  it("excludes every turn that is not the attempt's own root turn", () => {
++    const [latest, earlier] = attemptsOf(
++      evidence([
++        turn(second, ["root"]),
++        turn(second, ["null-attempt"], { runAttemptId: null }),
++        turn(second, ["child-node"], { nodeId: NodeId.make("node:child") }),
++        turn(second, ["other-thread"], {
++          providerThreadId: ProviderThreadId.make("provider-thread:other"),
++        }),
++        turn(second, ["other-run-attempt"], { runAttemptId: RunAttemptId.make("attempt:other") }),
++        turn(first, ["earlier-root"]),
++      ]),
++    );
++    expect(latest).toMatchObject({ models: ["root"], rootTurns: 1, unboundTurns: 2, active: true });
++    expect(earlier).toMatchObject({ models: ["earlier-root"], rootTurns: 1, active: false });
++  });
++
++  it("keeps attempts apart: a restart's models are never merged into another attempt", () => {
++    const [latest, earlier] = attemptsOf(evidence([turn(first, ["m-1"]), turn(second, ["m-2"])]));
++    expect([latest?.models, earlier?.models]).toEqual([["m-2"], ["m-1"]]);
++  });
++
++  it("reads terminal root turns only, and never reports unknown as none", () => {
++    for (const status of ["pending", "running"]) {
++      const [latest] = attemptsOf(evidence([turn(second, ["in-flight"], { status })]));
++      expect(latest).toMatchObject({
++        rootTurns: 1,
++        terminalRootTurns: 0,
++        modelEvidence: "unknown",
++        models: [],
++      });
++    }
++    for (const status of ["completed", "interrupted", "failed", "cancelled"]) {
++      const [latest] = attemptsOf(evidence([turn(second, ["done"], { status })]));
++      expect(latest).toMatchObject({ terminalRootTurns: 1, modelEvidence: "reported" });
++    }
++    for (const models of [undefined, [], ["", " x", "x\n", "\u0085", "\ud800", 7, null]]) {
++      const [latest] = attemptsOf(evidence([turn(second, models)]));
++      expect(latest).toMatchObject({
++        terminalRootTurns: 1,
++        reportingRootTurns: 0,
++        modelEvidence: "unknown",
++      });
++    }
++    const [noUsage] = attemptsOf(
++      evidence([turn(second, ["dropped"], { turnTokenUsage: undefined } as never)]),
++    );
++    expect(noUsage).toMatchObject({ terminalRootTurns: 1, modelEvidence: "unknown", models: [] });
++  });
++
++  it("dedupes exact strings and orders by code unit", () => {
++    const [latest] = attemptsOf(evidence([turn(second, ["b", "B", "a", "b", "é", "é", "😀"])]));
++    expect(latest?.models).toEqual(["B", "a", "b", "é", "é", "😀"]);
++  });
++
++  it("validates ids exactly", () => {
++    expect(isValidReportedModelId("x".repeat(200))).toBe(true);
++    expect(isValidReportedModelId("😀")).toBe(true);
++    for (const value of [
++      "",
++      "x".repeat(201),
++      " x",
++      "x ",
++      "a\tb",
++      "\u007f",
++      "\udc00",
++      "a\ud800",
++      1,
++      null,
++    ]) {
++      expect(isValidReportedModelId(value)).toBe(false);
++    }
++  });
++
++  it("selects the latest eight attempts of the run only, and counts what it left out", () => {
++    const attempts = [
++      ...Array.from({ length: 9 }, (_, index) => attempt(`attempt:many-${index + 1}`, index + 1)),
++      attempt("attempt:another-run", 99, RunId.make("run:other")),
++    ];
++    const selection = selectProviderReportedAttempts(run, attempts);
++    expect(selection?.owned).toBe(9);
++    expect(selection?.selected.map((row) => row.attemptOrdinal)).toEqual([9, 8, 7, 6, 5, 4, 3, 2]);
++    expect(selectProviderReportedAttempts(run, undefined)).toBeUndefined();
++    const value = evidence([], attempts);
++    expect(value).toMatchObject({ attemptsOwned: 9, attemptsOmitted: 1 });
++  });
++
++  it("never turns a missing or failed load into an empty success", () => {
++    const base = { run, collectedAt: "t" } as const;
++    expect(
++      providerReportedModels({ ...base, attempts: undefined, turnLoad: { _tag: "skipped" } }),
++    ).toEqual({ evidence: "unavailable", reason: "attempts_not_loaded", collectedAt: "t" });
++    expect(
++      providerReportedModels({ ...base, attempts: [second], turnLoad: { _tag: "failed" } }),
++    ).toEqual({ evidence: "unavailable", reason: "provider_turns_load_failed", collectedAt: "t" });
++    for (const turnLoad of [
++      { _tag: "skipped" } as const,
++      { _tag: "loaded", turns: undefined } as const,
++    ]) {
++      expect(providerReportedModels({ ...base, attempts: [second], turnLoad })).toEqual({
++        evidence: "unavailable",
++        reason: "provider_turns_not_loaded",
++        collectedAt: "t",
++      });
++    }
++    // No attempt of this run: an empty list is what the read returned, whatever the turn load did.
++    expect(
++      providerReportedModels({ ...base, attempts: [], turnLoad: { _tag: "failed" } }),
++    ).toMatchObject({ evidence: "collected", attempts: [], attemptsOwned: 0 });
++  });
++});
+diff --git a/apps/server/src/mcp/providerReportedModels.ts b/apps/server/src/mcp/providerReportedModels.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..ea77b2842ddcbe52f763d7b9d355e7efc933d775
+--- /dev/null
++++ b/apps/server/src/mcp/providerReportedModels.ts
+@@ -0,0 +1,160 @@
++/**
++ * Binds and bounds provider-reported model evidence for one run of a thread read. Only `turnTokenUsage.models` of
++ * terminal turns on an attempt's own root node and provider thread count; the requested selection is never read.
++ */
++import type {
++  OrchestrationV2ProviderTurn,
++  OrchestrationV2Run,
++  OrchestrationV2RunAttempt,
++  OrchestratorMcpProviderReportedAttempt,
++  OrchestratorMcpRunProviderReportedModels,
++  RunAttemptId,
++} from "@t3tools/contracts";
++
++export const PROVIDER_REPORTED_ATTEMPT_LIMIT = 8;
++export const PROVIDER_REPORTED_MODEL_LIMIT = 8;
++export const PROVIDER_REPORTED_MODEL_MAX_LENGTH = 200;
++
++const TERMINAL_TURN_STATUSES: ReadonlySet<OrchestrationV2ProviderTurn["status"]> = new Set([
++  "completed",
++  "interrupted",
++  "failed",
++  "cancelled",
++]);
++
++/** The provider-turn load as the caller ran it. */
++export type ProviderTurnLoad =
++  | { readonly _tag: "skipped" }
++  | { readonly _tag: "loaded"; readonly turns: unknown }
++  | { readonly _tag: "failed" };
++
++const codeUnitOrder = (left: string, right: string) => (left < right ? -1 : left > right ? 1 : 0);
++
++/**
++ * This run's attempts in the loaded list, latest first, bounded. Returns `undefined` when no attempts list was
++ * loaded, so a missing list is never read as "no attempts".
++ */
++export function selectProviderReportedAttempts(
++  run: Pick<OrchestrationV2Run, "id">,
++  attempts: unknown,
++):
++  | { readonly owned: number; readonly selected: ReadonlyArray<OrchestrationV2RunAttempt> }
++  | undefined {
++  if (!Array.isArray(attempts)) return undefined;
++  const owned = (attempts as ReadonlyArray<OrchestrationV2RunAttempt>).filter(
++    (attempt) => attempt.runId === run.id,
++  );
++  const selected = owned
++    .toSorted(
++      (left, right) =>
++        right.attemptOrdinal - left.attemptOrdinal || codeUnitOrder(left.id, right.id),
++    )
++    .slice(0, PROVIDER_REPORTED_ATTEMPT_LIMIT);
++  return { owned: owned.length, selected };
++}
++
++/** A model id as reported: a trimmed string of 1-200 UTF-16 units, without control characters or lone surrogates. */
++export function isValidReportedModelId(value: unknown): value is string {
++  if (typeof value !== "string") return false;
++  if (value.length === 0 || value.length > PROVIDER_REPORTED_MODEL_MAX_LENGTH) return false;
++  if (value.trim() !== value) return false;
++  for (let index = 0; index < value.length; index += 1) {
++    const unit = value.charCodeAt(index);
++    if (unit <= 0x1f || (unit >= 0x7f && unit <= 0x9f)) return false;
++    if (unit >= 0xdc00 && unit <= 0xdfff) return false;
++    if (unit >= 0xd800 && unit <= 0xdbff) {
++      const next = value.charCodeAt(index + 1);
++      if (!(next >= 0xdc00 && next <= 0xdfff)) return false;
++      index += 1;
++    }
++  }
++  return true;
++}
++
++function attemptEvidence(
++  attempt: OrchestrationV2RunAttempt,
++  activeAttemptId: RunAttemptId | null,
++  turns: ReadonlyArray<OrchestrationV2ProviderTurn>,
++): OrchestratorMcpProviderReportedAttempt {
++  let rootTurns = 0;
++  let terminalRootTurns = 0;
++  let reportingRootTurns = 0;
++  let unboundTurns = 0;
++  let excludedModelValues = 0;
++  const models = new Set<string>();
++  for (const turn of turns) {
++    if (turn.runAttemptId === null || turn.runAttemptId !== attempt.id) continue;
++    if (turn.nodeId !== attempt.rootNodeId || turn.providerThreadId !== attempt.providerThreadId) {
++      unboundTurns += 1;
++      continue;
++    }
++    rootTurns += 1;
++    if (!TERMINAL_TURN_STATUSES.has(turn.status)) continue;
++    terminalRootTurns += 1;
++    const reported: unknown = turn.turnTokenUsage?.models;
++    if (!Array.isArray(reported)) continue;
++    let contributed = false;
++    for (const value of reported as ReadonlyArray<unknown>) {
++      if (isValidReportedModelId(value)) {
++        models.add(value);
++        contributed = true;
++      } else {
++        excludedModelValues += 1;
++      }
++    }
++    if (contributed) reportingRootTurns += 1;
++  }
++  const ordered = [...models].toSorted(codeUnitOrder);
++  return {
++    attemptId: attempt.id,
++    attemptOrdinal: attempt.attemptOrdinal,
++    reason: attempt.reason,
++    status: attempt.status,
++    active: activeAttemptId !== null && attempt.id === activeAttemptId,
++    providerInstanceId: attempt.providerInstanceId,
++    rootTurns,
++    terminalRootTurns,
++    reportingRootTurns,
++    unboundTurns,
++    modelEvidence: ordered.length > 0 ? "reported" : "unknown",
++    models: ordered.slice(0, PROVIDER_REPORTED_MODEL_LIMIT),
++    modelsOmitted: Math.max(0, ordered.length - PROVIDER_REPORTED_MODEL_LIMIT),
++    excludedModelValues,
++  };
++}
++
++/** The evidence for one run. A missing or failed load is reported as `unavailable`, never as an empty success. */
++export function providerReportedModels(input: {
++  readonly run: Pick<OrchestrationV2Run, "id" | "activeAttemptId">;
++  readonly attempts: unknown;
++  readonly turnLoad: ProviderTurnLoad;
++  readonly collectedAt: string;
++}): OrchestratorMcpRunProviderReportedModels {
++  const { run, collectedAt } = input;
++  const selection = selectProviderReportedAttempts(run, input.attempts);
++  if (selection === undefined) {
++    return { evidence: "unavailable", reason: "attempts_not_loaded", collectedAt };
++  }
++  let turns: ReadonlyArray<OrchestrationV2ProviderTurn> = [];
++  if (selection.selected.length > 0) {
++    if (input.turnLoad._tag === "failed") {
++      return { evidence: "unavailable", reason: "provider_turns_load_failed", collectedAt };
++    }
++    if (input.turnLoad._tag === "skipped" || !Array.isArray(input.turnLoad.turns)) {
++      return { evidence: "unavailable", reason: "provider_turns_not_loaded", collectedAt };
++    }
++    turns = input.turnLoad.turns as ReadonlyArray<OrchestrationV2ProviderTurn>;
++  }
++  return {
++    evidence: "collected",
++    collectedAt,
++    activeAttemptId: run.activeAttemptId,
++    attemptPolicy: "latest_by_attempt_ordinal",
++    attemptLimit: PROVIDER_REPORTED_ATTEMPT_LIMIT,
++    attemptsOwned: selection.owned,
++    attemptsOmitted: selection.owned - selection.selected.length,
++    attempts: selection.selected.map((attempt) =>
++      attemptEvidence(attempt, run.activeAttemptId, turns),
++    ),
++  };
++}
+diff --git a/packages/contracts/src/orchestratorMcp.ts b/packages/contracts/src/orchestratorMcp.ts
+index c73bbd48e26f5aa16b1a8836852bd900d856429c..44358e481f5c9d29acadf3c709e07d9d8dc057b1 100644
+--- a/packages/contracts/src/orchestratorMcp.ts
++++ b/packages/contracts/src/orchestratorMcp.ts
+@@ -12,6 +12,7 @@ import {
+   NonNegativeInt,
+   PositiveInt,
+   ProjectId,
++  RunAttemptId,
+   RunId,
+   RuntimeRequestId,
+   ScheduledTaskId,
+@@ -37,6 +38,7 @@ import { ThreadTitleRegeneration } from "./threadTitle.ts";
+ import {
+   OrchestrationV2Actor,
+   OrchestrationV2CreationSource,
++  OrchestrationV2RunAttempt,
+   OrchestrationV2RunStatus,
+   OrchestrationV2TurnItemStatus,
+ } from "./orchestrationV2.ts";
+@@ -456,6 +458,80 @@ export const OrchestratorMcpThreadDetail = Schema.Struct({
+ });
+ export type OrchestratorMcpThreadDetail = typeof OrchestratorMcpThreadDetail.Type;
+ 
++/** A model id as a provider reported it: exact, bounded, never folded or normalized. */
++const ProviderReportedModelId = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200));
++
++/**
++ * One run attempt, reported on its own. Every count is a count of the records this read returned for the attempt;
++ * nothing is summed across attempts or runs.
++ */
++export const OrchestratorMcpProviderReportedAttempt = Schema.Struct({
++  attemptId: RunAttemptId,
++  attemptOrdinal: PositiveInt,
++  reason: OrchestrationV2RunAttempt.fields.reason,
++  status: OrchestrationV2RunAttempt.fields.status,
++  /** Whether this is the run's `activeAttemptId` as this read found it. */
++  active: Schema.Boolean,
++  providerInstanceId: ProviderInstanceId,
++  /** Provider turns of this attempt on its root node and its provider thread. */
++  rootTurns: NonNegativeInt,
++  /** Of `rootTurns`, those with a terminal status: completed, interrupted, failed or cancelled. */
++  terminalRootTurns: NonNegativeInt,
++  /** Of `terminalRootTurns`, those that contributed at least one valid model id. */
++  reportingRootTurns: NonNegativeInt,
++  /** Turns of this attempt on another node or provider thread. They were excluded and contribute no model id. */
++  unboundTurns: NonNegativeInt,
++  /**
++   * `reported`: at least one valid model id was reported. `unknown`: none was. That includes absent, empty, erased or
++   * wholly invalid reports, and attempts with no terminal root turn. It never means "no model".
++   */
++  modelEvidence: Schema.Literals(["reported", "unknown"]),
++  /**
++   * Distinct model ids from `turnTokenUsage.models` of the terminal root turns only: exact-string dedupe, then
++   * UTF-16 code-unit order, at most 8. Never the requested, thread, launch, catalog or default model.
++   */
++  models: Schema.Array(ProviderReportedModelId).check(Schema.isMaxLength(8)),
++  /** Distinct valid model ids beyond the 8 returned. */
++  modelsOmitted: NonNegativeInt,
++  /** Reported values that were excluded as invalid: not a 1-200 unit string, untrimmed, control or lone surrogate. */
++  excludedModelValues: NonNegativeInt,
++});
++export type OrchestratorMcpProviderReportedAttempt =
++  typeof OrchestratorMcpProviderReportedAttempt.Type;
++
++/**
++ * Time-stamped evidence of the provider-reported models in the records this read returned for one run. It is not a
++ * final, complete or coherent snapshot. A later read may return more turns or models for the same attempts.
++ * `collectedAt` is when this read finished loading the records. It is not when a provider observed or reported
++ * anything, and it is not a freshness claim.
++ */
++export const OrchestratorMcpRunProviderReportedModels = Schema.Union([
++  Schema.Struct({
++    evidence: Schema.Literal("unavailable"),
++    reason: Schema.Literals([
++      "attempts_not_loaded",
++      "provider_turns_not_loaded",
++      "provider_turns_load_failed",
++    ]),
++    collectedAt: IsoDateTime,
++  }),
++  Schema.Struct({
++    evidence: Schema.Literal("collected"),
++    collectedAt: IsoDateTime,
++    activeAttemptId: Schema.NullOr(RunAttemptId),
++    attemptPolicy: Schema.Literal("latest_by_attempt_ordinal"),
++    attemptLimit: PositiveInt,
++    /** This run's attempts in this read. */
++    attemptsOwned: NonNegativeInt,
++    /** Owned attempts beyond `attemptLimit`, not returned. */
++    attemptsOmitted: NonNegativeInt,
++    /** Latest attempt first. */
++    attempts: Schema.Array(OrchestratorMcpProviderReportedAttempt).check(Schema.isMaxLength(8)),
++  }),
++]);
++export type OrchestratorMcpRunProviderReportedModels =
++  typeof OrchestratorMcpRunProviderReportedModels.Type;
++
+ export const OrchestratorMcpThreadRun = Schema.Struct({
+   runId: RunId,
+   ordinal: PositiveInt,
+@@ -465,6 +541,8 @@ export const OrchestratorMcpThreadRun = Schema.Struct({
+   requestedAt: IsoDateTime,
+   startedAt: Schema.NullOr(IsoDateTime),
+   completedAt: Schema.NullOr(IsoDateTime),
++  /** Absent from producers without this field. `model` above stays the requested selection. */
++  providerReportedModels: Schema.optional(OrchestratorMcpRunProviderReportedModels),
+ });
+ export type OrchestratorMcpThreadRun = typeof OrchestratorMcpThreadRun.Type;
+ 

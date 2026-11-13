@@ -278,14 +278,15 @@ How to read this section:
   `639ed015` (§2c).
 - **Nothing qualified.** No profile, account, toolkit, owner-host route,
   designer setup or product candidate is qualified by this section.
-- **Relied on only as §2l, §2m, §2n and §2o record.** Apart from the T3 files
-  that §2l records for INC01-CC-002, §2m for INC01-CC-003 S1a, §2n for
-  INC01-CC-005 and §2o for INC01-CC-003 S2, no file in this repository relies
-  on these sources. §2o also records the one patch artifact for the T3 pin
-  (`patches/t3code/ade47301-darwin-process-observation.patch`), which Sophia
-  neither applies nor installs. When a goal starts relying on one, record its
+- **Relied on only as §2l, §2m, §2n, §2o and §2p record.** Apart from the T3
+  files that §2l records for INC01-CC-002, §2m for INC01-CC-003 S1a, §2n for
+  INC01-CC-005, §2o for INC01-CC-003 S2 and §2p for INC04-S03b B1, no file in
+  this repository relies on these sources. §2o and §2p each record one patch
+  artifact for the T3 pin (`patches/t3code/ade47301-darwin-process-observation.patch`
+  and `patches/t3code/ade47301-provider-reported-models.patch`). Sophia neither
+  applies nor installs either. When a goal starts relying on one, record its
   exact upstream file and the Sophia files grounded in it here, as in §2–2j and
-  §2l–2o.
+  §2l–2p.
 
 | Register id | Repository and studied pin | Upstream files relied on | Purpose in the programme | Status and limits |
 |---|---|---|---|---|
@@ -471,6 +472,92 @@ routed by root. The later external Mac patch, build and probe were root's (artif
 `89fdba95288c3664b8fa35fb2f8ee88f4c3595ab2ad1b29f412c3ba54e391cf8`, profile `5db1`, pin `ade47301`); their outcome,
 an initial 503 then a fake anonymous MCP 401 and cleanup, is not authenticated tool, native or profile qualification.
 Of the patch's five mutants, four were caught and one survived (M3), not shown equivalent.
+
+## 2p. A carried patch at INC04-S03b B1 (provider-reported models on a thread read)
+
+The same T3 Code pin as §2l–2o: [`pingdotgg/t3code`](https://github.com/pingdotgg/t3code) at
+`ade473018d32003658b7d38693e083ee2e314bd8` (MIT, tree `107c4f087f85dd137429e3d441ab770fd4b2a67b`). Each full-file
+SHA-256 below was computed from the whole file at the pin. Upstream code and tests stay outside Sophia; only the patch
+is carried.
+
+| File at the pin | Git blob | Bytes | Full-file SHA-256 | Role |
+|---|---|---|---|---|
+| [`apps/server/src/mcp/OrchestratorMcpService.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/mcp/OrchestratorMcpService.ts) | `9d15408483a3eac9fe4b09ff20c6c987a46711f7` | 132,657 | `11a7215f6c55129a5908b5cc9189ad50458db844ccab64c7e2b71db2f7a5372a` | Changed: the thread read's runs and its one added provider-turn load |
+| [`apps/server/src/mcp/OrchestratorMcpService.test.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/mcp/OrchestratorMcpService.test.ts) | `f52ac95174277f9a521b8914cf26ff40504a76b3` | 150,845 | `f3e345d5826ab7e4219a1a9d26443b2e9a490ad05e1b5c0caca9cee2d8cb767a` | Changed: read cases added |
+| [`packages/contracts/src/orchestratorMcp.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/packages/contracts/src/orchestratorMcp.ts) | `c73bbd48e26f5aa16b1a8836852bd900d856429c` | 35,732 | `a1a1f5ffc84c5cc151947db666069a440f1f4f15c96cdd6dabfbc0b9bae826d1` (as in §2n) | Changed: one optional run field |
+| [`apps/server/src/orchestration-v2/ThreadManagementService.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/orchestration-v2/ThreadManagementService.ts) | `46ea45431055488dec1344429bcc791bb4be1f19` | 64,959 | `01be64da05bdc45642e246bc8501a7ce268830ad558bfe9b67ecf5b13b1d053e` | Read only: `getProjectThreadRecords` (399–406) and its existing runs-and-turns load (815–818) |
+| [`apps/server/src/orchestration-v2/ProjectionStore.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/orchestration-v2/ProjectionStore.ts) | `dea68ee7723d11ee3ccb464c7615b3cfe338e94d` | 335,542 | `a5295e7d9f0aa9db402d4992e852eb4f75fde1c44a048eb3ca90c142d2af07dd` (as in §2n) | Read only: the provider-turn and attempt loaders (3389–3402, 3532–3552), `matchesNothing` (1087–1088), one transaction per record read (5641–5650), and `upsertProviderTurn` (745–756) |
+| [`packages/contracts/src/orchestrationV2.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/packages/contracts/src/orchestrationV2.ts) | `5c430ef75581a165d94ce16c7369c0245bdef5d8` | 163,596 | `9f791f7e75031f56c36fddabb2529913c2c4f1f539415037f9d7b9355dc597fb` (as in §2n) | Read only: run attempts (738–760) and provider turns (1179–1198) |
+| [`packages/contracts/src/providerRuntime.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/packages/contracts/src/providerRuntime.ts) | `4769bfd7955c7e6fad74f9927916a48347ce97bc` | 5,920 | `cf73b6737e501ad1f602044f84ead7874c7b25cf5ad94d68e94863762a3322a7` | Read only: `TurnTokenUsage.models`, "absent means unknown" (57–85) |
+
+**The patch.** [`patches/t3code/ade47301-provider-reported-models.patch`](../patches/t3code/ade47301-provider-reported-models.patch),
+43,888 bytes, SHA-256 `fbb60840c6a73e572eee15e384b4d683adf357facce96e76377f83d06e62cb91`, Git blob
+`f971ff784f90aa3aebf7cde064b5e0e2993804c0`. It is a full-index `git diff` of five files at this pin, carried as the
+sealed bytes (LF only, never reformatted):
+
+| Path | Pin blob | Patched blob | Patched SHA-256 | Bytes |
+|---|---|---|---|---|
+| `apps/server/src/mcp/OrchestratorMcpService.ts` | `9d154084` | `5b9014da90ee9cb8cb0f4878e6f1a07ad3afe487` | `5efa0aa4cc139fec8bf08cd26a5c3aa0199aef84772de6b1c5621f6d1a6e65e6` | 135,303 |
+| `apps/server/src/mcp/OrchestratorMcpService.test.ts` | `f52ac951` | `19b9aee7b5ffd7bb83ecf7f4c0cfbe15deb1c4df` | `f8e284cd50b43aa9f3a24c2011b597fea6ae171a120ac10ff7469e5e485922ad` | 168,363 |
+| `apps/server/src/mcp/providerReportedModels.ts` | added | `ea77b2842ddcbe52f763d7b9d355e7efc933d775` | `d11d3cf0ffd8a9b2cf363317cbb3b0bd266de40c39183b6687a4b05adfee09b8` | 6,036 |
+| `apps/server/src/mcp/providerReportedModels.test.ts` | added | `26dff74a1e4d94d727756bf802546c29a687b759` | `075982852f12d0dd342d033fdf804bd3dad4666f625b0f5331ab227c45ea75dc` | 6,985 |
+| `packages/contracts/src/orchestratorMcp.ts` | `c73bbd48` | `44358e481f5c9d29acadf3c709e07d9d8dc057b1` | `f394ee0b60d6d6309c6857d74bef16e0ed279d36d1f8541818d1ed91bc229c2d` | 39,528 |
+
+It applies with `git apply` to the pin's tree, giving tree `1416b7a32820d3fc625323b16297140f9d74293e`, and reverses to
+`107c4f08`. Every other entry of the pin's tree is unchanged. It is disjoint from §2o's patch: applied with it in
+either order, the tree is `49942efdc3659baf8314de099372b74971a3851b`, and both reverse to the pin.
+
+**What it changes.**
+
+- **One optional field.** Each run of `t3_thread_read` gains `providerReportedModels`. A producer without the patch
+  omits it, and its absence means an unpatched producer, never "no models". The run's `model` stays the requested
+  selection, and the new field never falls back to it, to the thread or launch selection, to a catalog or to a
+  default.
+- **Exact ownership.** A model id counts only from `turnTokenUsage.models` of a terminal provider turn whose non-null
+  run attempt is one of the run's selected attempts, on that attempt's own root node and provider thread, loaded within
+  the read's own thread. Null-attempt (child), other-node, other-provider-thread and other-run turns never count.
+  Each attempt is reported separately: a restart's models are never merged into another attempt's.
+- **Unknown stays unknown.** An attempt with no valid id from such a turn is `unknown`. That includes absent, empty,
+  erased or wholly invalid reports and running turns, and it is never "none" or zero. A missing or failed load is
+  `unavailable` with a reason, never an empty success.
+- **Bounded output.** The latest 8 attempts per run, at most 8 ids per attempt, each 1–200 UTF-16 units. The read
+  records attempts and ids it left out and values it excluded as invalid.
+- **No finality.** `collectedAt` is when the read finished loading, not when a provider observed anything, and not a
+  freshness or snapshot claim. There is no complete, final, accepted or effort field.
+
+**Provenance.** Authored for INC04-S03B-D2-DONOR-PATCH-A-001 outside Sophia, against this pin's frozen lockfile with
+Node 26.12.1 and pnpm 12.14.0 (filtered install, lifecycle scripts off). Adopted by root (`008d9e6a…92b5`) after an
+independent review (`c741699e…ffa71`) that found no donor-code defect. Its META erratum
+(INC04-S03B-D2-DONOR-PATCH-A-001-META-ERRATUM-001) qualifies the authored checks, and its limits are part of this
+record.
+
+**Limits.**
+
+- **Not applied, installed or used by Sophia.** No Sophia build, install, startup, owner host or production path uses
+  it. It is not an upstream change, not a fork and not a merged upstream behavior. Carrying it qualifies no native,
+  account, profile, toolkit or owner route, and it does not close R11: Sophia does not consume the field yet, and no
+  owner host runs a patched T3.
+- **The controls are compact.** Its 13 mutation controls are reported test failures that are source-plausible, not 13
+  independent full raw causal proofs: the runner kept only summaries and failing names, and ignored exit codes. Its
+  fail-before shows the five new read cases failing on the pin's own source; the missing helper's import error is not
+  a semantic failure.
+- **Advisories are location-normalized.** The contracts typecheck's 161 advisories equal the pin's only after one
+  location shift (`orchestratorMcp.ts` 880 to 958); the server's 486 are equal as printed.
+- **Setup failures are retained.** The authored logs keep a missing `pnpm.cjs`, a first pnpm 11.7.0 invocation and a
+  first server typecheck that failed for an uninstalled workspace. The final runs are separate, and their six inner
+  exits are each 0.
+- **Fake against store.** Its read cases drive the real `OrchestratorMcpService` against a labelled fake
+  `ThreadManagementService` whose filter models the store SQL. The store's own filter is covered by the pin's unchanged
+  `ProjectionStore` suite. No end-to-end read against a real store ran.
+- **No new mutation, not an effect-free read.** The existing thread read can already acknowledge a caller's child-task
+  result, and that is unchanged. The patch adds evidence and one filtered read, and no other effect.
+- **Bounded output, unbounded loads.** Runs and attempts, then provider turns, are two transactions, so no coherent
+  snapshot is claimed. The store does not cap the whole-thread attempt load, the selected turns or a turn's model list.
+- **The erasure hazard is not patched.** The store can drop a turn's `turnTokenUsage` on a later update, so a later
+  read may show an earlier model as unknown. That is not a retraction: a future Sophia consumer must keep earlier
+  evidence append-only and read a later absence as unknown, never as "no model".
+- **Shape is not semantics.** The schema bounds only lengths. Trimming, control characters, lone surrogates and count
+  relations are enforced by this producer, so a value that decodes proves neither its ownership nor its semantics.
 
 ## 3. Facts learned at the pin (not in the pack)
 
