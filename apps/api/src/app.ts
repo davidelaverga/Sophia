@@ -48,7 +48,7 @@ import { designRoutes } from './routes/design.ts'
 import { RENDERER_ROUTES, rendererRoutes } from './routes/renderer.ts'
 import { RUNTIME_ROUTES, conversationRuntimeRoutes, researchRoutes, runtimeRoutes } from './routes/runtime.ts'
 import { OWNER_RUNNER_SCHEMA, runnerOperationRoutes, type OwnerRunnerAdmissions } from './routes/runner-operations.ts'
-import { apiContributionRoutes } from './routes/api-contributions.ts'
+import { API_CONTRIBUTIONS_SCHEMA, apiContributionRoutes } from './routes/api-contributions.ts'
 import { projectResourceRoutes } from './routes/project-resources.ts'
 import { selectionPreviewRoutes } from './routes/selection-preview.ts'
 import { sourceRoutes } from './routes/sources.ts'
@@ -307,13 +307,6 @@ export const STORE_SCHEMA = `SELECT to_regprocedure('sophia.claim_object_write(t
  * (Codex P1 r4232908444). An API with it off, the default, and the previous API, require nothing of 0085 or 0087, and
  * of 0086 only the claim (REQUIRED_SCHEMA).
  */
-/**
- * Member API contributions on (A48): 0094's write entry and 0100's rebuild funding guard (INC01-COHERENT-WRITE-003). An
- * API with contributions on is not ready on a database without 0100, where a rebuilt contributed task would run unbound.
- */
-export const CONTRIBUTION_FUNDING_SCHEMA = `SELECT to_regprocedure('sophia.api_contribution_write(text,text,jsonb)') IS NOT NULL
-  AND to_regprocedure('sophia.contribution_lineage_unbound(uuid,uuid)') IS NOT NULL AS ok`
-
 export const VOICE_SCHEMA = `SELECT to_regprocedure('sophia.voice_qualification_guard()') IS NOT NULL
   AND to_regprocedure('sophia.media_record_evidence(uuid,uuid,integer,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.media_record_evidence_write(uuid,uuid,uuid,text,jsonb)') IS NOT NULL
@@ -651,7 +644,10 @@ async function schemaReady(
     (await part(personalAnswers, PERSONAL_ANSWERS_SCHEMA)) &&
     (await part(voice, VOICE_SCHEMA)) &&
     (await part(ownerRunners, OWNER_RUNNER_SCHEMA)) &&
-    (await part(apiContributions, CONTRIBUTION_FUNDING_SCHEMA))
+    // Member API contributions on (A48, A56): the routes' own installation predicate (0094, 0100's rebuild funding
+    // guard, 0104's owner protection and account qualification, 0106's viewer boundary; R2, F02). Off, the default:
+    // nothing of them is required.
+    (await part(apiContributions, API_CONTRIBUTIONS_SCHEMA))
   )
 }
 

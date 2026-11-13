@@ -1,6 +1,7 @@
 // The selection preview's trusted assembler (INC04-S01b; docs/plans/selection-preview.md). A pure mapping from the
 // server-internal snapshot (0104) to the kernel's SelectionInput for ONE closed profile: a new standalone research
 // request (explore, explorer). It reads no clock, network or storage; the snapshot's one instant is the evaluation's.
+// Only a FULL snapshot (an evaluator's, 0106) is ever assembled; a restricted one has nothing to assemble (R2).
 //
 // Guarantees: the actor, project and every fact come from the authenticated snapshot, never from a client field;
 // missing proof stays unknown or absent and is never mapped to clear, current or not_applicable; no Prefer, route
@@ -23,7 +24,12 @@ import {
   type Settings,
   type SettingsDeclaration,
 } from '@sophia/domain'
-import type { SelectionApiFacts, SelectionNativeFacts, SelectionSnapshot } from '@sophia/persistence'
+import type {
+  FullSelectionSnapshot,
+  SelectionApiFacts,
+  SelectionNativeFacts,
+  SelectionSnapshot,
+} from '@sophia/persistence'
 
 /** The one closed profile of this slice (root D1/D2): fresh standalone research, explore family, explorer role. */
 export const RESEARCH_PROFILE = {
@@ -70,18 +76,18 @@ function grantSeed(f: SelectionApiFacts): Settings {
 }
 
 /** Where the request's named sources stand: all eligible, or the first that is not. */
-function sourceControl(s: SelectionSnapshot): SelectionInput['control']['source'] {
+function sourceControl(s: FullSelectionSnapshot): SelectionInput['control']['source'] {
   if (s.sources.some((x) => x.state === 'withdrawn')) return 'withdrawn'
   return s.sources.every((x) => x.state === 'eligible') ? 'eligible' : 'ineligible'
 }
 
-function authorityOf(s: SelectionSnapshot): SelectionInput['control']['authority'] {
-  if (!s.member.active) return 'not_member'
-  return s.member.role === 'viewer' ? 'cannot_edit' : 'current'
+/** A full snapshot is an evaluator's (0106): current unless the membership is no longer active. */
+function authorityOf(s: FullSelectionSnapshot): SelectionInput['control']['authority'] {
+  return s.member.active ? 'current' : 'not_member'
 }
 
 /** The owner's bounded-spend grant as a conservative capacity proof for exactly this use (root D3). */
-function capacityProof(s: SelectionSnapshot, f: SelectionApiFacts): ResolvedProof {
+function capacityProof(s: FullSelectionSnapshot, f: SelectionApiFacts): ResolvedProof {
   return {
     proposition: 'conservative_capacity_policy',
     status: f.proofStatus,
@@ -105,7 +111,7 @@ function capacityProof(s: SelectionSnapshot, f: SelectionApiFacts): ResolvedProo
   }
 }
 
-function apiAuthority(s: SelectionSnapshot, f: SelectionApiFacts): Authority {
+function apiAuthority(s: FullSelectionSnapshot, f: SelectionApiFacts): Authority {
   const role = ROLE_OF[f.roleId]
   return {
     basis: 'contribution_grant',
@@ -145,12 +151,12 @@ function apiQualification(f: SelectionApiFacts): Candidate['qualification'] {
 }
 
 /** Disclosure needs the owner's current membership, the requester's eligibility, the gate and every named source. */
-function apiDisclosure(s: SelectionSnapshot, f: SelectionApiFacts): Candidate['sourceDisclosure'] {
+function apiDisclosure(s: FullSelectionSnapshot, f: SelectionApiFacts): Candidate['sourceDisclosure'] {
   const open = s.gate?.state === 'enabled' && sourceControl(s) === 'eligible'
   return f.ownerMember && f.requesterEligible && open ? 'permitted' : 'denied'
 }
 
-function apiCandidate(s: SelectionSnapshot, f: SelectionApiFacts): Candidate {
+function apiCandidate(s: FullSelectionSnapshot, f: SelectionApiFacts): Candidate {
   return {
     candidateRef: apiRef(f.grantId),
     factsRevisionRef: `g${String(f.grantRevision)}.c${String(f.connectionRevision)}.a${String(f.accountRevision)}.q${
@@ -212,7 +218,7 @@ const tri = <Y extends string, N extends string>(v: boolean | null, yes: Y, no: 
   v === null ? 'unknown' : v ? yes : no
 
 /** Recorded facts only: no host freshness, capacity or reserve rule exists, so those stay unknown or absent. */
-function nativeCandidate(s: SelectionSnapshot, f: SelectionNativeFacts): Candidate {
+function nativeCandidate(s: FullSelectionSnapshot, f: SelectionNativeFacts): Candidate {
   const own = f.ownerId === s.actorId
   const p = f.sourcePolicy
   return {
@@ -257,7 +263,7 @@ function nativeCandidate(s: SelectionSnapshot, f: SelectionNativeFacts): Candida
  * eligibility, the research gate, their own Pin and the named sources' eligibility. A correlation only: it may stay
  * equal while commitments, other owners' facts and the decision change, and it authenticates nothing.
  */
-export function requestRevisionOf(s: SelectionSnapshot): string {
+export function requestRevisionOf(s: FullSelectionSnapshot): string {
   const sources = s.sources.map((x) => String(x.eligibilityRevision ?? 0)).join('-')
   return [
     'v1',
@@ -271,7 +277,7 @@ export function requestRevisionOf(s: SelectionSnapshot): string {
 }
 
 /** The kernel's input for the snapshot's one closed profile. Throws only on an incomplete pool (caller's 503). */
-export function assembleSelectionInput(s: SelectionSnapshot): SelectionInput {
+export function assembleSelectionInput(s: FullSelectionSnapshot): SelectionInput {
   if (!s.complete) throw new Error('selection_pool_incomplete')
   const authority = authorityOf(s)
   const pin = s.pin
@@ -321,18 +327,25 @@ export function assembleSelectionInput(s: SelectionSnapshot): SelectionInput {
   }
 }
 
+/** The one uniform restricted view: exactly what the kernel projects for a viewer outside the summary audience. */
+const RESTRICTED: SelectionView = {
+  contract: SELECTION_INPUT_CONTRACT,
+  policyVersion: SELECTION_POLICY_VERSION,
+  disclosure: 'restricted',
+}
+
 /**
  * The actor's own view of their preview: the kernel's projection, the only value that may leave the server.
  *
- * The order is the privacy (INC04-S01b R1, F01). A member whose verified current membership gives no summary authority
- * (a viewer) receives the one uniform restricted view first, from membership alone: before the pool's completeness,
- * its candidates or any evaluation are read, so no answer of theirs (a 503 included) depends on the pool. It is
- * exactly what the kernel projects for a viewer outside the summary audience. Only a current admin or editor then
- * needs the complete pool: a larger one is projection_unavailable, never a ranked subset and never an empty preview.
+ * The order is the privacy (INC04-S01b R1 and R2, F01). The database decides the role first (0106): a current member
+ * who cannot evaluate (a viewer) gets a restricted snapshot, read before the pool, budget, Pin or sources, and so the
+ * one uniform restricted view here, from that alone. A full snapshot whose authority is not current is restricted too.
+ * Only a current admin or editor then needs the complete pool: a larger one is projection_unavailable, never a ranked
+ * subset and never an empty preview.
  */
 export function previewSelection(s: SelectionSnapshot): SelectionView {
-  if (authorityOf(s) !== 'current')
-    return { contract: SELECTION_INPUT_CONTRACT, policyVersion: SELECTION_POLICY_VERSION, disclosure: 'restricted' }
+  if (s.evaluation === 'restricted') return RESTRICTED
+  if (authorityOf(s) !== 'current') return RESTRICTED
   if (!s.complete)
     throw new DomainError('projection_unavailable', 'Too many candidates to evaluate this preview completely')
   return projectSelection(evaluateSelection(assembleSelectionInput(s)), s.actorId)

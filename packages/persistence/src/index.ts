@@ -470,9 +470,11 @@ export {
   type ResearchTaskFunding,
 } from './api-contributions.ts'
 export { readProjectNativeResources } from './project-resources.ts'
-// INC04-S01b (0104): the selection preview's server-internal snapshot.
+// INC04-S01b (0104, 0106): the selection preview's server-internal snapshot, full or restricted.
 export {
   readSelectionSnapshot,
+  type FullSelectionSnapshot,
+  type RestrictedSelectionSnapshot,
   type SelectionAccountQualification,
   type SelectionApiFacts,
   type SelectionCandidateFacts,

@@ -12,7 +12,9 @@
 // and then written in one spelling, lowercase without the prefix, before a write merges them or a read looks them up.
 //
 // Mounted only when the API is built with apiContributions (off by default; server.ts and the environment do not turn
-// it on). A database without 0094 answers projection_unavailable (503), never an empty list or a database message.
+// it on). A database without everything these routes promise (0094, 0100, 0104's owner protection and account
+// qualification, and 0106's viewer boundary) answers projection_unavailable (503) before any read or write reaches
+// SQL, never an empty list, a refused setting or a database message (R2, F02).
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import { DomainError } from '@sophia/domain'
@@ -25,10 +27,45 @@ import {
   type ContributionWrite,
 } from '@sophia/persistence'
 import { idempotencyHeader } from './schemas.ts'
+import { SELECTION_VIEWER_BOUNDARY } from './selection-preview.ts'
 
-/** What the boundary calls of 0094: the write entry and the three projections. */
+/** The owner protection columns 0104 adds to the accounting root. */
+const PROTECTION_COLUMNS = [
+  'protection_applicability',
+  'protection_operations',
+  'protection_roles',
+  'protected_concurrency',
+  'protected_spend_usd',
+  'protection_declared_at',
+  'protection_valid_until',
+]
+
+/** Whether `fn`'s installed body calls `callee`: the replaced 0104 body, not only a function of the same signature. */
+const bodyCalls = (fn: string, callee: string) =>
+  `EXISTS (SELECT 1 FROM pg_catalog.pg_proc p WHERE p.oid = to_regprocedure('${fn}') AND position('${callee}' IN p.prosrc) > 0)`
+
+/**
+ * Everything the contribution routes promise (R2, F02), required by these routes AND by /ready with contributions on
+ * (app.ts), one predicate so the two cannot drift:
+ * - 0094: the write entry and the owner's projection;
+ * - 0100: the rebuild funding guard (INC01-COHERENT-WRITE-003), without which a rebuilt contributed task runs unbound;
+ * - 0104: owner protection and account qualification (A56): the refusal, the views, the qualification table, the
+ *   protection columns, and the replaced update and owner's projection that use them; 0094's update refuses a
+ *   protection patch;
+ * - 0106: the selection preview's viewer boundary.
+ */
 export const API_CONTRIBUTIONS_SCHEMA = `SELECT to_regprocedure('sophia.api_contribution_write(text,text,jsonb)') IS NOT NULL
-  AND to_regprocedure('sophia.api_contributions_mine()') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.api_contributions_mine()') IS NOT NULL
+  AND to_regprocedure('sophia.contribution_lineage_unbound(uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.account_protection_refusal(jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.account_protection_view(sophia.api_accounts)') IS NOT NULL
+  AND to_regprocedure('sophia.account_qualification_view(sophia.api_connections,timestamptz)') IS NOT NULL
+  AND to_regclass('sophia.api_account_qualifications') IS NOT NULL
+  AND (SELECT count(*) FROM pg_catalog.pg_attribute WHERE attrelid = to_regclass('sophia.api_accounts')
+    AND attname IN (${PROTECTION_COLUMNS.map((c) => `'${c}'`).join(', ')}) AND NOT attisdropped) = ${String(PROTECTION_COLUMNS.length)}
+  AND ${bodyCalls('sophia.api_account_update(uuid,bigint,jsonb)', 'account_protection_refusal')}
+  AND ${bodyCalls('sophia.api_contributions_mine()', 'account_protection_view')}
+  AND ${SELECTION_VIEWER_BOUNDARY} AS ok`
 
 /** A path id as A48 declares it. Not the shared lowercase pattern, which legacy routes keep. */
 const pathUuid = { type: 'string', format: 'uuid' } as const
@@ -48,7 +85,10 @@ const taskParams = {
   required: ['projectId', 'taskId'],
 } as const
 
-/** Whether 0094 is installed: remembered once seen (a migration is never undone under a running API). */
+/**
+ * Whether everything above is installed, checked before any route reaches SQL: remembered once seen (a migration is
+ * never undone under a running API; an online rollback after a success is not detected).
+ */
 function installation(pool: pg.Pool): () => Promise<void> {
   let installed = false
   return async () => {

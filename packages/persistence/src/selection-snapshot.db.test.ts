@@ -1,4 +1,4 @@
-// INC04-S01b (0104): the selection snapshot on real PostgreSQL with the production role split, against the REAL money
+// INC04-S01b (0104, 0106): the selection snapshot on real PostgreSQL with the production role split, against the REAL money
 // and slot ledgers. Members read through the non-owner sophia_api login in withActor 'read' (REPEATABLE READ READ
 // ONLY). Contributions are admitted, reserved and settled by the real 0094 functions; the operator steps (custody,
 // route and account qualification) run as the migration owner. Every grant, account, qualification and token is
@@ -24,6 +24,7 @@ import {
   runtimeTokenHash,
   withActor,
   withService,
+  type FullSelectionSnapshot,
   type RuntimeCaller,
   type SelectionApiFacts,
 } from './index.ts'
@@ -76,8 +77,15 @@ async function snap(projectId: string, actor: string, sources: string[] = []) {
     return s
   })
 }
+/** An evaluator's snapshot, narrowed to the full form (0106) by assertion, never assumed. */
+function full(s: Awaited<ReturnType<typeof snap>>): FullSelectionSnapshot {
+  assert.ok(s, 'a current member reads a snapshot')
+  assert.equal(s.evaluation, 'full', 'an evaluator reads the full form')
+  if (s.evaluation !== 'full') throw new Error('restricted')
+  return s
+}
 const apiFacts = (s: Awaited<ReturnType<typeof snap>>, grantId: string): SelectionApiFacts => {
-  const f = s?.candidates.find((x) => x.kind === 'api' && x.grantId === grantId)
+  const f = full(s).candidates.find((x) => x.kind === 'api' && x.grantId === grantId)
   assert.ok(f && f.kind === 'api', `grant ${grantId} is in the pool`)
   return f
 }
@@ -212,8 +220,7 @@ const reserve = (
 describe('the selection snapshot (0104) on the real ledgers', () => {
   it('reads a member’s positive facts in one read-only snapshot, and NULL for a nonmember', async () => {
     const w = await world()
-    const s = await snap(w.projectId, w.REQ)
-    assert.ok(s)
+    const s = full(await snap(w.projectId, w.REQ))
     assert.equal(s.complete, true)
     const f = apiFacts(s, w.grantId)
     assert.deepEqual(
@@ -223,6 +230,19 @@ describe('the selection snapshot (0104) on the real ledgers', () => {
     assert.deepEqual(f.protection, { witness: 'none_applicable' })
     assert.equal(f.uncertainEffects, false)
     assert.equal(await snap(w.projectId, randomUUID()), null)
+    // A current viewer of the same project reads the restricted form only (0106): no pool, budget, Pin, gate or source.
+    const VIEW = randomUUID()
+    await ownerPool.query(`INSERT INTO sophia.project_members(project_id, actor_id, role) VALUES ($1, $2, 'viewer')`, [
+      w.projectId,
+      VIEW,
+    ])
+    const v = await snap(w.projectId, VIEW, [randomUUID()])
+    assert.ok(v)
+    assert.deepEqual(Object.keys(v).toSorted(), ['actorId', 'evaluatedAt', 'evaluation', 'member', 'projectId'])
+    assert.deepEqual(
+      [v.evaluation, v.projectId, v.actorId, v.member.role, v.member.active],
+      ['restricted', w.projectId, VIEW, 'viewer', true],
+    )
   })
 
   it('money exhausted with free slots: settled spend leaves no room for one more task, though no slot is held', async () => {
@@ -274,11 +294,11 @@ describe('the selection snapshot (0104) on the real ledgers', () => {
 
   it('the project’s own non-model budget: one more task’s allowance must fit the gate’s total', async () => {
     const w = await world({ gate: [5, 5] })
-    assert.equal((await snap(w.projectId, w.REQ))?.projectBudget, true, 'nothing committed: 0 + 5 ≤ 5')
+    assert.equal(full(await snap(w.projectId, w.REQ)).projectBudget, true, 'nothing committed: 0 + 5 ≤ 5')
     const t = await started(w)
     await reserve(w, t.at, 'search', 0.01)
     const s = await snap(w.projectId, w.REQ)
-    assert.equal(s?.projectBudget, false, 'a project-paid search leaves no room for a new 5 USD allowance')
+    assert.equal(full(s).projectBudget, false, 'a project-paid search leaves no room for a new 5 USD allowance')
     assert.ok(apiFacts(s, w.grantId).capacity.reasons.includes('project_budget'))
   })
 })

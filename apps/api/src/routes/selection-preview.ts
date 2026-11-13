@@ -1,4 +1,4 @@
-// The trusted read-only selection preview (INC04-S01b, contract amendment A56, migration 0104;
+// The trusted read-only selection preview (INC04-S01b, contract amendment A56, migrations 0104 and 0106;
 // docs/plans/selection-preview.md). The actor is the verified token's subject; the only request facts are the path
 // project, the one closed operation (research) and the exact named source ids. The query is closed: no actor, role,
 // goal, task, grant, proof, policy or settings field exists, so none can be supplied.
@@ -9,18 +9,27 @@
 // provider, model, companion or runner, and reserves, admits, wakes, notifies or dispatches nothing. Existing admission
 // stays the authority and rechecks everything before any effect.
 //
-// A nonmember and a missing project answer 404 alike. A database without 0104 answers projection_unavailable (503),
-// never an empty preview. A current viewer always answers the one uniform restricted view, whatever the pool holds
-// (R1: decided from verified membership before the pool is read). For a current admin or editor, a pool larger than
-// one evaluation may hold (200) is projection_unavailable too, rather than a ranked subset.
+// A nonmember and a missing project answer 404 alike. A database without 0104, or with 0104 but without the 0106
+// viewer boundary, answers projection_unavailable (503), never an empty preview. A current viewer always answers the one
+// uniform restricted view, whatever the pool holds: the database decides the role first and returns a restricted
+// snapshot before it reads the pool, budget, Pin or sources (R2, 0106), so a healthy viewer's answer depends on none of
+// them. Nothing promises constant time, and a database failure still answers unavailable. For a current admin or editor,
+// a pool larger than one evaluation may hold (200) is projection_unavailable too, rather than a ranked subset.
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import { DomainError } from '@sophia/domain'
 import { readSelectionSnapshot, withActor } from '@sophia/persistence'
 import { previewSelection } from '../selection-snapshot.ts'
 
-/** What the boundary calls of 0104. */
-export const SELECTION_PREVIEW_SCHEMA = `SELECT to_regprocedure('sophia.selection_snapshot(uuid,uuid[])') IS NOT NULL AS ok`
+/**
+ * Whether 0106's viewer boundary is installed: its private marker, which the same-signature 0104 snapshot lacks. A
+ * predicate fragment, also required by member API contributions (routes/api-contributions.ts).
+ */
+export const SELECTION_VIEWER_BOUNDARY = `to_regprocedure('sophia.selection_viewer_boundary_0106()') IS NOT NULL`
+
+/** What the boundary calls: the snapshot (0104), with the role decided first (0106). */
+export const SELECTION_PREVIEW_SCHEMA = `SELECT to_regprocedure('sophia.selection_snapshot(uuid,uuid[])') IS NOT NULL
+  AND ${SELECTION_VIEWER_BOUNDARY} AS ok`
 
 const UUID = '[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}'
 
@@ -60,7 +69,7 @@ const notFound = (requestId: string) => ({
   requestId,
 })
 
-/** Whether 0104 is installed: remembered once seen (a migration is never undone under a running API). */
+/** Whether 0104 and 0106 are installed: remembered once seen (a migration is never undone under a running API). */
 function installation(pool: pg.Pool): () => Promise<void> {
   let installed = false
   return async () => {
@@ -90,8 +99,8 @@ export function selectionPreviewRoutes(app: FastifyInstance, { pool }: { pool: p
       const snapshot = await withActor(pool, req.actorId, 'read', (c) => readSelectionSnapshot(c, projectId, sourceIds))
       void reply.header('cache-control', 'no-store')
       if (snapshot === null) return reply.status(404).send(notFound(req.id))
-      // A viewer's restricted view is decided before anything that depends on the pool (R1); an evaluator's larger pool
-      // is projection_unavailable (previewSelection).
+      // A viewer's snapshot is restricted in SQL before the pool is read (R2); an evaluator's larger pool is
+      // projection_unavailable (previewSelection).
       return previewSelection(snapshot)
     },
   )

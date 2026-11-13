@@ -3,7 +3,13 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { DomainError, evaluateSelection, projectSelection } from '@sophia/domain'
-import type { SelectionApiFacts, SelectionNativeFacts, SelectionSnapshot } from '@sophia/persistence'
+import type {
+  FullSelectionSnapshot,
+  RestrictedSelectionSnapshot,
+  SelectionApiFacts,
+  SelectionNativeFacts,
+  SelectionSnapshot,
+} from '@sophia/persistence'
 import { apiRef, assembleSelectionInput, nativeRef, previewSelection, requestRevisionOf } from './selection-snapshot.ts'
 
 const ACTOR = '11111111-1111-4111-8111-111111111111'
@@ -67,8 +73,10 @@ function native(over: Partial<SelectionNativeFacts> = {}): SelectionNativeFacts 
   }
 }
 
-function snapshot(over: Partial<SelectionSnapshot> = {}): SelectionSnapshot {
+/** An evaluator's full snapshot (0106: only an admin or editor gets one). */
+function snapshot(over: Partial<FullSelectionSnapshot> = {}): FullSelectionSnapshot {
   return {
+    evaluation: 'full',
     evaluatedAt: NOW,
     projectId: PROJECT,
     actorId: ACTOR,
@@ -84,6 +92,20 @@ function snapshot(over: Partial<SelectionSnapshot> = {}): SelectionSnapshot {
     ...over,
   }
 }
+
+/** A current viewer's restricted snapshot (0106): the instant, the ids and their own membership, nothing else. */
+const restricted: RestrictedSelectionSnapshot = {
+  evaluation: 'restricted',
+  evaluatedAt: NOW,
+  projectId: PROJECT,
+  actorId: ACTOR,
+  member: { role: 'viewer', active: true, revision: 1 },
+}
+const RESTRICTED_VIEW = {
+  contract: 'inc04.selection.input.v1',
+  policyVersion: 'inc04-s01-policy-v1',
+  disclosure: 'restricted',
+} as const
 
 type Shared = Extract<ReturnType<typeof previewSelection>, { disclosure: 'shared' }>
 function shared(s: SelectionSnapshot): Shared {
@@ -201,16 +223,8 @@ describe('the selection preview assembler', () => {
   })
 
   it('gives a viewer and an inactive member the uniform restricted view', () => {
-    for (const member of [
-      { role: 'viewer', active: true, revision: 1 },
-      { role: 'editor', active: false, revision: 2 },
-    ] as const) {
-      assert.deepEqual(previewSelection(snapshot({ member })), {
-        contract: 'inc04.selection.input.v1',
-        policyVersion: 'inc04-s01-policy-v1',
-        disclosure: 'restricted',
-      })
-    }
+    const inactive: SelectionSnapshot = snapshot({ member: { role: 'editor', active: false, revision: 2 } })
+    for (const s of [restricted, inactive]) assert.deepEqual(previewSelection(s), RESTRICTED_VIEW)
   })
 
   it('waits, explicitly, when there is no candidate at all', () => {
@@ -219,30 +233,43 @@ describe('the selection preview assembler', () => {
     assert.deepEqual(v.globalCodes, ['no_candidates'])
   })
 
-  it('answers a current viewer the kernel’s restricted view from membership alone, whatever the pool (R1)', () => {
-    const viewer = { role: 'viewer', active: true, revision: 1 } as const
-    const kernel = projectSelection(evaluateSelection(assembleSelectionInput(snapshot({ member: viewer }))), ACTOR)
-    assert.deepEqual(kernel, {
-      contract: 'inc04.selection.input.v1',
-      policyVersion: 'inc04-s01-policy-v1',
-      disclosure: 'restricted',
-    })
+  it('answers a current viewer the kernel’s restricted view from the restricted snapshot alone (R1, R2)', () => {
+    // What the kernel itself projects for a member outside the summary audience, whatever the pool: an evaluator's
+    // input with that one difference (cannot_edit, no summary viewer), at an empty and a full pool.
     const hidden = (n: number) =>
       Array.from({ length: n }, (_, i) =>
         native({ resourceId: `66666666-6666-4666-8666-${String(i).padStart(12, '0')}`, ownerId: OTHER }),
       )
-    // Empty, full and over the bound (the snapshot then carries no candidates and says so): one answer, no throw.
-    for (const s of [
-      snapshot({ member: viewer, candidates: [] }),
-      snapshot({ member: viewer, candidates: hidden(200) }),
-      snapshot({ member: viewer, complete: false, candidates: [] }),
-    ]) {
-      assert.deepEqual(
-        previewSelection(s),
-        kernel,
-        `pool of ${String(s.candidates.length)}, complete ${String(s.complete)}`,
-      )
+    for (const candidates of [[], hidden(200)]) {
+      const input = assembleSelectionInput(snapshot({ candidates }))
+      const outside = {
+        ...input,
+        control: { ...input.control, authority: 'cannot_edit' as const },
+        summaryViewerRefs: [],
+      }
+      assert.deepEqual(projectSelection(evaluateSelection(outside), ACTOR), RESTRICTED_VIEW)
     }
+    // The restricted snapshot has no pool, completeness, budget, Pin, gate or source to read: the view is decided
+    // from its form, and it is exactly the kernel's.
+    assert.deepEqual(Object.keys(restricted).toSorted(), [
+      'actorId',
+      'evaluatedAt',
+      'evaluation',
+      'member',
+      'projectId',
+    ])
+    assert.deepEqual(previewSelection(restricted), RESTRICTED_VIEW)
+    assert.deepEqual(
+      previewSelection({ ...restricted, member: { ...restricted.member, revision: 9 } }),
+      RESTRICTED_VIEW,
+    )
+  })
+
+  it('never assembles or correlates a restricted snapshot: the type refuses it, and so does the assembler if forced', () => {
+    // @ts-expect-error a restricted snapshot is not an evaluator's input
+    assert.throws(() => assembleSelectionInput(restricted), /selection_pool_incomplete/)
+    // @ts-expect-error nor is it a request to correlate
+    assert.throws(() => requestRevisionOf(restricted), TypeError)
   })
 
   it('still refuses an editor’s pool above the bound as projection_unavailable, never a ranked subset', () => {

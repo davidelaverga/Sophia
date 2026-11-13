@@ -96,3 +96,28 @@ Root's independent review of this candidate.
   - independent CORE and PRE of this candidate, its publication, CI and human review;
   - live owner, account, native, deployed and app qualification;
   - all 18 AC-04 cases and the RTA release.
+
+## R2: the viewer boundary in SQL and the installed contribution schema (appended; the text above is unchanged)
+
+- **Lease:** INC04-S01B-R2-SQL-VIEWER-INSTALLATION-001, by the Host: at most 13 listed paths, the sole child of the published coherent `950d72fac89347f1c615aa5e605ef65fa6312bd6`. Source repair only: no push, PR, CI, merge to main, release or activation. The PLAN was sealed before any edit.
+- **Findings repaired** (root SOURCE_FINAL `971db26e`, NEEDS_REVISION; addendum `a11e15e1`):
+  - **F01** (reported P1, comment 4564324297; confirmed as a narrow dependency/control gap). 0104's snapshot did the viewer's private pool work before TypeScript restricted the viewer. The reported P1 stays unresolved until its own review; no leak, pool 503, exploit or timing result was observed.
+  - **F02** (P2, comment 4564324310). With contributions on, `/ready` and the routes' installation check omitted 0104, although A56's protection patch needs it.
+- **Change:** each path is listed in [the plan's R2 section](../plans/selection-preview.md).
+  - New migration 0106: the role is decided first, a non-evaluator gets a restricted snapshot, and a private installed marker is added.
+  - An internal full/restricted snapshot union, narrowed by every caller.
+  - The preview requires the marker.
+  - One contribution installation predicate (0094, 0100, 0104, 0106), shared by the routes and `/ready` when contributions are on.
+  - New SQL and API DB tests; the unit and persistence tests narrowed honestly.
+  - Routing's 0105 and contribution-admission files are not touched. The persistence snapshot DB test was edited under Routing's recorded ownership transfer.
+- **Not changed:** migrations 0001–0104, amendments, GEN and OpenAPI, the kernel, Studio and UI, the Runner, flags, config, dependencies and the Map. Default `apiContributions` off behaves as before.
+- **Limits:**
+  - No constant-time promise; a database or installation failure still answers unavailable.
+  - The marker detects the migration, not a later hand replacement of the body. The reader refuses unmarked forms and full forms for non-evaluators.
+  - The installed latch is monotone.
+  - 0104's own SQL test now passes its viewer blocks vacuously; 0106's test carries those assertions.
+- **Checks, evidence and limits of this candidate:** recorded in its external evidence packets, not here.
+- **Still open:**
+  - independent CORE and PRE of this candidate, its publication, CI and human review, and the disposition of both findings;
+  - live owner, account, native, deployed and app qualification;
+  - all 18 AC-04 cases and the RTA release.
