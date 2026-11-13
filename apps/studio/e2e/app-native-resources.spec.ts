@@ -5,9 +5,9 @@
 // Every page loads with `vision=off`: the fixture servers set the vision flag, which shows every view; off, the views are
 // what production shows (docs/plans/prod-honesty.md), so only the read flag decides Resources.
 // Off (the default build, on the checks' own server): no Resources in the project's views and no catalog read at all.
-// On: a build of the same app with the flag set, on a server of this check's own (port 5197 for the desktop project and
-// 5195 for the phone's, started and stopped here, its variables its own): Resources in the views, read as the signed-in
-// account, refused at once on a 404.
+// On: a build of the same app with the flag set, on a server each worker owns (REC01-F01): started by that worker on a
+// port the system assigns, ready only while that same process serves the flagged build, and stopped with every process
+// it started, never another worker's. Resources in the views, read as the signed-in account, refused at once on a 404.
 // UX iteration 001: the project settled (its reads answered, its call joined through the fixtures' fake LiveKit), the
 // call's switches in reach over the sheet, and a final 401's Sign in again, which only a press starts: this device's
 // sign-out, the sign-in at the same address, a failure said with the person still in, no row shown again and no call
@@ -17,8 +17,6 @@ import { fileURLToPath } from 'node:url'
 import { expect, test, type BrowserContext, type Page } from '@playwright/test'
 
 const OFF = 'http://127.0.0.1:5198'
-/** The flagged build's server, one per project, so the desktop's and the phone's workers never share or stop it. */
-const portOf = (project: string) => (project === 'phone' ? 5195 : 5197)
 /** The synthetic Auth service the app's build names (vite.app.config.ts), answered here: whichever server serves. */
 const AUTH = 'http://127.0.0.1:5198/synthetic-auth'
 const SESSION_KEY = 'sb-127-auth-token'
@@ -476,30 +474,125 @@ async function settledInCall(context: BrowserContext, on: string, phone: boolean
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(phone ? 390 : 1280)
 }
 
+/** The Studio app's directory, where its Vite config is: the flagged server's working directory. */
+const STUDIO = fileURLToPath(new URL('..', import.meta.url))
+/** The flag's module as a server transforms it: what this worker's server must serve before it is used. */
+const FLAG_MODULE = `/@fs${STUDIO}src/app/native-resources.ts`
+const FLAGGED = '"VITE_SOPHIA_NATIVE_RESOURCES": "1"'
+/** How long a server may take to say its address and serve the flagged build; inside the hook's 120 s. */
+const START_MS = 90_000
+/** How long its processes may take to go once asked, before they are made to. */
+const STOP_MS = 10_000
+const COLOUR = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
+
+/** A worker's own flagged server: the address its own process printed, and that process (its group's leader). */
+interface Owned {
+  origin: string
+  child: ChildProcess
+  /** What it printed last, colour stripped: said when it fails, never its environment. */
+  out: () => string
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const running = (child: ChildProcess) => child.exitCode === null && child.signalCode === null
+
+/** Whether any process of the group `pid` leads is still there. */
+function groupAlive(pid: number): boolean {
+  try {
+    process.kill(-pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Stops every process of the server's own group: asked, then made to; never another worker's. */
+async function stopOwned(child: ChildProcess) {
+  const pid = child.pid
+  if (pid === undefined) return
+  for (const signal of ['SIGTERM', 'SIGKILL'] as const) {
+    try {
+      process.kill(-pid, signal)
+    } catch {
+      return // the group is gone
+    }
+    for (let waited = 0; waited < STOP_MS && groupAlive(pid); waited += 100) await sleep(100)
+    if (!groupAlive(pid)) return
+  }
+  throw new Error(`the flagged app server's processes (group ${String(pid)}) did not stop`)
+}
+
+/** The address the server's own process prints, or why it never will: it could not start, or it ended first. */
+function announced(child: ChildProcess, out: { text: string }): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const read = (chunk: Buffer) => {
+      out.text = (out.text + chunk.toString()).replace(COLOUR, '').slice(-4000)
+      const url = /Local:\s+(http:\/\/127\.0\.0\.1:\d+)\//.exec(out.text)?.[1]
+      if (url) resolve(url)
+    }
+    child.stdout?.on('data', read)
+    child.stderr?.on('data', read)
+    child.once('error', (e) => reject(new Error(`could not start: ${e.message}`)))
+    child.once('exit', (code, signal) =>
+      reject(new Error(`ended before it was ready (code ${String(code)}, signal ${String(signal)})`)),
+    )
+  })
+}
+
+/** Ready: this same process still running, serving the app and the flag set, at the address it printed. */
+async function servesFlag(owned: Owned, until: number) {
+  const ok = (path: string) =>
+    fetch(`${owned.origin}${path}`).then(
+      async (r) => (r.ok ? await r.text() : ''),
+      () => '',
+    )
+  while (Date.now() < until) {
+    if (!running(owned.child)) throw new Error('ended before it was ready')
+    if ((await ok('/app.html')) && (await ok(FLAG_MODULE)).includes(FLAGGED)) return
+    await sleep(250)
+  }
+  throw new Error(`did not serve the flagged build within ${String(START_MS)} ms`)
+}
+
+/**
+ * This worker's own flagged server (REC01-F01): a port the system assigns, its own process group, the address its own
+ * process prints, and ready only while that process serves the flagged build. Failing, it says why with the end of its
+ * own output, stops what it started, and never falls back to another listener.
+ */
+async function startFlagged(): Promise<Owned> {
+  const child = spawn('pnpm', ['exec', 'vite', '--config', 'vite.app.config.ts', '--port', '0', '--strictPort'], {
+    cwd: STUDIO,
+    env: { ...process.env, VITE_SOPHIA_NATIVE_RESOURCES: '1' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: true,
+  })
+  const out = { text: '' }
+  const until = Date.now() + START_MS
+  try {
+    const timer = sleep(START_MS).then(() => {
+      throw new Error(`printed no address within ${String(START_MS)} ms`)
+    })
+    const origin = await Promise.race([announced(child, out), timer])
+    const owned = { origin, child, out: () => out.text }
+    await servesFlag(owned, until)
+    return owned
+  } catch (error) {
+    await stopOwned(child).catch(() => undefined)
+    const why = error instanceof Error ? error.message : String(error)
+    throw new Error(`the flagged app server ${why}; its output ended: ${out.text.slice(-1500)}`, { cause: error })
+  }
+}
+
 test.describe('a build with the read flag on (its own server)', () => {
-  let server: ChildProcess | null = null
+  let owned: Owned | null = null
   let on = ''
   test.beforeAll(async () => {
     test.setTimeout(120_000)
-    const port = portOf(test.info().project.name)
-    on = `http://127.0.0.1:${String(port)}`
-    server = spawn('pnpm', ['exec', 'vite', '--config', 'vite.app.config.ts', '--port', String(port), '--strictPort'], {
-      cwd: fileURLToPath(new URL('..', import.meta.url)),
-      env: { ...process.env, VITE_SOPHIA_NATIVE_RESOURCES: '1' },
-      stdio: 'ignore',
-    })
-    for (let i = 0; i < 100; i += 1) {
-      const up = await fetch(`${on}/app.html`).then(
-        (r) => r.ok,
-        () => false,
-      )
-      if (up) return
-      await new Promise((r) => setTimeout(r, 500))
-    }
-    throw new Error('the flagged app server did not start')
+    owned = await startFlagged()
+    on = owned.origin
   })
-  test.afterAll(() => {
-    server?.kill('SIGTERM')
+  test.afterAll(async () => {
+    if (owned) await stopOwned(owned.child)
   })
 
   test('Resources in the views; the catalog read as the signed-in account, its rows shown read only', ({ context }) =>

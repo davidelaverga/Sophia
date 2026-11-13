@@ -339,3 +339,51 @@ handoff.
   - **Fail-before:** one bounded run on `8c1077b3`'s product with the final new recovery tests.
   - **Then:** focused static, type and build checks and the affected browser specs at desktop and phone with no
     retries; two confirmation captures (desktop, narrow); one signed child; ONE ordinary at that head.
+
+## REC01-F01: each test worker owns its flagged server (a child of `06bee5c1`)
+
+Written before the repair's code. Assignment `INC01-DES-002-REC01-F01-PARALLEL-SERVER-LIFECYCLE-001` (`54f77e21…a0`);
+failure context `ce5d0ff4…b0`. `8c1077b3` (#511) and `06bee5c1` (#512) stay as they are. The work is on the local
+branch `inc01-des-002-rec01-f01`, in a fresh public worktree at `06bee5c1`. Three leased paths: the app catalog spec,
+this plan and the handoff. No product, CSS, kit, App, SignedIn, auth, flag, config, workflow or lock change.
+
+- **The failure, as recorded.**
+  - **#512's CI** (run `43327501592`, job `131563752932`, 2 workers): desktop `signOutFails` failed in 183 ms on
+    `ERR_CONNECTION_REFUSED` to `127.0.0.1:5197` at its first `page.goto`. That was 0.3 s after the other worker's last
+    flagged test passed.
+  - **The local c0ec run** (2 workers): the same test timed out waiting for Account. Its isolated rerun passed.
+  - Neither is a product assertion.
+- **The cause, witnessed.** The spec's `describe` `beforeAll` runs once per worker. With `fullyParallel` and 2
+  workers, both start `pnpm exec vite … --port 5197 --strictPort`. A disposable witness with the spec's exact spawn
+  arguments, on port 5297, shows:
+  - **Borrowed readiness.** The second worker's own child exits (code 1, the port taken). Its readiness poll still
+    passes, against the first worker's server, so it runs on a server it doesn't own.
+  - **Teardown that doesn't own descendants.** `afterAll`'s `server.kill('SIGTERM')` reaches only the outer `pnpm`
+    launcher. In this environment it didn't stop the server, and after the launcher died the inner `pnpm` and
+    `vite.js` were orphaned and still listening. How the server dies depends on the launcher (CI's pnpm setup
+    differs), so the exact historical PID sequence in CI stays unproven. Either way, one worker's teardown decides
+    another's server.
+  - **Not repaired here:** the flagged servers share `node_modules/.vite-app` with the unflagged app server
+    (`vite.app.config.ts`, frozen). This is recorded as a possible contributor, unproven, and not changed.
+- **The repair**, in the spec only:
+  - Each worker's `beforeAll` starts its own server on an OS-assigned port (`--port 0 --strictPort`), in its own
+    process group (`detached`), and reads the address its own process prints.
+  - It is ready only when all three hold:
+    - its own child is still running;
+    - that address serves the app;
+    - the served flag module says `VITE_SOPHIA_NATIVE_RESOURCES` is `"1"`.
+  - An exit before ready, or no address within the existing 120 s hook budget, fails at once with the child's exit
+    status and a bounded, colour-stripped tail of its own output. It never prints the environment and never falls
+    back to another listener.
+  - `afterAll` stops its own group only: SIGTERM, then SIGKILL after a bounded wait, until no process of the group
+    remains.
+  - The fixed `portOf` ports go, so the phone and desktop projects can't collide either.
+  - Unchanged: parallelism, retries, timeouts and every assertion.
+- **Evidence.**
+  - **Fail-before** on `06bee5c1`'s spec: the old-lifecycle witness. Then the actual spec run with an unrelated
+    unflagged app server already on 5197 and 5195: its tests borrow that listener and fail.
+  - **The repair, with the same decoys present:** the spec passes on its own servers. A two-worker run shows two
+    distinct owned listeners at once and none after. A start that can't happen (no `pnpm` on the path) fails clearly,
+    with nothing borrowed.
+  - **Then:** the full app catalog spec, desktop and phone, two workers, no retries; the catalog fixture spec beside it;
+    static and typecheck; one signed child; ONE ordinary at that head.

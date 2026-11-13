@@ -187,6 +187,39 @@ branch `inc01-des-002-rec01`, in a fresh public worktree at `8c1077b3`.
      address. Back in: a fresh read, no call joined by itself, the composer empty.
    - The failed sign-out asks first too, and its drafts go even so.
 
+## REC01-F01, each test worker owns its flagged server, as it happened (a child of `06bee5c1`)
+
+#512's CI failed `signOutFails` on `06bee5c1` before any product assertion: `ERR_CONNECTION_REFUSED` to `5197` at its
+first `page.goto`, 0.3 s after the other worker's last flagged test passed. The local c0ec run failed the same test, and
+its isolated rerun passed; both runs used 2 workers. Assignment `INC01-DES-002-REC01-F01-PARALLEL-SERVER-LIFECYCLE-001`
+(`54f77e21…a0`) leased three paths. The work is on the local branch `inc01-des-002-rec01-f01`, in a fresh public
+worktree.
+
+1. **Plan first:** the plan's REC01-F01 section, logged before code.
+2. **The cause, witnessed** (on `06bee5c1`'s spec, unchanged).
+   - **Old-lifecycle witness** (the spec's exact spawn, disposable port 5297):
+     - The second worker's own child exits (code 1, port taken), and its readiness passes anyway on the first
+       worker's server.
+     - The owner's `server.kill('SIGTERM')` reaches only the outer `pnpm`. The inner `pnpm` and `vite.js` outlive it.
+   - **The spec itself, with an unrelated unflagged server already on 5197 and 5195:** all 7 flagged tests ran on that
+     borrowed listener and failed: 5 by assertion, 2 by a locator timeout.
+   - CI's exact PID sequence stays unproven; its pnpm launcher differs.
+   - The shared `.vite-app` cache (frozen config) is recorded as a possible contributor, unproven.
+3. **The repair, in the spec only.**
+   - Each worker starts its own server with `--port 0 --strictPort` in its own process group and reads the address its
+     own process prints.
+   - It is ready only while that process runs and serves the app and the flagged module (`"1"`).
+   - It fails clearly, with the cause and a bounded tail of its own output, and never borrows another listener.
+   - Teardown stops its own group only (SIGTERM, then SIGKILL, bounded).
+   - The fixed ports are gone. Parallelism, retries, timeouts and every assertion are unchanged.
+4. **Reached.**
+   - **With the same decoys present:** 7 of 7 flagged tests passed on 2 workers. The monitor saw two owned listeners
+     at once (43413 and 33477, then 40115 and 40613), one stopping while the other served, and none after. The decoys
+     were untouched.
+   - **A start that can't happen** (no `pnpm` on the workers' path): "could not start: spawn pnpm ENOENT", with
+     nothing borrowed and nothing left running. The first attempt never ran the test: the harness lost
+     `/usr/bin/timeout` from the narrowed path (exit 127). It is kept.
+
 ## Remaining obligations
 
 - The independent whole-actual source and pre-push review of this UX iteration candidate on `775`.
