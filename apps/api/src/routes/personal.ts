@@ -24,6 +24,7 @@ import {
   forgetPersonalNote,
   keepPersonalNote,
   nameActor,
+  personalAnswerControlled,
   readPersonalEpoch,
   readPersonalExport,
   readPersonalSpace,
@@ -115,6 +116,17 @@ const writeSchema = (params: object | null, body: string | null, headers: object
 
 const NO_COMPANION = 'Sophia can’t answer here yet. Nothing was kept.'
 
+/**
+ * An owner with controlled inputs (0103, A54): these unversioned reads cannot say a turn was withdrawn, held or
+ * replaced, nor that an answered one was withdrawn, so they refuse rather than show it as ordinary.
+ */
+const CONTROLLED = 'This conversation has controlled answers: read it through the versioned answer-control projection.'
+
+/** In a read's transaction: refuse an owner with controlled inputs (503 projection_unavailable), never misrepresent them. */
+async function representable(c: pg.PoolClient): Promise<void> {
+  if (await personalAnswerControlled(c)) throw new DomainError('projection_unavailable', CONTROLLED)
+}
+
 /** An export page asked for against an epoch an erasure has since moved. */
 const ERASED_SINCE = 'Everything was deleted since this copy began.'
 
@@ -154,7 +166,10 @@ function readRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
     },
     async (req) => {
       const timeZone = req.query.timeZone ?? 'UTC'
-      const space = await withActor(pool, req.actorId, 'read', (c) => readPersonalSpace(c, timeZone))
+      const space = await withActor(pool, req.actorId, 'read', async (c) => {
+        await representable(c)
+        return readPersonalSpace(c, timeZone)
+      })
       // Live only to whom it answers live (#435 4304290370): anyone else's own space reads as without a companion.
       return { companion: companion?.serves(req.actorId) ? companion.mode : 'unavailable', ...space }
     },
@@ -181,6 +196,7 @@ function readRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
       // an erased space with what came after it, nor outlives it.
       const page = await withActor(pool, req.actorId, 'read', async (c) => {
         if ((await readPersonalEpoch(c)) !== epochOf(req.headers)) throw new DomainError('request_erased', ERASED_SINCE)
+        await representable(c)
         return readPersonalExport(c, after)
       })
       return { exportedAt: new Date().toISOString(), ...page }
@@ -206,7 +222,10 @@ function pageRoutes(app: FastifyInstance, { pool }: Deps): void {
     async (req) => {
       const after = Number(req.query.after)
       if (!Number.isSafeInteger(after)) throw new DomainError('invalid_request', 'after is beyond the largest turn')
-      return withActor(pool, req.actorId, 'read', (c) => readPersonalTurnsAfter(c, after))
+      return withActor(pool, req.actorId, 'read', async (c) => {
+        await representable(c)
+        return readPersonalTurnsAfter(c, after)
+      })
     },
   )
 
@@ -226,7 +245,10 @@ function pageRoutes(app: FastifyInstance, { pool }: Deps): void {
     async (req) => {
       const before = Number(req.query.before)
       if (!Number.isSafeInteger(before)) throw new DomainError('invalid_request', 'before is beyond the largest turn')
-      return withActor(pool, req.actorId, 'read', (c) => readPersonalTurnsBefore(c, before))
+      return withActor(pool, req.actorId, 'read', async (c) => {
+        await representable(c)
+        return readPersonalTurnsBefore(c, before)
+      })
     },
   )
 }
@@ -242,7 +264,9 @@ function conversationRoutes(app: FastifyInstance, { pool, companion }: Deps): vo
       if (!companion?.serves(req.actorId))
         return reply.status(202).send(await replayed(pool, req, (c) => replayPersonalTurn(c, key, req.body.text)))
       const receipt = await fenced(pool, req.actorId, req.headers, (c) => sendPersonalTurn(c, key, req.body.text))
-      if (receipt.turnId) void companion.answer(req.actorId, receipt.turnId)
+      // Committed (a replay too): the person's oldest waiting turn is resumed, this one or one before it (A2 R2). A write
+      // that failed, or whose outcome is unknown, threw above and wakes nothing.
+      void companion.resume(req.actorId)
       return reply.status(202).send(receipt)
     },
   )
@@ -274,7 +298,8 @@ function conversationRoutes(app: FastifyInstance, { pool, companion }: Deps): vo
       if (!companion?.serves(req.actorId))
         return reply.status(202).send(await replayed(pool, req, (c) => replayPersonalRetry(c, key, turnId)))
       const receipt = await fenced(pool, req.actorId, req.headers, (c) => retryPersonalTurn(c, key, turnId))
-      void companion.answer(req.actorId, turnId)
+      // As the send: resumed after the commit, a replay included; an automatic turn asked again passes 0102's guard.
+      void companion.resume(req.actorId)
       return reply.status(202).send(receipt)
     },
   )

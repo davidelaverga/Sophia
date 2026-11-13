@@ -6,7 +6,16 @@
   "exports": {
     ".": "./src/index.ts",
     "./envelope": "./src/envelope.ts",
-    "./plugin-wire": "./src/plugin-wire.ts"
+    "./plugin-wire": "./src/plugin-wire.ts",
+    "./runner-port": "./src/runner-port.ts",
+    "./runner-journal": "./src/runner-journal.ts",
+    "./runner-gateway": "./src/runner-gateway.ts",
+    "./runner-fake-t3": "./src/runner-fake-t3.ts",
+    "./t3-port-mapping": "./src/t3-port-mapping.ts",
+    "./owner-host-channel": "./src/owner-host-channel.ts",
+    "./owner-host-port-proxy": "./src/owner-host-port-proxy.ts",
+    "./owner-host-agent": "./src/owner-host-agent.ts",
+    "./t3-mcp-transport": "./src/t3-mcp-transport.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p ."

@@ -11,7 +11,7 @@
 // next assignment starts with none of the old one's. The latest command for the execution shown speaks; earlier ones
 // still open stay listed under it, each named. Only those for the execution shown can be tried again: one for an
 // earlier attempt or another session is said as such, and kept as it was (Codex F-007).
-import { useSyncExternalStore } from 'react'
+import { useLayoutEffect, useRef, useSyncExternalStore } from 'react'
 import { ConfirmButton, Tip } from '@sophia/ui'
 import {
   added,
@@ -44,6 +44,17 @@ import {
   type Offer,
 } from './receipts.ts'
 import type { Resource } from './resource.ts'
+import {
+  currentSaid,
+  guidanceWithheld,
+  inForce,
+  retryKinds,
+  stillOffered,
+  superseded,
+  workState,
+  type Observed,
+  type WorkState,
+} from './work-control.ts'
 
 export type { Offer } from './receipts.ts'
 
@@ -117,8 +128,22 @@ const followed = (space: string, command: Command) => ({
 /** Whether a command may be tried again from here now (receipts.ts `retryableNow`). */
 type Retryable = (k: Known) => boolean
 
-/** Where a command is: three bars filling as each step is observed, what that means, and Try again when unknown. */
-function Steps({ known, retryable, onRetry }: { known: Known; retryable: Retryable; onRetry: () => void }) {
+/**
+ * Where a command is: three bars filling as each step is observed, what that means, and Try again when unknown. `of`
+ * names it when it isn't the latest for the execution shown (r3 repair 8): its kind, and its own execution when that
+ * isn't the one shown.
+ */
+function Steps({
+  known,
+  retryable,
+  onRetry,
+  of,
+}: {
+  known: Known
+  retryable: Retryable
+  onRetry: () => void
+  of?: string | undefined
+}) {
   const steps = stepsOf(known.command.kind)
   const at = reached(known)
   const again = retryable(known)
@@ -136,6 +161,8 @@ function Steps({ known, retryable, onRetry }: { known: Known; retryable: Retryab
         ))}
       </ol>
       <p>
+        {of && <span className="act-earlier-kind">{of}</span>}
+        {of && ' '}
         {knownSaid(known, !againable(known) || again)}
         {again && (
           <>
@@ -197,7 +224,6 @@ function Earlier({ known, shown, retryable, onRetry }: EarlierProps) {
 }
 
 type Control = 'steer' | 'hold' | 'stop'
-const ACT_NAME: Record<Control, string> = { steer: 'Guidance', hold: 'Hold', stop: 'Stop' }
 const AS_COMMAND: Record<Control, CommandKind> = { steer: 'guidance', hold: 'hold', stop: 'stop' }
 
 /** The acts a resource's route supports, in order. */
@@ -210,9 +236,9 @@ export const routeOffers = (resource: Resource): Offer[] => supported(resource).
 /** Whether its owner can act on a session at all here: some control its route supports. */
 export const canAct = (resource: Resource) => supported(resource).length > 0
 
-/** What the route's acts are, in words: "Guidance, Hold or Stop", "Hold or Stop". */
-export function actsSaid(resource: Resource): string {
-  const names = supported(resource).map((c) => ACT_NAME[c])
+/** What may be sent now, in words, in the order offered: "Guidance, Hold or Stop", "Stop". */
+export function offersSaid(offers: readonly Offer[]): string {
+  const names = offers.map((o) => KIND_NAME[o.kind])
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names.at(-1) ?? ''}` : (names[0] ?? '')
 }
 
@@ -226,6 +252,8 @@ interface Props {
   acts: Acts
   /** The keys that press Hold (or Resume) and Stop where they are bound (a task's sheet: H, S), shown in their tips. */
   keys?: { hold: string; stop: string } | undefined
+  /** What the work's view observes of its control, apart from what was sent here (work-control.ts). */
+  observed?: Observed | undefined
 }
 
 /**
@@ -311,11 +339,67 @@ function Offered({ target, offer, acts, onSend, keys }: Props & { onSend: (kind:
  * The commands offered for one target, each said as it is observed. With no port to send through, none is offered,
  * nor tried again, and what was sent is still said, its receipts landing as they come (Codex F-021).
  */
-export function SessionActs({ target, offer, acts, keys }: Props) {
+/**
+ * When the press that had the focus leaves because what may be sent changed (Hold pressed by keys, a Stop settled), the
+ * focus goes to the status line in the same sheet, never to the page; a focus elsewhere is left where it is.
+ */
+function useFocusKept(allowedKey: string) {
+  const box = useRef<HTMLDivElement>(null)
+  const status = useRef<HTMLDivElement>(null)
+  const held = useRef(false)
+  useLayoutEffect(() => {
+    const lost = document.activeElement === null || document.activeElement === document.body
+    if (held.current && lost) status.current?.focus()
+  }, [allowedKey])
+  const onFocus = () => {
+    held.current = true
+  }
+  const onBlur = (e: React.FocusEvent) => {
+    // Gone elsewhere on purpose: not ours to bring back. Removed from under the focus: no next target, kept.
+    if (e.relatedTarget instanceof Node && !box.current?.contains(e.relatedTarget)) held.current = false
+  }
+  return { box, status, onFocus, onBlur }
+}
+
+/** What the status line says now: its rows, and the current state when no row says anything. */
+interface Status {
+  forceShown: Known | undefined
+  latestShown: Known | undefined
+  saidLine: string | undefined
+}
+
+/**
+ * The settled control the work's state rests on, said as sent, when it isn't the latest here (r3 repair 8, UI-DE66-F11).
+ * Its view observing the work stopped overtakes a Hold or Resume: the latest is said only while it isn't overtaken
+ * (r3 repair 9, UI18-F12), and nothing is made up in its place. With no row said, the line says the current state, a
+ * stop its view observes, never left blank for the focus it is handed (r3 repair 10, UI9-F13).
+ */
+function statusOf(
+  known: readonly Known[],
+  target: CommandTarget,
+  observed: Observed,
+  latest: Known | undefined,
+  state: WorkState,
+): Status {
+  const force = inForce(known, target, observed)
+  const latestShown = latest && !superseded(latest, force) ? latest : undefined
+  const forceShown = force && force !== latestShown ? force : undefined
+  const said = currentSaid(state, Boolean(forceShown ?? latestShown))
+  return { forceShown, latestShown, saidLine: said ? `${said.status}. ${said.sentence}` : undefined }
+}
+
+export function SessionActs({ target, offer, acts, keys, observed = null }: Props) {
   const known = acts.of(scopeOf(target))
   // The execution shown speaks; another attempt's or session's commands are its history, listed under it.
   const latest = known.findLast((k) => sameTarget(k.command.target, target))
-  const kinds = new Set(offer.map((o) => o.kind))
+  // Its control state, from every control sent for it and its view (work-control.ts): what is withheld, and why.
+  const state = workState(known, target, observed)
+  const allowed = stillOffered(offer, state)
+  const withheld = guidanceWithheld(offer, state, acts.draft(executionOf(target)))
+  // Tried again: what is still offered, and the controls in play, always their own operation, never a new one.
+  const kinds = retryKinds(offer, state)
+  const { forceShown, latestShown, saidLine } = statusOf(known, target, observed, latest, state)
+  const focus = useFocusKept(allowed.map((o) => o.kind).join(' '))
   const send = (kind: CommandKind) => acts.send(kind, target)
   // Tried again only with a port to send it through, and by the same rule as ever (Codex F-002, F-007, F-021).
   const retryable = (k: Known) => acts.canSend && retryableNow(k, kinds, target)
@@ -324,14 +408,28 @@ export function SessionActs({ target, offer, acts, keys }: Props) {
     if (retryable(k)) acts.retry(k.command.operation_id)
   }
   return (
-    <div className="session-acts">
+    <div className="session-acts" ref={focus.box} onFocus={focus.onFocus} onBlur={focus.onBlur}>
       {acts.canSend ? (
-        <Offered target={target} offer={offer} acts={acts} onSend={send} keys={keys} />
+        <>
+          {allowed.length > 0 && <Offered target={target} offer={allowed} acts={acts} onSend={send} keys={keys} />}
+          {withheld && <p className="act-note muted">{withheld}</p>}
+        </>
       ) : (
         <p className="act-note muted">{NOT_SENDABLE}</p>
       )}
       {/* Mounted before anything is said, so each step of the latest is announced as it comes; the rest is read. */}
-      <div role="status">{latest && <Steps known={latest} retryable={retryable} onRetry={() => retry(latest)} />}</div>
+      <div role="status" tabIndex={-1} ref={focus.status} className="act-status" aria-label={saidLine}>
+        {saidLine && <p className="act-note">{saidLine}</p>}
+        {forceShown && (
+          <Steps
+            known={forceShown}
+            of={[KIND_NAME[forceShown.command.kind], executionSaid(forceShown, target)].filter(Boolean).join(' ')}
+            retryable={retryable}
+            onRetry={() => retry(forceShown)}
+          />
+        )}
+        {latestShown && <Steps known={latestShown} retryable={retryable} onRetry={() => retry(latestShown)} />}
+      </div>
       <Earlier
         known={known.filter((k) => k !== latest && unresolved(k))}
         shown={target}

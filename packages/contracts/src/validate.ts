@@ -78,6 +78,14 @@ import {
   validateSearchPage,
   validateProjectTask,
   validateProjectTaskList,
+  validateProjectNativeResourcePage,
+  validatePersonalAnswerReceipt,
+  validatePersonalAnswerDecisionList,
+  validatePersonalAnswerControlReceipt,
+  validatePersonalAnswerControlView,
+  validatePersonalAnswerControlLog,
+  validatePersonalControlledTurnPage,
+  validatePersonalControlledExport,
 } from './generated/validators.js'
 import type { CursorAdvance, Error as ErrorBody, Event } from './generated-types.ts'
 
@@ -179,6 +187,35 @@ export const parseConversationWithdrawal = parser('ConversationWithdrawal', vali
 export const parseConversationErasure = parser('ConversationErasure', validateConversationErasure)
 export const parseDesignEditReceipt = parser('DesignEditReceipt', validateDesignEditReceipt)
 export const parseDesignRetryReceipt = parser('DesignRetryReceipt', validateDesignRetryReceipt)
+/**
+ * One page of a project's native resource catalog (A51). A tolerant reader like the rest: a property the contract does
+ * not list is dropped, not refused. The schema's relational meaning (owner and viewer agreement, the operations' set
+ * and order, nextCursor against complete) is left to the consumer that reads it.
+ */
+export const parseProjectNativeResourcePage = parser('ProjectNativeResourcePage', validateProjectNativeResourcePage)
+/**
+ * A Personal Answer receipt (A53): the decision its own send, retry or cancel made. Tolerant like the rest; the pairing
+ * of the operation with its decision's operation is left to the consumer.
+ */
+export const parsePersonalAnswerReceipt = parser('PersonalAnswerReceipt', validatePersonalAnswerReceipt)
+/** One input's decisions (A53), in seq order and without the answer profile; tolerant like the rest. */
+export const parsePersonalAnswerDecisionList = parser('PersonalAnswerDecisionList', validatePersonalAnswerDecisionList)
+/**
+ * A Personal answer control's receipt (A54): its own outcome and snapshot when it was made, a refused admission
+ * included. Tolerant like the rest; the pairing of the operation with its action is left to the consumer.
+ */
+export const parsePersonalAnswerControlReceipt = parser(
+  'PersonalAnswerControlReceipt',
+  validatePersonalAnswerControlReceipt,
+)
+/** One automatic input as it stands now (A54): history, control, calls, withheld answers; tolerant like the rest. */
+export const parsePersonalAnswerControlView = parser('PersonalAnswerControlView', validatePersonalAnswerControlView)
+/** A page of the owner's control operations (A54), oldest first; tolerant like the rest. */
+export const parsePersonalAnswerControlLog = parser('PersonalAnswerControlLog', validatePersonalAnswerControlLog)
+/** A page of a conversation with controlled inputs (A54); tolerant like the rest. */
+export const parsePersonalControlledTurnPage = parser('PersonalControlledTurnPage', validatePersonalControlledTurnPage)
+/** One page of the versioned export (A54); tolerant like the rest. */
+export const parsePersonalControlledExport = parser('PersonalControlledExport', validatePersonalControlledExport)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {

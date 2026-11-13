@@ -906,8 +906,15 @@ describe('the live personal companion (local provider double)', () => {
     assert.deepEqual(turnsAfter.turns, [], 'nothing of the erased words, no answer')
     assert.equal(recorded().length, sentBefore, 'the provider was asked nothing')
     assert.deepEqual(await usage('first-payer'), [], 'nothing reserved')
-    // The branch taken, each reservation statement recorded once: one, after the erasure, answering not_current.
-    assert.deepEqual(at.outcome, [{ ordinal: 1, rows: [{ outcome: 'not_current' }] }])
+    // The branch taken, each reservation statement recorded once: one, after the erasure, answering not_current
+    // (through 0103's controlled entry, which also names its protocol and the execution digest it would have tagged).
+    assert.equal(at.outcome.length, 1)
+    const [only] = at.outcome
+    assert.equal(only?.ordinal, 1)
+    const rows = only?.rows as { r?: { outcome?: unknown; protocol?: unknown } }[]
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0]?.r?.outcome, 'not_current')
+    assert.equal(rows[0]?.r?.protocol, 1)
     assert.equal(at.delegated, 1)
     // After the erasure, the old epoch's write is refused and writes nothing; the new epoch writes as before.
     const stale = await call(api, '/api/v1/personal/resume', EVE, {}, oldEpoch)

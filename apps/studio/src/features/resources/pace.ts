@@ -60,7 +60,8 @@ export type Reading = Pick<QuotaObservation, 'observed_at' | 'source_channel'>
 
 /**
  * The pace of an observed percentage window known to apply; null for any other window, a window without a reset, or
- * one whose length isn't certain.
+ * one whose length isn't certain. Null too when its reset, the reading's time, the clock or its value isn't a finite
+ * number (r3 repair 5, UI85C4-F09): no share of a window, no date and no estimate is made from a time that isn't one.
  */
 export function pace(w: QuotaWindow, reading: Reading, now: Date): Pace | null {
   const length = LENGTH[reading.source_channel]?.[w.window_id]
@@ -68,8 +69,9 @@ export function pace(w: QuotaWindow, reading: Reading, now: Date): Pace | null {
   if (!length || !percent || w.state !== 'observed' || w.applicability !== 'known') return null
   if (w.value === null || w.resets_at === null) return null
   const reset = Date.parse(w.resets_at)
-  if (reset <= now.getTime()) return null
   const readAt = Date.parse(reading.observed_at)
+  if (![reset, readAt, now.getTime(), w.value].every(Number.isFinite)) return null
+  if (reset <= now.getTime()) return null
   const passed = Math.min(1, Math.max(0, (readAt - (reset - length)) / length))
   return ahead(passed, runsOutAt(w.value, passed, length, readAt), reset, now)
 }

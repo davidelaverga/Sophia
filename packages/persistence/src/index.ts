@@ -281,6 +281,15 @@ export {
   takeBackPersonalRelease,
   type CompanionContext,
 } from './personal.ts'
+// INC03-CC-003 A3 (0103, A54): the versioned owner reads of a conversation with controlled inputs.
+export {
+  PERSONAL_CONTROLLED_PAGE,
+  readPersonalControlledExport,
+  readPersonalControlledTurns,
+  type PersonalControlledExportPage,
+  type PersonalControlledTurn,
+  type PersonalControlledTurnPage,
+} from './personal.ts'
 export {
   holdPersonalCompanion,
   personalCompanionAdmitted,
@@ -296,6 +305,62 @@ export {
   type PersonalSettledOutcome,
   type PersonalUsageCounts,
 } from './personal-usage.ts'
+// INC03-CC-003 A2: the Answer operation's writers and read (0101), reachable now through the A53 routes, and the effect
+// guard every fresh answer reservation passes (0102).
+export {
+  cancelPersonalAnswerInput,
+  isPersonalAnswerProfile,
+  PERSONAL_ANSWER_V1,
+  readPersonalAnswerDecisions,
+  retryPersonalAnswerInput,
+  sendPersonalAnswerInput,
+  type PersonalAnswerDecisionRecord,
+  type PersonalAnswerProfile,
+  type PersonalAnswerReceipt as PersonalAnswerReceiptRecord,
+} from './personal-admission.ts'
+export {
+  personalAnswerGuardInstalled,
+  readPersonalAnswerOrigin,
+  readPersonalAnswerRefusals,
+  reserveGuardedPersonalAnswer,
+  type PersonalAnswerEffect,
+  type PersonalAnswerOrigin,
+  type PersonalAnswerRefusal,
+  type PersonalAnswerRefusalReason,
+  type PersonalAnswerSpend,
+} from './personal-answer-effects.ts'
+// INC03-CC-003 A3 (0103): the owner's control of an automatic answer, and the launch fence of a live call.
+export {
+  admitPersonalAnswerInput,
+  beginPersonalAnswerLaunch,
+  controlPersonalAnswerInput,
+  PERSONAL_ANSWER_CONTROL_PAGE,
+  personalAnswerControlled,
+  personalAnswerControlsInstalled,
+  readPersonalAnswerControl,
+  readPersonalAnswerControlLog,
+  readPersonalWithheldAnswer,
+  reserveControlledPersonalAnswer,
+  retainPersonalWithheldAnswer,
+  type PersonalAnswerRetention,
+  type PersonalAnswerAuthority,
+  type PersonalAnswerControlAction,
+  type PersonalAnswerControlReceipt,
+  type PersonalAnswerControlResult,
+  type PersonalAnswerExecution,
+  type PersonalAnswerLaunch,
+  type PersonalControlledEffect,
+  type PersonalControlledReservation,
+} from './personal-answer-controls.ts'
+export {
+  PERSONAL_AUTOMATIC_V1,
+  PERSONAL_INPUT_PAGE_LIMIT,
+  readPersonalInputs,
+  recordPersonalInput,
+  type PersonalInputPage,
+  type PersonalInputRecord,
+  type PersonalInputSend as PersonalInputWrite,
+} from './personal-inputs.ts'
 export { listProjects, PROJECT_LIST_BOUNDS, type ProjectListing } from './project-list.ts'
 export {
   admitWorkCommand,
@@ -368,6 +433,17 @@ export {
   type ConversationSendWrite,
   type ConversationStartWrite,
 } from './conversations.ts'
+// Versioned automatic inputs (INC03-CC-002 S01b, 0095): the two writers the automatic-input routes call.
+export {
+  AUTOMATIC_V1,
+  isInputReceipt,
+  sendConversationInput,
+  startConversationInput,
+  type AutomaticContract,
+  type ConversationInputReceipt,
+  type ConversationInputSend,
+  type ConversationInputStart,
+} from './conversation-inputs.ts'
 
 export {
   runtimeConversationClaim,
@@ -391,3 +467,53 @@ export {
   removedJustNow,
   removeMember,
 } from './activity.ts'
+export {
+  admitRunnerOperation,
+  claimRunnerOutbox,
+  maintainRunnerOperations,
+  prepareRunnerSend,
+  readRunnerOperation,
+  readRunnerOperations,
+  recordRunnerAnswer,
+  runnerFollowups,
+  type OwnerRunner,
+  type PrepareOutcome,
+  type RunnerFollowup,
+  type RunnerRecord,
+  type RunnerClaim,
+  type RunnerRecordTarget,
+} from './runner-operations.ts'
+export {
+  BLOCK_NEW_CALLS_POLICY,
+  CONTRIBUTION_WRITES,
+  contributionRefusalOf,
+  contributionWrite,
+  readMyContributions,
+  readProjectContributions,
+  readResearchTaskFunding,
+  ContributionRefusal,
+  ContributionUnsupported,
+  type ContributionReadinessReason,
+  type ContributionSettings,
+  type ContributionWrite,
+  type ProjectContribution,
+  type ResearchTaskFunding,
+} from './api-contributions.ts'
+export { readProjectNativeResources } from './project-resources.ts'
+export {
+  createOwnerHostPairing,
+  DbExchangeStore,
+  DbHostChannel,
+  listOwnerHosts,
+  maintainOwnerHosts,
+  ownerHostRunner,
+  redeemOwnerHostPairing,
+  retireOwnerHost,
+  revokeOwnerHost,
+  revokeOwnerHostPairing,
+  type OwnerHostPairing,
+  type OwnerHostPairingView,
+  type OwnerHostRunner,
+  type OwnerHostView,
+  type RedeemResult,
+} from './owner-host-enrollment.ts'

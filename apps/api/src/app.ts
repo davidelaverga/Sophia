@@ -30,8 +30,12 @@ import { humanTaskRoutes, TASK_WRITES } from './routes/human-tasks.ts'
 import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
 import { missionRoutes } from './routes/mission.ts'
 import { personalRoutes } from './routes/personal.ts'
+import { personalInputRoutes } from './routes/personal-inputs.ts'
+import { personalAnswerControlRoutes } from './routes/personal-answer-controls.ts'
+import { PERSONAL_ANSWERS_SCHEMA, personalAnswerRoutes } from './routes/personal-answers.ts'
 import { needsRoutes } from './routes/needs.ts'
 import { CONVERSATION_SCHEMA, projectConversationRoutes } from './routes/project-conversations.ts'
+import { CONVERSATION_INPUTS_SCHEMA, conversationInputRoutes } from './routes/conversation-inputs.ts'
 import { updatesRoutes } from './routes/updates.ts'
 import { contributionActRoutes } from './routes/contribution-acts.ts'
 import { profileRoutes } from './routes/profile.ts'
@@ -44,6 +48,9 @@ import { roomRoutes } from './routes/rooms.ts'
 import { designRoutes } from './routes/design.ts'
 import { RENDERER_ROUTES, rendererRoutes } from './routes/renderer.ts'
 import { RUNTIME_ROUTES, conversationRuntimeRoutes, researchRoutes, runtimeRoutes } from './routes/runtime.ts'
+import { OWNER_RUNNER_SCHEMA, runnerOperationRoutes, type OwnerRunnerAdmissions } from './routes/runner-operations.ts'
+import { apiContributionRoutes } from './routes/api-contributions.ts'
+import { projectResourceRoutes } from './routes/project-resources.ts'
 import { sourceRoutes } from './routes/sources.ts'
 import type { LiveKitConfig } from './livekit.ts'
 import { NotificationHub } from './notification-hub.ts'
@@ -101,6 +108,34 @@ export interface AppDeps {
    * exists and /ready requires nothing of migration 0063, so this API and the previous one run on either database.
    */
   conversations?: boolean
+  /**
+   * Saved-conversation automatic inputs (INC03-CC-002 S01b, amendment A49, migration 0095): off unless set, and only with
+   * `conversations` (set alone, buildApp refuses the configuration). server.ts does not set it. Off, no A49 route exists
+   * and /ready requires nothing of 0095; on, /ready requires 0095's two writers.
+   */
+  conversationInputs?: boolean
+  /**
+   * Personal automatic inputs (INC03-CC-002 P2, amendment A52, migrations 0098 and 0099): off unless set; server.ts
+   * does not set it. Off, POST /api/v1/personal/inputs does not exist (404) and nothing is written; turned off again
+   * after it was on, the held turns it kept stay readable in every Personal read.
+   */
+  personalInputs?: boolean
+  /**
+   * Personal answers (INC03-CC-003 A2, amendment A53, migrations 0101 and 0102): off unless set; server.ts does not set
+   * it. Off, /api/v1/personal/answers and its operations do not exist (404). On, only with a live companion whose
+   * settings make a trusted answer profile 0101 accepts (anything else: buildApp refuses the configuration), and /ready
+   * requires 0101's writers and 0102's guard. The guard and the resumption of waiting turns do not depend on it.
+   */
+  personalAnswers?: boolean
+  /**
+   * Paid admission of a Personal answer replacement (INC03-CC-003 A3, amendment A54, migration 0103): off unless set;
+   * server.ts does not set it. A replacement the owner asks for is admitted at once, or later by their own explicit
+   * admit, only with this AND personalAnswers on and the live companion's current profile; otherwise it is kept, held
+   * with its reason. It gates nothing else: the control routes (cancel, the held replacement, the reads, the export,
+   * replay) are served whenever 0103 is installed, whatever this or personalAnswers say. On without personalAnswers is a
+   * configuration error, refused when the app is built.
+   */
+  personalAnswerReplacementAdmission?: boolean
   /** The deployed commit (RENDER_GIT_COMMIT, 40 hex), served by /health so a probe can name what it reached; else null. */
   commit?: string | null
   /**
@@ -116,6 +151,20 @@ export interface AppDeps {
    * default. A call that finds none free within its wait (5 s) answers unknown, and runs and marks nothing.
    */
   callFenceSessions?: number
+  /**
+   * New owner-runner work (A47, migration 0092): `off` by default. The routes are always served: off refuses new
+   * creates and inputs (runner_admission_disabled) but still admits a qualified owner's Stop of a running binding, with
+   * all its checks, and the owner keeps reading work already admitted; a database without 0092
+   * answers those reads projection_unavailable, never an empty list, and /ready requires 0092 only with `admit`. Each
+   * admission still needs an operator-recorded qualification of the owner's route, which no request can create.
+   */
+  ownerRunnerAdmissions?: OwnerRunnerAdmissions
+  /**
+   * Member API contributions (A48, migration 0094): the owner's account and connection metadata, selected-project grants,
+   * admin narrowing, a member's funding pin and task funding. Off unless set: server.ts does not set it, so only a test
+   * (or a later, separately approved activation) mounts the boundary.
+   */
+  apiContributions?: boolean
 }
 
 /**
@@ -267,6 +316,13 @@ export const STORE_SCHEMA = `SELECT to_regprocedure('sophia.claim_object_write(t
  * (Codex P1 r4232908444). An API with it off, the default, and the previous API, require nothing of 0085 or 0087, and
  * of 0086 only the claim (REQUIRED_SCHEMA).
  */
+/**
+ * Member API contributions on (A48): 0094's write entry and 0100's rebuild funding guard (INC01-COHERENT-WRITE-003). An
+ * API with contributions on is not ready on a database without 0100, where a rebuilt contributed task would run unbound.
+ */
+export const CONTRIBUTION_FUNDING_SCHEMA = `SELECT to_regprocedure('sophia.api_contribution_write(text,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.contribution_lineage_unbound(uuid,uuid)') IS NOT NULL AS ok`
+
 export const VOICE_SCHEMA = `SELECT to_regprocedure('sophia.voice_qualification_guard()') IS NOT NULL
   AND to_regprocedure('sophia.media_record_evidence(uuid,uuid,integer,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.media_record_evidence_write(uuid,uuid,uuid,text,jsonb)') IS NOT NULL
@@ -299,6 +355,8 @@ export const writeOnceStore = (pool: pg.Pool, store: ByteStore | null | undefine
     : null
 
 export function buildApp(deps: AppDeps): FastifyInstance {
+  // Refuses automatic inputs without conversations, and answers without a live profile, before anything exists.
+  refuseMisconfiguration(deps)
   const app = Fastify({
     logger: deps.logger ?? false,
     genReqId: () => randomUUID(),
@@ -360,8 +418,20 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   coordinationRoutes(app, { pool: deps.pool })
   eventRoutes(app, { pool: deps.pool, hub, heartbeatMs: deps.eventPollMs ?? 10_000 })
   registerPersonal(app, deps)
-  if (deps.conversations) projectConversationRoutes(app, { pool: deps.pool })
+  registerConversationWrites(app, deps)
+  registerNativeRunner(app, deps)
+  // Member API contributions (A48, 0094): the whole boundary only when the API is built with it; off by default.
+  if (deps.apiContributions === true) apiContributionRoutes(app, { pool: deps.pool })
   return app
+}
+
+/**
+ * Owner-runner operations (A47), as before, and the native resource catalog (A51, 0097): the catalog is a read, always
+ * served whatever new owner-runner work admits.
+ */
+function registerNativeRunner(app: FastifyInstance, deps: AppDeps): void {
+  runnerOperationRoutes(app, { pool: deps.pool, admissions: deps.ownerRunnerAdmissions ?? 'off' })
+  projectResourceRoutes(app, { pool: deps.pool })
 }
 
 /**
@@ -376,7 +446,53 @@ function registerPersonal(app: FastifyInstance, deps: AppDeps): void {
     : null
   // Shutdown waits for the answers already accepted (their runs outlive the 202), before the pool or model close.
   if (companion) app.addHook('onClose', () => companion.close())
+  // R1 (A2): once ready, the live companion's one owner's oldest waiting turn is resumed (a restart, a config change),
+  // through the same runner and 0102's guard; whatever the Answer routes' switch. Its failure is reported, never thrown.
+  const owner = companion?.liveOwner ?? null
+  if (companion && owner)
+    app.addHook('onReady', () => {
+      void companion.resume(owner)
+      return Promise.resolve()
+    })
   personalRoutes(app, { pool: deps.pool, companion })
+  if (deps.personalInputs === true) personalInputRoutes(app, { pool: deps.pool })
+  if (companion && answersOn(deps)) personalAnswerRoutes(app, { pool: deps.pool, companion })
+  // Installation, not a switch, is the boundary (A54): served always, answering 503 where 0103 is not installed.
+  personalAnswerControlRoutes(app, {
+    pool: deps.pool,
+    companion,
+    replacementAdmission: replacementAdmissionOn(deps),
+  })
+}
+
+/** The switches' configuration errors, thrown before the app has anything of its own. */
+function refuseMisconfiguration(deps: AppDeps): void {
+  inputsOn(deps)
+  answersOn(deps)
+  replacementAdmissionOn(deps)
+}
+
+/**
+ * Whether a Personal answer replacement may be admitted with payment: personalAnswerReplacementAdmission AND
+ * personalAnswers (which itself requires a live companion with a supported profile). On without personalAnswers is a
+ * configuration error, refused when the app is built.
+ */
+function replacementAdmissionOn(deps: AppDeps): boolean {
+  if (deps.personalAnswerReplacementAdmission !== true) return false
+  if (!answersOn(deps)) throw new Error('personalAnswerReplacementAdmission requires personalAnswers')
+  return true
+}
+
+/**
+ * Whether the Answer routes are served: the switch on, with a live companion whose live settings make a trusted answer
+ * profile 0101 accepts. On without one is a configuration error, refused when the app is built.
+ */
+function answersOn(deps: AppDeps): boolean {
+  if (deps.personalAnswers !== true) return false
+  const { companion } = deps
+  if (companion?.mode !== 'live' || !companion.answerProfile?.())
+    throw new Error('personalAnswers requires a live companion with a supported answer profile')
+  return true
 }
 
 /** Routes anyone may call. Everything else, matched or not, needs a verified actor. */
@@ -502,31 +618,65 @@ function handleError(err: FastifyError | DomainError, req: FastifyRequest, reply
 const companionReady = async (companion: Companion | null): Promise<boolean> =>
   companion?.ready ? companion.ready() : true
 
+/**
+ * Saved project conversations (A33), and their automatic inputs (A49, 0095) only with conversations on as well. Kept
+ * apart from buildApp so the composed app stays within its length.
+ */
+function registerConversationWrites(app: FastifyInstance, deps: AppDeps): void {
+  if (deps.conversations) projectConversationRoutes(app, { pool: deps.pool })
+  if (inputsOn(deps)) conversationInputRoutes(app, { pool: deps.pool })
+}
+
+/**
+ * Whether the automatic-input routes are served: both switches on. Inputs without conversations is a configuration
+ * error, refused when the app is built, so it never looks enabled while no route exists.
+ */
+function inputsOn(deps: AppDeps): boolean {
+  if (deps.conversationInputs !== true) return false
+  if (deps.conversations !== true) throw new Error('conversationInputs requires conversations')
+  return true
+}
+
 /** What /health and /ready answer for: the schema parts this API's switches require, its companion and its commit. */
 interface Health {
   stores: boolean
   conversations: boolean
+  conversationInputs: boolean
+  personalAnswers: boolean
   companion: Companion | null
   voice: boolean
+  ownerRunners: boolean
+  apiContributions: boolean
   commit: string | null
 }
 
 const healthOf = (deps: AppDeps): Health => ({
   stores: Boolean(deps.byteStore),
   conversations: Boolean(deps.conversations),
+  conversationInputs: inputsOn(deps),
+  personalAnswers: answersOn(deps),
   companion: deps.companion ?? null,
   voice: deps.voiceQualification === true,
+  ownerRunners: deps.ownerRunnerAdmissions === 'admit',
+  apiContributions: deps.apiContributions === true,
   commit: deps.commit ?? null,
 })
 
 /** Whether the database has every function and column this API's switches call (each part only when it is on). */
-async function schemaReady(pool: pg.Pool, { stores, conversations, voice }: Health): Promise<boolean> {
+async function schemaReady(
+  pool: pg.Pool,
+  { stores, conversations, conversationInputs, personalAnswers, voice, ownerRunners, apiContributions }: Health,
+): Promise<boolean> {
   const part = async (on: boolean, sql: string) => !on || (await pool.query<{ ok: boolean }>(sql)).rows[0]?.ok === true
   return (
     (await part(true, REQUIRED_SCHEMA)) &&
     (await part(stores, STORE_SCHEMA)) &&
     (await part(conversations, CONVERSATION_SCHEMA)) &&
-    (await part(voice, VOICE_SCHEMA))
+    (await part(conversationInputs, CONVERSATION_INPUTS_SCHEMA)) &&
+    (await part(personalAnswers, PERSONAL_ANSWERS_SCHEMA)) &&
+    (await part(voice, VOICE_SCHEMA)) &&
+    (await part(ownerRunners, OWNER_RUNNER_SCHEMA)) &&
+    (await part(apiContributions, CONTRIBUTION_FUNDING_SCHEMA))
   )
 }
 

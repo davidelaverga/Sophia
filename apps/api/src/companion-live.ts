@@ -4,6 +4,12 @@
 // conversation, other person, tool or memory reaches it. Each call is reserved before the provider is asked and settled
 // from the usage the provider reported (0073); one whose usage is unknown stays uncertain and holds the payer.
 // Sophia's welcome back stays the fixed one: no model call is made for it.
+// Every reservation passes 0102's effect guard (INC03-CC-003 A2): an automatic turn is answered only under its admitted
+// decision and only while the profile built here from the live settings, for that call, equals the one it froze.
+// The launch fence (INC03-CC-003 A3, 0103): once 0103 is installed, every call reserves through its controlled entry,
+// which tags it with this call's frozen execution, and prepares only after its own fresh launch grant; a call the owner
+// withdrew first never prepares. After the grant, preparing may already be external: a failure or a stop there is held
+// uncertain under the call, never released. Positively without 0103, calls go exactly as before.
 import { createHash } from 'node:crypto'
 import {
   ReasoningEffortId,
@@ -13,17 +19,27 @@ import {
   type TokenUsage,
 } from '@deepseek-ai/dsh-llm'
 import {
+  beginPersonalAnswerLaunch,
   holdPersonalCompanion,
+  isPersonalAnswerProfile,
+  personalAnswerControlsInstalled,
   personalCompanionAdmitted,
   personalSettledAnswersInstalled,
   readPersonalSettledAnswer,
-  reservePersonalAnswer,
+  readPersonalWithheldAnswer,
+  retainPersonalWithheldAnswer,
+  type PersonalAnswerRetention,
+  reserveControlledPersonalAnswer,
+  reserveGuardedPersonalAnswer,
   releasePersonalCompanion,
   settlePersonalCompanion,
   settlePersonalCompanionAnswer,
   withActor,
   type CompanionContext,
-  type PersonalReservation,
+  type PersonalAnswerExecution,
+  type PersonalAnswerLaunch,
+  type PersonalAnswerProfile,
+  type PersonalControlledEffect,
   type PersonalSettledOutcome,
   type PersonalUsageCounts,
 } from '@sophia/persistence'
@@ -157,6 +173,50 @@ export function liveSettings(raw: string | undefined): LiveCompanionSettings {
   })
 }
 
+/**
+ * The trusted answer profile (A1, 0101) of these settings, built anew each time it is asked for: exactly the fields 0101
+ * keeps, from the settings as they are, nothing normalized or repriced, and never the credential reference or provider
+ * profile. Null when 0101 would not accept it (its model and effort bounds are narrower than these settings'): an
+ * automatic answer is then refused explicitly, while a legacy turn and a kept answer are not affected.
+ */
+export function answerProfile(settings: LiveCompanionSettings): PersonalAnswerProfile | null {
+  const { call, prices } = settings
+  const profile: unknown = {
+    version: 1,
+    owner: settings.owner,
+    payer: settings.payer,
+    routeId: settings.routeId,
+    roleDigest: settings.roleDigest,
+    provider: call.provider,
+    model: call.model,
+    reasoningEffort: call.reasoningEffort,
+    maxTokens: call.maxTokens,
+    prices: { input: prices.input, cacheRead: prices.cacheRead, cacheWrite: prices.cacheWrite, output: prices.output },
+  }
+  return isPersonalAnswerProfile(profile) ? profile : null
+}
+
+/**
+ * The call's frozen execution (0103): the answer profile's shape, built from these settings for every call, a legacy
+ * turn's too, so it stands whether or not 0101 would accept it as a profile. Its digest tags the call; the launch grant
+ * compares it again, and for an automatic turn the admitted profile is this.
+ */
+export function executionOf(settings: LiveCompanionSettings): PersonalAnswerExecution {
+  const { call, prices } = settings
+  return {
+    version: 1,
+    owner: settings.owner,
+    payer: settings.payer,
+    routeId: settings.routeId,
+    roleDigest: settings.roleDigest,
+    provider: call.provider,
+    model: call.model,
+    reasoningEffort: call.reasoningEffort,
+    maxTokens: call.maxTokens,
+    prices: { input: prices.input, cacheRead: prices.cacheRead, cacheWrite: prices.cacheWrite, output: prices.output },
+  }
+}
+
 /** At most this many bytes of the person's turns, and of their notes, go to the provider; the newest are kept. */
 const TURN_BYTES = 24_000
 const NOTE_BYTES = 6_000
@@ -255,7 +315,10 @@ interface Collected {
   text: string
   usage: TokenUsage | null
   ambiguousUsage: boolean
+  /** How the call ended for its cost and its publication: a stop overrides what the stream said. */
   finish: 'stop' | 'max-tokens' | 'tool-calls' | 'error' | 'aborted' | 'none'
+  /** What the stream itself reported (R1): a whole answer completed after a stop is still a whole answer. */
+  reported: Collected['finish']
   toolCall: boolean
 }
 
@@ -263,7 +326,7 @@ interface Collected {
 function take(into: Collected, chunk: StreamChunk): void {
   if (chunk.type === 'text-delta') into.text += chunk.text
   else if (chunk.type === 'tool-call-delta') into.toolCall = true
-  else if (chunk.type === 'finish') into.finish = chunk.reason.kind
+  else if (chunk.type === 'finish') into.finish = into.reported = chunk.reason.kind
   else if (chunk.type === 'usage') {
     if (into.usage !== null && JSON.stringify(into.usage) !== JSON.stringify(chunk.usage)) into.ambiguousUsage = true
     into.usage = { ...chunk.usage }
@@ -272,11 +335,18 @@ function take(into: Collected, chunk: StreamChunk): void {
 
 /** A call's stream reduced to what may be kept (B2's collectCall): the text, the usage, how it ended. */
 async function collect(chunks: AsyncIterable<StreamChunk>, signal: AbortSignal): Promise<Collected> {
-  const into: Collected = { text: '', usage: null, ambiguousUsage: false, finish: 'none', toolCall: false }
+  const into: Collected = {
+    text: '',
+    usage: null,
+    ambiguousUsage: false,
+    finish: 'none',
+    reported: 'none',
+    toolCall: false,
+  }
   try {
     for await (const chunk of chunks) take(into, chunk)
   } catch {
-    into.finish = 'error'
+    into.finish = into.reported = 'error'
   }
   if (signal.aborted) into.finish = 'aborted'
   return into
@@ -301,14 +371,18 @@ export function personalReply(text: string): CompanionReply | null {
   return { text: body, suggestion: storableNote(note) ? note : null }
 }
 
+/**
+ * Why no answer was given. From the reservation: 0073's and 0080's refusals, 'lost' (the turn's answer was made by a
+ * call whose settlement never committed, and is gone: never asked again, 0079), and 0102's: an automatic turn without
+ * a valid admission ('not_admitted'), a profile 0101 would not accept ('profile_unsupported') or one that differs from
+ * the admitted one ('profile_mismatch'), a database without the guard ('not_installed').
+ */
 type Refusal =
-  | Exclude<PersonalReservation, 'reserved'>
+  | Exclude<PersonalControlledEffect, 'reserved' | 'kept'>
+  | Exclude<PersonalAnswerLaunch, 'granted'>
   | 'unstorable'
   | 'no_answer'
   | 'route_mismatch'
-  | 'not_installed'
-  /** The turn's answer was made by a call whose settlement never committed, and is gone: never asked again (0079). */
-  | 'lost'
 
 /** A call that gave no answer, its reason a content-free code (the runner logs only a failure's name and code). */
 export class CompanionRefused extends Error {
@@ -344,11 +418,28 @@ const completed = (result: Collected): boolean =>
   result.finish === 'stop' || result.finish === 'max-tokens' || result.finish === 'tool-calls'
 type Prepared = Awaited<ReturnType<PersonalLlm['prepareCall']>>
 
+/** No adapter default may change the pinned model, effort or ceiling, or add sampling controls (as B2 checks). */
+const pinnedTo = (resolved: LlmCallConfig, call: PersonalCall): boolean =>
+  resolved.provider === call.provider &&
+  resolved.model === call.model &&
+  resolved.maxTokens === call.maxTokens &&
+  (resolved.reasoningEffort ?? null) === call.reasoningEffort &&
+  resolved.temperature === undefined &&
+  resolved.stop === undefined
+
 /** One live call's steps, each written as the calling owner under the call's id. */
 class LiveCall {
   private readonly settings: LiveCompanionSettings
   private readonly pool: pg.Pool
   private readonly call: CompanionCall
+  /**
+   * How this call was reserved, remembered from the reservation that answered 'reserved': 'controlled' (0103's tagged
+   * entry: it prepares only after its own fresh grant) or 'legacy' (0103 positively absent: b760's path). Never inferred.
+   */
+  private protocol: 'controlled' | 'legacy' | null = null
+  private digest: string | null = null
+  /** Its one launch grant was received: set once, never by a replay. */
+  private launched = false
 
   constructor(settings: LiveCompanionSettings, pool: pg.Pool, call: CompanionCall) {
     this.settings = settings
@@ -363,7 +454,9 @@ class LiveCall {
   /**
    * Reserve before the provider is asked, bound to the turn (0078); anything but 'reserved' asks nothing. 'kept': an
    * answer already paid for is kept for the turn, and it is written instead. Only under the turn's claim, while it is
-   * pending: an attempt whose claim went to another, or whose turn was answered meanwhile, is refused (R-C55).
+   * pending: an attempt whose claim went to another, or whose turn was answered meanwhile, is refused (R-C55). Through
+   * 0102's guard, with the profile built now from these settings: a refusal's diagnostic commits with the transaction,
+   * and only then is it thrown.
    */
   async reserve(prompt: string): Promise<'reserved' | 'kept'> {
     const { payer, routeId } = this.settings
@@ -372,17 +465,76 @@ class LiveCall {
     if (!turnId || !(await personalSettledAnswersInstalled(this.pool))) throw new CompanionRefused('not_installed')
     if (!claim) throw new CompanionRefused('not_current')
     const micros = personalReservation(prompt, this.settings)
+    const profile = answerProfile(this.settings)
+    // 0103 read positively: only its marker's absence, read without error, takes b760's path.
+    if (await personalAnswerControlsInstalled(this.pool)) {
+      const reserved = await this.owned((c, callId) =>
+        reserveControlledPersonalAnswer(
+          c,
+          { callId, turnId, claim },
+          { payer, routeId, micros, profile },
+          executionOf(this.settings),
+        ),
+      )
+      if (reserved.outcome !== 'reserved' && reserved.outcome !== 'kept') throw new CompanionRefused(reserved.outcome)
+      if (reserved.outcome === 'reserved') {
+        this.protocol = 'controlled'
+        this.digest = reserved.executionDigest
+      }
+      return reserved.outcome
+    }
     const outcome = await this.owned((c, callId) =>
-      reservePersonalAnswer(c, { callId, turnId, claim }, payer, routeId, micros),
+      reserveGuardedPersonalAnswer(c, { callId, turnId, claim }, { payer, routeId, micros, profile }),
     )
     if (outcome !== 'reserved' && outcome !== 'kept') throw new CompanionRefused(outcome)
+    if (outcome === 'reserved') this.protocol = 'legacy'
     return outcome
+  }
+
+  /**
+   * The launch fence (0103): a controlled call asks for its one grant before anything that may be external. Only a
+   * fresh 'granted' lets it prepare; anything else (withdrawn, refused, a replayed grant, no tag) refuses it before
+   * preparing. A grant whose acknowledgement is lost throws: nothing is prepared, and the call stays as it is (possibly
+   * launched, reconciled under its own id). A legacy call (0103 positively absent) has no fence.
+   */
+  async launch(): Promise<void> {
+    if (this.protocol !== 'controlled') return
+    const { claim } = this.call
+    const digest = this.digest
+    if (this.launched || !claim || !digest) throw new Error('A controlled call launches once')
+    const launch = await this.owned((c, callId) => beginPersonalAnswerLaunch(c, callId, claim, digest))
+    if (launch !== 'granted') throw new CompanionRefused(launch)
+    this.launched = true
   }
 
   /** The answer kept for the call's turn, read as it is (0078). */
   kept(): Promise<{ text: string; suggestion: string | null } | null> {
     const { turnId } = this.call
     return turnId ? this.owned((c) => readPersonalSettledAnswer(c, turnId)) : Promise.resolve(null)
+  }
+
+  /**
+   * A call given up while or after preparing. Once its launch was granted (a controlled call), preparing may already
+   * have been external, so it is held uncertain under its own id (`granted`), never released; a legacy call (0103
+   * positively absent) is released as before (`legacy`), its reasons b760's.
+   */
+  private letGo(granted: string, legacy: string): Promise<boolean> {
+    return this.owned((c, id) =>
+      this.protocol === 'controlled' ? holdPersonalCompanion(c, id, granted) : releasePersonalCompanion(c, id, legacy),
+    )
+  }
+
+  /**
+   * A controlled call prepares only after its own launch grant; one told to stop before preparing is begun was provably
+   * never asked, so its reservation is released (as b760 releases it).
+   */
+  private async beforePreparing(signal: AbortSignal): Promise<void> {
+    if (this.protocol !== 'controlled') return
+    if (!this.launched) throw new Error('A controlled call prepares only after its launch grant')
+    if (stopped(signal)) {
+      await this.owned((c, id) => releasePersonalCompanion(c, id, 'stopped_before_asking'))
+      throw new Error('The companion was told to stop')
+    }
   }
 
   /** The prepared call, validated before any provider I/O; refused before it, the reservation is released. */
@@ -394,24 +546,19 @@ class LiveCall {
       maxTokens,
       ...(reasoningEffort === null ? {} : { reasoningEffort: ReasoningEffortId(reasoningEffort) }),
     }
+    await this.beforePreparing(signal)
     let prepared: Prepared
     try {
       prepared = await llm.prepareCall(config, signal)
     } catch (err: unknown) {
-      await this.owned((c, id) => releasePersonalCompanion(c, id, 'not_prepared'))
+      await this.letGo('prepare_unknown', 'not_prepared')
       throw err
     }
-    // No adapter default may change the pinned model, effort or ceiling, or add sampling controls (as B2 checks).
-    const resolved = prepared.config
-    const pinned =
-      resolved.provider === provider &&
-      resolved.model === model &&
-      resolved.maxTokens === maxTokens &&
-      (resolved.reasoningEffort ?? null) === reasoningEffort &&
-      resolved.temperature === undefined &&
-      resolved.stop === undefined
+    const pinned = pinnedTo(prepared.config, this.settings.call)
     if (!pinned || stopped(signal)) {
-      await this.owned((c, id) => releasePersonalCompanion(c, id, pinned ? 'stopped_before_asking' : 'route_mismatch'))
+      await (pinned
+        ? this.letGo('stopped_after_launch', 'stopped_before_asking')
+        : this.letGo('prepare_unknown', 'route_mismatch'))
       throw pinned ? new Error('The companion was told to stop') : new CompanionRefused('route_mismatch')
     }
     return prepared
@@ -442,6 +589,7 @@ class LiveCall {
         usage: null,
         ambiguousUsage: false,
         finish: stopped(signal) ? 'aborted' : 'error',
+        reported: 'error',
         toolCall: false,
       }
     }
@@ -467,13 +615,41 @@ class LiveCall {
     for (let tried = 1; ; tried += 1) {
       try {
         const outcome = await this.settleOnce(used, reply)
-        if (tried > 1 && reply && outcome === 'not_settled' && !(await this.keptAs(reply)))
+        if (
+          tried > 1 &&
+          reply &&
+          outcome === 'not_settled' &&
+          !(await this.keptAs(reply)) &&
+          !(await this.withheldAs(reply))
+        )
           throw new Error('The settlement’s outcome is not known')
         return
       } catch (err: unknown) {
         if (tried >= SETTLE_TRIES || stopped(signal)) throw err
         await pauseUnless(SETTLE_PAUSE_MS * 2 ** (tried - 1), signal)
         if (stopped(signal)) throw err
+      }
+    }
+  }
+
+  /**
+   * R1/R2: a whole answer of this call whose cost could not be settled here (it was stopped, or its usage was missing
+   * or ambiguous) is kept privately (0103), its money left as held: 'retained' when its input was withdrawn, 'staged'
+   * while it is still active (a withdrawal that commits before this answer is written moves it to the withheld store),
+   * 'not_bound' when it is not this input's granted original call. Only an answer the stream itself finished ('stop', no
+   * tool call, no failure) and that can be stored; else null. Tried a bounded number of times with the same answer (a
+   * lost acknowledgement is recovered by the identical replay), never asked again; a conflict is not retried.
+   */
+  async retain(result: Collected): Promise<PersonalAnswerRetention | null> {
+    if (this.protocol !== 'controlled' || result.reported !== 'stop' || result.toolCall) return null
+    const reply = personalReply(result.text)
+    if (!reply) return null
+    for (let tried = 1; ; tried += 1) {
+      try {
+        return await this.owned((c, callId) => retainPersonalWithheldAnswer(c, callId, reply))
+      } catch (err: unknown) {
+        if (conflicted(err) || tried >= SETTLE_TRIES) throw err
+        await new Promise((resolve) => setTimeout(resolve, SETTLE_PAUSE_MS * 2 ** (tried - 1)))
       }
     }
   }
@@ -489,11 +665,54 @@ class LiveCall {
     return this.owned((c, id) => settlePersonalCompanion(c, id, used.micros, used.counts))
   }
 
+  /**
+   * Whether this answer is the one withheld for this very call (0103: the input was withdrawn): retained, though never
+   * written. Read only with 0103 installed; its money is reported by its own settlement, not by this.
+   */
+  private async withheldAs(reply: CompanionReply): Promise<boolean> {
+    if (!(await personalAnswerControlsInstalled(this.pool))) return false
+    const withheld = await this.owned((c, callId) => readPersonalWithheldAnswer(c, callId))
+    return withheld?.text === reply.text && withheld.suggestion === reply.suggestion
+  }
+
   /** Whether this answer is the one kept for the call's turn. */
   private async keptAs(reply: CompanionReply): Promise<boolean> {
     const kept = await this.kept()
     return kept?.text === reply.text && kept.suggestion === reply.suggestion
   }
+}
+
+/**
+ * After the one call: its cost settled with its answer when there is one to keep, or (R1/R2) a whole answer whose cost
+ * was not settled (stopped, or its usage unknown) kept privately, its cost held: withheld at once if its input was
+ * withdrawn (never written), else staged, so a withdrawal before the final write still keeps it. Then the answer is
+ * given (the final writer still refuses withdrawn work), or refused.
+ */
+async function concluded(
+  live: LiveCall,
+  result: Collected,
+  used: Used | null,
+  signal: AbortSignal,
+): Promise<CompanionReply> {
+  const answered = !stopped(signal) && !result.toolCall && result.finish === 'stop'
+  const reply = answered ? personalReply(result.text) : null
+  if (used) await live.settle(used, reply, signal)
+  const kept = used ? null : await live.retain(result)
+  // Told to stop (time up, or an erasure): its cost is settled or held above, and nothing of it is shown.
+  if (stopped(signal)) throw new Error('The companion was told to stop')
+  if (kept === 'retained') throw new CompanionRefused('withdrawn')
+  if (result.toolCall || result.finish !== 'stop') throw new CompanionRefused('no_answer')
+  if (!reply) throw new CompanionRefused('unstorable')
+  return reply
+}
+
+/** A unique violation (23505), raw or as the domain error withActor maps it to (its cause): a different answer kept. */
+function conflicted(err: unknown): boolean {
+  for (let e: unknown = err, depth = 0; depth < 3 && typeof e === 'object' && e !== null; depth += 1) {
+    if ('code' in e && e.code === '23505') return true
+    e = 'cause' in e ? e.cause : null
+  }
+  return false
 }
 
 /** The live companion: `llm` is the composed model service, `pool` the API's, settings parsed by liveSettings. */
@@ -508,16 +727,10 @@ export function liveCompanion(settings: LiveCompanionSettings, llm: PersonalLlm,
       if (!kept) throw new CompanionRefused('no_answer')
       return kept
     }
+    await live.launch()
     const prepared = await live.prepare(llm, signal)
     const { result, used } = await live.ask(prepared, prompt, signal)
-    const answered = !stopped(signal) && !result.toolCall && result.finish === 'stop'
-    const reply = answered ? personalReply(result.text) : null
-    if (used) await live.settle(used, reply, signal)
-    // Told to stop (time up, or an erasure): its cost is settled or held above, and nothing of it is shown.
-    if (stopped(signal)) throw new Error('The companion was told to stop')
-    if (result.toolCall || result.finish !== 'stop') throw new CompanionRefused('no_answer')
-    if (!reply) throw new CompanionRefused('unstorable')
-    return reply
+    return concluded(live, result, used, signal)
   }
 
   return {
@@ -527,6 +740,8 @@ export function liveCompanion(settings: LiveCompanionSettings, llm: PersonalLlm,
     greet: (_context, name) => Promise.resolve(rehearsalWelcome(name)),
     // Its payer is still admitted (0073 installed, and the operator's row kept).
     owner: settings.owner,
+    // The trusted profile the Answer operation decides under, built from these settings when asked (never a client's).
+    answerProfile: () => answerProfile(settings),
     ready: async () =>
       (await personalSettledAnswersInstalled(pool)) &&
       (await personalCompanionAdmitted(pool, settings.payer, settings.owner)),
