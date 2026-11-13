@@ -90,6 +90,7 @@ const EXPORTS = [
   'DesignEditReceipt',
   'DesignRetryReceipt',
   'ProjectNativeResourcePage',
+  'SelectionView',
   'PersonalAnswerReceipt',
   'PersonalAnswerDecisionList',
 ] as const

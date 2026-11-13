@@ -461,6 +461,8 @@ export {
   readResearchTaskFunding,
   ContributionRefusal,
   ContributionUnsupported,
+  type AccountProtection,
+  type AccountQualificationView,
   type ContributionReadinessReason,
   type ContributionSettings,
   type ContributionWrite,
@@ -468,6 +470,19 @@ export {
   type ResearchTaskFunding,
 } from './api-contributions.ts'
 export { readProjectNativeResources } from './project-resources.ts'
+// INC04-S01b (0104): the selection preview's server-internal snapshot.
+export {
+  readSelectionSnapshot,
+  type SelectionAccountQualification,
+  type SelectionApiFacts,
+  type SelectionCandidateFacts,
+  type SelectionCapacityReason,
+  type SelectionNativeFacts,
+  type SelectionProtection,
+  type SelectionRouteState,
+  type SelectionSnapshot,
+  type SelectionSourceState,
+} from './selection-snapshot.ts'
 export {
   createOwnerHostPairing,
   DbExchangeStore,

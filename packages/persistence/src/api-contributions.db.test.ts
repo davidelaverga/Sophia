@@ -39,6 +39,9 @@ import {
   type RuntimeCaller,
 } from './index.ts'
 import {
+  qualifyApiAccount,
+  revokeApiAccountQualification,
+  updateApiAccount,
   adminDisableContribution,
   adminNarrowContribution,
   clearResearchFundingPin,
@@ -1702,5 +1705,65 @@ describe('the operator CLI (synthetic, disposable)', () => {
       [w.connectionId],
     )
     assert.ok(!columns.t.includes(token))
+  })
+})
+
+// INC04-S01b (0104): the owner's protection declaration and the operator's account qualification. SYNTHETIC records:
+// recording one qualifies nothing live, and no application role can record it.
+describe('0104 owner protection and operator account qualification', () => {
+  it('lets the owner alone declare and withdraw protection, and reads it back to the owner alone', async () => {
+    const w = await world()
+    const initial = (await withActor(api, w.OWNER, 'read', readMyContributions)).accounts[0]!
+    assert.equal(initial.protection, null, 'no declaration by default, no backfill')
+    const r = await withActor(api, w.OWNER, 'write', (c) =>
+      updateApiAccount(c, w.account, initial.revision, {
+        protection: {
+          applicability: 'protected',
+          operations: ['research'],
+          roles: ['sophia-research-md-v1'],
+          protectedSpendUsd: 2,
+        },
+      }),
+    )
+    assert.equal(r.revision, initial.revision + 1)
+    assert.equal(
+      await codeOf(
+        withActor(api, w.REQ, 'write', (c) => updateApiAccount(c, w.account, r.revision, { protection: null })),
+      ),
+      'forbidden',
+    )
+    const mine = (await withActor(api, w.OWNER, 'read', readMyContributions)).accounts[0]!
+    assert.equal(mine.protection?.applicability, 'protected')
+    assert.equal(Number(mine.protection?.protectedSpendUsd), 2)
+    assert.deepEqual((await withActor(api, w.REQ, 'read', readMyContributions)).accounts, [])
+    await withActor(api, w.OWNER, 'write', (c) => updateApiAccount(c, w.account, r.revision, { protection: null }))
+    assert.equal((await withActor(api, w.OWNER, 'read', readMyContributions)).accounts[0]!.protection, null)
+  })
+
+  it('records an account qualification for the migration owner only, bound to the current credential revision', async () => {
+    const w = await world()
+    const input = {
+      connectionId: w.connectionId,
+      operations: ['research'] as ['research'],
+      verification: 'operator_verified_call' as const,
+      evidenceRef: 'synthetic: not live evidence',
+      observedAt: new Date(Date.now() - 60_000).toISOString(),
+      expiresAt: new Date(Date.now() + 86400_000).toISOString(),
+    }
+    for (const role of [api, worker]) {
+      assert.match(await codeOf(qualifyApiAccount(role, input)), /permission denied|forbidden|insufficient/i)
+    }
+    const q = await qualifyApiAccount(ownerPool, input)
+    assert.equal(q.credentialRevision, 1)
+    const state = async () =>
+      (await withActor(api, w.OWNER, 'read', readMyContributions)).connections[0]!.accountQualification.state
+    assert.equal(await state(), 'current')
+    await contributionRuntime(w.projectId, w.connectionId, true)
+    assert.equal(await state(), 'stale', 'a credential rotation stales the account record')
+    await revokeApiAccountQualification(ownerPool, q.qualificationId, 'synthetic revocation')
+    assert.match(
+      await codeOf(revokeApiAccountQualification(api, q.qualificationId, 'x')),
+      /permission denied|forbidden|insufficient/i,
+    )
   })
 })
