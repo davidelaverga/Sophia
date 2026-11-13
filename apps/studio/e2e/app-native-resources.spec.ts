@@ -7,7 +7,8 @@
 // Off (the default build, on the checks' own server): no Resources in the project's views and no catalog read at all.
 // On: a build of the same app with the flag set, on a server each worker owns (REC01-F01): started by that worker on a
 // port the system assigns, ready only while that same process serves the flagged build, and stopped with every process
-// it started, never another worker's. Resources in the views, read as the signed-in account, refused at once on a 404.
+// it started, never another worker's. Its whole start is under one deadline that also stops it, so a stalled answer
+// never outlives the hook, and a failure to stop it is said, never read as gone (REC01-F02). Resources in the views, read as the signed-in account, refused at once on a 404.
 // UX iteration 001: the project settled (its reads answered, its call joined through the fixtures' fake LiveKit), the
 // call's switches in reach over the sheet, and a final 401's Sign in again, which only a press starts: this device's
 // sign-out, the sign-in at the same address, a failure said with the person still in, no row shown again and no call
@@ -493,16 +494,35 @@ interface Owned {
   out: () => string
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+/** Why the deadline ended, as an Error, whatever it was aborted with. */
+const reasonOf = (signal: AbortSignal | undefined): Error =>
+  signal?.reason instanceof Error ? signal.reason : new Error(String(signal?.reason ?? 'aborted'))
+const sleep = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) return reject(reasonOf(signal))
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', stop)
+      resolve()
+    }, ms)
+    const stop = () => {
+      clearTimeout(timer)
+      reject(reasonOf(signal))
+    }
+    signal?.addEventListener('abort', stop, { once: true })
+  })
 const running = (child: ChildProcess) => child.exitCode === null && child.signalCode === null
 
-/** Whether any process of the group `pid` leads is still there. */
+/** Whether an error from signalling a group says the group is gone: ESRCH alone; anything else is no proof of that. */
+const gone = (error: unknown) => error instanceof Error && 'code' in error && error.code === 'ESRCH'
+
+/** Whether any process of the group `pid` leads is still there; a query refused for another reason is said, not read as gone. */
 function groupAlive(pid: number): boolean {
   try {
     process.kill(-pid, 0)
     return true
-  } catch {
-    return false
+  } catch (error) {
+    if (gone(error)) return false
+    throw new Error(`could not tell whether its processes (group ${String(pid)}) are gone`, { cause: error })
   }
 }
 
@@ -513,51 +533,63 @@ async function stopOwned(child: ChildProcess) {
   for (const signal of ['SIGTERM', 'SIGKILL'] as const) {
     try {
       process.kill(-pid, signal)
-    } catch {
-      return // the group is gone
+    } catch (error) {
+      if (gone(error)) return
+      throw new Error(`could not send ${signal} to its processes (group ${String(pid)})`, { cause: error })
     }
     for (let waited = 0; waited < STOP_MS && groupAlive(pid); waited += 100) await sleep(100)
     if (!groupAlive(pid)) return
   }
-  throw new Error(`the flagged app server's processes (group ${String(pid)}) did not stop`)
+  throw new Error(`its processes (group ${String(pid)}) did not stop`)
 }
 
-/** The address the server's own process prints, or why it never will: it could not start, or it ended first. */
-function announced(child: ChildProcess, out: { text: string }): Promise<string> {
+/** The address the server's own process prints, unless startup's deadline (or the child's end) comes first. */
+function announced(child: ChildProcess, out: { text: string }, signal: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
+    const abort = () => reject(reasonOf(signal))
+    if (signal.aborted) return abort()
+    signal.addEventListener('abort', abort, { once: true })
     const read = (chunk: Buffer) => {
       out.text = (out.text + chunk.toString()).replace(COLOUR, '').slice(-4000)
       const url = /Local:\s+(http:\/\/127\.0\.0\.1:\d+)\//.exec(out.text)?.[1]
-      if (url) resolve(url)
+      if (url) {
+        signal.removeEventListener('abort', abort)
+        resolve(url)
+      }
     }
     child.stdout?.on('data', read)
     child.stderr?.on('data', read)
-    child.once('error', (e) => reject(new Error(`could not start: ${e.message}`)))
-    child.once('exit', (code, signal) =>
-      reject(new Error(`ended before it was ready (code ${String(code)}, signal ${String(signal)})`)),
-    )
   })
 }
 
-/** Ready: this same process still running, serving the app and the flag set, at the address it printed. */
-async function servesFlag(owned: Owned, until: number) {
-  const ok = (path: string) =>
-    fetch(`${owned.origin}${path}`).then(
-      async (r) => (r.ok ? await r.text() : ''),
-      () => '',
-    )
-  while (Date.now() < until) {
-    if (!running(owned.child)) throw new Error('ended before it was ready')
-    if ((await ok('/app.html')) && (await ok(FLAG_MODULE)).includes(FLAGGED)) return
-    await sleep(250)
+/** A page of the server's, its headers and its whole body under startup's deadline; '' when it isn't served yet. */
+async function served(origin: string, path: string, signal: AbortSignal): Promise<string> {
+  try {
+    const response = await fetch(`${origin}${path}`, { signal })
+    return response.ok ? await response.text() : ''
+  } catch {
+    if (signal.aborted) throw reasonOf(signal)
+    return '' // not listening yet: asked again
   }
-  throw new Error(`did not serve the flagged build within ${String(START_MS)} ms`)
+}
+
+/** Ready: the app and the flag set served at the address it printed, and this same process still running. */
+async function servesFlag(owned: Owned, signal: AbortSignal) {
+  for (;;) {
+    if (!running(owned.child)) throw new Error('ended before it was ready')
+    const app = await served(owned.origin, '/app.html', signal)
+    const flag = app ? await served(owned.origin, FLAG_MODULE, signal) : ''
+    if (flag.includes(FLAGGED) && running(owned.child)) return
+    await sleep(250, signal)
+  }
 }
 
 /**
- * This worker's own flagged server (REC01-F01): a port the system assigns, its own process group, the address its own
- * process prints, and ready only while that process serves the flagged build. Failing, it says why with the end of its
- * own output, stops what it started, and never falls back to another listener.
+ * This worker's own flagged server (REC01-F01, F02): a port the system assigns, its own process group, the address its
+ * own process prints, and ready only while that process serves the flagged build. One deadline covers the whole start
+ * (the address, each request's headers and its body, and the waits between), and the child's end or failure to start
+ * ends it at once. Failing, it stops its own group before it says why, with the end of its own output, and adds any
+ * cleanup failure beside the cause; it never falls back to another listener. Done, the deadline is cleared.
  */
 async function startFlagged(): Promise<Owned> {
   const child = spawn('pnpm', ['exec', 'vite', '--config', 'vite.app.config.ts', '--port', '0', '--strictPort'], {
@@ -567,20 +599,45 @@ async function startFlagged(): Promise<Owned> {
     detached: true,
   })
   const out = { text: '' }
-  const until = Date.now() + START_MS
+  const deadline = new AbortController()
+  const timer = setTimeout(() => deadline.abort(new Error(`was not ready within ${String(START_MS)} ms`)), START_MS)
+  const ended = (code: number | null, signal: NodeJS.Signals | null) =>
+    deadline.abort(new Error(`ended before it was ready (code ${String(code)}, signal ${String(signal)})`))
+  const failed = (error: Error) => deadline.abort(new Error(`could not start: ${error.message}`))
+  child.once('exit', ended)
+  child.once('error', failed)
   try {
-    const timer = sleep(START_MS).then(() => {
-      throw new Error(`printed no address within ${String(START_MS)} ms`)
-    })
-    const origin = await Promise.race([announced(child, out), timer])
+    const origin = await announced(child, out, deadline.signal)
     const owned = { origin, child, out: () => out.text }
-    await servesFlag(owned, until)
+    await servesFlag(owned, deadline.signal)
     return owned
   } catch (error) {
-    await stopOwned(child).catch(() => undefined)
-    const why = error instanceof Error ? error.message : String(error)
-    throw new Error(`the flagged app server ${why}; its output ended: ${out.text.slice(-1500)}`, { cause: error })
+    throw await stoppedAfter(child, error, out.text)
+  } finally {
+    clearTimeout(timer)
+    child.off('exit', ended)
+    child.off('error', failed)
   }
+}
+
+/** Startup's failure, after its own group is stopped: its cause, and beside it any failure to stop that group. */
+async function stoppedAfter(child: ChildProcess, error: unknown, out: string): Promise<Error> {
+  const why = error instanceof Error ? error.message : String(error)
+  try {
+    await stopOwned(child)
+  } catch (cleanup) {
+    const how =
+      cleanup instanceof Error
+        ? `${cleanup.message}${cleanup.cause instanceof Error ? ` (${cleanup.cause.message})` : ''}`
+        : String(cleanup)
+    return new Error(
+      `the flagged app server ${why}; and stopping it failed: ${how}; its output ended: ${out.slice(-1500)}`,
+      {
+        cause: new AggregateError([error, cleanup], 'startup and its cleanup both failed'),
+      },
+    )
+  }
+  return new Error(`the flagged app server ${why}; its output ended: ${out.slice(-1500)}`, { cause: error })
 }
 
 test.describe('a build with the read flag on (its own server)', () => {

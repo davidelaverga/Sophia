@@ -387,3 +387,47 @@ this plan and the handoff. No product, CSS, kit, App, SignedIn, auth, flag, conf
     with nothing borrowed.
   - **Then:** the full app catalog spec, desktop and phone, two workers, no retries; the catalog fixture spec beside it;
     static and typecheck; one signed child; ONE ordinary at that head.
+
+## REC01-F02: readiness bounded end to end, cleanup said truthfully (a child of `dbd0dad3`)
+
+Written before the repair's code. Assignment `INC01-DES-002-REC01-F02-BOUNDED-STARTUP-001` (`c864bfed…cd4a`), on the
+same reviewer's `dbd0dad3` core review (`05d410da…294b`, NEEDS_REVISION, P2 REC01-F01-F02) and its cleanup
+clarification (`419f12c5…bd41`). `dbd0dad3`'s one ordinary was already terminal (exit 0) and is sealed unchanged; it
+doesn't waive the finding. The work is on the local branch `inc01-des-002-rec01-f02`, in a fresh public worktree at
+`dbd0dad3`. Same three paths: the app catalog spec, this plan and the handoff.
+
+- **What the source does now (`dbd0dad3`).**
+  - `servesFlag` awaits `fetch` and `response.text()` with no signal. Its 90 s check runs only between requests, so a
+    response that stalls its headers, or never ends its body, holds startup past the 120 s hook.
+  - The hook then fails with `owned` still null, so `afterAll` can't stop the detached group.
+  - The 90 s timer races only the address announcement. It is never cleared, and after a successful start it rejects
+    later with nothing awaiting it.
+  - Startup's catch swallows a cleanup failure.
+  - `groupAlive` and the signalling treat every error as "gone"; only ESRCH means that.
+- **The repair**, in the spec only:
+  - **One startup deadline.** An `AbortController`, aborted at 90 s or when the owned child exits or can't start,
+    covers the announcement, every readiness request (headers) and every body read, plus the waits between them.
+  - **Liveness first.** Readiness also requires the child still running, checked after the reads and before
+    returning.
+  - **Deadline released.** On success and on failure the timer is cleared and the exit listeners removed.
+  - **Cleanup on every failure.** Every startup failure awaits the group's own cleanup before rethrowing, so it never
+    depends on a handle the hook doesn't have yet.
+  - **Both causes kept.** The startup cause is kept, and a cleanup failure is added beside it (both in an
+    `AggregateError` cause).
+  - **Truthful absence.** Signalling and group queries take only ESRCH as gone. Any other error is reported, never
+    read as absence.
+  - **Budget.** At most 90 s of startup plus 2 × 10 s of bounded cleanup, inside the 120 s hook.
+  - **Unchanged:** the OS-assigned port, own process group, flag check, parallelism, retries 0, all assertions and
+    hook budgets.
+- **Evidence.**
+  - **Stalls reach the real helper.** A disposable `--require` hook in a run's `NODE_OPTIONS` acts only inside the
+    owned flagged `vite.js` (the one started with `--port 0`). It stalls the `/app.html` headers, or sends a never-ending
+    body for the flag module.
+  - **Fail-before on `dbd0dad3`:** expected to exceed the 120 s hook (a test deadline, not a product assertion) and
+    leave its owned group running.
+  - **Repaired:** expected to fail inside the budget with the cause, leave no owned process or listener, and leave an
+    unrelated listener on 5197 serving.
+  - **Simulated EPERM on the group query, during a stalled start:** a reporting witness that shows both causes, not an
+    OS permission event.
+  - **Focused:** both catalog specs at desktop and phone, 2 workers, retries 0; static and typecheck.
+  - **Then:** one signed child; ONE ordinary.

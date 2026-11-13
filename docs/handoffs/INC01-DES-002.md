@@ -220,6 +220,37 @@ worktree.
      nothing borrowed and nothing left running. The first attempt never ran the test: the harness lost
      `/usr/bin/timeout` from the narrowed path (exit 127). It is kept.
 
+## REC01-F02, readiness bounded end to end and cleanup said truthfully, as it happened (a child of `dbd0dad3`)
+
+The same reviewer's `dbd0dad3` core review (`05d410da…294b`) found P2 REC01-F01-F02, with its cleanup clarification
+(`419f12c5…bd41`). Readiness awaited `fetch` and `text()` with no deadline, so a stalled answer could outlive the 120 s
+hook with `owned` still null; the 90 s timer was never cleared; and startup swallowed a cleanup failure and read every
+signal error as "gone". Assignment `INC01-DES-002-REC01-F02-BOUNDED-STARTUP-001` (`c864bfed…cd4a`) leased the same
+three paths. `dbd0dad3`'s one ordinary had already ended (exit 0) and is sealed unchanged. The work is on the local
+branch `inc01-des-002-rec01-f02`, in a fresh public worktree at `dbd0dad3`.
+
+1. **Plan first:** the plan's REC01-F02 section, logged before code.
+2. **Fail-before on `dbd0dad3`'s spec.** A disposable `NODE_OPTIONS` `--require` hook acts only in the owned
+   `vite.js` (`--port 0`). It stalls `/app.html`'s headers, or never ends the flag module's body.
+   - Both runs: `"beforeAll" hook timeout of 120000ms exceeded` after 124 s, a test deadline and not a product
+     assertion.
+   - Both runs: the owned server was still listening afterwards (46173, 42419), and the harness stopped it.
+   - The first attempt's logs were truncated by the harness itself (`tee /dev/stderr` reopened its own log). They are
+     kept, their listener samples intact.
+3. **The repair, in the spec only.**
+   - One `AbortController` deadline (90 s), also aborted by the child's exit or failure to start, covers the address,
+     every request's headers and body, and the waits.
+   - The child must still be running before readiness is declared.
+   - The timer and listeners are released on success and failure.
+   - Every startup failure awaits its own group's cleanup and keeps both causes.
+   - Only ESRCH counts as gone; any other signal or query error is said.
+4. **Reached, same hook.**
+   - Header and body stalls each fail in about 96 s, inside the hook, with "was not ready within 90000 ms" and the
+     server's own output.
+   - No owned process or listener is left, and an unrelated decoy on 5197 keeps serving.
+   - A simulated EPERM on the group query (a reporting witness, not an OS event) gives "and stopping it failed: could
+     not tell whether its processes … are gone", with both causes.
+
 ## Remaining obligations
 
 - The independent whole-actual source and pre-push review of this UX iteration candidate on `775`.
