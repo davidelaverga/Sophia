@@ -147,6 +147,14 @@ class FakeLlm implements PersonalLlm {
   readonly prompts: string[] = []
   mode: Prepare = 'ok'
   streamGate: Promise<void> | null = null
+  /** What the stream gives after its text: a whole answer, one without usage, one cut off, or one that fails. */
+  shape: 'whole' | 'no_usage' | 'no_finish' | 'error' = 'whole'
+  /** A noncooperative stream ignores its stop and waits at its latch anyway, as a generic adapter may. */
+  noncooperative = false
+  /** The stream was entered; its own signal reported the stop (seen by the stream itself, not inferred). */
+  readonly entered = Promise.withResolvers<void>()
+  readonly abortSeen = Promise.withResolvers<void>()
+  observedAbort = false
   private readonly text: string
   constructor(text = 'A synthetic answer.') {
     this.text = text
@@ -169,10 +177,13 @@ class FakeLlm implements PersonalLlm {
     }
     const resolved = this.mode === 'mismatch' ? { ...config, model: 'another-model' } : config
     const gate = this.streamGate
-    const { text, prompts } = this
+    const { text, prompts, shape } = this
     const counted = () => {
       this.asked += 1
+      this.entered.resolve()
     }
+    const waitAt = (g: Promise<void>, s?: AbortSignal) =>
+      this.noncooperative ? this.ignoringStop(g, s) : untilOpenOrAborted(g, s)
     return {
       config: resolved,
       async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
@@ -180,11 +191,27 @@ class FakeLlm implements PersonalLlm {
         const [message] = options.messages
         const [part] = message?.content ?? []
         prompts.push(part && 'text' in part ? part.text : '')
-        if (gate) await untilOpenOrAborted(gate, options.signal)
+        if (gate) await waitAt(gate, options.signal)
         yield { type: 'text-delta', index: 0, text }
-        yield { type: 'usage', usage: { inputTokens: 10, outputTokens: 5 } }
-        yield { type: 'finish', reason: { kind: 'stop' } }
+        if (shape !== 'no_usage') yield { type: 'usage', usage: { inputTokens: 10, outputTokens: 5 } }
+        if (shape === 'error') throw new Error('synthetic stream failure')
+        if (shape !== 'no_finish') yield { type: 'finish', reason: { kind: 'stop' } }
       },
+    }
+  }
+
+  /** Waits at the latch whatever the signal says, recording the stop when the signal reports it; listener removed. */
+  private async ignoringStop(gate: Promise<void>, signal?: AbortSignal): Promise<void> {
+    const seen = () => {
+      this.observedAbort = true
+      this.abortSeen.resolve()
+    }
+    if (signal?.aborted) seen()
+    else signal?.addEventListener('abort', seen, { once: true })
+    try {
+      await gate
+    } finally {
+      signal?.removeEventListener('abort', seen)
     }
   }
 }
@@ -310,8 +337,8 @@ const answers = async (turnId: string) =>
     (await owner<{ n: string }>(`SELECT count(*) AS n FROM sophia.personal_turns WHERE reply_to=$1`, [turnId]))[0]?.n,
   )
 const usage = (person: string) =>
-  owner<{ call_id: string; state: string; reason: string | null }>(
-    'SELECT call_id, state, reason FROM sophia.personal_companion_usage WHERE owner_id=$1 ORDER BY reserved_at',
+  owner<{ call_id: string; state: string; reason: string | null; used: string | null }>(
+    'SELECT call_id, state, reason, used_micros AS used FROM sophia.personal_companion_usage WHERE owner_id=$1 ORDER BY reserved_at',
     [person],
   )
 const launches = (person: string) =>
@@ -846,5 +873,109 @@ describe('A3 versioned owner reads and the old-reader boundary', () => {
       rest.items.map((i) => i.inputId),
       [xa2.inputId],
     )
+  })
+})
+
+/**
+ * R1 (A3-CC87-F01): an admitted input asked through the real runner with a short watch (100 ms); the owner withdraws it
+ * after its launch; the runner's watch stops the call; the stream itself observes that stop, ignores it (noncooperative)
+ * and then completes with what `shape` gives. Every latch and the answer are registered (F01) before anything waits.
+ */
+async function stoppedLate(t: TestContext, shape: FakeLlm['shape'], action: 'cancel' | 'replace') {
+  const s = held(t)
+  const { person, payer } = await enrolled()
+  const text = `Completed after the stop (${shape})`
+  const llm = new FakeLlm(text)
+  llm.shape = shape
+  llm.noncooperative = true
+  const stream = s.latch()
+  llm.streamGate = stream.wait
+  const errors: unknown[] = []
+  const r = runner(live(person, payer, llm), errors, 100)
+  const app = api(null)
+  const x = await admitted(person, payer)
+  const answering = s.track(r.answer(person, x.turnId))
+  await within(llm.entered.promise, REACH_MS, 'the stream')
+  const body = action === 'replace' ? { action, expectedRevision: 0, text: 'Instead' } : { action, expectedRevision: 0 }
+  const receipt = wire.parsePersonalAnswerControlReceipt((await control(app, person, x.inputId, body)).json)
+  assert.equal(receipt.phase, 'after_launch')
+  await within(llm.abortSeen.promise, REACH_MS, 'the stop, seen by the stream')
+  stream.open()
+  await answering
+  return { person, payer, x, llm, text, receipt, errors }
+}
+
+/** One prepare and one stream, the stop seen; its cost held unknown (no amount, never settled or released); nothing
+ * written for the turn, and its one launch only. */
+async function heldUnknown(person: string, turnId: string, llm: FakeLlm, reason = 'stopped_usage_unknown') {
+  assert.equal(llm.prepared, 1)
+  assert.equal(llm.asked, 1)
+  assert.deepEqual(
+    (await usage(person)).map((u) => [u.state, u.reason, u.used]),
+    [['uncertain', reason, null]],
+  )
+  assert.deepEqual(
+    (await launches(person)).map((l) => l.state),
+    ['launching'],
+  )
+  assert.equal(await reply(turnId), 'withdrawn')
+  assert.equal(await answers(turnId), 0, 'nothing published for withdrawn work')
+}
+
+describe('A3 R1: an answer completed after its stop is retained privately; its cost stays unknown', () => {
+  it('a whole answer with its usage, completed after the observed stop, is withheld; the replacement stays held', async (t) => {
+    const { person, payer, x, llm, text, receipt } = await stoppedLate(t, 'whole', 'replace')
+    assert.ok(llm.observedAbort)
+    assert.deepEqual(await withheld(person), [{ body: text, source: 'late_settlement' }])
+    await heldUnknown(person, x.turnId, llm)
+    const y = receipt.replacement
+    assert.ok(y)
+    const fresh = new FakeLlm()
+    const on = api(live(person, payer, fresh), { personalAnswers: true, personalAnswerReplacementAdmission: true })
+    const admission = wire.parsePersonalAnswerControlReceipt(
+      (await admit(on, person, y.inputId, { controlId: receipt.controlId, expectedRevision: 1 })).json,
+    )
+    assert.equal(admission.outcome, 'refused', 'never admitted on a cost still unknown')
+    assert.equal(admission.heldReason, 'prior_cost_unresolved')
+    assert.equal(fresh.prepared, 0)
+    assert.equal(llm.asked, 1, 'never asked again')
+  })
+
+  it('a whole answer without usage, completed after the observed stop, is withheld; no amount is made up', async (t) => {
+    const { person, x, llm, text } = await stoppedLate(t, 'no_usage', 'cancel')
+    assert.ok(llm.observedAbort)
+    assert.deepEqual(await withheld(person), [{ body: text, source: 'late_settlement' }])
+    await heldUnknown(person, x.turnId, llm)
+  })
+
+  it('a stream cut off or failing after the stop is not taken for a whole answer: nothing is withheld', async (t) => {
+    for (const shape of ['no_finish', 'error'] as const) {
+      const { person, x, llm } = await stoppedLate(t, shape, 'cancel')
+      assert.ok(llm.observedAbort, shape)
+      assert.deepEqual(await withheld(person), [], `${shape}: not retained`)
+      await heldUnknown(person, x.turnId, llm)
+    }
+  })
+
+  it('without a stop, a whole answer of withdrawn work whose usage is missing is withheld, its cost unknown', async (t) => {
+    const s = held(t)
+    const { person, payer } = await enrolled()
+    const llm = new FakeLlm('Whole, its usage missing')
+    llm.shape = 'no_usage'
+    const stream = s.latch()
+    llm.streamGate = stream.wait
+    // A long watch: the call is not stopped; only its usage is missing.
+    const r = runner(live(person, payer, llm), [], 60_000)
+    const app = api(null)
+    const x = await admitted(person, payer)
+    const answering = s.track(r.answer(person, x.turnId))
+    await within(llm.entered.promise, REACH_MS, 'the stream')
+    const c = await control(app, person, x.inputId, { action: 'cancel', expectedRevision: 0 })
+    assert.equal(wire.parsePersonalAnswerControlReceipt(c.json).phase, 'after_launch')
+    stream.open()
+    await answering
+    assert.equal(llm.observedAbort, false)
+    assert.deepEqual(await withheld(person), [{ body: 'Whole, its usage missing', source: 'late_settlement' }])
+    await heldUnknown(person, x.turnId, llm, 'usage_unknown')
   })
 })

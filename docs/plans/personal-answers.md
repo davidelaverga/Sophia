@@ -634,3 +634,55 @@ GEN (sole writer): `openapi.json`, `generated-types.ts`, `generated/validators.{
 - one genuine `pnpm check`.
 
 New capability absence at b760 is E0.
+
+## Repair A3-R1: keep a whole late answer of withdrawn work, its cost left unknown (A3-CC87-F01)
+
+**The finding** (independent CORE on cc87, P2): the runner's watch stops a call once its input is withdrawn; a provider
+adapter may still finish and return a whole, valid answer after that stop. In cc87 three places drop it:
+- `collect()` replaces the stream's own `stop` with `aborted`;
+- `ask()` then holds the call uncertain, with no usage;
+- `answer()` parses no reply once stopped and settles only with a usage.
+
+So the answer never reaches 0103's withheld store. The same loss happens without a stop when the usage is missing or
+ambiguous. 0103's settlement cannot take such an answer: it calls 0073's settler first, which requires a used amount
+and its counts.
+
+**The repair** (separate the answer from the money):
+- **0103 gains `retain_personal_withheld_answer(call, body, suggestion)`** (SECURITY DEFINER, `search_path` pinned,
+  EXECUTE for `sophia_api` only).
+  - It keeps the answer withheld exactly as the settlement keeps one: `late_settlement`, once; an identical replay
+    changes nothing; a different answer is refused (23505).
+  - It does so only for the caller's own call, granted (`launching`) for the input whose control is `withdrawn`, at the
+    current epoch, with its usage row. Anything else answers `not_withdrawn` and writes nothing: another owner, a call
+    never launched, an input not withdrawn, an erased or older epoch.
+  - It never reads or writes money: the call stays as held (`uncertain`, no amount) until it is reconciled, and the
+    replacement stays held on `prior_cost_unresolved` (C7).
+  - Every other 0103 definition and every earlier migration is unchanged.
+- **The live companion:**
+  - It records what the stream itself reported (`reported`) beside the existing `finish`. The stop still overrides
+    `finish`, so cost and publication rules are unchanged.
+  - When no usage settles the call, and the stream itself finished (`stop`, no tool call, no failure) with an answer
+    that can be stored, it asks 0103 to keep that answer. The attempt is bounded, uses the same answer and never asks
+    again.
+  - An answer kept this way is never returned for writing: when not stopped, the call is refused as `withdrawn`.
+  - A cut-off, failing, max-token, tool-call or unstorable stream is never kept.
+- **Unchanged:**
+  - no new ask, preparation, key or operation;
+  - no settlement, release or reconciliation from a stop or from keeping an answer;
+  - known complete answers with usage still settle through 0103's settlement;
+  - answered and kept cases keep their history.
+
+**Checks:**
+- **API (real runner, 100 ms watch, a counting fake that ignores the stop):** the stream's own signal must report
+  the stop before the stream is released.
+  - A whole answer with usage, and one without usage: both withheld, cost uncertain with no amount, nothing written,
+    the replacement refused admission on the unresolved cost.
+  - A cut-off and a failing stream: nothing withheld.
+  - No stop, usage missing: withheld, cost `usage_unknown`.
+- **SQL (0103):**
+  - binding refusals: never launched, not withdrawn, another owner;
+  - money unchanged after keeping;
+  - replay and conflict;
+  - no resurrection after erasure;
+  - grants.
+- **Fail-before / pass-after:** the tests fail on cc87's production, then pass on the repair.

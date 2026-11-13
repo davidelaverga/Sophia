@@ -141,6 +141,27 @@ export async function readPersonalWithheldAnswer(
   return onlyRow(rows, 'personal_withheld_answer').answer
 }
 
+/**
+ * R1: keep the whole answer of the caller's own call privately when its cost could not be settled (it was stopped, or
+ * its usage was not known) and its input was withdrawn: 'retained' (kept, or already kept identically), or
+ * 'not_withdrawn' (not the granted original call of a withdrawn input at the current epoch: nothing is written). A
+ * different answer already kept is refused (23505). Its money is never touched: the call stays held until reconciled.
+ */
+export async function retainPersonalWithheldAnswer(
+  c: pg.ClientBase,
+  callId: string,
+  answer: { text: string; suggestion: string | null },
+): Promise<'retained' | 'not_withdrawn'> {
+  const { rows } = await c.query<{ outcome: unknown }>(
+    'SELECT sophia.retain_personal_withheld_answer($1, $2, $3) AS outcome',
+    [callId, answer.text, answer.suggestion],
+  )
+  const { outcome } = onlyRow(rows, 'retain_personal_withheld_answer')
+  if (outcome !== 'retained' && outcome !== 'not_withdrawn')
+    throw new Error('retain_personal_withheld_answer answered an unknown outcome')
+  return outcome
+}
+
 export type PersonalAnswerControlAction = 'cancel' | 'replace'
 export type PersonalAnswerControlState = 'active' | 'held' | 'withdrawn'
 export type PersonalAnswerHeldReason =

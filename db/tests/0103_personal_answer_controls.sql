@@ -339,6 +339,67 @@ BEGIN
   RAISE EXCEPTION 'Seq 100 control: %', rc; END IF;
 END $$;
 
+-- S13 (R1, first): a call reserved and tagged but never granted, withdrawn before launch, has no answer to retain.
+DO $$ DECLARE r jsonb:=pg_temp.q103_send('x14'); t uuid:=(r->>'turnId')::uuid; i uuid:=(r->>'inputId')::uuid;
+ c uuid:=pg_temp.q103_claim(t); res record;
+BEGIN
+ -- Reserved and tagged, never granted: withdrawn before launch, it was never asked, so it has no answer to retain.
+ res:=pg_temp.q103_reserve(t,c,pg_temp.q103_p(),pg_temp.q103_p());
+ IF pg_temp.q103_control('x14-cancel',i,'cancel',0)->'receipt'->>'phase'<>'before_launch' THEN
+  RAISE EXCEPTION 'Not before launch'; END IF;
+ IF sophia.retain_personal_withheld_answer(res.call,'Words never asked for',NULL)<>'not_withdrawn'
+  OR (pg_temp.q103_withheld(res.call)).call_id IS NOT NULL THEN RAISE EXCEPTION 'An unlaunched call retained'; END IF;
+ PERFORM sophia.end_companion_call(res.call);
+END $$;
+
+-- S13 (R1): a complete answer of the original call whose cost could not be settled (stopped, or usage unknown) is
+-- retained privately, its money left exactly as it is: uncertain, no amount, never settled, released or reconciled
+-- here; the replacement stays held on the unresolved cost. Only that binding retains: a call never launched, one whose
+-- input is not withdrawn, and another owner's call write nothing. Identical replay; a different body is refused.
+DO $$ DECLARE r jsonb:=pg_temp.q103_send('x13'); t uuid:=(r->>'turnId')::uuid; i uuid:=(r->>'inputId')::uuid;
+ c uuid:=pg_temp.q103_claim(t); res record; rc jsonb; y uuid; u sophia.personal_companion_usage; refused jsonb;
+BEGIN
+ res:=pg_temp.q103_reserve(t,c,pg_temp.q103_p(),pg_temp.q103_p());
+ IF sophia.begin_personal_answer_launch(res.call,c,res.digest)<>'granted' THEN RAISE EXCEPTION 'Not granted'; END IF;
+ IF sophia.retain_personal_withheld_answer(res.call,'Too early',NULL)<>'not_withdrawn'
+  OR (pg_temp.q103_withheld(res.call)).call_id IS NOT NULL THEN RAISE EXCEPTION 'Retained while not withdrawn'; END IF;
+ rc:=pg_temp.q103_control('x13-replace',i,'replace',0,'Instead words')->'receipt';
+ y:=(rc->'replacement'->>'inputId')::uuid;
+ IF rc->>'phase'<>'after_launch' THEN RAISE EXCEPTION 'Not after launch: %', rc; END IF;
+ -- The call was stopped: its usage is not known, so it is held, as the live companion holds it.
+ IF NOT sophia.hold_personal_companion(res.call,'stopped_usage_unknown') THEN RAISE EXCEPTION 'Not held'; END IF;
+ IF sophia.retain_personal_withheld_answer(res.call,'Whole late words','A note')<>'retained' THEN
+  RAISE EXCEPTION 'Not retained'; END IF;
+ u:=pg_temp.q103_usage(res.call);
+ IF (pg_temp.q103_withheld(res.call)).body<>'Whole late words' OR (pg_temp.q103_withheld(res.call)).suggestion<>'A note'
+  OR (pg_temp.q103_withheld(res.call)).source<>'late_settlement' OR (pg_temp.q103_withheld(res.call)).input_id<>i
+  OR u.state<>'uncertain' OR u.reason<>'stopped_usage_unknown' OR u.used_micros IS NOT NULL OR u.usage IS NOT NULL
+  OR pg_temp.q103_kept(t)<>0 OR pg_temp.q103_answers(t)<>0 OR pg_temp.q103_reply(t)<>'withdrawn' THEN
+  RAISE EXCEPTION 'Retention changed money or wrote an answer: %', to_jsonb(u); END IF;
+ IF sophia.record_personal_reply(t,c,'Whole late words','A note') IS NOT NULL OR pg_temp.q103_answers(t)<>0 THEN
+  RAISE EXCEPTION 'A retained answer was written'; END IF;
+ IF sophia.retain_personal_withheld_answer(res.call,'Whole late words','A note')<>'retained' THEN
+  RAISE EXCEPTION 'An identical replay was not idempotent'; END IF;
+ BEGIN
+  PERFORM sophia.retain_personal_withheld_answer(res.call,'Other words','A note');
+  RAISE EXCEPTION 'A different retained answer was accepted';
+ EXCEPTION WHEN unique_violation THEN NULL; END;
+ BEGIN
+  PERFORM sophia.retain_personal_withheld_answer(res.call,'',NULL);
+  RAISE EXCEPTION 'An empty answer was accepted';
+ EXCEPTION WHEN invalid_parameter_value THEN NULL; END;
+ PERFORM sophia.end_companion_call(res.call);
+ refused:=pg_temp.q103_admit('y13-admit',y,(rc->>'controlId')::uuid,1,true);
+ IF refused->'receipt'->>'outcome'<>'refused' OR refused->'receipt'->>'heldReason'<>'prior_cost_unresolved'
+  OR (pg_temp.q103_usage(res.call)).state<>'uncertain' THEN
+  RAISE EXCEPTION 'The replacement was admitted on an unresolved cost: %', refused; END IF;
+ -- Another owner's view of the same call: nothing.
+ PERFORM set_config('sophia.actor_id','00000000-0000-0000-0000-00000000103b',true);
+ IF sophia.retain_personal_withheld_answer(res.call,'Whole late words','A note')<>'not_withdrawn' THEN
+  RAISE EXCEPTION 'Another owner retained'; END IF;
+ PERFORM set_config('sophia.actor_id','00000000-0000-0000-0000-00000000103a',true);
+ INSERT INTO q103 VALUES('x13',jsonb_build_object('input',i,'call',res.call));
+END $$;
 -- S11: the log, a page at a time, by seq.
 DO $$ DECLARE p1 jsonb:=sophia.personal_answer_control_log(0,2); p2 jsonb; total integer;
 BEGIN
@@ -366,6 +427,11 @@ BEGIN
    pg_temp.q103_epoch(),NULL,NULL,false);
   RAISE EXCEPTION 'An erased key was replayed';
  EXCEPTION WHEN serialization_failure THEN NULL; END;
+ -- R1: an erased call's answer is not resurrected by a late retention.
+ IF sophia.retain_personal_withheld_answer((SELECT (v->>'call')::uuid FROM q103 WHERE k='x13'),'Whole late words',
+   'A note')<>'not_withdrawn'
+  OR (pg_temp.q103_withheld((SELECT (v->>'call')::uuid FROM q103 WHERE k='x13'))).call_id IS NOT NULL THEN
+  RAISE EXCEPTION 'An erased answer was retained again'; END IF;
 END $$;
 
 -- Grants: no write or direct read of the function-only tables; no execute on the internal helpers.
@@ -378,7 +444,9 @@ DO $$ BEGIN
   OR has_function_privilege('sophia_api','sophia.personal_answer_replacement_hold(uuid,bigint,jsonb,boolean)','EXECUTE')
   OR has_function_privilege('sophia_api','sophia.personal_answer_call_effects(uuid,bigint)','EXECUTE')
   OR NOT has_function_privilege('sophia_api',
-   'sophia.settle_personal_companion_answer(uuid,bigint,jsonb,text,text)','EXECUTE') THEN
+   'sophia.settle_personal_companion_answer(uuid,bigint,jsonb,text,text)','EXECUTE')
+  OR NOT has_function_privilege('sophia_api','sophia.retain_personal_withheld_answer(uuid,text,text)','EXECUTE')
+  OR has_function_privilege('sophia_worker','sophia.retain_personal_withheld_answer(uuid,text,text)','EXECUTE') THEN
   RAISE EXCEPTION 'Grants'; END IF;
 END $$;
 ROLLBACK;

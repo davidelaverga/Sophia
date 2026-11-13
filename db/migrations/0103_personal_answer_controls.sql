@@ -14,6 +14,8 @@
 -- * Withdrawn work is not published: its turn leaves pending/failed (an answered one stays answered), a kept answer is
 --   moved to personal_withheld_results, and a late answer of its original call is kept there (settlement below), whether
 --   or not its cost was settled already. Financial state stays 0073's own; nothing is refunded, reset or forgiven.
+--   One whose cost could not be settled (stopped, or its usage unknown) is kept there too (R1:
+--   retain_personal_withheld_answer), its money left as held.
 -- * The owner reads it all through the functions below; old unversioned reads are refused by the API (C5).
 -- No earlier migration is edited. One existing function is replaced under its own signature, language, search path,
 -- SECURITY DEFINER and grants: settle_personal_companion_answer (late retention). Only the turn reply CHECK widens.
@@ -651,5 +653,42 @@ BEGIN
  END IF;
  RETURN CASE WHEN kept IS NULL THEN 'settled' ELSE 'kept' END;
 END $$;
+
+-- R1 (A3-CC87-F01): the whole answer of a withdrawn input's original call whose cost could not be settled here (it was
+-- stopped, or its usage was missing or ambiguous): the settlement above cannot take it, since 0073's settler requires a
+-- used amount and its counts. It is kept withheld as the settlement keeps one (once; an identical replay changes
+-- nothing; a different one is refused, 23505), only for the caller's own call, granted ('launching') for that same
+-- input, at the current epoch, its turn's control withdrawn; anything else is 'not_withdrawn' and writes nothing. Its
+-- money is never read or written here: the call stays as it was held (uncertain, no amount) until reconciled.
+CREATE FUNCTION sophia.retain_personal_withheld_answer(p_call uuid, p_body text, p_suggestion text) RETURNS text
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE a uuid:=sophia.personal_owner(); b sophia.personal_answer_calls; v_input uuid; w sophia.personal_withheld_results;
+BEGIN
+ IF p_body IS NULL OR length(p_body) NOT BETWEEN 1 AND 4000 THEN
+  RAISE EXCEPTION 'A kept answer has its words' USING ERRCODE='22023';
+ END IF;
+ PERFORM sophia.personal_hold();
+ SELECT * INTO b FROM sophia.personal_answer_calls WHERE call_id=p_call AND owner_id=a;
+ IF NOT FOUND OR b.epoch<>coalesce((SELECT s.epoch FROM sophia.personal_spaces s WHERE s.owner_id=a),0)
+  OR NOT EXISTS(SELECT FROM sophia.personal_companion_usage u WHERE u.call_id=p_call AND u.owner_id=a) THEN
+  RETURN 'not_withdrawn';
+ END IF;
+ SELECT c.input_id INTO v_input FROM sophia.personal_answer_controls c
+  JOIN sophia.personal_answer_launches l ON l.call_id=p_call AND l.owner_id=a AND l.turn_id=b.turn_id AND l.epoch=b.epoch
+   AND l.state='launching' AND l.input_id=c.input_id
+  WHERE c.owner_id=a AND c.turn_id=b.turn_id AND c.state='withdrawn';
+ IF v_input IS NULL THEN RETURN 'not_withdrawn'; END IF;
+ SELECT * INTO w FROM sophia.personal_withheld_results WHERE call_id=p_call FOR UPDATE;
+ IF FOUND THEN
+  IF w.owner_id<>a OR w.body<>p_body OR w.suggestion IS DISTINCT FROM p_suggestion THEN
+   RAISE EXCEPTION 'A withheld answer is kept as it was' USING ERRCODE='23505'; END IF;
+ ELSE
+  INSERT INTO sophia.personal_withheld_results(call_id,owner_id,turn_id,epoch,input_id,body,suggestion,source)
+  VALUES(p_call,a,b.turn_id,b.epoch,v_input,p_body,p_suggestion,'late_settlement');
+ END IF;
+ RETURN 'retained';
+END $$;
+REVOKE ALL ON FUNCTION sophia.retain_personal_withheld_answer(uuid,text,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION sophia.retain_personal_withheld_answer(uuid,text,text) TO sophia_api;
 
 COMMIT;

@@ -27,6 +27,7 @@ import {
   personalSettledAnswersInstalled,
   readPersonalSettledAnswer,
   readPersonalWithheldAnswer,
+  retainPersonalWithheldAnswer,
   reserveControlledPersonalAnswer,
   reserveGuardedPersonalAnswer,
   releasePersonalCompanion,
@@ -313,7 +314,10 @@ interface Collected {
   text: string
   usage: TokenUsage | null
   ambiguousUsage: boolean
+  /** How the call ended for its cost and its publication: a stop overrides what the stream said. */
   finish: 'stop' | 'max-tokens' | 'tool-calls' | 'error' | 'aborted' | 'none'
+  /** What the stream itself reported (R1): a whole answer completed after a stop is still a whole answer. */
+  reported: Collected['finish']
   toolCall: boolean
 }
 
@@ -321,7 +325,7 @@ interface Collected {
 function take(into: Collected, chunk: StreamChunk): void {
   if (chunk.type === 'text-delta') into.text += chunk.text
   else if (chunk.type === 'tool-call-delta') into.toolCall = true
-  else if (chunk.type === 'finish') into.finish = chunk.reason.kind
+  else if (chunk.type === 'finish') into.finish = into.reported = chunk.reason.kind
   else if (chunk.type === 'usage') {
     if (into.usage !== null && JSON.stringify(into.usage) !== JSON.stringify(chunk.usage)) into.ambiguousUsage = true
     into.usage = { ...chunk.usage }
@@ -330,11 +334,18 @@ function take(into: Collected, chunk: StreamChunk): void {
 
 /** A call's stream reduced to what may be kept (B2's collectCall): the text, the usage, how it ended. */
 async function collect(chunks: AsyncIterable<StreamChunk>, signal: AbortSignal): Promise<Collected> {
-  const into: Collected = { text: '', usage: null, ambiguousUsage: false, finish: 'none', toolCall: false }
+  const into: Collected = {
+    text: '',
+    usage: null,
+    ambiguousUsage: false,
+    finish: 'none',
+    reported: 'none',
+    toolCall: false,
+  }
   try {
     for await (const chunk of chunks) take(into, chunk)
   } catch {
-    into.finish = 'error'
+    into.finish = into.reported = 'error'
   }
   if (signal.aborted) into.finish = 'aborted'
   return into
@@ -577,6 +588,7 @@ class LiveCall {
         usage: null,
         ambiguousUsage: false,
         finish: stopped(signal) ? 'aborted' : 'error',
+        reported: 'error',
         toolCall: false,
       }
     }
@@ -619,6 +631,27 @@ class LiveCall {
     }
   }
 
+  /**
+   * R1: a whole answer of this call whose cost could not be settled here (it was stopped, or its usage was not known)
+   * is kept privately when its input was withdrawn (0103), its money left as held: only one the stream itself finished
+   * ('stop', no tool call, no failure) and that can be stored. Tried a bounded number of times with the same answer,
+   * never asked again; a different answer already kept is not retried. True when kept for this very call.
+   */
+  async retain(result: Collected): Promise<boolean> {
+    if (this.protocol !== 'controlled' || result.reported !== 'stop' || result.toolCall) return false
+    const reply = personalReply(result.text)
+    if (!reply) return false
+    for (let tried = 1; ; tried += 1) {
+      try {
+        return (await this.owned((c, callId) => retainPersonalWithheldAnswer(c, callId, reply))) === 'retained'
+      } catch (err: unknown) {
+        const conflict = typeof err === 'object' && err !== null && 'code' in err && err.code === '23505'
+        if (conflict || tried >= SETTLE_TRIES) throw err
+        await new Promise((resolve) => setTimeout(resolve, SETTLE_PAUSE_MS * 2 ** (tried - 1)))
+      }
+    }
+  }
+
   private settleOnce(used: Used, reply: CompanionReply | null): Promise<PersonalSettledOutcome | boolean> {
     if (reply)
       return this.owned((c, callId) =>
@@ -647,6 +680,29 @@ class LiveCall {
   }
 }
 
+/**
+ * After the one call: its cost settled with its answer when there is one to keep, or (R1) a whole answer whose cost was
+ * not settled (stopped, or its usage unknown) kept privately if its input was withdrawn, never written, its cost held.
+ * Then the answer is given, or refused.
+ */
+async function concluded(
+  live: LiveCall,
+  result: Collected,
+  used: Used | null,
+  signal: AbortSignal,
+): Promise<CompanionReply> {
+  const answered = !stopped(signal) && !result.toolCall && result.finish === 'stop'
+  const reply = answered ? personalReply(result.text) : null
+  if (used) await live.settle(used, reply, signal)
+  const retained = !used && (await live.retain(result))
+  // Told to stop (time up, or an erasure): its cost is settled or held above, and nothing of it is shown.
+  if (stopped(signal)) throw new Error('The companion was told to stop')
+  if (retained) throw new CompanionRefused('withdrawn')
+  if (result.toolCall || result.finish !== 'stop') throw new CompanionRefused('no_answer')
+  if (!reply) throw new CompanionRefused('unstorable')
+  return reply
+}
+
 /** The live companion: `llm` is the composed model service, `pool` the API's, settings parsed by liveSettings. */
 export function liveCompanion(settings: LiveCompanionSettings, llm: PersonalLlm, pool: pg.Pool): Companion {
   async function answer(context: CompanionContext, signal: AbortSignal, call?: CompanionCall): Promise<CompanionReply> {
@@ -662,14 +718,7 @@ export function liveCompanion(settings: LiveCompanionSettings, llm: PersonalLlm,
     await live.launch()
     const prepared = await live.prepare(llm, signal)
     const { result, used } = await live.ask(prepared, prompt, signal)
-    const answered = !stopped(signal) && !result.toolCall && result.finish === 'stop'
-    const reply = answered ? personalReply(result.text) : null
-    if (used) await live.settle(used, reply, signal)
-    // Told to stop (time up, or an erasure): its cost is settled or held above, and nothing of it is shown.
-    if (stopped(signal)) throw new Error('The companion was told to stop')
-    if (result.toolCall || result.finish !== 'stop') throw new CompanionRefused('no_answer')
-    if (!reply) throw new CompanionRefused('unstorable')
-    return reply
+    return concluded(live, result, used, signal)
   }
 
   return {
