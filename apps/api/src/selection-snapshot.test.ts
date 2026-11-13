@@ -1,0 +1,288 @@
+// The selection preview's pure assembler (INC04-S01b): synthetic snapshots through the real kernel and projection.
+// These are source-logic checks of the mapping only; a synthetic record never qualifies a live route or passes AC-04.
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
+import { DomainError, evaluateSelection, projectSelection } from '@sophia/domain'
+import type { SelectionApiFacts, SelectionNativeFacts, SelectionSnapshot } from '@sophia/persistence'
+import { apiRef, assembleSelectionInput, nativeRef, previewSelection, requestRevisionOf } from './selection-snapshot.ts'
+
+const ACTOR = '11111111-1111-4111-8111-111111111111'
+const OTHER = '22222222-2222-4222-8222-222222222222'
+const PROJECT = '33333333-3333-4333-8333-333333333333'
+const NOW = '2026-11-13T12:00:00.000000+00:00'
+
+function api(over: Partial<SelectionApiFacts> = {}): SelectionApiFacts {
+  const grantId = over.grantId ?? '44444444-4444-4444-8444-444444444444'
+  return {
+    kind: 'api',
+    grantId,
+    grantRevision: 1,
+    ownerId: ACTOR,
+    accountId: `acc-${grantId.slice(0, 8)}`,
+    accountRevision: 2,
+    accountProvenance: 'owner_declared',
+    provider: 'openai',
+    connectionId: '55555555-5555-4555-8555-555555555555',
+    connectionRevision: 2,
+    connectionState: 'connected',
+    operation: 'research',
+    roleId: 'sophia-research-md-v1',
+    route: 'research-sol-medium-v1',
+    model: 'gpt-6.1-sol',
+    effort: 'medium',
+    expiresAt: '2026-12-13T12:00:00.000000+00:00',
+    validFrom: '2026-11-01T12:00:00.000000+00:00',
+    proofStatus: 'valid',
+    unusable: [],
+    ownerMember: true,
+    requesterEligible: true,
+    globalRoute: 'current',
+    accountQualification: { state: 'current', operations: ['research'], revision: 1, id: 'q1' },
+    runtimeReady: true,
+    capacity: { admits: true, reasons: [] },
+    slotsBusy: false,
+    uncertainEffects: false,
+    protection: { witness: 'none_applicable' },
+    ...over,
+  }
+}
+
+function native(over: Partial<SelectionNativeFacts> = {}): SelectionNativeFacts {
+  return {
+    kind: 'native',
+    resourceId: '66666666-6666-4666-8666-666666666666',
+    resourceRevision: 1,
+    ownerId: ACTOR,
+    tool: 'codex',
+    state: 'active',
+    connectionState: 'linked',
+    route: 'none',
+    qualificationRevision: null,
+    operations: [],
+    sourcePolicy: null,
+    accountKey: null,
+    accountBusy: null,
+    unsettledEffects: null,
+    ...over,
+  }
+}
+
+function snapshot(over: Partial<SelectionSnapshot> = {}): SelectionSnapshot {
+  return {
+    evaluatedAt: NOW,
+    projectId: PROJECT,
+    actorId: ACTOR,
+    member: { role: 'editor', active: true, revision: 1 },
+    audienceRevision: 1,
+    eligibilityRevision: 1,
+    gate: { state: 'enabled', revision: 1 },
+    projectBudget: true,
+    pin: null,
+    sources: [],
+    complete: true,
+    candidates: [api()],
+    ...over,
+  }
+}
+
+type Shared = Extract<ReturnType<typeof previewSelection>, { disclosure: 'shared' }>
+function shared(s: SelectionSnapshot): Shared {
+  const v = previewSelection(s)
+  assert.equal(v.disclosure, 'shared', JSON.stringify(v))
+  if (v.disclosure !== 'shared') throw new Error('restricted')
+  return v
+}
+const limitation = (v: Shared, ref: string) => v.candidates.find((c) => c.candidateRef === ref)?.limitation
+
+describe('the selection preview assembler', () => {
+  it('selects the owner’s own qualified, protected, funded grant and shows its owner everything of it', () => {
+    const v = shared(snapshot())
+    assert.equal(v.outcome, 'selected')
+    assert.equal(v.mode, 'auto')
+    assert.equal(v.strictSettings, null, 'no strict settings and no disclosure in this release')
+    assert.ok(v.proposal && 'candidateRef' in v.proposal)
+    assert.equal(v.proposal.candidateRef, apiRef(api().grantId))
+    assert.equal(v.proposal.relation, 'owner')
+    assert.deepEqual(v.proposal.codes, [])
+    assert.equal(v.proposal.payerScopeRef, api().accountId)
+    assert.deepEqual(v.proposal.seed, {
+      providerInstanceRef: 'research-sol-medium-v1',
+      model: 'gpt-6.1-sol',
+      options: [{ id: 'effort', value: 'medium' }],
+    })
+  })
+
+  it('selects another member’s grant for the requester without their payer or reason codes', () => {
+    const v = shared(snapshot({ candidates: [api({ ownerId: OTHER })] }))
+    assert.equal(v.outcome, 'selected')
+    assert.ok(v.proposal && 'candidateRef' in v.proposal)
+    assert.equal(v.proposal.relation, 'shared')
+    assert.equal(v.proposal.payerScopeRef, undefined)
+    assert.equal(v.proposal.codes, undefined)
+    assert.equal(JSON.stringify(v).includes(api().accountId), false, 'the other owner’s account never appears')
+  })
+
+  it('fails closed on every missing owner, account or qualification fact, never as clear', () => {
+    const ref = apiRef(api().grantId)
+    const cases: [Partial<SelectionApiFacts>, string][] = [
+      [{ protection: { witness: 'policy_absent' } }, 'not_verified'],
+      [{ accountQualification: { state: 'none' } }, 'not_permitted_for_this_work'],
+      [{ accountQualification: { state: 'stale' } }, 'not_permitted_for_this_work'],
+      [{ globalRoute: 'none' }, 'not_permitted_for_this_work'],
+      [{ unusable: ['owner_not_member'], ownerMember: false }, 'not_permitted_for_this_work'],
+      [{ requesterEligible: false }, 'not_permitted_for_this_work'],
+      [{ capacity: { admits: false, reasons: ['account_spend'] } }, 'unavailable_now'],
+      [{ uncertainEffects: true }, 'unavailable_now'],
+      [{ runtimeReady: false }, 'unavailable_now'],
+      [{ proofStatus: 'stale', unusable: ['grant_paused'] }, 'not_verified'],
+      [
+        { protection: { witness: 'covered', dimensions: [{ ref: 'account_concurrency', verdict: 'would_violate' }] } },
+        'unavailable_now',
+      ],
+    ]
+    for (const [over, expected] of cases) {
+      const v = shared(snapshot({ candidates: [api(over)] }))
+      assert.notEqual(v.outcome, 'selected', JSON.stringify(over))
+      assert.equal(limitation(v, ref), expected, JSON.stringify(over))
+    }
+  })
+
+  it('money exhausted with free slots is busy, never admitted by the free slot', () => {
+    const v = shared(snapshot({ candidates: [api({ capacity: { admits: false, reasons: ['grant_spend'] } })] }))
+    assert.equal(v.outcome, 'waiting')
+    assert.ok(v.proposal === null)
+    const input = assembleSelectionInput(
+      snapshot({ candidates: [api({ capacity: { admits: false, reasons: ['grant_spend'] } })] }),
+    )
+    const c = input.candidates[0]
+    assert.ok(c && c.capacity.policy)
+    assert.equal(c.capacity.policy.verdict, 'busy')
+    assert.equal(c.commitments.accountGroupBusy, 'free', 'the slots are free; the money is not')
+  })
+
+  it('waits for a revoked Pin without falling back to another eligible grant', () => {
+    const pinned = api({ unusable: ['grant_revoked', 'pin_stale'], proofStatus: 'revoked' })
+    const other = api({ grantId: '77777777-7777-4777-8777-777777777777', ownerId: OTHER })
+    const v = shared(snapshot({ pin: { grantId: pinned.grantId, grantRevision: 1 }, candidates: [pinned, other] }))
+    assert.equal(v.mode, 'pin')
+    assert.equal(v.outcome, 'denied')
+    assert.deepEqual(v.globalCodes, ['pin_cannot_be_honored'])
+    assert.equal(v.proposal, null)
+    assert.equal(limitation(v, apiRef(other.grantId)), 'not_selected_by_policy')
+  })
+
+  it('keeps native resources out of research: own by the API default, others as owner-only', () => {
+    const others = native({ resourceId: '88888888-8888-4888-8888-888888888888', ownerId: OTHER })
+    const v = shared(snapshot({ candidates: [native(), others] }))
+    assert.equal(v.outcome, 'denied')
+    assert.equal(limitation(v, nativeRef(native().resourceId)), 'not_permitted_for_this_work')
+    assert.equal(limitation(v, nativeRef(others.resourceId)), 'owner_only_native')
+    const input = assembleSelectionInput(snapshot({ candidates: [native({ connectionState: null })] }))
+    const c = input.candidates[0]
+    assert.ok(c)
+    assert.equal(c.qualification.host, 'unknown')
+    assert.equal(c.qualification.connection, 'unknown')
+    assert.deepEqual(c.capacity, { basis: 'none', limits: { witness: 'unknown' }, windows: [], policy: null })
+    assert.deepEqual(c.protection, { witness: 'policy_absent' })
+    assert.equal(c.commitments.accountGroupBusy, 'unknown')
+  })
+
+  it('blocks on a withdrawn or ineligible named source or a closed research gate, before any candidate', () => {
+    for (const s of [
+      snapshot({ sources: [{ id: 'f1', state: 'withdrawn', eligibilityRevision: null }] }),
+      snapshot({ sources: [{ id: 'f1', state: 'missing', eligibilityRevision: null }] }),
+      snapshot({ gate: { state: 'disabled', revision: 2 } }),
+      snapshot({ gate: null }),
+    ]) {
+      const v = shared(s)
+      assert.equal(v.outcome, 'blocked', JSON.stringify(s.sources))
+      assert.ok(v.candidates.every((c) => c.limitation === 'not_evaluated'))
+    }
+  })
+
+  it('gives a viewer and an inactive member the uniform restricted view', () => {
+    for (const member of [
+      { role: 'viewer', active: true, revision: 1 },
+      { role: 'editor', active: false, revision: 2 },
+    ] as const) {
+      assert.deepEqual(previewSelection(snapshot({ member })), {
+        contract: 'inc04.selection.input.v1',
+        policyVersion: 'inc04-s01-policy-v1',
+        disclosure: 'restricted',
+      })
+    }
+  })
+
+  it('waits, explicitly, when there is no candidate at all', () => {
+    const v = shared(snapshot({ candidates: [] }))
+    assert.equal(v.outcome, 'waiting')
+    assert.deepEqual(v.globalCodes, ['no_candidates'])
+  })
+
+  it('answers a current viewer the kernel’s restricted view from membership alone, whatever the pool (R1)', () => {
+    const viewer = { role: 'viewer', active: true, revision: 1 } as const
+    const kernel = projectSelection(evaluateSelection(assembleSelectionInput(snapshot({ member: viewer }))), ACTOR)
+    assert.deepEqual(kernel, {
+      contract: 'inc04.selection.input.v1',
+      policyVersion: 'inc04-s01-policy-v1',
+      disclosure: 'restricted',
+    })
+    const hidden = (n: number) =>
+      Array.from({ length: n }, (_, i) =>
+        native({ resourceId: `66666666-6666-4666-8666-${String(i).padStart(12, '0')}`, ownerId: OTHER }),
+      )
+    // Empty, full and over the bound (the snapshot then carries no candidates and says so): one answer, no throw.
+    for (const s of [
+      snapshot({ member: viewer, candidates: [] }),
+      snapshot({ member: viewer, candidates: hidden(200) }),
+      snapshot({ member: viewer, complete: false, candidates: [] }),
+    ]) {
+      assert.deepEqual(
+        previewSelection(s),
+        kernel,
+        `pool of ${String(s.candidates.length)}, complete ${String(s.complete)}`,
+      )
+    }
+  })
+
+  it('still refuses an editor’s pool above the bound as projection_unavailable, never a ranked subset', () => {
+    assert.throws(
+      () => previewSelection(snapshot({ complete: false, candidates: [] })),
+      (e: unknown) => e instanceof DomainError && e.code === 'projection_unavailable',
+    )
+  })
+
+  it('never ranks an incomplete pool', () => {
+    assert.throws(
+      () => assembleSelectionInput(snapshot({ complete: false, candidates: [] })),
+      /selection_pool_incomplete/,
+    )
+  })
+
+  it('keeps the correlation equal while commitments change the decision, and is deterministic', () => {
+    const free = snapshot()
+    const busy = snapshot({
+      candidates: [api({ slotsBusy: true, capacity: { admits: false, reasons: ['account_slots'] } })],
+    })
+    assert.equal(requestRevisionOf(free), requestRevisionOf(busy))
+    assert.equal(shared(free).requestRevision, shared(busy).requestRevision)
+    assert.notEqual(shared(free).outcome, shared(busy).outcome)
+    assert.deepEqual(previewSelection(snapshot()), previewSelection(snapshot()))
+    const named = snapshot({ sources: [{ id: 'f1', state: 'eligible', eligibilityRevision: 3 }] })
+    assert.equal(requestRevisionOf(named), 'v1.m1.a1.e1.r1.p0.s3')
+  })
+
+  it('takes nothing from a client: the input is the snapshot’s actor, project and closed profile only', () => {
+    const input = assembleSelectionInput(snapshot())
+    assert.equal(input.request.actorRef, ACTOR)
+    assert.equal(input.request.projectRef, PROJECT)
+    assert.deepEqual(
+      [input.request.family, input.request.role, input.request.operationRef],
+      ['explore', 'explorer', 'research'],
+    )
+    assert.equal(input.request.strictSettings, null)
+    assert.equal(input.strictSettingsDisclosure, undefined)
+    assert.deepEqual(input.policy, { scopes: [], routeOverrides: [] })
+    assert.equal(input.evaluatedAt, NOW)
+  })
+})

@@ -41,10 +41,14 @@ DO $$ DECLARE f record; pickers text[]:=ARRAY['admit_research_task','admit_nativ
   'runtime_authenticate','runtime_conversation_acknowledged','runtime_conversation_claim','runtime_conversation_go',
   'runtime_conversation_reserve','runtime_conversation_settle','runtime_cursor','runtime_record_observations','runtime_record_receipts',
   'runtime_hello','runtime_lease','runtime_poll','runtime_record_ready','runtime_status','contribution_runtime_of',
-  'register_contribution_runtime','retire_contribution_runtime'];
+  'register_contribution_runtime','retire_contribution_runtime',
+  -- 0104 (INC04-S01b): a private boolean fact at an explicit instant, read only for a grant's own contribution runtime
+  -- (its project, connection and current credential revision); it chooses no runtime and returns none.
+  'selection_runtime_ready_at'];
 BEGIN
  FOR f IN SELECT p.proname, p.prosrc FROM pg_proc p WHERE p.pronamespace='sophia'::regnamespace
-   AND p.prosrc ~* 'from\s+sophia\.runtime_instances' LOOP
+   -- FROM or JOIN (INC04-S01b): a selector that reads the table through a join is a selector too.
+   AND p.prosrc ~* '(from|join)\s+sophia\.runtime_instances' LOOP
   IF f.proname=ANY(pickers) THEN
    IF position('contribution_resource' IN f.prosrc)=0 THEN RAISE EXCEPTION 'Picker % does not exclude contribution resources', f.proname; END IF;
   ELSIF f.proname=ANY(role_pinned) THEN

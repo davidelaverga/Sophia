@@ -50,6 +50,7 @@ import { RUNTIME_ROUTES, conversationRuntimeRoutes, researchRoutes, runtimeRoute
 import { OWNER_RUNNER_SCHEMA, runnerOperationRoutes, type OwnerRunnerAdmissions } from './routes/runner-operations.ts'
 import { apiContributionRoutes } from './routes/api-contributions.ts'
 import { projectResourceRoutes } from './routes/project-resources.ts'
+import { selectionPreviewRoutes } from './routes/selection-preview.ts'
 import { sourceRoutes } from './routes/sources.ts'
 import type { LiveKitConfig } from './livekit.ts'
 import { NotificationHub } from './notification-hub.ts'
@@ -422,6 +423,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 function registerNativeRunner(app: FastifyInstance, deps: AppDeps): void {
   runnerOperationRoutes(app, { pool: deps.pool, admissions: deps.ownerRunnerAdmissions ?? 'off' })
   projectResourceRoutes(app, { pool: deps.pool })
+  // INC04-S01b (A56): the read-only selection preview; installation (0104) is its boundary, no flag.
+  selectionPreviewRoutes(app, { pool: deps.pool })
 }
 
 /**
