@@ -1528,6 +1528,91 @@ describe('R1 F02: evaluation never takes ownership of caller settings', () => {
   })
 })
 
+// --- R2 regressions (PR #515 finding 4561188316) ------------------------------------------------------------------
+
+type Host = Candidate['qualification']['host']
+const hosted = (route: 'native' | 'api', host: Host, ref = 'resource') =>
+  candidate(ref, (c) => {
+    c.routeKind = route
+    c.qualification.host = host
+  })
+const forRoute = (route: 'native' | 'api') => (i: SelectionInput) => {
+  if (route === 'api') i.request.family = 'explore'
+}
+
+describe('R2: a native candidate needs a current host', () => {
+  it('every typed host on each route gives its existing result, and native not_applicable is never eligible', () => {
+    const expected: Record<'native' | 'api', Record<Host, readonly { code: string; cls: string }[]>> = {
+      native: {
+        current: [],
+        offline: [{ code: 'host_offline', cls: 'availability' }],
+        stale: [{ code: 'host_stale', cls: 'availability' }],
+        unknown: [{ code: 'host_unknown', cls: 'proof_missing' }],
+        not_applicable: [{ code: 'fact_conflict', cls: 'proof_missing' }],
+      },
+      api: {
+        current: [],
+        offline: [{ code: 'host_offline', cls: 'availability' }],
+        stale: [{ code: 'host_stale', cls: 'availability' }],
+        unknown: [{ code: 'host_unknown', cls: 'proof_missing' }],
+        not_applicable: [],
+      },
+    }
+    for (const route of ['native', 'api'] as const) {
+      for (const host of ['current', 'offline', 'stale', 'unknown', 'not_applicable'] as const) {
+        const d = run([hosted(route, host)], forRoute(route))
+        const want = expected[route][host]
+        assert.deepEqual(row(d, 'resource').failures, want, `${route} ${host}`)
+        assert.equal(d.proposedRef, want.length === 0 ? 'resource' : null, `${route} ${host}`)
+      }
+    }
+  })
+
+  it('a properly qualified cross-member native resource without a current host is excluded too', () => {
+    const shared = (host: Host) =>
+      grantCandidate('resource', (c) => {
+        c.routeKind = 'native'
+        c.nativeDelegation = 'qualified'
+        c.qualification.host = host
+        if (c.authority.basis === 'contribution_grant' && c.authority.grant) {
+          c.authority.grant.operationRefs = ['op-create']
+          c.authority.grant.roles = ['worker']
+        }
+      })
+    assert.equal(run([shared('current')]).proposedRef, 'resource')
+    const d = run([shared('not_applicable')])
+    assert.deepEqual([d.outcome, d.proposedRef, codes(d, 'resource')], ['waiting', null, ['fact_conflict']])
+  })
+
+  it('a pinned native resource without a current host waits and nothing else is chosen', () => {
+    const d = run([hosted('native', 'not_applicable', 'a'), hosted('native', 'current', 'b')], (i) => {
+      i.policy.scopes = [scope('pin', 'a')]
+    })
+    assert.deepEqual([d.outcome, d.globalCodes, d.proposedRef], ['waiting', ['pin_unavailable'], null])
+  })
+
+  it('a preferred native resource without a current host falls back within its payer', () => {
+    const target = hosted('native', 'not_applicable', 'a')
+    const alt = hosted('native', 'current', 'b')
+    alt.payerScopeRef = target.payerScopeRef
+    const d = run([target, alt], (i) => (i.policy.scopes = [scope('prefer', 'a')]))
+    assert.deepEqual(
+      [d.proposedRef, d.fallback, codes(d, 'a')],
+      ['b', { targetRef: 'a', crossPayer: false }, ['fact_conflict']],
+    )
+  })
+
+  it('a better-fitting native resource without a current host is never ranked or proposed', () => {
+    const better = hosted('native', 'not_applicable', 'a')
+    better.ranking.suitabilityTier = { status: 'known', value: 0 }
+    const d = run([better, hosted('native', 'current', 'b')])
+    assert.deepEqual(
+      [d.proposedRef, d.alternatives, row(d, 'a').status, row(d, 'a').rankStep],
+      ['b', [], 'excluded', null],
+    )
+  })
+})
+
 describe('no effects', () => {
   it('the kernel imports nothing and reads no clock, randomness, process, network or storage', () => {
     const source = readFileSync(new URL('./allocation-selection.ts', import.meta.url), 'utf8')

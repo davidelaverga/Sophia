@@ -922,6 +922,9 @@ function qualificationFailures(ctx: EvalCtx, c: Candidate): Failure[] {
   }
   if (q.host === 'offline' || q.host === 'stale') out.push(f(`host_${q.host}`, 'availability'))
   if (q.host === 'unknown') out.push(f('host_unknown', 'proof_missing'))
+  // A native route runs on its owner's host, so "no host applies" contradicts it: an invalid fact, never a current
+  // host and never a known outage (R2, PR #515 finding 4561188316). Only an API route may have no host.
+  if (q.host === 'not_applicable' && c.routeKind === 'native') out.push(f('fact_conflict', 'proof_missing'))
   return out
 }
 
