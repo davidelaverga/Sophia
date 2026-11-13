@@ -251,6 +251,42 @@ branch `inc01-des-002-rec01-f02`, in a fresh public worktree at `dbd0dad3`.
    - A simulated EPERM on the group query (a reporting witness, not an OS event) gives "and stopping it failed: could
      not tell whether its processes … are gone", with both causes.
 
+## CUR01, a continuation is the page's own last row, as it happened (a child of `9a1d105f`)
+
+#512's Codex review of `9a1d105f` (review 5885584200, comment 4559340415, thread `PRRT_kwDOUqJnR8628QYD`) found P2: a
+page with rows could give a `nextCursor` past its last row. Root and the same reviewer confirmed it from the source
+(`abb9b788…b273`). The reader, inherited unchanged from `8c1077b3`, bound the cursor only to the one asked with, and
+only on a later page. Rows between the last returned and the cursor were then never asked for, under a catalog later
+said complete. Assignment `INC01-DES-002-CUR01-CURSOR-BOUNDARY-001` (`124f5fbd…bdc0`) leased six existing paths. The
+work is on the local branch `inc01-des-002-cur01`, in a fresh public worktree at `9a1d105f`. `9a1d105f`, `19e654c6`,
+`8c1077b3` and their running checks are untouched.
+
+1. **Plan first:** the plan's CUR01 section, logged before code.
+2. **Fail-before on `9a1d105f`'s reader bytes** (blob `79550ac3`).
+   - Unit, at the reader's entry: all four bad pages were accepted, and the client call through
+     `listProjectNativeResources` resolved instead of refusing. The four: a first page's cursor past and behind its
+     last row; a later page's past its last row, and between the cursor asked with and its last row.
+   - Browser: with the reader set aside, the new tests failed at their first check. The skipping first page was taken
+     as "3 loaded · more not read yet", with More. The later-page browser case wasn't reached in that run; its
+     fail-before is the unit one.
+3. **The repair, in the reader only.**
+   - On a page with rows, `canonicalId(nextCursor)` must equal its last row's, on every page. That refuses a cursor past
+     it and one behind it.
+   - The cursor is still sent as spelled.
+   - On a page with no row the old rule stays (past the cursor asked with), so an empty first page that says more
+     follows is still the incomplete notice, with no More.
+   - No reducer, view, fixture-data, app or config change.
+4. **Reached.**
+   - Unit: the four bad pages are `CatalogViolation`s, and through the client `contract_violation` / `safe_read` with
+     that cause. An exact last row in upper case and with `urn:uuid:` is taken, its cursor kept as sent. Empty
+     incomplete pages are still read, first and later. A complete empty page is still empty.
+   - Browser, desktop and phone, through ProjectResources (`skipfirst`, `skiplater`):
+     - The skipping first page is the existing failed read: no row, no More, and only first-page requests.
+     - The skipping later page leaves the three rows read before as partial, with their time. Its row isn't added, there
+       is no More, and its cursor is never asked with.
+     - The `more` and empty-first controls pass unchanged.
+   - No existing fixture's cursor broke the rule: `more`'s first page already ends at row 3, its cursor.
+
 ## Remaining obligations
 
 - The independent whole-actual source and pre-push review of this UX iteration candidate on `775`.

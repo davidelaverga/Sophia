@@ -7,7 +7,8 @@
 // `refused` (`status=401|403|404`, its body never ending), `partial` (the second page fails), `inconsistent` (the second
 // page repeats a row), `refused2` (the second page is refused, 404), `renew` (the first token is refused, renewed once,
 // then read), `bad` (a row whose owner and reader disagree), `emptyfirst` (a first page with no row that says more
-// follows: never an empty catalog), `known-empty` (the incumbent panel with no rows and no catalog, as known data).
+// follows: never an empty catalog), `known-empty` (the incumbent panel with no rows and no catalog, as known data),
+// `skipfirst` (the first page's cursor is past its last row) and `skiplater` (the second page's is): CUR01.
 // `signin=app`: the app's way to sign in again is given, as SignedIn gives it, and only counted here (`signIns`).
 // `window.nativeFixture`: `requests` (each catalog read: its cursor, its token's subject, its project), `hold()` (the
 // next read waits) and `release(kind)` (`page1`, `page2`, `all`, `404`), `switchProject()`, `switchAccount()`,
@@ -242,6 +243,8 @@ const endless = (status: number) => new Response(new ReadableStream({ start() {}
 /** One catalog read, as a case answers it. */
 interface Asked {
   later: boolean
+  /** The cursor it was asked with, as sent. */
+  after: string | null
   reader: string
   token: string
   first: ProjectNativeResourcePage
@@ -249,6 +252,8 @@ interface Asked {
 }
 
 const ok = (page: unknown) => Promise.resolve(json(200, page))
+/** The rest past a skipping cursor (5): row 6 only, complete. Rows 4 and 5 lie between; reading it would claim all. */
+const pastFive = (a: Asked) => pageOf(ROWS.slice(5), a.reader, null, LATER)
 
 /** Each case's answer to a read: the first page (`later` false) or the next. */
 const CASES: Record<string, (a: Asked) => Promise<Response>> = {
@@ -271,6 +276,13 @@ const CASES: Record<string, (a: Asked) => Promise<Response>> = {
   // The first token is refused (401); the one its renewal gives is answered.
   renew: (a) => (renewed.has(a.token) ? ok(pageOf(ROWS, a.reader, null)) : Promise.resolve(endless(401))),
   bad: (a) => ok({ ...a.first, resources: a.first.resources.map((r) => ({ ...r, mine: ROWS[0]?.mine ?? null })) }),
+  // A page with rows whose cursor isn't its last row (0097 makes it the last). Past the bad cursor it's answered as if
+  // followed, so a read that took the cursor would show up in `requests`, and in a catalog said complete without rows.
+  skipfirst: (a) => ok(a.later ? pastFive(a) : pageOf(ROWS.slice(0, 3), a.reader, id(5))),
+  skiplater: (a) => {
+    if (!a.later) return ok(a.first)
+    return ok(a.after === id(3) ? pageOf(ROWS.slice(3, 4), a.reader, id(5), LATER) : pastFive(a))
+  },
 }
 
 /** What a held read is released with. */
@@ -286,6 +298,7 @@ function answer(kind: Release | 'case', after: string | null, reader: string, pr
   if (project === OTHER_PROJECT) return ok(pageOf(ROWS.slice(5, 6), reader, null))
   const asked: Asked = {
     later: after !== null,
+    after,
     reader,
     token,
     first: pageOf(ROWS.slice(0, 3), reader, id(3)),
