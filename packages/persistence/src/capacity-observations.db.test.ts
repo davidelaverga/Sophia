@@ -366,4 +366,43 @@ describe('operator custody of capacity readings (0107)', () => {
     assert.deepEqual(await rows(), initial)
     assert.equal(await readFor(w), null, 'no reading speaks for the new credential revision')
   })
+
+  // R2: raw JSONB keeps a fractional zero, so these go to the recorder as text, never through JSON.stringify (which
+  // writes 1.0 as 1 and cannot witness the spelling).
+  it('canonicalizes integral credential-revision spellings as one revision, new and replayed after expiry', async () => {
+    const w = await world()
+    const q = await w.qualify(1_500)
+    const r = await reading(w, q)
+    const spelled = (revision: string, over: Partial<CapacityObservationInput> = {}) => {
+      const text = JSON.stringify({ ...r, ...over })
+      assert.ok(text.includes('"credentialRevision":1,'), 'the revision to respell')
+      return text.replace('"credentialRevision":1,', `"credentialRevision":${revision},`)
+    }
+    const raw = async (text: string) => {
+      try {
+        const result = await ownerPool.query<{ r: unknown }>(
+          'SELECT sophia.record_capacity_observation($1::jsonb) AS r',
+          [text],
+        )
+        return { ok: true as const, receipt: result.rows[0]?.r }
+      } catch (err: unknown) {
+        return { ok: false as const, code: String(Reflect.get(Object(err), 'code')) }
+      }
+    }
+    const first = await raw(spelled('1.0'))
+    assert.ok(first.ok, JSON.stringify(first))
+    assert.equal(Reflect.get(Object(first.receipt), 'credentialRevision'), 1, 'canonical revision 1')
+    await wait(1_700)
+    const initial = await rows()
+    for (const revision of ['1', '1.00', '1e0'])
+      assert.deepEqual(
+        await raw(spelled(revision)),
+        first,
+        `the replay spelled ${revision}, after the qualification expired`,
+      )
+    assert.deepEqual(await raw(spelled('1.1')), { ok: false, code: '22023' }, 'never rounded into revision 1')
+    assert.deepEqual(await raw(spelled('1.0', { reflection: 'all' })), { ok: false, code: '23505' }, 'changed payload')
+    assert.deepEqual(await rows(), initial, 'nothing written')
+    assert.deepEqual(await readFor(w), { state: 'unbound' }, 'still restrictive')
+  })
 })

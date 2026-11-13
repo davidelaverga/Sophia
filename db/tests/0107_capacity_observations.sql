@@ -8,6 +8,8 @@
 --   binding, judged FIRST (a revoke and requalification under unchanged credentials makes an old reading unbound, and an
 --   old-qualification stream neither masks nor conflicts with a replacement reading in another stream).
 -- * A reading observed before its qualification held is refused, whatever holds at record time.
+-- * R2: integral credential-revision spellings (1.0, 1.00, 1e0) canonicalize as 1, new and replayed; nothing rounds into
+--   a revision; another revision is its own identity.
 -- * R1 (C03): the original receipt replays after binding loss (account or route revoked and replaced, credential
 --   rotated), writing nothing; a changed payload conflicts; a new key is still refused; the read stays restrictive.
 BEGIN;
@@ -330,6 +332,71 @@ DO $$ BEGIN
   RAISE EXCEPTION 'Rotation: a new reading on the old qualification was accepted'; END IF;
 END $$;
 ROLLBACK TO SAVEPOINT replay_rotation;
+
+-- --- the integral credential revision (R2) ---------------------------------------------------------------------------
+-- Raw JSONB keeps a fractional zero: 1.0, 1.00 and 1e0 are the integral revision 1 and hash as 1 (as a4e8 canonicalized
+-- them from the bigint column), as a new reading and as a replay, also after a lost binding. A non-integral, non-number,
+-- missing, out-of-range or other revision never rounds into the current one, and another revision never reuses
+-- revision 1's receipt.
+SAVEPOINT revision_spellings;
+DO $$ DECLARE a jsonb; b jsonb; r jsonb; rows_before bigint[];
+ -- The original input, kept before any binding changes (a revocation advances the qualification's revision).
+ orig jsonb:=pg_temp.reading('k-dec')||'{"reflection":"none","credentialRevision":1.0}'::jsonb; BEGIN
+ a:=sophia.record_capacity_observation(pg_temp.reading('k-int')||'{"reflection":"none"}'::jsonb);
+ b:=sophia.record_capacity_observation(orig);
+ IF (SELECT payload_sha256 FROM sophia.capacity_observations WHERE observation_key='k-int')
+    IS DISTINCT FROM (SELECT payload_sha256 FROM sophia.capacity_observations WHERE observation_key='k-dec') THEN
+  RAISE EXCEPTION 'The 1.0 spelling did not canonicalize as 1'; END IF;
+ IF (b->>'credentialRevision')::text<>'1' THEN RAISE EXCEPTION 'The receipt names revision %', b->>'credentialRevision'; END IF;
+ rows_before:=ARRAY[(SELECT count(*) FROM sophia.capacity_observations),(SELECT count(*) FROM sophia.capacity_observation_windows)];
+ FOREACH r IN ARRAY ARRAY['{"credentialRevision":1}','{"credentialRevision":1.00}','{"credentialRevision":1e0}',
+   '{"credentialRevision":10e-1}']::jsonb[] LOOP
+  IF sophia.record_capacity_observation(pg_temp.reading('k-dec')||'{"reflection":"none"}'::jsonb||r) IS DISTINCT FROM b THEN
+   RAISE EXCEPTION 'The replay spelled % is not the original receipt', r; END IF;
+ END LOOP;
+ IF ARRAY[(SELECT count(*) FROM sophia.capacity_observations),(SELECT count(*) FROM sophia.capacity_observation_windows)]
+    IS DISTINCT FROM rows_before THEN RAISE EXCEPTION 'A spelled replay wrote rows'; END IF;
+ -- Never rounded or coerced into the current revision, as a new reading.
+ FOREACH r IN ARRAY ARRAY['{"credentialRevision":1.1}','{"credentialRevision":0.9999999999999999999}',
+   '{"credentialRevision":"1"}','{"credentialRevision":null}','{"credentialRevision":2}','{"credentialRevision":0}',
+   '{"credentialRevision":-1}','{"credentialRevision":1e30}','{"credentialRevision":true}']::jsonb[] LOOP
+  IF NOT pg_temp.refused(pg_temp.reading('k-bad-'||md5(r::text))||r,'22023') THEN RAISE EXCEPTION 'Accepted %', r; END IF;
+ END LOOP;
+ IF NOT pg_temp.refused(pg_temp.reading('k-missing')-'credentialRevision','22023') THEN RAISE EXCEPTION 'Missing revision'; END IF;
+ -- 1.1 under the occupied key is not revision 1's identity: refused, never its receipt.
+ IF NOT pg_temp.refused(pg_temp.reading('k-dec')||'{"reflection":"none","credentialRevision":1.1}'::jsonb,'22023') THEN
+  RAISE EXCEPTION 'A non-integral replay was not refused'; END IF;
+ IF ARRAY[(SELECT count(*) FROM sophia.capacity_observations),(SELECT count(*) FROM sophia.capacity_observation_windows)]
+    IS DISTINCT FROM rows_before THEN RAISE EXCEPTION 'A refusal wrote rows'; END IF;
+ -- After a lost binding (account revoked and replaced): still the original receipt; a changed payload conflicts.
+ PERFORM sophia.revoke_api_account_qualification((SELECT v FROM fx WHERE k='acq')::uuid,'synthetic: replace');
+ PERFORM sophia.qualify_api_account('a7000000-0000-0000-0000-0000000000c1','{research}','operator_verified_call',
+  'synthetic: not a live qualification',now()-interval '1 hour',now()+interval '1 day');
+ IF sophia.record_capacity_observation(orig||'{"credentialRevision":1.00}'::jsonb)
+    IS DISTINCT FROM b THEN RAISE EXCEPTION 'The 1.00 replay after binding loss is not the original receipt'; END IF;
+ IF NOT pg_temp.refused(orig||'{"reflection":"all"}'::jsonb,'23505') THEN
+  RAISE EXCEPTION 'A changed payload after binding loss did not conflict'; END IF;
+ IF pg_temp.read_at(clock_timestamp())->>'state' IS NOT DISTINCT FROM 'recorded' THEN
+  RAISE EXCEPTION 'The old reading became current'; END IF;
+END $$;
+ROLLBACK TO SAVEPOINT revision_spellings;
+-- Another integral revision under the same key is its own identity: after a SYNTHETIC rotation to revision 2 and a
+-- qualification for it, the same key with revision 2.0 is a NEW reading, never revision 1's receipt.
+SAVEPOINT revision_rotation;
+DO $$ DECLARE one jsonb; two jsonb; q2 jsonb; orig jsonb:=pg_temp.reading('k-rot')||'{"credentialRevision":1.0}'::jsonb; BEGIN
+ one:=sophia.record_capacity_observation(orig);
+ PERFORM sophia.revoke_api_account_qualification((SELECT v FROM fx WHERE k='acq')::uuid,'synthetic: rotate');
+ UPDATE sophia.api_connections SET credential_revision=2 WHERE id='a7000000-0000-0000-0000-0000000000c1';
+ q2:=sophia.qualify_api_account('a7000000-0000-0000-0000-0000000000c1','{research}','operator_verified_call',
+  'synthetic: not a live qualification',now()-interval '1 hour',now()+interval '1 day');
+ two:=sophia.record_capacity_observation(pg_temp.reading('k-rot')||jsonb_build_object('accountQualificationId',
+  q2->>'qualificationId','accountQualificationRevision',1)||'{"credentialRevision":2.0}'::jsonb);
+ IF two->>'observationId'=one->>'observationId' OR (two->>'credentialRevision')::text<>'2' THEN
+  RAISE EXCEPTION 'Revision 2 reused revision 1''s receipt: % / %', one, two; END IF;
+ IF sophia.record_capacity_observation(orig||'{"credentialRevision":1}'::jsonb) IS DISTINCT FROM one THEN
+  RAISE EXCEPTION 'Revision 1''s replay changed'; END IF;
+END $$;
+ROLLBACK TO SAVEPOINT revision_rotation;
 
 -- A grant whose settings are not the connection's (another model) sees no reading.
 DO $$ BEGIN

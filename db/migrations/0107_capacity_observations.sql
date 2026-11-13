@@ -257,6 +257,20 @@ BEGIN
  RETURN rq.id IS NOT NULL AND rq.qualified_at=o.route_qualified_at AND rq.expires_at=o.route_qualification_expires_at;
 END $$;
 
+-- A credential revision as the request spells it (R2): a JSON number whose value is integral and within 1 to 2^63-1, as
+-- the revision, else NULL. Judged as numeric BEFORE any conversion, so 1.0, 1.00 and 1e0 are revision 1 (as a4e8
+-- canonicalized them from the bigint column) and nothing ever rounds into a revision (1.1 is no revision). The
+-- account qualification revision and source sequence keep their own parsing.
+CREATE FUNCTION sophia.capacity_observation_revision(v jsonb) RETURNS bigint LANGUAGE plpgsql IMMUTABLE
+SET search_path=pg_catalog AS $$
+DECLARE n numeric;
+BEGIN
+ IF v IS NULL OR jsonb_typeof(v)<>'number' THEN RETURN NULL; END IF;
+ n:=(v #>> '{}')::numeric;
+ IF n<>trunc(n) OR n<1 OR n>9223372036854775807 THEN RETURN NULL; END IF;
+ RETURN n::bigint;
+END $$;
+
 -- The reading's closed fields and shape, and its canonical payload (its key excluded) over the given scope facts, whose
 -- SHA-256 decides replay versus conflict. Only the server-derived facts come from the scope (owner, account, provider,
 -- route, model, effort, the frozen route qualification facts); every caller-supplied field (connection, credential
@@ -277,6 +291,8 @@ BEGIN
   ARRAY['observationKey','connectionId','credentialRevision','accountQualificationId','accountQualificationRevision',
    'routeQualificationId','operation','verification','evidenceRef','sourceChannel','windowSetRef','windowSetVersion',
    'coverage','reflection','observedAt','freshUntil','windows'],'reading');
+ IF sophia.capacity_observation_revision(p->'credentialRevision') IS NULL THEN
+  RAISE EXCEPTION 'A reading names an integral credential revision' USING ERRCODE='22023'; END IF;
  IF jsonb_typeof(p->'accountQualificationRevision')<>'number' THEN
   RAISE EXCEPTION 'A reading names its account qualification''s revision' USING ERRCODE='22023'; END IF;
  cov:=sophia.capacity_observation_text(p,'coverage');
@@ -310,7 +326,7 @@ BEGIN
   'accountId',(s->>'accountId')::uuid,'provider',s->>'provider',
   -- Every caller-supplied identity field is the request's own, never replaced by a recorded or current fact.
   'connectionId',sophia.capacity_observation_text(p,'connectionId')::uuid,
-  'credentialRevision',(p->>'credentialRevision')::bigint,'routeId',s->>'routeId','model',s->>'model',
+  'credentialRevision',sophia.capacity_observation_revision(p->'credentialRevision'),'routeId',s->>'routeId','model',s->>'model',
   'effort',s->>'effort','operation',sophia.capacity_observation_text(p,'operation'),
   'accountQualificationId',(p->>'accountQualificationId')::uuid,
   'accountQualificationRevision',(p->>'accountQualificationRevision')::bigint,
@@ -344,7 +360,7 @@ BEGIN
    'coverage','reflection','observedAt','freshUntil','windows'],'reading');
  SELECT * INTO conn FROM sophia.api_connections WHERE id=sophia.capacity_observation_text(p,'connectionId')::uuid FOR SHARE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Connection not found' USING ERRCODE='22023'; END IF;
- IF jsonb_typeof(p->'credentialRevision')<>'number' OR (p->>'credentialRevision')::numeric<>conn.credential_revision
+ IF sophia.capacity_observation_revision(p->'credentialRevision') IS DISTINCT FROM conn.credential_revision
     OR conn.credential_revision<1 THEN
   RAISE EXCEPTION 'A reading names its connection''s current credential revision' USING ERRCODE='22023'; END IF;
  IF jsonb_typeof(p->'accountQualificationRevision')<>'number' THEN
@@ -373,12 +389,13 @@ SET search_path=pg_catalog,sophia AS $$
 DECLARE conn sophia.api_connections; o sophia.capacity_observations;
 BEGIN
  IF jsonb_typeof(p)<>'object' OR jsonb_typeof(p->'connectionId')<>'string' OR jsonb_typeof(p->'observationKey')<>'string'
-    OR jsonb_typeof(p->'operation')<>'string' OR jsonb_typeof(p->'credentialRevision')<>'number'
-    OR (p->>'credentialRevision')::numeric<>trunc((p->>'credentialRevision')::numeric) THEN RETURN NULL; END IF;
+    OR jsonb_typeof(p->'operation')<>'string' OR sophia.capacity_observation_revision(p->'credentialRevision') IS NULL
+  THEN RETURN NULL; END IF;
  SELECT * INTO conn FROM sophia.api_connections WHERE id=(p->>'connectionId')::uuid;
  IF NOT FOUND THEN RETURN NULL; END IF;
  SELECT x.* INTO o FROM sophia.capacity_observations x WHERE x.account_id=conn.account_id AND x.owner_id=conn.owner_id
-  AND x.connection_id=conn.id AND x.credential_revision=(p->>'credentialRevision')::numeric AND x.route_id=conn.route_id
+  AND x.connection_id=conn.id AND x.credential_revision=sophia.capacity_observation_revision(p->'credentialRevision')
+  AND x.route_id=conn.route_id
   AND x.model=conn.model AND x.effort=conn.effort AND x.operation=p->>'operation' AND x.observation_key=p->>'observationKey';
  RETURN o;
 END $$;
@@ -603,6 +620,7 @@ REVOKE ALL ON FUNCTION sophia.capacity_observation_immutable(), sophia.capacity_
  sophia.capacity_observation_window(jsonb,text,timestamptz,timestamptz),
  sophia.capacity_observation_qualifications(sophia.api_connections,uuid,bigint,uuid,timestamptz,timestamptz),
  sophia.capacity_observation_bound(sophia.api_connections,sophia.capacity_observations,timestamptz),
+ sophia.capacity_observation_revision(jsonb),
  sophia.capacity_observation_canonical(jsonb,jsonb), sophia.capacity_observation_reading(jsonb),
  sophia.capacity_observation_recorded(jsonb), sophia.capacity_observation_scope(sophia.capacity_observations),
  sophia.capacity_observation_receipt(sophia.capacity_observations),
