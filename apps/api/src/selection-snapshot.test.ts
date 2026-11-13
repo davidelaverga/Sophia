@@ -2,6 +2,7 @@
 // These are source-logic checks of the mapping only; a synthetic record never qualifies a live route or passes AC-04.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { DomainError, evaluateSelection, projectSelection } from '@sophia/domain'
 import type { SelectionApiFacts, SelectionNativeFacts, SelectionSnapshot } from '@sophia/persistence'
 import { apiRef, assembleSelectionInput, nativeRef, previewSelection, requestRevisionOf } from './selection-snapshot.ts'
 
@@ -216,6 +217,39 @@ describe('the selection preview assembler', () => {
     const v = shared(snapshot({ candidates: [] }))
     assert.equal(v.outcome, 'waiting')
     assert.deepEqual(v.globalCodes, ['no_candidates'])
+  })
+
+  it('answers a current viewer the kernel’s restricted view from membership alone, whatever the pool (R1)', () => {
+    const viewer = { role: 'viewer', active: true, revision: 1 } as const
+    const kernel = projectSelection(evaluateSelection(assembleSelectionInput(snapshot({ member: viewer }))), ACTOR)
+    assert.deepEqual(kernel, {
+      contract: 'inc04.selection.input.v1',
+      policyVersion: 'inc04-s01-policy-v1',
+      disclosure: 'restricted',
+    })
+    const hidden = (n: number) =>
+      Array.from({ length: n }, (_, i) =>
+        native({ resourceId: `66666666-6666-4666-8666-${String(i).padStart(12, '0')}`, ownerId: OTHER }),
+      )
+    // Empty, full and over the bound (the snapshot then carries no candidates and says so): one answer, no throw.
+    for (const s of [
+      snapshot({ member: viewer, candidates: [] }),
+      snapshot({ member: viewer, candidates: hidden(200) }),
+      snapshot({ member: viewer, complete: false, candidates: [] }),
+    ]) {
+      assert.deepEqual(
+        previewSelection(s),
+        kernel,
+        `pool of ${String(s.candidates.length)}, complete ${String(s.complete)}`,
+      )
+    }
+  })
+
+  it('still refuses an editor’s pool above the bound as projection_unavailable, never a ranked subset', () => {
+    assert.throws(
+      () => previewSelection(snapshot({ complete: false, candidates: [] })),
+      (e: unknown) => e instanceof DomainError && e.code === 'projection_unavailable',
+    )
   })
 
   it('never ranks an incomplete pool', () => {

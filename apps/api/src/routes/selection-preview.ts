@@ -10,7 +10,9 @@
 // stays the authority and rechecks everything before any effect.
 //
 // A nonmember and a missing project answer 404 alike. A database without 0104 answers projection_unavailable (503),
-// never an empty preview; so does a pool larger than one evaluation may hold (200), rather than a ranked subset.
+// never an empty preview. A current viewer always answers the one uniform restricted view, whatever the pool holds
+// (R1: decided from verified membership before the pool is read). For a current admin or editor, a pool larger than
+// one evaluation may hold (200) is projection_unavailable too, rather than a ranked subset.
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import { DomainError } from '@sophia/domain'
@@ -88,8 +90,8 @@ export function selectionPreviewRoutes(app: FastifyInstance, { pool }: { pool: p
       const snapshot = await withActor(pool, req.actorId, 'read', (c) => readSelectionSnapshot(c, projectId, sourceIds))
       void reply.header('cache-control', 'no-store')
       if (snapshot === null) return reply.status(404).send(notFound(req.id))
-      if (!snapshot.complete)
-        throw new DomainError('projection_unavailable', 'Too many candidates to evaluate this preview completely')
+      // A viewer's restricted view is decided before anything that depends on the pool (R1); an evaluator's larger pool
+      // is projection_unavailable (previewSelection).
       return previewSelection(snapshot)
     },
   )

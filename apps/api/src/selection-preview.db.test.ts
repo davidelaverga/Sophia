@@ -380,6 +380,94 @@ describe('the selection preview over HTTP (A56, 0104)', () => {
     assert.equal(JSON.parse(over.body).code, 'projection_unavailable')
     assert.equal(PRIVATE.test(over.body), false)
   })
+
+  it('answers a current viewer one identical restricted response at 0, 200 and 201 hidden candidates (R1)', async () => {
+    const [EDIT, VIEW, OUT] = [randomUUID(), randomUUID(), randomUUID()]
+    const p = await seedProject(db.ownerUrl, { admin: randomUUID(), editors: [EDIT], viewers: [VIEW] })
+    await owner.query(`SELECT sophia.set_research_grant($1, 'enabled', 5, 40, 'web-pilot-v1', 'approval:test')`, [
+      p.projectId,
+    ])
+    const conn = randomUUID()
+    await owner.query(
+      `INSERT INTO sophia.execution_connections(id,owner_id,upstream_origin,upstream_subject,state) VALUES ($1,$2,'synthetic','synthetic','linked')`,
+      [conn, EDIT],
+    )
+    const hide = (n: number) =>
+      owner.query(
+        `INSERT INTO sophia.executor_resources(project_id,owner_id,connection_id,harness,label,repository_root,state)
+         SELECT $1,$2,$3,'claude-native','PRIVATE-label','/PRIVATE','active' FROM generate_series(1,$4::int)`,
+        [p.projectId, EDIT, conn, n],
+      )
+    /** The viewer's whole response as a client sees it, and the log lines the request wrote. */
+    const asViewer = async () => {
+      const from = lines.length
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/projects/${p.projectId}/selection-preview?operation=research`,
+        headers: { authorization: `Bearer ${await token(VIEW)}` },
+      })
+      const logged = lines.slice(from)
+      return {
+        status: res.statusCode,
+        body: res.body,
+        headers: { cache: res.headers['cache-control'], type: res.headers['content-type'] },
+        loggedStatus: logged.flatMap((l) => {
+          const code = (JSON.parse(l) as { res?: { statusCode?: number } }).res?.statusCode
+          return code === undefined ? [] : [code]
+        }),
+        logged: logged.join(''),
+      }
+    }
+    const initial = await counts()
+    const atZero = await asViewer()
+    await hide(200)
+    const atFull = await asViewer()
+    const editorFull = await shared(EDIT, p.projectId)
+    assert.equal(editorFull.candidates.length, 200, 'the editor evaluates the complete pool of 200')
+    await hide(1)
+    const atOver = await asViewer()
+    const editorOver = await preview(EDIT, p.projectId)
+    assert.equal(editorOver.status, 503, 'the editor still needs the complete pool')
+    assert.equal(JSON.parse(editorOver.body).code, 'projection_unavailable')
+
+    assert.equal(atZero.status, 200, atZero.body)
+    assert.deepEqual(JSON.parse(atZero.body), {
+      contract: 'inc04.selection.input.v1',
+      policyVersion: 'inc04-s01-policy-v1',
+      disclosure: 'restricted',
+    })
+    assert.equal(parseSelectionView(JSON.parse(atZero.body)).disclosure, 'restricted')
+    assert.deepEqual(atZero.headers, { cache: 'no-store', type: 'application/json; charset=utf-8' })
+    for (const [n, r] of [
+      [200, atFull],
+      [201, atOver],
+    ] as const) {
+      assert.deepEqual(
+        [r.status, r.body, r.headers, r.loggedStatus],
+        [atZero.status, atZero.body, atZero.headers, atZero.loggedStatus],
+        `the viewer's answer at ${String(n)} hidden candidates is the answer at 0`,
+      )
+    }
+    assert.deepEqual(atZero.loggedStatus, [200])
+    for (const r of [atZero, atFull, atOver]) {
+      assert.equal(PRIVATE.test(r.body) || PRIVATE.test(r.logged), false, 'no private marker in body or log')
+      assert.equal(r.logged.includes('projection_unavailable'), false, 'no pool-dependent refusal was even logged')
+    }
+    // The controls hold at the same pool: membership is still verified, the query still closed.
+    const out = await preview(OUT, p.projectId)
+    const missing = await preview(VIEW, randomUUID())
+    assert.deepEqual([out.status, missing.status], [404, 404])
+    assert.equal(out.body.replace(/"requestId":"[^"]*"/, ''), missing.body.replace(/"requestId":"[^"]*"/, ''))
+    assert.equal((await preview(null, p.projectId)).status, 401)
+    assert.equal((await preview(VIEW, p.projectId, `operation=research&role=editor`)).status, 422)
+    assert.equal((await preview(VIEW, p.projectId, `operation=research&actor=${EDIT}`)).status, 422)
+    await owner.query(`UPDATE sophia.project_members SET active=false WHERE project_id=$1 AND actor_id=$2`, [
+      p.projectId,
+      VIEW,
+    ])
+    assert.equal((await preview(VIEW, p.projectId)).status, 404, 'a former viewer is a nonmember')
+    assert.deepEqual(await counts(), initial, 'no preview wrote, reserved, queued, leased or notified anything')
+  })
 })
 
 describe('on a database without 0104', () => {

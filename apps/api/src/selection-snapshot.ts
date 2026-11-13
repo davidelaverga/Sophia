@@ -8,6 +8,7 @@
 // Does not guarantee: anything the kernel itself does not (see allocation-selection.ts). Its output is internal: only
 // projectSelection of the evaluated decision may leave the server.
 import {
+  DomainError,
   evaluateSelection,
   projectSelection,
   SELECTION_INPUT_CONTRACT,
@@ -320,7 +321,19 @@ export function assembleSelectionInput(s: SelectionSnapshot): SelectionInput {
   }
 }
 
-/** The actor's own view of their preview: the kernel's projection, the only value that may leave the server. */
+/**
+ * The actor's own view of their preview: the kernel's projection, the only value that may leave the server.
+ *
+ * The order is the privacy (INC04-S01b R1, F01). A member whose verified current membership gives no summary authority
+ * (a viewer) receives the one uniform restricted view first, from membership alone: before the pool's completeness,
+ * its candidates or any evaluation are read, so no answer of theirs (a 503 included) depends on the pool. It is
+ * exactly what the kernel projects for a viewer outside the summary audience. Only a current admin or editor then
+ * needs the complete pool: a larger one is projection_unavailable, never a ranked subset and never an empty preview.
+ */
 export function previewSelection(s: SelectionSnapshot): SelectionView {
+  if (authorityOf(s) !== 'current')
+    return { contract: SELECTION_INPUT_CONTRACT, policyVersion: SELECTION_POLICY_VERSION, disclosure: 'restricted' }
+  if (!s.complete)
+    throw new DomainError('projection_unavailable', 'Too many candidates to evaluate this preview completely')
   return projectSelection(evaluateSelection(assembleSelectionInput(s)), s.actorId)
 }

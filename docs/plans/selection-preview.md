@@ -68,3 +68,21 @@ A 201st row means more than 200: the response is 503 `projection_unavailable`, n
 - **Unit:** the assembler and the parser.
 
 **Limits:** all of this is synthetic and local. Nothing here qualifies a live owner, account, route or provider, completes any AC-04 case, or activates anything.
+
+## R1: one uniform answer for a current viewer (CORE F01, P2)
+
+- **Defect on e3a72b10:** the route checked the pool's completeness before the projection.
+  - 0104 gives every current member the same count-based completeness bit.
+  - So a current viewer got restricted 200 at 0 or 200 hidden candidates, but 503 `projection_unavailable` at 201. That revealed the pool threshold.
+- **Repair:** `previewSelection` owns the order.
+  1. If the verified current membership gives no summary authority (a viewer), the one restricted view is returned first.
+     - It is exactly the kernel's projection for a viewer outside the summary audience.
+     - The pool's completeness and candidates are never read, and nothing is evaluated.
+  2. Only then is a current admin's or editor's pool required complete. A pool above 200 stays `projection_unavailable`, never a ranked subset or an empty preview.
+  3. Otherwise the kernel path runs, unchanged.
+- **Unchanged:** the authenticated actor, the read-only snapshot, the installation 503, the uniform 404 (a former member included), 401, the closed query, no-store, zero effects and the logs. There is no new contract or endpoint.
+- **Checks:**
+  - **API DB:** a current viewer at 0, 200 and 201 hidden candidates gets the same status, body, cache-control, content-type and logged status. In the same project the editor gets 200 over the complete 200, then 503 at 201. The controls hold: 404, 401 and 422, with zero writes.
+  - **Unit:** the viewer gets the kernel's restricted view at an empty, a full and an incomplete pool. An editor's incomplete pool is `projection_unavailable`.
+- **Limit:** response TIMING is not made uniform. 0104 still counts and builds the bounded pool before the role is known, and changing that needs SQL, which R1 does not lease.
+- **Native as-of precision:** `selection_native_candidate` reads `qualified_at` without an observation-time fence. This stays a bounded, nonblocking observation, not a selectable-native defect, and R1 does not change it. A future native-eligible or readout scope must fence observation time explicitly. No general native at-time guarantee is claimed.
