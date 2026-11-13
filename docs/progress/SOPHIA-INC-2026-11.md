@@ -83,6 +83,8 @@ and automatic review run on the new head, then Luis decides on integration.
 
 Separate a shipped slice from whole-mission closure. AC-02-17 remains a mandatory overall gate even after the first repository release.
 
+**Current composition (INC01-COHERENT-001, development).** One local development commit composes the accepted owned slices (API, custody, S01, resources, Personal P1 and P2 r1, S2, UI, member read) on published native `45564a5a`. It also carries 0100, the bounded repair of the inherited rebuild funding finding CW2-REBUILD-F01 (P1). It awaits the independent whole-diff gate; it is not published, merged or activated, and native post-push gates on `45564a5a` remain pending.
+
 ## Work and resource ownership
 
 There is one writer per path or effect. Scopes are as supplied; do not widen them without a new assignment.

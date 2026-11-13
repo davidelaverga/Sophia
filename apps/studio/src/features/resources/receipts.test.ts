@@ -35,6 +35,8 @@ const target = {
   attempt_id: 'at-3',
   session_id: 's',
 }
+/** Never said as held: only a receipt with a held effect and its evidence says so. */
+const notHeld = (k: Known) => assert.doesNotMatch(knownSaid(k), /^Held\b/)
 const command = (kind: Command['kind'], over: Partial<Command> = {}): Command => ({
   operation_id: 'op-1',
   kind,
@@ -122,11 +124,39 @@ describe('what is known of a command', () => {
       receipt(stop, 4, { delivery: 'delivered', effect: 'stopped', evidence_refs: ['a', 'b'] }),
     )
     assert.equal(knownSaid(settled), 'Stopped. Completed work is kept.')
+  })
+
+  // INC01-DES-001 r2 (review DES-R1-F01): a held receipt proves the native session is held, and nothing of the
+  // account's allowance, a charge or the work. What it says stays within that evidence.
+  it('says a Hold settled by native held evidence alone as held, and claims no allowance, cost or work', () => {
     const hold = command('hold')
-    assert.equal(
-      knownSaid(after(hold, receipt(hold, 1, { delivery: 'delivered', effect: 'held', evidence_refs: ['a', 'b'] }))),
-      'Held. Work and remaining allowance are retained.',
-    )
+    const native = { delivery: 'native_consumed' as const, effect: 'held' as const, evidence_refs: ['native-held'] }
+    assert.equal(readReceipt(receipt(hold, 1, native)).ok, true) // the reviewer's receipt is valid as given
+    const held = after(hold, receipt(hold, 1, native))
+    assert.deepEqual([reached(held), unresolved(held), uncertain(held)], [2, false, false])
+    assert.match(knownSaid(held), /^Held\b/)
+    assert.doesNotMatch(knownSaid(held), /allowance|quota|budget|cost|charge|credit|spend|retain|kept|work/i)
+  })
+
+  it('never says a Hold is held before its runtime proves it: pending, unconfirmed, unproven or lost', () => {
+    const hold = command('hold')
+    const pending = after(hold, receipt(hold, 1), receipt(hold, 2, { delivery: 'delivered' }))
+    assert.equal(knownSaid(pending), 'Hold requested; waiting for the runtime to confirm.')
+    assert.deepEqual([reached(pending), unresolved(pending)], [1, true])
+    notHeld(pending)
+    const unsure = fold(pending, receipt(hold, 3, { delivery: 'delivered', effect: 'unknown' }))
+    assert.equal(knownSaid(unsure), 'Hold requested. The runtime’s state is not confirmed yet.')
+    assert.deepEqual([uncertain(unsure), unresolved(unsure)], [true, true])
+    notHeld(unsure)
+    // Held without evidence isn't a receipt at all: refused, it settles nothing.
+    const unproven = receipt(hold, 4, { delivery: 'delivered', effect: 'held', evidence_refs: [] })
+    assert.equal(readReceipt(unproven).ok, false)
+    assert.equal(fold(unsure, unproven), unsure)
+    // A lost reply is unknown, and its retry is the same operation, still not held.
+    const gone = lost(sending(hold))
+    notHeld(gone)
+    assert.equal(retried(gone).command.operation_id, hold.operation_id)
+    notHeld(retried(gone))
   })
 
   it('ignores a repeated or older receipt, never takes Recorded back, and keeps a settled effect (UI-12)', () => {
