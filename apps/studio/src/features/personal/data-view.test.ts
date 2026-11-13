@@ -4,7 +4,12 @@
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
 import { exportPersonalSpace, getEarlierPersonalTurns, getPersonalSpace, getPersonalTurns } from '../../api/personal.ts'
+import { clock } from '../../app/time-words.ts'
 import { exportText } from './data-view.ts'
+
+/** A moment as the copy writes it: its day in full and its time. */
+const FULL = (iso: string) =>
+  `${new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(iso))}, ${clock(new Date(iso))}`
 
 const realFetch = globalThis.fetch
 afterEach(() => {
@@ -81,5 +86,141 @@ describe('a held turn through the canonical Personal readers', () => {
     await assert.rejects(getPersonalTurns('token', 1))
     serve(() => ({ revision: 3, turns: [{ ...held, reply: 'Recorded' }], pending: false }))
     await assert.rejects(getPersonalTurns('token', 1))
+  })
+})
+
+// INC03-DES-001: a controlled space's copy (A54's export, read whole by exportControlledSpace): under each message how
+// its answer stands, with every decision and call as recorded, stable references between inputs, calls and what was
+// kept, and when each page was made. Never a route, payer or host.
+/** A controlled input's control, withdrawn after a launch unless told. */
+const control = (over: object) => ({
+  state: 'withdrawn' as const,
+  revision: 2,
+  heldReason: null,
+  withdrawnPhase: 'after_launch' as const,
+  replaces: null,
+  replacedBy: [],
+  ...over,
+})
+
+describe('a controlled space’s copy says how each answer stands, completely', () => {
+  const X = '20000000-0000-4000-8000-00000000000a'
+  const Y = '20000000-0000-4000-8000-00000000000b'
+  const CALL = '30000000-0000-4000-8000-00000000000a'
+  const ROUTE = 'route-should-never-be-copied'
+  const turnOf = (n: number, text: string, input: string | null, over: object = {}) => ({
+    id: `6f1c2a7e-0d4b-4c39-9a51-3e0b7d1c9b0${String(n)}`,
+    seq: n,
+    author: 'person' as const,
+    text,
+    createdAt: AT,
+    replyTo: null,
+    reply: 'answered' as const,
+    suggestion: null,
+    input: input === null ? null : { inputId: input, control: 'withdrawn' as const, revision: 2 },
+    prompt: 'excluded' as const,
+    activity: true,
+    ...over,
+  })
+  const view = (inputId: string, n: number, over: object) => ({
+    inputId,
+    turnId: `6f1c2a7e-0d4b-4c39-9a51-3e0b7d1c9b0${String(n)}`,
+    seq: n,
+    createdAt: AT,
+    reply: 'answered' as const,
+    decisions: [],
+    route: { routeId: ROUTE, profileDigest: 'digest-should-never-be-copied' },
+    prior: { financial: 'unresolved' as const, effect: 'possible' as const, answer: 'withheld' as const },
+    calls: [],
+    withheld: [],
+    ...over,
+  })
+  const everything = {
+    exportedAt: AT,
+    epoch: 1,
+    next: null,
+    notes: [],
+    releases: [],
+    turns: [
+      turnOf(1, 'Draft it.', X),
+      turnOf(2, 'Shorter.', Y, { reply: 'recorded', activity: false, prompt: 'eligible' }),
+      turnOf(3, 'And later.', null),
+    ],
+    inputs: [
+      view(X, 1, {
+        control: control({ replacedBy: [Y] }),
+        decisions: [
+          {
+            seq: 4,
+            operation: 'send',
+            outcome: 'admitted',
+            reason: null,
+            late: true,
+            epoch: 1,
+            admittedAt: AT,
+            policy: 'personal-default-answer',
+            policyVersion: 1,
+            family: 'answer',
+            basis: 'personal_default_addressee',
+          },
+        ],
+        calls: [
+          {
+            callId: CALL,
+            financial: 'uncertain',
+            reason: 'provider_timeout',
+            launch: 'launching',
+            answer: 'withheld',
+            possibleEffect: true,
+          },
+        ],
+        withheld: [
+          {
+            callId: CALL,
+            text: 'Thursday, then.',
+            suggestion: 'Say Thursday',
+            source: 'late_settlement',
+            at: '2026-10-01T10:05:00.000Z',
+          },
+        ],
+      }),
+      view(Y, 2, {
+        control: control({
+          state: 'held',
+          revision: 1,
+          withdrawnPhase: null,
+          heldReason: 'admission_off',
+          replaces: X,
+        }),
+        prior: { financial: 'none', effect: 'none', answer: 'none' },
+      }),
+    ],
+    pages: [
+      { from: 1, exportedAt: AT },
+      { from: 3, exportedAt: '2026-10-01T10:00:07.000Z' },
+    ],
+  }
+
+  it('names each input, its control, links, every decision and call, and what was kept from which call', () => {
+    const text = exportText(everything, 'Luis')
+    const lines = text.split('\n')
+    const has = (line: string) => assert.ok(lines.includes(line), `${line}\n---\n${text}`)
+    has('  Input 1 (control revision 2)')
+    has('  Withdrawn; work may already have started · cost not settled yet')
+    has(`  Replaced by input 2 (your message of ${FULL(AT)})`)
+    has('  Original request: answer kept aside · cost not settled yet · may have had an effect')
+    has(
+      `  Decision 4: Sent, admitted, late; admitted ${FULL(AT)}; epoch 1; personal-default-answer v1 (answer, personal default addressee)`,
+    )
+    has('  Call 1: cost not known · launching · answer kept aside · may have had an effect · provider timeout')
+    has(`  Kept aside from call 1 (late settlement), at ${FULL('2026-10-01T10:05:00.000Z')}: Thursday, then.`)
+    has('    Suggested note with it: Say Thursday')
+    has('  Input 2 (control revision 1)')
+    has('  Held to replace an earlier message — not asked yet · answers are off')
+    has(`  Replaces input 1 (your message of ${FULL(AT)})`)
+    has('  Not counted as time together')
+    has(`(The rest as of ${FULL('2026-10-01T10:00:07.000Z')})`)
+    assert.equal(lines.filter((l) => l === '  Not used for what Sophia says next').length, 2, 'X and the plain turn')
+    assert.ok(!text.includes(ROUTE) && !text.includes('digest-should-never'), 'no route, no profile')
   })
 })

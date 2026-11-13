@@ -7,10 +7,21 @@
 // `memory=1` (`=old`: one learned last year), `week=1`, `voice=1`, `ready=1` (a session in 10 min), or `all=1` (personal-extras.ts).
 // `spaceAfter=ms`, `epochAfter=ms`: the space, or its epoch, read that much later; `readSlow=1`: earlier days take
 // 1.5 s. `slow=1`: a message takes 1.5 s on its way, not 0.3, and her answer 2.5 s, not 0.9. `kept=sophia`: the note was Sophia's. `holdReply=1`: her answer waits for `window.personalFixture.answer()`; `holdSend=1`: a message waits on its way for `window.personalFixture.releaseSend()`. `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
+// `controlled=1`: a controlled space as the controlled read gives it (A55/A54, INC03-DES-001), read whole: an answered
+// message withdrawn after her answer, held to be replaced, a cancelled held message, one withdrawn with an answer kept
+// aside (its cost not settled yet) and an unrelated message waiting; `stale=1`: its latest read failed. Presentation
+// only: its writes don't change it (the app-level check, app-personal-controlled.spec.ts, crosses the actual reader).
 import { ApiError } from '../src/api/client.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
-import type { PersonalReceipt, PersonalSpace as Space, PersonalTurn } from '@sophia/contracts'
+import type {
+  PersonalAnswerControlView,
+  PersonalControlledTurn,
+  PersonalReceipt,
+  PersonalSpace as Space,
+  PersonalTurn,
+} from '@sophia/contracts'
+import type { ControlledRead } from '../src/api/personal.ts'
 import { StrictMode, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Sending } from '../src/features/personal/conversation-view.ts'
@@ -206,6 +217,164 @@ function lotsOfNotes(): Space['notes'] {
     createdAt: ago(DAY * (i + 1)),
   }))
 }
+
+/** A controlled turn as A54 gives it: its input (null without one), whether it reaches her next prompt, its activity. */
+const controlledTurn = (base: PersonalTurn, over: Partial<PersonalControlledTurn> = {}): PersonalControlledTurn => ({
+  ...base,
+  input: null,
+  prompt: 'eligible',
+  activity: true,
+  ...over,
+})
+
+/** An input's view as A54 gives it, active and settled unless told. */
+const view = (
+  inputId: string,
+  t: PersonalControlledTurn,
+  over: { control?: Partial<PersonalAnswerControlView['control']> } & Partial<
+    Omit<PersonalAnswerControlView, 'control'>
+  >,
+): PersonalAnswerControlView => {
+  const { control, ...rest } = over
+  return {
+    inputId,
+    turnId: t.id,
+    seq: t.seq,
+    createdAt: t.createdAt,
+    reply: t.reply,
+    decisions: [],
+    route: null,
+    control: {
+      state: 'active',
+      revision: 1,
+      heldReason: null,
+      withdrawnPhase: null,
+      replaces: null,
+      replacedBy: [],
+      ...control,
+    },
+    prior: { financial: 'settled', effect: 'none', answer: 'published' },
+    calls: [],
+    withheld: [],
+    ...rest,
+  }
+}
+
+const IN = {
+  x: '20000000-0000-4000-8000-00000000000a',
+  y: '20000000-0000-4000-8000-00000000000b',
+  z: '20000000-0000-4000-8000-00000000000c',
+  w: '20000000-0000-4000-8000-00000000000d',
+}
+const CALL = { x: '30000000-0000-4000-8000-00000000000a', w: '30000000-0000-4000-8000-00000000000d' }
+
+/** The controlled histories' turns, as the A3-R3 seam lists them: X answered then withdrawn, Y, Z, W and a wait. */
+function controlledTurns() {
+  const x = controlledTurn(turn('person', 'Can you draft the note to Davide about the date?', ago(40)), {
+    input: { inputId: IN.x, control: 'withdrawn', revision: 2 },
+    prompt: 'excluded',
+  })
+  const hers = controlledTurn(
+    turn('sophia', 'Here is a draft: “The date moves to Thursday.”', ago(39), { replyTo: x.id }),
+    {
+      prompt: 'excluded',
+    },
+  )
+  const y = controlledTurn(
+    turn('person', 'Keep it to two lines, and mention the pilot.', ago(30), { reply: 'recorded' }),
+    {
+      input: { inputId: IN.y, control: 'held', revision: 1 },
+      activity: false,
+    },
+  )
+  const z = controlledTurn(turn('person', 'Never mind the summary for now.', ago(25), { reply: 'recorded' }), {
+    input: { inputId: IN.z, control: 'withdrawn', revision: 2 },
+    prompt: 'excluded',
+    activity: false,
+  })
+  const w = controlledTurn(turn('person', 'What should I tell the team tomorrow?', ago(20)), {
+    reply: 'withdrawn',
+    input: { inputId: IN.w, control: 'withdrawn', revision: 2 },
+    prompt: 'excluded',
+  })
+  const waiting = controlledTurn(turn('person', 'And one more thing about the launch.', ago(2), { reply: 'pending' }))
+  const earlier = talk()
+    .slice(0, 4)
+    .map((t) => controlledTurn(t))
+  return { turns: [...earlier, x, hers, y, z, w, waiting], x, y, z, w }
+}
+
+/** Their inputs' views: X replaced by a held Y (answers off), Z cancelled before it was sent, W with an answer kept. */
+function controlledInputs({ x, y, z, w }: ReturnType<typeof controlledTurns>): PersonalAnswerControlView[] {
+  const settled = {
+    financial: 'settled',
+    reason: null,
+    launch: 'tagged',
+    answer: 'published',
+    possibleEffect: false,
+  } as const
+  return [
+    view(IN.x, x, {
+      control: { state: 'withdrawn', revision: 2, withdrawnPhase: 'after_publication', replacedBy: [IN.y] },
+      calls: [{ callId: CALL.x, ...settled }],
+    }),
+    view(IN.y, y, { control: { state: 'held', heldReason: 'admission_off', replaces: IN.x } }),
+    view(IN.z, z, { control: { state: 'withdrawn', revision: 2, withdrawnPhase: 'before_admission' } }),
+    view(IN.w, w, {
+      control: { state: 'withdrawn', revision: 2, withdrawnPhase: 'after_launch' },
+      prior: { financial: 'unresolved', effect: 'possible', answer: 'withheld' },
+      calls: [
+        {
+          ...settled,
+          callId: CALL.w,
+          financial: 'uncertain',
+          launch: 'launching',
+          answer: 'withheld',
+          possibleEffect: true,
+        },
+      ],
+      withheld: [
+        {
+          callId: CALL.w,
+          text: 'Tell them the date moves to Thursday, and why: the pilot needs a second region.',
+          suggestion: 'Tell the team about Thursday',
+          source: 'late_settlement',
+          at: ago(18),
+        },
+      ],
+    }),
+  ]
+}
+
+/** `controlled=1`: the controlled space, read whole, its histories as the A3-R3 seam lists them. */
+function controlledSpace(): ControlledRead {
+  const said = controlledTurns()
+  const inputs = controlledInputs(said)
+  const space = firstSpace()
+  const readAt = ago(1)
+  return {
+    spaceContract: 'personal_controlled_space_v1',
+    companion: space.companion,
+    revision: 7,
+    epoch: 1,
+    days: 2,
+    turns: said.turns,
+    earlier: false,
+    pending: true,
+    inputs,
+    notes: space.notes,
+    releases: space.releases,
+    back: [],
+    views: new Map(inputs.map((v) => [v.inputId, v])),
+    readAt,
+    viewAt: new Map(inputs.map((v) => [v.inputId, readAt])),
+    asOf: readAt,
+  }
+}
+
+/** `stale=1` over `controlled=1`: its latest read failed; Try again is pressed, as `read again`. */
+const staleOf = (controlled: ControlledRead | null) =>
+  controlled && query.has('stale') ? { asOf: controlled.asOf, retry: () => void pressed.push('read again') } : null
 
 /** The space as first read: the query string picks its turns and notes. */
 const firstSpace = (): Space => ({
@@ -476,6 +645,7 @@ function useFixturePlace(notes: boolean, setNotes: (open: boolean) => void): { s
 function Personal() {
   const { space, writes, wrote } = useSimulated()
   const readBack = useReadBack()
+  const controlled = useMemo(() => (query.has('controlled') ? controlledSpace() : null), [])
   const extras = useExtras(query, pressed, ago, wrote)
   const projects = useMemo(() => projectsFor(query, ahead), [])
   const [notes, setNotes] = useState(query.get('notes') === 'open')
@@ -509,11 +679,12 @@ function Personal() {
           now={NOW}
           account="fixture"
           name="Luis"
-          space={spaceRead ? space : undefined}
+          space={spaceRead ? (controlled ?? space) : undefined}
           // As Places knows it: from the space once read, or earlier from the projects (epochAfter).
           epoch={spaceRead || epochKnown ? space.epoch : undefined}
           readBack={readBack}
           read={idle}
+          stale={staleOf(controlled)}
           projects={projects}
           projectsRead={idle}
           writes={writes}

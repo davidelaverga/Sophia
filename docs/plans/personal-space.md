@@ -111,3 +111,27 @@ dictation on the device already fills the field), billing, a mobile app.
 and the side-by-side comparison on a fresh dev stack; then, after slice 2, a
 hosted run with a synthetic `@sophia.test` account through sign-up, a first
 conversation, a carried note seen by a teammate, and erasure.
+
+## Reading a controlled space (INC03-DES-001) · local candidate
+
+Once an owner has used the answer controls (0103, A54), the old reads refuse their space (C5: 503
+`projection_unavailable`, retry never), and the Studio, which read only those, could no longer open it (#514's
+4561086642). The Studio now reads such a space whole through the versioned controlled read (A55), on the
+actual backend candidate `1203c682`. There is no new control, producer or composer; the writes stay A10's.
+
+- **Legacy first.** The space is read the old way; a typed answer is the space. Only C5's exact refusal moves the read
+  to A55, and pins it for the account in its own cache (never collected on its own), until the padlock, an erasure or
+  another account resets it. Any other failure of either read is said as itself, never one read in place of the other.
+- **Read whole, kept fresh.** A round reads A55, then each window already read back, with every input's view; windows
+  at another revision or epoch than the space make the round read again, then say it isn't whole. While the space is
+  open, unlocked and in sight, it is read again soon while a reply is pending and every 20 s otherwise: money, kept
+  answers and a lapsed wait change without the space's revision. Each read keeps when it answered; the round's end is
+  the refresh's completion, never a time every fact was current at. A failed refresh keeps what was read, said so.
+- **What each message says.** Held (only while its control is held), withdrawn or cancelled, in its control's own
+  terms: never that Sophia was asked after a launch was begun, never that a withdrawn message went unanswered, never when
+  an answer was written. An answer kept aside is its owner's to read, read-only, with when it was kept.
+- **Copy.** A controlled space copies through its own export, every page against the epoch the copy began in, each
+  later page with when it was made; each message with its input, control, replacements, every decision and call as
+  recorded, and what was kept from which call. Never an amount, a route, a payer or a host.
+- **Days and welcome.** Days stay A10's whole-conversation count of person-written days; the automatic welcome follows
+  the controlled activity (a cancelled, never-sent message isn't time together).

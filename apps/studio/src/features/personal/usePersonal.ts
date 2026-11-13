@@ -4,21 +4,32 @@
 import { stillSignedIn } from '../../app/signed-in.ts'
 import { useQuery, useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
-import type { PersonalReceipt, PersonalSpace, PersonalTurn, ProjectList } from '@sophia/contracts'
+import type { PersonalReceipt, ProjectList } from '@sophia/contracts'
 import {
   carryPersonalNote,
   decidePersonalSuggestion,
   erasePersonalSpace,
   forgetPersonalNote,
+  getControlledTurnsBefore,
   getEarlierPersonalTurns,
-  getPersonalSpace,
   getPersonalTurns,
+  controlledPinned,
+  isControlled,
+  pinControlled,
+  protocolKey,
   keepPersonalNote,
   listProjects,
+  readPersonalSpace,
   resumePersonalSpace,
   retryPersonalTurn,
   sendPersonalTurn,
   takeBackPersonalRelease,
+  type ControlledRead,
+  type ReadPlan,
+  type ShownTurn,
+  type SpaceRead,
+  type ViewsRead,
+  viewsOf,
 } from '../../api/personal.ts'
 import { ApiError } from '../../api/client.ts'
 import { accountOf } from '../../app/auth-callback.ts'
@@ -33,7 +44,7 @@ import { readsAgain, refusedAsErased } from './write-words.ts'
 
 /** How often a client waiting for Sophia asks. */
 
-const NO_TURNS: readonly PersonalTurn[] = []
+const NO_TURNS: readonly ShownTurn[] = []
 
 /** This device's time zone, for the space's `days`: the browser's own, when it names one. */
 function zoneHere(): string | null {
@@ -44,30 +55,76 @@ function zoneHere(): string | null {
   }
 }
 
-/** The space, its days counted in this device's time zone; a zone the server doesn't know counts them in UTC. */
-async function readSpace(token: string, signal: AbortSignal) {
+/** The oldest seq a controlled read has read back to (its earlier windows), or null: the next round reads to it. */
+const readBackFrom = (read: ControlledRead): number | null => read.back[0]?.page.turns[0]?.seq ?? null
+
+/** How the space is read now: pinned to the controlled read once C5 said so, and how far back it was read. */
+function planOf(client: QueryClient, name: string): ReadPlan {
+  const cached = client.getQueryData<SpaceRead>(['personal', name])
+  const controlled = cached !== undefined && isControlled(cached)
+  return {
+    pinned: controlled || controlledPinned(client, name),
+    from: controlled ? readBackFrom(cached) : null,
+  }
+}
+
+/**
+ * The space, its days counted in this device's time zone; a zone the server doesn't know counts them in UTC. Read the
+ * old way until C5 refuses it as controlled (readPersonalSpace), then pinned to the controlled read.
+ */
+async function readSpace(client: QueryClient, identity: Identity, signal: AbortSignal): Promise<SpaceRead> {
   const zone = zoneHere()
+  const pin = () => pinControlled(client, identity.name)
   try {
-    return await getPersonalSpace(token, zone, signal)
+    return await readPersonalSpace(identity.token, zone, planOf(client, identity.name), pin, signal)
   } catch (err: unknown) {
-    if (zone && err instanceof ApiError && err.code === 'invalid_request') return getPersonalSpace(token, null, signal)
+    if (zone && err instanceof ApiError && err.code === 'invalid_request')
+      return readPersonalSpace(identity.token, null, planOf(client, identity.name), pin, signal)
     throw err
   }
 }
 
 /**
+ * How often a controlled space is read again while it is open and the page in sight (react-query stops in the
+ * background, and nothing is read while the padlock is shut): its calls' money, what was kept of them and a wait that
+ * lapsed change without the space's revision (A3-R3 seam §4), so it is read whole now and then, pending or not.
+ */
+export const CONTROLLED_FRESH_MS = 20_000
+
+/** The next controlled read: soon while a reply is pending (pollEvery), else CONTROLLED_FRESH_MS; none for the old. */
+const controlledEvery = (data: SpaceRead | undefined, failures: number): number | false => {
+  if (!data || !isControlled(data)) return false
+  return data.pending ? pollEvery(failures) : CONTROLLED_FRESH_MS
+}
+
+/**
  * The space, and while a reply is pending, what came after the last turn until nothing is. The server says how each
  * reply stands, a lost wait included (it reads as failed in time), so this side keeps no clock of its own. A poll that
- * fails stops polling until the space is read again (focus, reconnecting, a write).
+ * fails stops polling until the space is read again (focus, reconnecting, a write). A controlled space is read whole
+ * again instead (controlledEvery); once C5 pinned it, nothing read the old way shows, not even what was read before.
  */
 export function usePersonalSpace(identity: Identity, open: boolean) {
   const client = useQueryClient()
   const queryKey = ['personal', identity.name]
   // Each read stops when its query is called off (the padlock shut: useForgetWhileLocked).
-  const space = useQuery({ queryKey, queryFn: ({ signal }) => readSpace(identity.token, signal), enabled: open })
-  const turns = space.data?.turns ?? []
-  const waiting = turns.some((t) => t.reply === 'pending')
-  const last = turns.at(-1)?.seq ?? 0
+  const space = useQuery({
+    queryKey,
+    queryFn: ({ signal }) => readSpace(client, identity, signal),
+    enabled: open,
+    refetchInterval: (query) => controlledEvery(query.state.data, query.state.fetchFailureCount),
+  })
+  // Observed, so a pin set now shows at once; never read itself (it says only what C5 set), never collected on its own.
+  const pin = protocolKey(identity.name)
+  const pinned =
+    useQuery({
+      queryKey: pin,
+      queryFn: () => client.getQueryData<string>(pin) ?? 'legacy',
+      enabled: false,
+      gcTime: Number.POSITIVE_INFINITY,
+    }).data === 'controlled'
+  const legacy = space.data !== undefined && !isControlled(space.data) ? space.data : undefined
+  const waiting = legacy?.turns.some((t) => t.reply === 'pending') ?? false
+  const last = legacy?.turns.at(-1)?.seq ?? 0
   useQuery({
     queryKey: [...queryKey, 'waiting', last],
     queryFn: async ({ signal }) => {
@@ -75,23 +132,72 @@ export function usePersonalSpace(identity: Identity, open: boolean) {
       if (!page.pending || page.turns.length > 0) await client.invalidateQueries({ queryKey, exact: true })
       return page
     },
-    enabled: open && waiting,
+    enabled: open && waiting && !pinned,
     refetchInterval: (query) => pollEvery(query.state.fetchFailureCount),
   })
-  return space
+  return pinned && legacy ? { ...space, data: undefined } : space
+}
+
+/** The read-back of a controlled space: its earlier windows' turns, oldest first, and whether more exist. */
+function controlledBack(read: ControlledRead): { older: readonly ShownTurn[]; more: boolean } {
+  return {
+    older: read.back.flatMap((w) => w.page.turns),
+    more: read.back[0]?.page.earlier ?? read.earlier,
+  }
+}
+
+/** What was read back, as shown: a controlled read's own windows, else this page's, in the space's epoch. */
+function shownBack(space: SpaceRead | undefined, back: ReadBackState | null) {
+  if (space && isControlled(space)) return controlledBack(space)
+  const current = back && space && back.epoch === space.epoch ? back : null
+  return { older: current?.turns ?? NO_TURNS, more: current ? current.more : (space?.earlier ?? false) }
+}
+
+/** A window of a controlled space before `before`, with the views of its inputs (each read in turn, with its time). */
+async function controlledWindow(token: string, before: number, signal: AbortSignal) {
+  const page = await getControlledTurnsBefore(token, before, signal)
+  const at = new Date().toISOString()
+  const viewed: ViewsRead = { views: new Map(), at: new Map() }
+  await viewsOf(token, page.turns, viewed, signal)
+  return { page, at, viewed }
+}
+
+/**
+ * One more window of a controlled space read back, with its inputs' views, joined to the cached read only when it was
+ * read at that read's revision and epoch, and that read is still the one shown; at another revision the space is read
+ * whole again instead (a round reads it back as far as was read).
+ */
+async function readControlledBack(client: QueryClient, identity: Identity, read: ControlledRead, signal: AbortSignal) {
+  const before = read.back[0]?.page.turns[0]?.seq ?? read.turns[0]?.seq
+  if (before === undefined) return
+  const { page, at, viewed } = await controlledWindow(identity.token, before, signal)
+  const key = ['personal', identity.name]
+  const now = client.getQueryData<SpaceRead>(key)
+  if (!now || !isControlled(now) || now.epoch !== page.epoch || now.asOf !== read.asOf) return
+  if (now.revision === page.revision) {
+    const joined: ControlledRead = {
+      ...now,
+      back: [{ before, page, at }, ...now.back],
+      views: new Map([...now.views, ...viewed.views]),
+      viewAt: new Map([...now.viewAt, ...viewed.at]),
+    }
+    client.setQueryData<SpaceRead>(key, joined)
+  } else await client.invalidateQueries({ queryKey: key, exact: true })
 }
 
 /**
  * A long conversation read back a page at a time, before the newest turns the space lists: what was read so far
  * (oldest first), whether more exist, and the next page. What leaves the window as new turns come stays
  * (backOnSpaceRead), and a page joins what was read back by the time it arrives (withEarlierPage); an erasure (a new
- * epoch) lets it go, and so does a lock.
+ * epoch) lets it go, and so does a lock. A controlled space keeps what it read back in its own read (readControlledBack),
+ * read again with it each round.
  */
-export function useReadBack(identity: Identity, space: PersonalSpace | undefined) {
+export function useReadBack(identity: Identity, space: SpaceRead | undefined) {
+  const client = useQueryClient()
   const [back, setBack] = useState<ReadBackState | null>(null)
   // The page on its way, stopped when the padlock shuts.
   const reading = useRef<AbortController | null>(null)
-  const listed = useRef<readonly PersonalTurn[]>(NO_TURNS)
+  const listed = useRef<readonly ShownTurn[]>(NO_TURNS)
   // The epoch of the space shown now, null while it is locked: a page that arrives for another is let go.
   const shown = useRef<number | null>(null)
   // The page on its way stops when this goes too: the account left, or a project opened over the places.
@@ -100,26 +206,26 @@ export function useReadBack(identity: Identity, space: PersonalSpace | undefined
     const before = listed.current
     listed.current = space?.turns ?? NO_TURNS
     shown.current = space?.epoch ?? null
-    if (!space) {
-      reading.current?.abort() // locked (or not read yet): nothing is read back, and nothing read back is kept
-      setBack(null)
-      return
-    }
-    setBack((now) => backOnSpaceRead(now, before, space))
+    // Locked (or not read yet): nothing is read back, and nothing read back is kept.
+    if (!space) reading.current?.abort()
+    if (space && !isControlled(space)) setBack((now) => backOnSpaceRead(now, before, space))
+    else setBack(null)
   }, [space])
-  const current = back && space && back.epoch === space.epoch ? back : null
-  const older = current?.turns ?? NO_TURNS
-  const more = current ? current.more : (space?.earlier ?? false)
+  const { older, more } = shownBack(space, back)
+  const legacyBack = async (epoch: number, from: number, signal: AbortSignal) => {
+    const page = await getEarlierPersonalTurns(identity.token, from, signal)
+    if (shown.current !== epoch) return // shut (or erased) while it was on its way: none of it is kept
+    setBack((now) => withEarlierPage(now, epoch, page))
+  }
   const read = async () => {
     const from = older[0]?.seq ?? space?.turns[0]?.seq
     if (!space || from === undefined || !more || reading.current) return
     const stop = new AbortController()
     reading.current = stop
-    const { epoch } = space
     try {
-      const page = await getEarlierPersonalTurns(identity.token, from, stop.signal)
-      if (shown.current !== epoch) return // shut (or erased) while it was on its way: none of it is kept
-      setBack((now) => withEarlierPage(now, epoch, page))
+      await (isControlled(space)
+        ? readControlledBack(client, identity, space, stop.signal)
+        : legacyBack(space.epoch, from, stop.signal))
     } catch (err: unknown) {
       if (!stop.signal.aborted) throw err // stopped by the padlock: nothing to say
     } finally {
@@ -159,11 +265,7 @@ async function readUntilRead(client: QueryClient, queryKey: QueryKey): Promise<v
  * An erasure on another device, once this page hears of it from the Work list (erasedElsewhere): the space is read
  * afresh (readAfresh), so neither its conversation nor its draft stays in sight, also while reads fail.
  */
-export function useReadAgainOnErasure(
-  identity: Identity,
-  space: PersonalSpace | undefined,
-  work: ProjectList | undefined,
-) {
+export function useReadAgainOnErasure(identity: Identity, space: SpaceRead | undefined, work: ProjectList | undefined) {
   const client = useQueryClient()
   const seen = erasedElsewhere(space, work)
   useEffect(() => {
@@ -185,7 +287,7 @@ export class OnItsWay extends Error {}
 
 /** The epoch this page last read (epochNow): the space's when it is read, else the Work list's. */
 const epochRead = (client: QueryClient, name: string) =>
-  epochNow(client.getQueryData<PersonalSpace>(['personal', name]), client.getQueryData<ProjectList>(['projects', name]))
+  epochNow(client.getQueryData<SpaceRead>(['personal', name]), client.getQueryData<ProjectList>(['projects', name]))
 
 /**
  * A personal write, run once (once.ts) against the epoch this page last read (epoch.ts): its retry names the same one,

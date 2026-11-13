@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { PersonalTurn } from '@sophia/contracts'
+import type { PersonalAnswerControlView, PersonalControlledTurn, PersonalTurn } from '@sophia/contracts'
 import {
   askAbout,
   conversationRows,
@@ -19,6 +19,8 @@ import {
   keptOnReadBack,
   backOnSpaceRead,
   withEarlierPage,
+  controlLine,
+  keptOf,
 } from './conversation-view.ts'
 
 const NOW = new Date(2026, 8, 30, 21, 0)
@@ -520,5 +522,165 @@ describe('a message kept without asking her (A52 recorded)', () => {
     assert.equal(welcomeDue([quiet, welcome, keptNow('After it.', at(0, 13))], NOW), false)
     // The legacy rule is unchanged: a recent answered message means none is due.
     assert.equal(welcomeDue([quiet, turn('person', 'Hi.', at(0, 20, 30))], NOW), false)
+  })
+})
+
+// INC03-DES-001: a controlled space's turns (A54), shown as read. Synthetic words and ids only.
+const INPUT = (n: number) => `20000000-0000-4000-8000-${String(n).padStart(12, '0')}`
+function controlled(
+  base: PersonalTurn | PersonalControlledTurn,
+  extra: Partial<PersonalControlledTurn> = {},
+): PersonalControlledTurn {
+  return { ...base, input: null, prompt: 'eligible', activity: true, ...extra }
+}
+const withInput = (n: number, control: 'active' | 'held' | 'withdrawn') => ({
+  input: { inputId: INPUT(n), control, revision: 1 },
+})
+function viewOf(
+  n: number,
+  t: PersonalControlledTurn,
+  control: Partial<PersonalAnswerControlView['control']>,
+  extra: Partial<Omit<PersonalAnswerControlView, 'control'>> = {},
+): PersonalAnswerControlView {
+  return {
+    inputId: INPUT(n),
+    turnId: t.id,
+    seq: t.seq,
+    createdAt: t.createdAt,
+    reply: t.reply,
+    decisions: [],
+    route: null,
+    control: {
+      state: 'active',
+      revision: 1,
+      heldReason: null,
+      withdrawnPhase: null,
+      replaces: null,
+      replacedBy: [],
+      ...control,
+    },
+    prior: { financial: 'settled', effect: 'none', answer: 'published' },
+    calls: [],
+    withheld: [],
+    ...extra,
+  }
+}
+const rowsOf = (turns: readonly PersonalControlledTurn[], views: readonly PersonalAnswerControlView[]) =>
+  conversationRows({
+    turns,
+    sending: null,
+    now: NOW,
+    name: null,
+    fromTheStart: false,
+    views: new Map(views.map((v) => [v.inputId, v])),
+  })
+
+describe('a controlled space’s messages say how their answers stand, in their control’s own terms', () => {
+  it('held says not asked yet only while its control is held; a replacement made active keeps its link silently', () => {
+    const y = controlled(turn('person', 'Shorter, please.', at(0, 20), { reply: 'recorded' }), withInput(2, 'held'))
+    const held = viewOf(2, y, { state: 'held', heldReason: 'admission_off', replaces: INPUT(1) })
+    assert.equal(controlLine(y, held), 'Held to replace an earlier message — not asked yet · answers are off')
+    const active = controlled({ ...y, reply: 'pending' }, withInput(2, 'active'))
+    assert.equal(controlLine(active, viewOf(2, active, { state: 'active', replaces: INPUT(1) })), null)
+    const plain = viewOf(2, y, { state: 'held', heldReason: 'prior_cost_unresolved' })
+    assert.equal(controlLine(y, plain), 'Held — not asked yet · waits until the earlier cost is settled')
+  })
+
+  it('withdrawn says when, as its phase records it: never that Sophia was asked, nor that no answer came', () => {
+    const x = controlled(turn('person', 'Draft it.', at(0, 19)), { reply: 'withdrawn', ...withInput(3, 'withdrawn') })
+    const said = (phase: PersonalAnswerControlView['control']['withdrawnPhase']) =>
+      controlLine(x, viewOf(3, x, { state: 'withdrawn', withdrawnPhase: phase }))
+    assert.equal(said('after_launch'), 'Withdrawn; work may already have started')
+    assert.equal(said('after_publication'), 'Withdrawn after her answer was published')
+    assert.equal(said('before_admission'), 'Cancelled before it was sent to Sophia')
+    assert.equal(said('before_launch'), 'Withdrawn before Sophia was asked')
+    assert.equal(said(null), 'Withdrawn')
+    // Without its view, the turn's own control: withdrawn, and no more.
+    assert.equal(controlLine(x, undefined), 'Withdrawn')
+    const unsettled = viewOf(
+      3,
+      x,
+      { state: 'withdrawn', withdrawnPhase: 'after_launch' },
+      { prior: { financial: 'unresolved', effect: 'possible', answer: 'withheld' } },
+    )
+    assert.equal(controlLine(x, unsettled), 'Withdrawn; work may already have started · cost not settled yet')
+  })
+
+  it('rows: one status row per controlled message, its kept answers with it; no kept-not-asked or Ask again besides', () => {
+    seq = 0
+    const x = controlled(turn('person', 'Draft it.', at(0, 19)), {
+      ...withInput(1, 'withdrawn'),
+      prompt: 'excluded',
+    })
+    const hers = controlled(turn('sophia', 'A draft.', at(0, 19, 1), { replyTo: x.id }), { prompt: 'excluded' })
+    const z = controlled(turn('person', 'Never mind.', at(0, 19, 30), { reply: 'recorded' }), {
+      ...withInput(2, 'withdrawn'),
+      activity: false,
+    })
+    const w = controlled(turn('person', 'Tell the team?', at(0, 20), { reply: 'failed' }), withInput(3, 'withdrawn'))
+    const failed = controlled(turn('person', 'Again?', at(0, 20, 30), { reply: 'failed' }), withInput(4, 'active'))
+    const waiting = controlled(turn('person', 'One more thing.', at(0, 20, 50), { reply: 'pending' }))
+    const kept = {
+      callId: INPUT(30),
+      text: 'Thursday.',
+      suggestion: null,
+      source: 'late_settlement' as const,
+      at: at(0, 21),
+    }
+    const rows = rowsOf(
+      [x, hers, z, w, failed, waiting],
+      [
+        viewOf(1, x, { state: 'withdrawn', withdrawnPhase: 'after_publication' }),
+        viewOf(2, z, { state: 'withdrawn', withdrawnPhase: 'before_admission' }),
+        viewOf(3, w, { state: 'withdrawn', withdrawnPhase: 'after_launch' }, { withheld: [kept] }),
+        viewOf(4, failed, {}),
+      ],
+    )
+    const status = rows.filter((r) => r.kind === 'control' || r.kind === 'recorded' || r.kind === 'failed')
+    assert.deepEqual(
+      status.map((r) => (r.kind === 'control' ? [r.kind, r.turnId, r.line, r.kept.length] : [r.kind, r.turnId])),
+      [
+        ['control', x.id, 'Withdrawn after her answer was published', 0],
+        ['control', z.id, 'Cancelled before it was sent to Sophia', 0],
+        ['control', w.id, 'Withdrawn; work may already have started', 1],
+        ['failed', failed.id],
+      ],
+    )
+    assert.equal(rows.at(-1)?.kind, 'typing', 'the unrelated wait still shows her writing')
+    assert.deepEqual(keptOf(viewOf(3, w, {}, { withheld: [kept] })), [
+      { callId: kept.callId, text: 'Thursday.', suggestion: null, at: kept.at },
+    ])
+    assert.equal(
+      rows.some((r) => r.kind === 'recorded'),
+      false,
+      `${RECORDED} isn’t said of a controlled message`,
+    )
+  })
+
+  it('a stale read says so after the turns, as of when its last full read ended', () => {
+    const t = controlled(turn('person', 'Hi.', at(0, 20)))
+    const rows = conversationRows({
+      turns: [t],
+      sending: null,
+      now: NOW,
+      name: null,
+      fromTheStart: false,
+      stale: at(0, 20, 5),
+    })
+    assert.deepEqual(
+      rows.filter((r) => r.kind === 'stale'),
+      [{ kind: 'stale', key: 'stale', asOf: at(0, 20, 5) }],
+    )
+  })
+
+  it('a welcome back follows the controlled activity: a cancelled, never sent message isn’t time together', () => {
+    const quiet = controlled(turn('person', 'Earlier.', at(0, 15)))
+    const cancelled = controlled(turn('person', 'Never mind.', at(0, 20, 40), { reply: 'recorded' }), {
+      ...withInput(9, 'withdrawn'),
+      activity: false,
+    })
+    assert.equal(welcomeDue([quiet, cancelled], NOW), true, 'the last activity is hours old')
+    const sent = controlled(cancelled, { reply: 'withdrawn', ...withInput(9, 'withdrawn'), activity: true })
+    assert.equal(welcomeDue([quiet, sent], NOW), false, 'a withdrawn message that was sent counts')
   })
 })
