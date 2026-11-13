@@ -9,6 +9,7 @@ import type {
   PersonalAnswerControlReceipt,
   PersonalAnswerControlView,
   PersonalControlledExport,
+  PersonalControlledSpace,
   PersonalControlledTurnPage,
 } from './generated-types.ts'
 import {
@@ -17,6 +18,7 @@ import {
   parsePersonalAnswerControlReceipt,
   parsePersonalAnswerControlView,
   parsePersonalControlledExport,
+  parsePersonalControlledSpace,
   parsePersonalControlledTurnPage,
 } from './validate.ts'
 
@@ -189,5 +191,50 @@ describe('A54 readers', () => {
       () => parsePersonalControlledTurnPage({ ...page(), turns: [{ ...page().turns[0], prompt: 'maybe' }] }),
       ContractViolation,
     )
+  })
+})
+
+// R3 (A55): the controlled space, the versioned initial read: the owner's companion, revision, epoch, days, the newest
+// controlled page with its inputs' views, and the notes and carried notes. Closed: another contract, an unknown
+// companion or control state, or a page past its bound is refused; a property it does not list is dropped.
+const space = (): PersonalControlledSpace => ({
+  spaceContract: 'personal_controlled_space_v1',
+  companion: 'unavailable',
+  revision: 5,
+  epoch: 0,
+  days: 3,
+  turns: page().turns,
+  earlier: true,
+  pending: false,
+  inputs: [view()],
+  notes: [{ id: CONTROL, text: 'A note', keptBy: 'person', fromTurnId: null, createdAt: AT }],
+  releases: [],
+})
+
+describe('A55 reader', () => {
+  it('reads the controlled space as it was sent', () => {
+    assert.deepEqual(parsePersonalControlledSpace(space()), space())
+  })
+
+  it('refuses another contract, an unknown companion or control state, and a page past its bound', () => {
+    assert.throws(() => parsePersonalControlledSpace({ ...space(), spaceContract: 'v2' }), ContractViolation)
+    assert.throws(() => parsePersonalControlledSpace({ ...space(), companion: 'maybe' }), ContractViolation)
+    const turn = page().turns[0]
+    assert.ok(turn?.input)
+    assert.throws(
+      () =>
+        parsePersonalControlledSpace({ ...space(), turns: [{ ...turn, input: { ...turn.input, control: 'paused' } }] }),
+      ContractViolation,
+    )
+    assert.throws(
+      () => parsePersonalControlledSpace({ ...space(), turns: Array.from({ length: 101 }, () => turn) }),
+      ContractViolation,
+    )
+    assert.throws(() => parsePersonalControlledSpace({ ...space(), days: -1 }), ContractViolation)
+  })
+
+  it('drops what it does not list, never a profile or a payer', () => {
+    const read = parsePersonalControlledSpace({ ...space(), profile: { payer: 'p' }, owner: 'someone' })
+    assert.ok(!('profile' in read) && !('owner' in read))
   })
 })

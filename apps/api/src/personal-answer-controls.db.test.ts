@@ -1132,3 +1132,272 @@ describe('A3 R2: a whole answer completed while its input is active is kept thro
     assert.equal(await turnCount(person), 0, 'nothing resurrected')
   })
 })
+
+// R3 (A55): the controlled space, the versioned initial read of a whole Personal space. Effect-free; served whenever
+// 0103 is installed, whatever the paid gates and whether or not a live companion answers this owner.
+const SPACE = '/api/v1/personal/answer-controls/space'
+const spaceOf = (app: FastifyInstance, as: string, timeZone?: string) =>
+  call(app, 'GET', timeZone ? `${SPACE}?timeZone=${encodeURIComponent(timeZone)}` : SPACE, as)
+
+/** A legacy turn, as the old send makes it (no automatic input): pending, nothing woken. */
+async function sendTurn(person: string, text: string): Promise<string> {
+  const turnId = await withActor(
+    pool,
+    person,
+    'write',
+    async (c) =>
+      (await c.query<{ r: { turnId: string } }>('SELECT sophia.send_personal_turn($1,$2) AS r', [randomUUID(), text]))
+        .rows[0]?.r.turnId,
+  )
+  assert.ok(turnId)
+  return turnId
+}
+
+/** The person's days in `timeZone`, counted independently of the route (every turn they wrote). */
+async function daysOf(person: string, timeZone: string): Promise<number> {
+  const [row] = await owner<{ n: string }>(
+    `SELECT count(DISTINCT (created_at AT TIME ZONE $2)::date) AS n FROM sophia.personal_turns
+      WHERE owner_id=$1 AND author='person'`,
+    [person, timeZone],
+  )
+  return Number(row?.n)
+}
+
+const moveTurn = (turnId: string, at: string) =>
+  owner('UPDATE sophia.personal_turns SET created_at=$2 WHERE id=$1', [turnId, at])
+
+type ControlledSpace = ReturnType<typeof wire.parsePersonalControlledSpace>
+
+/** The per-turn states test 1 builds: X1 answered then withdrawn, X2 replaced by the held Y2, Y3 cancelled held. */
+function assertControlledStates(
+  sp: ControlledSpace,
+  ids: { x1: string; x2: string; y2: string; y3: string; pending: string },
+): void {
+  const byId = new Map(sp.turns.map((turn) => [turn.id, turn]))
+  assert.equal(byId.get(ids.x1)?.reply, 'answered')
+  assert.equal(byId.get(ids.x1)?.input?.control, 'withdrawn')
+  assert.equal(byId.get(ids.x1)?.prompt, 'excluded')
+  assert.equal(sp.turns.find((turn) => turn.replyTo === ids.x1)?.prompt, 'excluded')
+  assert.equal(byId.get(ids.x2)?.input?.control, 'withdrawn')
+  assertHeldStates(byId, ids)
+}
+
+/** The second half of assertControlledStates: the held Y2, the cancelled held Y3 and the unrelated pending turn. */
+function assertHeldStates(
+  byId: Map<string, ControlledSpace['turns'][number]>,
+  ids: { y2: string; y3: string; pending: string },
+): void {
+  assert.equal(byId.get(ids.y2)?.input?.control, 'held')
+  assert.equal(byId.get(ids.y2)?.reply, 'recorded')
+  assert.equal(byId.get(ids.y3)?.input?.control, 'withdrawn')
+  assert.equal(byId.get(ids.y3)?.activity, false, 'a cancelled held turn was never activity')
+  assert.equal(byId.get(ids.pending)?.reply, 'pending')
+  assert.equal(byId.get(ids.pending)?.input, null)
+}
+
+/** One input view per input on the page, in turn order, each as the view route reads it; X2's links to the held Y2. */
+async function assertPageInputs(
+  app: FastifyInstance,
+  person: string,
+  sp: ControlledSpace,
+  ids: { x2: string; y2: string },
+): Promise<void> {
+  const onPage = sp.turns.flatMap((turn) => (turn.input ? [turn.input.inputId] : []))
+  assert.deepEqual(
+    sp.inputs.map((v) => v.inputId),
+    onPage,
+  )
+  for (const view of sp.inputs) {
+    const one = wire.parsePersonalAnswerControlView(
+      (await call(app, 'GET', `/api/v1/personal/answers/${view.inputId}/control`, person)).json,
+    )
+    assert.deepEqual(view, one)
+  }
+  assert.deepEqual(sp.inputs.find((v) => v.inputId === ids.x2)?.control.replacedBy, [ids.y2])
+  assert.equal(sp.inputs.find((v) => v.inputId === ids.y2)?.control.heldReason, 'admission_off')
+}
+
+describe('A3 R3: the controlled space (A55), the versioned initial read', () => {
+  it('reads a controlled owner whole with both paid gates off and no live profile; the old read still refuses', async (t) => {
+    const s = held(t)
+    const { person, payer } = await enrolled()
+    const off = api(null)
+    const llm = new FakeLlm('Published then withdrawn')
+    const r = runner(live(person, payer, llm))
+    assert.equal(
+      (await call(off, 'POST', '/api/v1/personal/notes', person, { body: { text: 'A kept note' } })).status,
+      202,
+    )
+    // X1 answered, then withdrawn after publication.
+    const x1 = await admitted(person, payer, 'Answered then withdrawn')
+    await s.track(r.answer(person, x1.turnId))
+    assert.equal(await reply(x1.turnId), 'answered')
+    await control(off, person, x1.inputId, { action: 'cancel', expectedRevision: 0 })
+    // X2 replaced: its replacement Y2 held (admission off). X3 replaced, then its held Y3 cancelled.
+    const x2 = await admitted(person, payer, 'Replaced, its replacement held')
+    const r2 = wire.parsePersonalAnswerControlReceipt(
+      (await control(off, person, x2.inputId, { action: 'replace', expectedRevision: 0, text: 'Held words' })).json,
+    )
+    const x3 = await admitted(person, payer, 'Replaced, its replacement cancelled')
+    const r3 = wire.parsePersonalAnswerControlReceipt(
+      (await control(off, person, x3.inputId, { action: 'replace', expectedRevision: 0, text: 'Cancelled words' }))
+        .json,
+    )
+    const y3 = r3.replacement?.inputId
+    assert.ok(y3 && r2.replacement)
+    assert.equal((await control(off, person, y3, { action: 'cancel', expectedRevision: 1 })).status, 202)
+    const pendingTurn = await sendTurn(person, 'An unrelated pending turn')
+
+    const res = await spaceOf(off, person)
+    assert.equal(res.status, 200, res.body)
+    const sp = wire.parsePersonalControlledSpace(res.json)
+    assert.equal(sp.spaceContract, 'personal_controlled_space_v1')
+    assert.equal(sp.companion, 'unavailable', 'no live companion serves this owner here')
+    // The same turns, states and graph as the A54 reads of the same space.
+    const page = wire.parsePersonalControlledTurnPage(
+      (await call(off, 'GET', '/api/v1/personal/answer-controls/turns', person)).json,
+    )
+    assert.deepEqual(sp.turns, page.turns)
+    assert.equal(sp.revision, page.revision)
+    assert.equal(sp.epoch, page.epoch)
+    assert.equal(sp.pending, page.pending)
+    assert.equal(sp.pending, true)
+    assert.equal(sp.earlier, false)
+    assertControlledStates(sp, {
+      x1: x1.turnId,
+      x2: x2.turnId,
+      y2: r2.replacement.turnId,
+      y3: r3.replacement?.turnId ?? '',
+      pending: pendingTurn,
+    })
+    await assertPageInputs(off, person, sp, { x2: x2.inputId, y2: r2.replacement.inputId })
+    // Notes and days as the space keeps them; days counted over the whole conversation.
+    assert.deepEqual(
+      sp.notes.map((n) => n.text),
+      ['A kept note'],
+    )
+    assert.deepEqual(sp.releases, [])
+    assert.equal(sp.days, await daysOf(person, 'UTC'))
+    // The deliberate boundary stays: the old unversioned read refuses this owner.
+    const legacy = await call(off, 'GET', '/api/v1/personal', person)
+    assert.equal(legacy.status, 503)
+    assert.equal((legacy.json as { code?: string }).code, 'projection_unavailable')
+    assert.equal(llm.prepared, 1, 'only X1 was ever prepared; the reads woke nothing')
+  })
+
+  it('for an uncontrolled owner it says what the old space says: companion, revision, epoch, days, notes, turns', async () => {
+    const { person } = await enrolled()
+    const off = api(null)
+    const a = await sendTurn(person, 'Late on the 7th, New York')
+    const b = await sendTurn(person, 'Just after midnight, New York')
+    const c = await sendTurn(person, 'After the clocks went forward')
+    // 2026-03-08: one UTC day; two New York days, across midnight and the DST change at 02:00.
+    await moveTurn(a, '2026-03-07T23:30:00-05:00')
+    await moveTurn(b, '2026-03-08T00:30:00-05:00')
+    await moveTurn(c, '2026-03-08T03:30:00-04:00')
+    await call(off, 'POST', '/api/v1/personal/notes', person, { body: { text: 'Uncontrolled note' } })
+    for (const [tz, days] of [
+      ['UTC', 1],
+      ['America/New_York', 2],
+    ] as const) {
+      const legacy = await call(off, 'GET', `/api/v1/personal?timeZone=${encodeURIComponent(tz)}`, person)
+      assert.equal(legacy.status, 200, legacy.body)
+      const old = wire.parsePersonalSpace(legacy.json)
+      const sp = wire.parsePersonalControlledSpace((await spaceOf(off, person, tz)).json)
+      assert.equal(sp.days, days, tz)
+      assert.equal(sp.days, old.days, tz)
+      assert.equal(sp.companion, old.companion)
+      assert.equal(sp.revision, old.revision)
+      assert.equal(sp.epoch, old.epoch)
+      assert.equal(sp.earlier, old.earlier)
+      assert.deepEqual(sp.notes, old.notes)
+      assert.deepEqual(sp.releases, old.releases)
+      assert.deepEqual(
+        sp.turns.map((turn) => [turn.id, turn.seq, turn.text, turn.createdAt, turn.replyTo, turn.reply]),
+        old.turns.map((turn) => [turn.id, turn.seq, turn.text, turn.createdAt, turn.replyTo, turn.reply]),
+      )
+      assert.deepEqual(sp.inputs, [])
+    }
+    const unknownZone = 'Mars/Olympus_Mons'
+    const oldRefusal = await call(off, 'GET', `/api/v1/personal?timeZone=${unknownZone}`, person)
+    const newRefusal = await spaceOf(off, person, unknownZone)
+    assert.notEqual(newRefusal.status, 200)
+    assert.equal(newRefusal.status, oldRefusal.status)
+    assert.equal((newRefusal.json as { code?: string }).code, (oldRefusal.json as { code?: string }).code)
+  })
+
+  it('pages: more turns than one page reads the newest 100, earlier, and only the inputs on that page', async () => {
+    const { person, payer } = await enrolled()
+    const off = api(null)
+    const x = await admitted(person, payer, 'The oldest, controlled')
+    await control(off, person, x.inputId, { action: 'cancel', expectedRevision: 0 })
+    for (let i = 0; i < 105; i += 1) await sendTurn(person, `Turn ${String(i)}`)
+    const sp = wire.parsePersonalControlledSpace((await spaceOf(off, person)).json)
+    assert.equal(sp.turns.length, 100)
+    assert.equal(sp.earlier, true)
+    assert.deepEqual(sp.inputs, [], 'the controlled input is not on the newest page')
+    assert.equal(sp.days, await daysOf(person, 'UTC'), 'days count the whole conversation, not the page')
+    const first = sp.turns[0]?.seq
+    assert.ok(first)
+    const back = wire.parsePersonalControlledTurnPage(
+      (await call(off, 'GET', `/api/v1/personal/answer-controls/turns?before=${String(first)}`, person)).json,
+    )
+    assert.equal(back.turns.find((turn) => turn.id === x.turnId)?.input?.control, 'withdrawn')
+  })
+
+  it('names the companion as the old space does, per owner; a read prepares, reserves and wakes nothing', async (t) => {
+    const s = held(t)
+    const { person, payer } = await enrolled()
+    const other = await enrolled()
+    const llm = new FakeLlm()
+    // The live owner's startup resume (A2 R1) runs once the app is ready: held at its own read's COMMIT, it has found
+    // no waiting turn, and ends with nothing; only then is X written, so only a read could wake it.
+    const g = s.gated(pool, 'next_personal_reply', 'commit')
+    const on = api(live(person, payer, llm), { pool: g.pool })
+    await on.ready()
+    await g.reached()
+    g.release()
+    const x = await admitted(person, payer, 'Waiting, never woken by a read')
+    await sendTurn(other.person, 'Another owner')
+    for (let i = 0; i < 2; i += 1) {
+      const mine = wire.parsePersonalControlledSpace((await spaceOf(on, person)).json)
+      assert.equal(mine.companion, 'live')
+      const theirs = wire.parsePersonalControlledSpace((await spaceOf(on, other.person)).json)
+      assert.equal(theirs.companion, 'unavailable')
+      assert.ok(!theirs.turns.some((turn) => turn.id === x.turnId), "another owner's turns are never read")
+      assert.ok(mine.turns.some((turn) => turn.id === x.turnId))
+    }
+    assert.equal(llm.prepared, 0)
+    assert.equal(llm.asked, 0)
+    assert.deepEqual(await usage(person), [])
+    assert.equal(await reply(x.turnId), 'pending')
+  })
+
+  it('after an erasure the space is empty at the new epoch; without 0103 it is unavailable, never empty', async () => {
+    const { person, payer } = await enrolled()
+    const off = api(null)
+    const x = await admitted(person, payer)
+    await control(off, person, x.inputId, { action: 'cancel', expectedRevision: 0 })
+    const kept = wire.parsePersonalControlledSpace((await spaceOf(off, person)).json)
+    assert.equal(
+      (await call(off, 'POST', '/api/v1/personal/erasure', person, { body: { confirm: 'delete' } })).status,
+      202,
+    )
+    const erased = wire.parsePersonalControlledSpace((await spaceOf(off, person)).json)
+    assert.equal(erased.epoch, kept.epoch + 1)
+    assert.deepEqual([erased.turns, erased.inputs, erased.notes, erased.days], [[], [], [], 0])
+    await owner(
+      'ALTER FUNCTION sophia.personal_answer_controls_protocol() RENAME TO personal_answer_controls_protocol_absent',
+    )
+    try {
+      const fresh = api(null)
+      const res = await spaceOf(fresh, person)
+      assert.equal(res.status, 503)
+      assert.equal((res.json as { code?: string }).code, 'projection_unavailable')
+    } finally {
+      await owner(
+        'ALTER FUNCTION sophia.personal_answer_controls_protocol_absent() RENAME TO personal_answer_controls_protocol',
+      )
+    }
+  })
+})

@@ -728,3 +728,49 @@ and the body is lost. Another precheck cannot close that gap.
   - R1's and A3's earlier cases are unchanged.
 - **SQL:** staging while active, replay and conflict; the control's move after launch and after publication; withdrawn
   first, kept directly; erasure of a staged body; not_bound; grants.
+
+## A3-R3: the whole initial read of a controlled space (amendment A55)
+
+**The finding it serves** (PR 514, P2, open): an owner with controlled inputs gets 503 `projection_unavailable` from
+the old unversioned reads (`/personal`, `/turns`, `/turns/earlier`, `/export`), as C5 requires, and the current Studio
+reads only those. A54 had no read carrying the space's companion, days, notes and carried notes, so a capable consumer
+could not open such a space without inventing them. This is the backend half only: no Studio or UI change, and the
+finding stays open until a reviewed consumer exists.
+
+**The route** (`GET /api/v1/personal/answer-controls/space?timeZone=`, `getPersonalControlledSpace`): closed and
+versioned, `PersonalControlledSpace`:
+- `spaceContract`: `personal_controlled_space_v1` (the discriminant);
+- `companion`: `rehearsal`, `live` or `unavailable`, computed exactly as the old space computes it: live only to whom
+  the live companion answers, `unavailable` to everyone else and where none runs;
+- `revision`, `epoch`: the space's own (personal_spaces), as on every A54 turn page;
+- `days`: the distinct days on which the person wrote, over the whole conversation, in `timeZone` (an IANA name the
+  database knows; UTC without one; the same pattern and the same count as the old space, `readDays`), never the page;
+- `turns`, `earlier`, `pending`: exactly A54's newest `PersonalControlledTurnPage` (at most 100 turns);
+- `inputs`: one A54 `PersonalAnswerControlView` for each automatic input whose turn is on that page, in turn order:
+  the whole decision history, control, prior, calls and withheld answers, as `GET /answers/{id}/control` gives it;
+- `notes`, `releases`: A10's kept and carried notes, as the old space gives them.
+
+It reuses A54's and A10's types; nothing of A10 or A54 changes, and no A54 value is cast to an A10 one.
+
+**Consistency:** one `withActor(..., 'read')` transaction (REPEATABLE READ, READ ONLY), so the whole response is one
+snapshot of the caller's own rows (RLS, the token's subject; no owner field). It does not claim a snapshot across this
+and any later read.
+
+**Availability and errors** (as the rest of A54): installation of 0103 is the boundary, whatever the paid gates say and
+whether or not a live profile exists. Without 0103: 503 `projection_unavailable`. A failed read: 503 `unavailable`.
+Authentication 401/403, a malformed or unknown time zone 422 as the old space answers it. An uncontrolled owner gets the
+same complete 200 (their turns as A54 turns, `inputs` empty), with the same companion, revision, epoch, days, notes and
+releases as the old space. The old reads keep refusing a controlled owner (503), deliberately.
+
+**Effect-free:** it prepares, reserves, grants, launches, wakes and writes nothing.
+
+**Paging and change** (the consumer's seam, no new read): older turns through A54 `turns?before=`, each input's view
+beyond the page through `GET /answers/{id}/control`; polling through `turns?after=`. The space `revision` moves with
+every owner write and control, and with each recorded or failed reply; a call's money, launch or withheld answer can
+change without it, and a pending reply past its time reads as failed without any write. So a consumer re-reads what it has loaded (the space, or the loaded pages and views), never only the
+appended turns. The versioned export is unchanged A54.
+
+**Checks:** the API controls file gains five tests (paid gates off and no live profile; uncontrolled equivalence with
+midnight and DST days; more turns than a page; companion per owner with zero prepare, reserve and wake; erasure and
+absent schema) and the parser test a closed A55 reader. Their absence on 332d is a capability absence (E0), not a
+semantic kill.

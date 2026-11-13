@@ -86,6 +86,7 @@ import {
   validatePersonalAnswerControlLog,
   validatePersonalControlledTurnPage,
   validatePersonalControlledExport,
+  validatePersonalControlledSpace,
 } from './generated/validators.js'
 import type { CursorAdvance, Error as ErrorBody, Event } from './generated-types.ts'
 
@@ -216,6 +217,11 @@ export const parsePersonalAnswerControlLog = parser('PersonalAnswerControlLog', 
 export const parsePersonalControlledTurnPage = parser('PersonalControlledTurnPage', validatePersonalControlledTurnPage)
 /** One page of the versioned export (A54); tolerant like the rest. */
 export const parsePersonalControlledExport = parser('PersonalControlledExport', validatePersonalControlledExport)
+/**
+ * The whole initial read of a space with controlled inputs (A55, personal_controlled_space_v1): companion, revision,
+ * epoch, days, the newest controlled page with its inputs' views, notes and carried notes. Tolerant like the rest.
+ */
+export const parsePersonalControlledSpace = parser('PersonalControlledSpace', validatePersonalControlledSpace)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {
