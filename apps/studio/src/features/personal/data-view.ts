@@ -142,6 +142,10 @@ function keptLines(view: PersonalAnswerControlView): string[] {
 function controlLines(turn: PersonalControlledTurn, view: PersonalAnswerControlView, inputs: Inputs): string[] {
   const n = inputs.number.get(view.inputId)
   const lines = [`  Input ${n === undefined ? '?' : String(n)} (control revision ${String(view.control.revision)})`]
+  // The control exactly as recorded (R03): its state, its withdrawal phase and held reason (none when null), apart from
+  // the friendly line, which says the same in words.
+  const { state, withdrawnPhase, heldReason } = view.control
+  lines.push(`  Control: ${state} · phase ${withdrawnPhase ?? 'none'} · held reason ${heldReason ?? 'none'}`)
   const line = controlLine(turn, view)
   if (line) lines.push(`  ${line}`)
   if (view.control.replaces) lines.push(`  Replaces ${inputRef(view.control.replaces, inputs)}`)

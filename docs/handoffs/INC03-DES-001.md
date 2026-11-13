@@ -54,3 +54,27 @@ complete Copy.
 
 - The same reviewer's whole-candidate CORE/PRE; Davide's working-candidate approval if material; then publication,
   current automatic review and CI, the coherent join and its own checks, and the native/owner/deployed/app gates.
+
+## R1, a controlled read whole or said stale, as it happened (a child of `360176e4`)
+
+The same reviewer's whole-source review of `360176e4` (`df064b29`) was NEEDS_REVISION, and root adopted R01, R02, R03
+and the fixture correction (`d0153c26`; task `a1be08d6…f9ab2`). The repair ran only after `360176e4`'s fresh ordinary
+ended with exit 0 and its FINAL was delivered (`ea7ab350…9b2b`). The plan was sealed before any edit (`1c9aa056…a138`).
+The work is on the new branch `inc03-des-001-reader-r1`, in its own worktree; `360176e4` and its packets are unchanged.
+
+1. **R01.** `viewHolds` binds each view to its page's turn: input, turn and seq, at the same control revision and state.
+   It applies to A55's inputs, to read-back windows (`readControlledWindow`) and to Read more. A round that doesn't
+   hold is read once more, then `NotCoherent`. Read more that doesn't hold isn't joined; the space is read whole
+   instead.
+2. **R02.** The 20-window cap is gone. A round reads back to the oldest seq loaded, bounded by that range through strict
+   progress. A page breaking its order raises `ReadBackMalformed`.
+   - Neither error is retried by the query: the round already was, and the next refresh reads it again.
+3. **R03.** Copy has a `Control:` line with the exact state, phase and held reason.
+4. **Fixtures.** Never-admitted held Y and cancelled Z have no call and an original request of none/none/none, and held
+   Y is excluded from the prompt, in the app spec, the presentation fixture and the unit data.
+5. **First failures, kept.**
+   - The app spec's first run failed twice. One cause was my own test data: a page at control revision 0 against a view
+     at revision 1, which the new binding rightly refused. The other was a still-open menu.
+   - The second run showed the refresh test waiting on the query's retries; local read errors are no longer retried.
+     Escape had also taken the read-more test to Home.
+   - The third run passed 13 of 13.

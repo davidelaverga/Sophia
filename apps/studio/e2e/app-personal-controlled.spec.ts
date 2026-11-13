@@ -107,6 +107,8 @@ const call = (callId: string, financial: string, answer: string, possibleEffect 
   answer,
   possibleEffect,
 })
+/** An input never admitted: no call was made, so nothing financial, no effect and no answer (0103). */
+const NONE_PRIOR = { financial: 'none', effect: 'none', answer: 'none' }
 const KEPT_W = {
   callId: CALL.w,
   text: 'Tell them the date moves to Thursday.',
@@ -125,6 +127,7 @@ function histories(waitReply: Reply = 'pending') {
   const y = turn(13, 'Keep it to two lines.', 30, {
     reply: 'recorded',
     input: { inputId: IN.y, control: 'held', revision: 1 },
+    prompt: 'excluded',
     activity: false,
   })
   const z = turn(14, 'Never mind the summary.', 25, {
@@ -152,8 +155,12 @@ function viewsOf(h: ReturnType<typeof histories>, { settled = false, keptOnX = f
         ? [{ callId: CALL.x, text: 'A shorter draft, kept.', suggestion: null, source: 'kept_transfer', at: ago(1) }]
         : [],
     }),
-    view(IN.y, h.y, { control: { state: 'held', heldReason: 'admission_off', replaces: IN.x } }),
-    view(IN.z, h.z, { control: { state: 'withdrawn', revision: 2, withdrawnPhase: 'before_admission' } }),
+    // Never admitted (0103's personal_answer_prior): no call, nothing financial, no effect, no answer.
+    view(IN.y, h.y, { control: { state: 'held', heldReason: 'admission_off', replaces: IN.x }, prior: NONE_PRIOR }),
+    view(IN.z, h.z, {
+      control: { state: 'withdrawn', revision: 2, withdrawnPhase: 'before_admission' },
+      prior: NONE_PRIOR,
+    }),
     view(IN.w, h.w, {
       control: { state: 'withdrawn', revision: 2, withdrawnPhase: 'after_launch' },
       prior: settled
@@ -443,6 +450,87 @@ test('controlled · a window read back is read again with the space, and its old
   expect(asked(ledger)).toMatchObject({ legacyAfterPin: 0, legacyPoll: 0, writes: [] })
 })
 
+// R01 (CORE df064b29): a view read after its page may be at a newer control than the page has. Never shown together:
+// a turn read back must never say both Ask again (its page: active, failed) and Withdrawn (its newer view).
+const R1_OLD = turn(5, 'An older question about the deck.', 300, {
+  reply: 'failed',
+  input: { inputId: IN.v, control: 'active', revision: 0 },
+})
+const R1_NEWER = view(IN.v, R1_OLD, {
+  control: { state: 'withdrawn', revision: 1, withdrawnPhase: 'before_reservation' },
+  prior: NONE_PRIOR,
+})
+const R1_AS_PAGE = view(IN.v, R1_OLD, { control: { revision: 0 }, prior: NONE_PRIOR }) // as its page has it
+const R1_WITHDRAWN = turn(5, 'An older question about the deck.', 300, {
+  reply: 'withdrawn',
+  input: { inputId: IN.v, control: 'withdrawn', revision: 1 },
+})
+
+/** The turn read back never shows Ask again and a control status at once (a mix of its page and a newer view). */
+async function neverMixed(page: Page) {
+  const asks = await page.locator('.c3-failed', { hasText: 'Sophia couldn’t answer this one.' }).count()
+  const said = await statusOf(page, R1_OLD).count()
+  expect(asks > 0 && said > 0, `Ask again ${String(asks)} with a status ${String(said)}`).toBe(false)
+}
+
+test('R01 · read more: a window whose view moved past its page isn’t joined mixed; once they hold, it is', async ({
+  context,
+}) => {
+  const h = histories('answered')
+  const world = controlledWorld(h)
+  world.space = () => ({ json: space(h, { earlier: true }) })
+  world.before = () => ({ json: { revision: 7, epoch: 1, turns: [R1_OLD], earlier: false, pending: false } })
+  world.view = (inputId) => (inputId === IN.v ? { json: R1_NEWER } : refusal(422, 'not_found', 'never'))
+  const { ledger } = await serve(context, world)
+  const page = await signedIn(context)
+  await openPersonal(page)
+  await showsHistories(page, h)
+  const more = async () => {
+    // The days' menu stays open after a read (Escape would leave Personal for Home): open it only when it's shut.
+    const item = page.getByRole('menuitem', { name: 'Show earlier days' })
+    if (!(await item.isVisible())) await page.locator('.c3-day').first().click()
+    await item.click()
+  }
+  const before = asked(ledger).controlled
+  await more()
+  await expect.poll(() => ledger.filter((l) => l.endsWith(`/answers/${IN.v}/control`)).length).toBeGreaterThan(0)
+  await expect.poll(() => asked(ledger).controlled).toBeGreaterThan(before) // not joined: read whole again instead
+  await neverMixed(page)
+  await expect(page.getByText('An older question about the deck.')).toHaveCount(0)
+  // The page and the view agree now (withdrawn at control revision 1): read more joins it, with its one status.
+  world.before = () => ({ json: { revision: 7, epoch: 1, turns: [R1_WITHDRAWN], earlier: false, pending: false } })
+  await more()
+  await expect(statusOf(page, R1_OLD)).toHaveText('Withdrawn before Sophia was asked')
+  await neverMixed(page)
+  expect(asked(ledger)).toMatchObject({ legacyAfterPin: 0, writes: [] })
+})
+
+test('R01 · a refresh whose view and page disagree keeps the last whole read, said stale, never a mix', async ({
+  context,
+}) => {
+  const h = histories('answered')
+  const world = controlledWorld(h)
+  world.space = () => ({ json: space(h, { earlier: true }) })
+  world.before = () => ({ json: { revision: 7, epoch: 1, turns: [R1_OLD], earlier: false, pending: false } })
+  world.view = (inputId) => (inputId === IN.v ? { json: R1_AS_PAGE } : refusal(422, 'not_found', 'never'))
+  const { ledger } = await serve(context, world)
+  const page = await signedIn(context)
+  await page.clock.install()
+  await openPersonal(page)
+  await showsHistories(page, h)
+  await page.locator('.c3-day').first().click()
+  await page.getByRole('menuitem', { name: 'Show earlier days' }).click()
+  await expect(page.getByText('An older question about the deck.')).toBeVisible()
+  await expect(page.locator('.c3-failed', { hasText: 'Sophia couldn’t answer this one.' })).toHaveCount(1)
+  // A control commits between the page and its view on every refresh now: each round is read twice, then said stale.
+  world.view = (inputId) => (inputId === IN.v ? { json: R1_NEWER } : refusal(422, 'not_found', 'never'))
+  await page.clock.fastForward(21_000)
+  await expect(page.locator('[data-stale]')).toBeVisible()
+  await neverMixed(page)
+  await expect(page.locator('.c3-failed', { hasText: 'Sophia couldn’t answer this one.' })).toHaveCount(1)
+  expect(asked(ledger)).toMatchObject({ legacyAfterPin: 0, writes: [] })
+})
+
 test('controlled · a failed controlled read is said, never the old read: absent, an unknown enum, Try again', async ({
   context,
 }) => {
@@ -518,6 +606,11 @@ test('controlled · Copy reads every page against its epoch and copies the whole
     '  Withdrawn; work may already have started · cost not settled yet',
     `  Kept aside from call 1 (late settlement), at`,
     '  Not counted as time together',
+    // R03: each control exactly as recorded, apart from the friendly words.
+    '  Control: withdrawn · phase after_publication · held reason none',
+    '  Control: held · phase none · held reason admission_off',
+    '  Control: withdrawn · phase before_admission · held reason none',
+    '  Control: withdrawn · phase after_launch · held reason none',
     '(The rest as of',
   ])
     expect(text).toContain(line)

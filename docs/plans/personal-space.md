@@ -135,3 +135,20 @@ actual backend candidate `1203c682`. There is no new control, producer or compos
   recorded, and what was kept from which call. Never an amount, a route, a payer or a host.
 - **Days and welcome.** Days stay A10's whole-conversation count of person-written days; the automatic welcome follows
   the controlled activity (a cancelled, never-sent message isn't time together).
+
+### R1: a controlled read is whole, or said stale (INC03-DES-001 R1)
+
+The same reviewer's review of `360176e4` (`df064b29`) found three things to repair, and root adopted them (`d0153c26`).
+
+- **R01, views bound to their page.** A view read after its page could be at a newer control than the page has, and
+  a turn then said both Ask again and Withdrawn. Each view must now be its page's input's: the same input, turn and
+  seq, at the same control revision and state. That holds for A55's own and for every read-back window, in a round and
+  in Read more. A round that doesn't hold is read once more, then said stale. Read more that doesn't hold isn't joined.
+  Money, kept answers and a lapsed wait at the same control revision are read as they stand.
+- **R02, no silent truncation.** A round reads back all that was loaded, also once the newest window has moved on. It
+  is bounded by that range: each page must progress strictly below the last, and a page that doesn't fails honestly.
+  There is no cap of 20 windows.
+- **R03, exact control in Copy.** Copy writes each control's state, withdrawal phase and held reason exactly (none
+  when null), apart from the friendly words.
+- **Fixtures as 0103 gives them.** The test and presentation data now use 0103's own values for a never-admitted input
+  (no call; nothing financial, no effect, no answer) and keep held messages out of the prompt.

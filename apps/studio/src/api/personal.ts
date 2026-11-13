@@ -164,13 +164,26 @@ export const isControlled = (space: SpaceRead): space is ControlledRead => 'spac
 export const refusedAsControlled = (err: unknown): boolean =>
   err instanceof ApiError && err.status === 503 && err.code === 'projection_unavailable' && err.retry === 'never'
 
-/** The rounds read whose pages kept to different revisions or epochs: what was read last stays, said as stale. */
+/**
+ * A controlled read that isn't whole: its pages read at different revisions or epochs, or a view that isn't of its
+ * page's input as the page has it (R01). Read again once; then what was read last stays, said as stale.
+ */
 export class NotCoherent extends Error {
   override name = 'NotCoherent'
+  /** Not asked again by the query (retryRead): the round already was; the next refresh reads it again. Bounded. */
+  readonly retry = 'never'
 }
 
-/** How far back a controlled round reads: at most this many earlier windows of 100 turns (bounded, never all). */
-export const BACK_WINDOWS = 20
+/**
+ * A read-back page that breaks its own progress (a turn not before its cursor, out of order, or none while more are said
+ * to be earlier): an honest failure, not read again here. What was read last stays, said as stale.
+ */
+export class ReadBackMalformed extends Error {
+  override name = 'ReadBackMalformed'
+  /** Not asked again by the query (retryRead): no retry loop on a page that breaks its own order. */
+  readonly retry = 'never'
+}
+
 const ROUNDS = 2
 
 /**
@@ -219,29 +232,96 @@ export const getControlView = (token: string, inputId: string, signal?: AbortSig
 
 const nowIso = () => new Date().toISOString()
 
+/** An id as A54 compares it: its last 36 characters (no `urn:uuid:`), lower case. */
+const canonical = (id: string) => id.slice(-36).toLowerCase()
+
+/**
+ * Whether `view` is the view of `turn`'s input as the page has it: the same input, turn and seq, at the same control
+ * revision and state (R01). What may change at the same control revision (its calls, their money, what was kept, a
+ * wait that lapsed) isn't compared: it is read as it stands. There is no per-view epoch or space revision to compare.
+ */
+export function viewHolds(view: PersonalAnswerControlView, turn: PersonalControlledTurn): boolean {
+  const { input } = turn
+  return (
+    input !== null &&
+    canonical(view.inputId) === canonical(input.inputId) &&
+    canonical(view.turnId) === canonical(turn.id) &&
+    view.seq === turn.seq &&
+    view.control.revision === input.revision &&
+    view.control.state === input.control
+  )
+}
+
+/** A55's own inputs, one snapshot with its window: each turn's input has its view, and each view holds (R01). */
+function windowHolds(space: PersonalControlledSpace): boolean {
+  const views = new Map(space.inputs.map((v) => [canonical(v.inputId), v]))
+  const turns = space.turns.filter((t) => t.input !== null)
+  return (
+    views.size === turns.length &&
+    turns.every((t) => {
+      const view = t.input ? views.get(canonical(t.input.inputId)) : undefined
+      return view !== undefined && viewHolds(view, t)
+    })
+  )
+}
+
 /** Views read, by input id, each with when its read answered. */
 export interface ViewsRead {
   views: Map<string, PersonalAnswerControlView>
   at: Map<string, string>
 }
 
-/** The views of the inputs on `turns` that `viewed` doesn't have yet, read one after another, each with its time. */
+/**
+ * The views of the inputs on `turns` that `viewed` doesn't have yet, read one after another, each with its time and
+ * bound to its turn (viewHolds). False at the first that doesn't hold: the read isn't whole.
+ */
 export async function viewsOf(
   token: string,
   turns: readonly PersonalControlledTurn[],
   viewed: ViewsRead,
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<boolean> {
   for (const turn of turns) {
     if (!turn.input || viewed.views.has(turn.input.inputId)) continue
-    viewed.views.set(turn.input.inputId, await getControlView(token, turn.input.inputId, signal))
+    const view = await getControlView(token, turn.input.inputId, signal)
+    if (!viewHolds(view, turn)) return false
+    viewed.views.set(turn.input.inputId, view)
     viewed.at.set(turn.input.inputId, nowIso())
   }
+  return true
+}
+
+/** A read-back page keeps its own progress: every turn before `before`, ascending, and some while more are earlier. */
+function progresses(page: PersonalControlledTurnPage, before: number): boolean {
+  const seqs = page.turns.map((t) => t.seq)
+  const ordered = seqs.every((s, i) => s < before && (i === 0 || s > (seqs[i - 1] ?? s)))
+  return ordered && (seqs.length > 0 || !page.earlier)
 }
 
 /**
- * One round: A55, then the windows before it back to `from` (at most BACK_WINDOWS), with their inputs' views. Null when
- * a window was read at another revision or epoch than the space: the round is no whole picture.
+ * The window before `before`, read back with its inputs' views, each bound to its turn, and when it answered. Null when
+ * it isn't whole with what it joins (`expected`: its revision and epoch, R01). Throws ReadBackMalformed when it breaks its
+ * own progress.
+ */
+export async function readControlledWindow(
+  token: string,
+  before: number,
+  expected: { revision: number; epoch: number },
+  viewed: ViewsRead,
+  signal?: AbortSignal,
+): Promise<ControlledWindow | null> {
+  const page = await getControlledTurnsBefore(token, before, signal)
+  if (!progresses(page, before)) throw new ReadBackMalformed('A page read back broke its own order')
+  if (page.revision !== expected.revision || page.epoch !== expected.epoch) return null
+  const at = nowIso()
+  return (await viewsOf(token, page.turns, viewed, signal)) ? { before, page, at } : null
+}
+
+/**
+ * One round: A55, then every window before it back to `from` (all that was read back, also once the newest window
+ * has moved on), with their inputs' views (R02). Each window strictly progresses below the last, so the round reads at
+ * most as many windows as there are seqs between its first and `from`: finite, from the range actually loaded, never
+ * a cap that would leave part of it out. Null when it isn't whole (R01).
  */
 async function controlledRound(
   token: string,
@@ -251,27 +331,29 @@ async function controlledRound(
 ): Promise<ControlledRead | null> {
   const space = await read(token, controlledSpacePath(timeZone), parsePersonalControlledSpace, signal)
   const readAt = nowIso()
+  if (!windowHolds(space)) return null
   const viewed: ViewsRead = {
     views: new Map(space.inputs.map((v) => [v.inputId, v])),
     at: new Map(space.inputs.map((v) => [v.inputId, readAt])),
   }
   const back: ControlledWindow[] = []
-  // Read back while what was read back before (to `from`) isn't reached, earlier turns exist, and within the bound.
   const reaches = (before: number | undefined, earlier: boolean): before is number =>
     from !== null && before !== undefined && earlier && before > from
   let at = { before: space.turns[0]?.seq, earlier: space.earlier }
-  for (let n = 0; n < BACK_WINDOWS && reaches(at.before, at.earlier); n += 1) {
-    const before: number = at.before
-    const page = await getControlledTurnsBefore(token, before, signal)
-    if (page.revision !== space.revision || page.epoch !== space.epoch) return null
-    back.unshift({ before, page, at: nowIso() })
-    await viewsOf(token, page.turns, viewed, signal)
-    at = { before: page.turns[0]?.seq, earlier: page.earlier }
+  for (const most = Math.max(0, (at.before ?? 0) - (from ?? 0)); reaches(at.before, at.earlier);) {
+    if (back.length >= most) throw new ReadBackMalformed('Reading back made no progress')
+    const window = await readControlledWindow(token, at.before, space, viewed, signal)
+    if (!window) return null
+    back.unshift(window)
+    at = { before: window.page.turns[0]?.seq, earlier: window.page.earlier }
   }
   return { ...space, back, views: viewed.views, readAt, viewAt: viewed.at, asOf: nowIso() }
 }
 
-/** The controlled space read whole, in a round whose windows keep to its revision and epoch (asked twice at most). */
+/**
+ * The controlled space read whole, in a round whose windows keep to its revision and epoch and whose views are their
+ * inputs' (asked twice at most, then NotCoherent). A page breaking its own progress fails at once (ReadBackMalformed).
+ */
 export async function readControlledSpace(
   token: string,
   timeZone: string | null,

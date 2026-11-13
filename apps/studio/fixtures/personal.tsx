@@ -284,6 +284,7 @@ function controlledTurns() {
     turn('person', 'Keep it to two lines, and mention the pilot.', ago(30), { reply: 'recorded' }),
     {
       input: { inputId: IN.y, control: 'held', revision: 1 },
+      prompt: 'excluded',
       activity: false,
     },
   )
@@ -318,8 +319,15 @@ function controlledInputs({ x, y, z, w }: ReturnType<typeof controlledTurns>): P
       control: { state: 'withdrawn', revision: 2, withdrawnPhase: 'after_publication', replacedBy: [IN.y] },
       calls: [{ callId: CALL.x, ...settled }],
     }),
-    view(IN.y, y, { control: { state: 'held', heldReason: 'admission_off', replaces: IN.x } }),
-    view(IN.z, z, { control: { state: 'withdrawn', revision: 2, withdrawnPhase: 'before_admission' } }),
+    // Never admitted (0103's personal_answer_prior): no call, nothing financial, no effect, no answer.
+    view(IN.y, y, {
+      control: { state: 'held', heldReason: 'admission_off', replaces: IN.x },
+      prior: { financial: 'none', effect: 'none', answer: 'none' },
+    }),
+    view(IN.z, z, {
+      control: { state: 'withdrawn', revision: 2, withdrawnPhase: 'before_admission' },
+      prior: { financial: 'none', effect: 'none', answer: 'none' },
+    }),
     view(IN.w, w, {
       control: { state: 'withdrawn', revision: 2, withdrawnPhase: 'after_launch' },
       prior: { financial: 'unresolved', effect: 'possible', answer: 'withheld' },

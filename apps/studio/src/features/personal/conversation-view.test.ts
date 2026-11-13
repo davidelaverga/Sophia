@@ -565,6 +565,8 @@ function viewOf(
     ...extra,
   }
 }
+/** A never admitted input's view, as 0103 gives it: no call, so nothing financial, no effect, no answer. */
+const NEVER_ADMITTED = { prior: { financial: 'none', effect: 'none', answer: 'none' } } as const
 const rowsOf = (turns: readonly PersonalControlledTurn[], views: readonly PersonalAnswerControlView[]) =>
   conversationRows({
     turns,
@@ -577,12 +579,16 @@ const rowsOf = (turns: readonly PersonalControlledTurn[], views: readonly Person
 
 describe('a controlled space’s messages say how their answers stand, in their control’s own terms', () => {
   it('held says not asked yet only while its control is held; a replacement made active keeps its link silently', () => {
-    const y = controlled(turn('person', 'Shorter, please.', at(0, 20), { reply: 'recorded' }), withInput(2, 'held'))
-    const held = viewOf(2, y, { state: 'held', heldReason: 'admission_off', replaces: INPUT(1) })
+    const y = controlled(turn('person', 'Shorter, please.', at(0, 20), { reply: 'recorded' }), {
+      ...withInput(2, 'held'),
+      prompt: 'excluded',
+      activity: false,
+    })
+    const held = viewOf(2, y, { state: 'held', heldReason: 'admission_off', replaces: INPUT(1) }, NEVER_ADMITTED)
     assert.equal(controlLine(y, held), 'Held to replace an earlier message — not asked yet · answers are off')
     const active = controlled({ ...y, reply: 'pending' }, withInput(2, 'active'))
     assert.equal(controlLine(active, viewOf(2, active, { state: 'active', replaces: INPUT(1) })), null)
-    const plain = viewOf(2, y, { state: 'held', heldReason: 'prior_cost_unresolved' })
+    const plain = viewOf(2, y, { state: 'held', heldReason: 'prior_cost_unresolved' }, NEVER_ADMITTED)
     assert.equal(controlLine(y, plain), 'Held — not asked yet · waits until the earlier cost is settled')
   })
 
@@ -631,7 +637,7 @@ describe('a controlled space’s messages say how their answers stand, in their 
       [x, hers, z, w, failed, waiting],
       [
         viewOf(1, x, { state: 'withdrawn', withdrawnPhase: 'after_publication' }),
-        viewOf(2, z, { state: 'withdrawn', withdrawnPhase: 'before_admission' }),
+        viewOf(2, z, { state: 'withdrawn', withdrawnPhase: 'before_admission' }, NEVER_ADMITTED),
         viewOf(3, w, { state: 'withdrawn', withdrawnPhase: 'after_launch' }, { withheld: [kept] }),
         viewOf(4, failed, {}),
       ],
@@ -677,6 +683,7 @@ describe('a controlled space’s messages say how their answers stand, in their 
     const quiet = controlled(turn('person', 'Earlier.', at(0, 15)))
     const cancelled = controlled(turn('person', 'Never mind.', at(0, 20, 40), { reply: 'recorded' }), {
       ...withInput(9, 'withdrawn'),
+      prompt: 'excluded',
       activity: false,
     })
     assert.equal(welcomeDue([quiet, cancelled], NOW), true, 'the last activity is hours old')

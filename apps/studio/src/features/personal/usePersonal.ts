@@ -10,7 +10,6 @@ import {
   decidePersonalSuggestion,
   erasePersonalSpace,
   forgetPersonalNote,
-  getControlledTurnsBefore,
   getEarlierPersonalTurns,
   getPersonalTurns,
   controlledPinned,
@@ -19,6 +18,7 @@ import {
   protocolKey,
   keepPersonalNote,
   listProjects,
+  readControlledWindow,
   readPersonalSpace,
   resumePersonalSpace,
   retryPersonalTurn,
@@ -29,7 +29,6 @@ import {
   type ShownTurn,
   type SpaceRead,
   type ViewsRead,
-  viewsOf,
 } from '../../api/personal.ts'
 import { ApiError } from '../../api/client.ts'
 import { accountOf } from '../../app/auth-callback.ts'
@@ -153,31 +152,24 @@ function shownBack(space: SpaceRead | undefined, back: ReadBackState | null) {
   return { older: current?.turns ?? NO_TURNS, more: current ? current.more : (space?.earlier ?? false) }
 }
 
-/** A window of a controlled space before `before`, with the views of its inputs (each read in turn, with its time). */
-async function controlledWindow(token: string, before: number, signal: AbortSignal) {
-  const page = await getControlledTurnsBefore(token, before, signal)
-  const at = new Date().toISOString()
-  const viewed: ViewsRead = { views: new Map(), at: new Map() }
-  await viewsOf(token, page.turns, viewed, signal)
-  return { page, at, viewed }
-}
-
 /**
- * One more window of a controlled space read back, with its inputs' views, joined to the cached read only when it was
- * read at that read's revision and epoch, and that read is still the one shown; at another revision the space is read
- * whole again instead (a round reads it back as far as was read).
+ * One more window of a controlled space read back, with its inputs' views bound to it (readControlledWindow), joined
+ * to the cached read only while that read is still the one shown and the window holds with it: its revision, its epoch
+ * and each input's control as its page has it (R01). One that doesn't hold isn't joined: the space is read whole again
+ * instead (a round reads it back as far as was read, and says it is stale if it still isn't whole).
  */
 async function readControlledBack(client: QueryClient, identity: Identity, read: ControlledRead, signal: AbortSignal) {
   const before = read.back[0]?.page.turns[0]?.seq ?? read.turns[0]?.seq
   if (before === undefined) return
-  const { page, at, viewed } = await controlledWindow(identity.token, before, signal)
+  const viewed: ViewsRead = { views: new Map(), at: new Map() }
+  const window = await readControlledWindow(identity.token, before, read, viewed, signal)
   const key = ['personal', identity.name]
   const now = client.getQueryData<SpaceRead>(key)
-  if (!now || !isControlled(now) || now.epoch !== page.epoch || now.asOf !== read.asOf) return
-  if (now.revision === page.revision) {
+  if (!now || !isControlled(now) || now.asOf !== read.asOf) return
+  if (window) {
     const joined: ControlledRead = {
       ...now,
-      back: [{ before, page, at }, ...now.back],
+      back: [window, ...now.back],
       views: new Map([...now.views, ...viewed.views]),
       viewAt: new Map([...now.viewAt, ...viewed.at]),
     }

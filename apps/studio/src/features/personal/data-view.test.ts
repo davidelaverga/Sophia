@@ -143,7 +143,7 @@ describe('a controlled space’s copy says how each answer stands, completely', 
     releases: [],
     turns: [
       turnOf(1, 'Draft it.', X),
-      turnOf(2, 'Shorter.', Y, { reply: 'recorded', activity: false, prompt: 'eligible' }),
+      turnOf(2, 'Shorter.', Y, { reply: 'recorded', activity: false, prompt: 'excluded' }),
       turnOf(3, 'And later.', null),
     ],
     inputs: [
@@ -220,7 +220,88 @@ describe('a controlled space’s copy says how each answer stands, completely', 
     has(`  Replaces input 1 (your message of ${FULL(AT)})`)
     has('  Not counted as time together')
     has(`(The rest as of ${FULL('2026-10-01T10:00:07.000Z')})`)
-    assert.equal(lines.filter((l) => l === '  Not used for what Sophia says next').length, 2, 'X and the plain turn')
+    // X, held Y (a held message isn't used: 0103's prompt eligibility) and the plain turn.
+    assert.equal(
+      lines.filter((l) => l === '  Not used for what Sophia says next').length,
+      3,
+      'X, held Y, the plain turn',
+    )
+    // R03: each input's control exactly as recorded, apart from the friendly line.
+    has('  Control: withdrawn · phase after_launch · held reason none')
+    has('  Control: held · phase none · held reason admission_off')
+    has('  Original request: no answer · no cost')
     assert.ok(!text.includes(ROUTE) && !text.includes('digest-should-never'), 'no route, no profile')
+  })
+})
+
+// R03: the copy keeps each control's exact state and withdrawal phase (and none where none), for every state A54 has,
+// apart from the friendly words (before_reservation and before_launch read alike there, never here).
+describe('a controlled space’s copy keeps every control state and phase exactly', () => {
+  const X = '20000000-0000-4000-8000-00000000000a'
+  const phases = [
+    null,
+    'before_admission',
+    'before_reservation',
+    'before_launch',
+    'after_launch',
+    'after_publication',
+  ] as const
+  const states = [['active', null], ['held', null], ...phases.map((phase) => ['withdrawn', phase] as const)] as const
+
+  it('writes state, phase and held reason as recorded, none for null', () => {
+    for (const [state, phase] of states) {
+      const text = exportText(
+        {
+          exportedAt: AT,
+          epoch: 1,
+          next: null,
+          notes: [],
+          releases: [],
+          turns: [
+            {
+              id: '6f1c2a7e-0d4b-4c39-9a51-3e0b7d1c9c01',
+              seq: 1,
+              author: 'person',
+              text: 'A message.',
+              createdAt: AT,
+              replyTo: null,
+              reply: 'answered',
+              suggestion: null,
+              input: { inputId: X, control: state, revision: 1 },
+              prompt: 'eligible',
+              activity: true,
+            },
+          ],
+          inputs: [
+            {
+              inputId: X,
+              turnId: '6f1c2a7e-0d4b-4c39-9a51-3e0b7d1c9c01',
+              seq: 1,
+              createdAt: AT,
+              reply: 'answered',
+              decisions: [],
+              route: null,
+              control: {
+                state,
+                revision: 1,
+                heldReason: state === 'held' ? 'prior_in_progress' : null,
+                withdrawnPhase: phase,
+                replaces: null,
+                replacedBy: [],
+              },
+              prior: { financial: 'none', effect: 'none', answer: 'none' },
+              calls: [],
+              withheld: [],
+            },
+          ],
+        },
+        'Luis',
+      )
+      const reason = state === 'held' ? 'prior_in_progress' : 'none'
+      assert.ok(
+        text.split('\n').includes(`  Control: ${state} · phase ${phase ?? 'none'} · held reason ${reason}`),
+        `${state}/${String(phase)}\n${text}`,
+      )
+    }
   })
 })
