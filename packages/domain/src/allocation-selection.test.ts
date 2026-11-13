@@ -14,9 +14,11 @@ import {
   type Decision,
   type ResolvedProof,
   type Role,
+  type ScopeLevel,
   type SelectionInput,
   type Settings,
   type ShareField,
+  type StrictSettingsDisclosure,
 } from './allocation-selection.ts'
 
 const AT = '2026-11-13T08:00:00Z'
@@ -1610,6 +1612,326 @@ describe('R2: a native candidate needs a current host', () => {
       [d.proposedRef, d.alternatives, row(d, 'a').status, row(d, 'a').rankStep],
       ['b', [], 'excluded', null],
     )
+  })
+})
+
+// --- R4 regressions (PR #516 finding 4562079386 and the same-cause row-seed sink) ----------------------------------
+
+const m1 = () => strict('high')
+const manualOrigin = { kind: 'manual' } as const
+const pinOrigin = (targetRef: string, over: Partial<{ level: ScopeLevel; revisionRef: string }> = {}) => ({
+  kind: 'pin' as const,
+  level: 'action' as const,
+  targetRef,
+  revisionRef: 'policy-rev-1',
+  ...over,
+})
+const disclose =
+  (origin: StrictSettingsDisclosure['origin'], viewerRefs: string[] = [ACTOR]) =>
+  (i: SelectionInput) =>
+    (i.strictSettingsDisclosure = { origin, viewerRefs })
+const manual = (i: SelectionInput) => (i.request.strictSettings = m1())
+const pinTo = (targetRef: string) => (i: SelectionInput) =>
+  (i.policy.scopes = [scope('pin', targetRef, { settings: m1() })])
+const all =
+  (...ms: ((i: SelectionInput) => void)[]) =>
+  (i: SelectionInput) =>
+    ms.forEach((m) => m(i))
+const shared = (v: ReturnType<typeof projectSelection>) => {
+  assert.ok(v.disclosure === 'shared')
+  return v
+}
+const strictOf = (v: ReturnType<typeof projectSelection>) => shared(v).strictSettings
+/** Every candidate and the proposal of a view, as the keys a viewer could read. */
+const seeds = (v: ReturnType<typeof projectSelection>) => {
+  const s = shared(v)
+  const p = s.proposal !== null && !('withheld' in s.proposal) ? [s.proposal] : []
+  return [...s.candidates, ...p].map((c) => [c.candidateRef, 'seed' in c ? c.seed : 'absent'])
+}
+/** What selection decided, without any view or disclosure detail. */
+const selectionOf = (d: Decision) => ({
+  outcome: d.outcome,
+  globalCodes: d.globalCodes,
+  proposedRef: d.proposedRef,
+  alternatives: d.alternatives,
+  fallback: d.fallback,
+  strict: d.settings.strict,
+  rows: d.rows.map((r) => [r.candidateRef, r.status, r.failures, r.rankStep, r.seed]),
+})
+const visibleSettings = (c: Candidate) => (c.share = [{ viewerRef: ACTOR, fields: ['settings'] }])
+
+describe('R4: strict settings are shown only to the viewers of their exact origin', () => {
+  it('a manual request with summary only shows no strict value, at the top or in any row, hidden or route-only', () => {
+    for (const share of [[], [{ viewerRef: ACTOR, fields: ['route_kind'] as ShareField[] }]]) {
+      const d = run([grantCandidate('a', (c) => (c.share = share))], all(explore, manual))
+      assert.deepEqual([d.outcome, d.proposedRef], ['selected', 'a'])
+      const view = projectSelection(d, ACTOR)
+      assert.equal(strictOf(view), null)
+      assert.ok(seeds(view).every(([, seed]) => seed === 'absent'))
+      assert.ok(!JSON.stringify(view).includes('"m1"'))
+    }
+  })
+
+  it('the manual submitter named for the manual origin sees it; rows still follow their own whitelist', () => {
+    const d = run(
+      [grantCandidate('a')],
+      all(explore, manual, disclose(manualOrigin), (i) => (i.summaryViewerRefs = [ACTOR, OTHER])),
+    )
+    const view = projectSelection(d, ACTOR)
+    assert.deepEqual(strictOf(view), m1())
+    assert.deepEqual([shared(view).candidates, shared(view).proposal], [[], { withheld: true }])
+    assert.equal(strictOf(projectSelection(d, OTHER)), null)
+  })
+
+  it('a conflicting manual request and Pin stay invalid, and show nothing whatever the descriptor', () => {
+    for (const origin of [manualOrigin, pinOrigin('a')]) {
+      const d = run([candidate('a')], (i) => {
+        i.request.strictSettings = strict('high')
+        i.policy.scopes = [scope('pin', 'a', { settings: strict('low') })]
+        disclose(origin)(i)
+      })
+      assert.equal(d.outcome, 'invalid_input')
+      assert.equal(strictOf(projectSelection(d, ACTOR)), null)
+    }
+  })
+
+  it('a winning Pin on a hidden target shows nothing, not even through an unrelated visible matching row', () => {
+    const visible = grantCandidate('visible', (c) => {
+      visibleSettings(c)
+      c.settings.defaultSeed = m1()
+    })
+    const d = run([grantCandidate('hidden'), visible], all(explore, pinTo('hidden')))
+    assert.deepEqual([d.outcome, d.proposedRef, codes(d, 'visible')], ['selected', 'hidden', ['outside_pin']])
+    const view = projectSelection(d, ACTOR)
+    assert.deepEqual(seeds(view), [['visible', 'absent']])
+    assert.equal(strictOf(view), null)
+    assert.deepEqual(shared(view).proposal, { withheld: true })
+    assert.ok(!JSON.stringify(view).includes('"m1"'))
+  })
+
+  it('an absent Pin target waits; only an exact pin descriptor for that policy record shows its value', () => {
+    const at = (m?: (i: SelectionInput) => void) => run([], all(explore, pinTo('absent'), m ?? (() => {})))
+    const bare = at()
+    assert.deepEqual([bare.outcome, bare.globalCodes, bare.proposedRef], ['waiting', ['pin_target_absent'], null])
+    assert.equal(strictOf(projectSelection(bare, ACTOR)), null)
+    assert.deepEqual(strictOf(projectSelection(at(disclose(pinOrigin('absent'))), ACTOR)), m1())
+    assert.equal(strictOf(projectSelection(at(disclose(pinOrigin('absent', { revisionRef: 'old' }))), ACTOR)), null)
+    assert.deepEqual(selectionOf(at(disclose(pinOrigin('absent')))), selectionOf(bare))
+  })
+
+  it('a contradictory Pin target grants nothing and stays invisible', () => {
+    const conflicting = grantCandidate('a', (c) => {
+      c.share = [
+        { viewerRef: ACTOR, fields: ['settings'] },
+        { viewerRef: ACTOR, fields: ['route_kind'] },
+      ]
+    })
+    const d = run([conflicting], all(explore, pinTo('a')))
+    assert.deepEqual([d.outcome, d.proposedRef, codes(d, 'a')], ['waiting', null, ['fact_conflict']])
+    const view = projectSelection(d, ACTOR)
+    assert.deepEqual([strictOf(view), shared(view).candidates], [null, []])
+  })
+
+  it('an unrelated owned or settings-shared row, matching or not, confers nothing and gets no substituted seed', () => {
+    const mine = ownApi('mine', (c) => (c.settings.defaultSeed = m1()))
+    const other = grantCandidate('other', (c) => {
+      visibleSettings(c)
+      c.settings.declared = { providerInstanceRef: 'claude', models: [{ model: 'm1', options: [] }] }
+      c.settings.defaultSeed = { providerInstanceRef: 'claude', model: 'm1', options: [] }
+    })
+    const d = run([grantCandidate('hidden'), mine, other], all(explore, pinTo('hidden')))
+    assert.equal(d.proposedRef, 'hidden')
+    const view = projectSelection(d, ACTOR)
+    assert.deepEqual(seeds(view), [
+      ['mine', 'absent'],
+      ['other', 'absent'],
+    ])
+    assert.equal(strictOf(view), null)
+    assert.ok(!JSON.stringify(view).includes('"m1"'))
+  })
+
+  it('the owner of the exact Pin target, named for its origin, sees the value in the top, the row and the proposal', () => {
+    const target = ownApi('a')
+    const named = run([target], all(explore, pinTo('a'), disclose(pinOrigin('a'))))
+    const view = projectSelection(named, ACTOR)
+    assert.deepEqual(strictOf(view), m1())
+    assert.deepEqual(seeds(view), [
+      ['a', m1()],
+      ['a', m1()],
+    ])
+    const unnamed = projectSelection(run([target], all(explore, pinTo('a'))), ACTOR)
+    assert.equal(strictOf(unnamed), null)
+    assert.deepEqual(seeds(unnamed), [
+      ['a', 'absent'],
+      ['a', 'absent'],
+    ])
+  })
+
+  it('a viewer sharing the exact target settings and named for its origin sees the seed, and only shared fields', () => {
+    const d = run([grantCandidate('a', visibleSettings)], all(explore, pinTo('a'), disclose(pinOrigin('a'))))
+    const view = projectSelection(d, ACTOR)
+    assert.deepEqual(strictOf(view), m1())
+    assert.deepEqual(shared(view).candidates, [
+      { candidateRef: 'a', relation: 'shared', limitation: 'eligible', seed: m1() },
+    ])
+  })
+
+  it('manual precedence and scope precedence bind the origin; a wrong source, level, target or revision grants nothing', () => {
+    const agree = (origin: StrictSettingsDisclosure['origin']) =>
+      projectSelection(run([ownApi('a')], all(explore, manual, pinTo('a'), disclose(origin))), ACTOR)
+    assert.deepEqual(strictOf(agree(manualOrigin)), m1())
+    assert.equal(strictOf(agree(pinOrigin('a'))), null)
+    const layered = (origin: StrictSettingsDisclosure['origin']) =>
+      run(
+        [ownApi('a'), ownApi('b')],
+        all(explore, disclose(origin), (i) => {
+          i.policy.scopes = [
+            scope('pin', 'b', { level: 'role', settings: m1(), revisionRef: 'role-rev' }),
+            scope('pin', 'a', { settings: m1() }),
+          ]
+        }),
+      )
+    const winner = layered(pinOrigin('a'))
+    assert.deepEqual([winner.resolvedPolicy?.level, winner.proposedRef], ['action', 'a'])
+    assert.deepEqual(strictOf(projectSelection(winner, ACTOR)), m1())
+    for (const wrong of [
+      pinOrigin('b', { level: 'role', revisionRef: 'role-rev' }),
+      pinOrigin('b'),
+      pinOrigin('a', { revisionRef: 'policy-rev-0' }),
+      pinOrigin('a', { level: 'role' }),
+      manualOrigin,
+    ]) {
+      const d = layered(wrong)
+      assert.equal(strictOf(projectSelection(d, ACTOR)), null)
+      assert.deepEqual(seeds(projectSelection(d, ACTOR)), [
+        ['a', 'absent'],
+        ['b', 'absent'],
+        ['a', 'absent'],
+      ])
+      assert.deepEqual(selectionOf(d), selectionOf(winner))
+    }
+  })
+
+  it('without summary permission a viewer named for the origin still gets the one uniform restricted shape', () => {
+    const d = run([ownApi('a')], all(explore, manual, disclose(manualOrigin, [ACTOR, OTHER])))
+    assert.deepEqual(projectSelection(d, OTHER), {
+      contract: SELECTION_INPUT_CONTRACT,
+      policyVersion: SELECTION_POLICY_VERSION,
+      disclosure: 'restricted',
+    })
+  })
+
+  it('with no strict settings, soft Prefer and default seeds keep their owner and share rules', () => {
+    for (const extra of [() => {}, disclose(manualOrigin), disclose(pinOrigin('a'))]) {
+      const prefer = run(
+        [ownApi('a')],
+        all(explore, extra, (i) => (i.policy.scopes = [scope('prefer', 'a', { settings: strict('low') })])),
+      )
+      const view = projectSelection(prefer, ACTOR)
+      assert.deepEqual(
+        [strictOf(view), seeds(view)],
+        [
+          null,
+          [
+            ['a', strict('low')],
+            ['a', strict('low')],
+          ],
+        ],
+      )
+      const dflt = run(
+        [
+          grantCandidate('b', (c) => {
+            visibleSettings(c)
+            c.settings.defaultSeed = strict('low')
+          }),
+        ],
+        all(explore, extra),
+      )
+      assert.deepEqual(seeds(projectSelection(dflt, ACTOR)), [
+        ['b', strict('low')],
+        ['b', strict('low')],
+      ])
+    }
+  })
+
+  it('the descriptor stays the caller’s, and reordered or repeated viewers give the same decision', () => {
+    const descriptor: StrictSettingsDisclosure = { origin: { kind: 'manual' }, viewerRefs: [OTHER, ACTOR, OTHER] }
+    const i = input(
+      [ownApi('a')],
+      all(explore, manual, (x) => (x.strictSettingsDisclosure = descriptor)),
+    )
+    const before = clone(descriptor)
+    const d = evaluateSelection(i)
+    const callerObjects = reachable(i)
+    for (const o of reachable(d)) assert.ok(!callerObjects.has(o) && Object.isFrozen(o))
+    for (const o of reachable(projectSelection(d, ACTOR))) assert.ok(!callerObjects.has(o))
+    assert.ok(
+      !Object.isFrozen(descriptor) && !Object.isFrozen(descriptor.viewerRefs) && !Object.isFrozen(descriptor.origin),
+    )
+    assert.deepEqual(descriptor, before)
+    assert.deepEqual(d.strictViewerRefs, [ACTOR, OTHER])
+    const reordered = evaluateSelection({
+      ...i,
+      strictSettingsDisclosure: { origin: { kind: 'manual' }, viewerRefs: [ACTOR, OTHER] },
+    })
+    assert.deepEqual(plain(reordered), plain(d))
+    const view = clone(projectSelection(d, ACTOR))
+    descriptor.viewerRefs = []
+    assert.deepEqual(projectSelection(d, ACTOR), view)
+  })
+
+  it('no valid disclosure variation changes what is selected', () => {
+    const base = (m: (i: SelectionInput) => void) =>
+      run([ownApi('a'), ownApi('b', busy), grantCandidate('c')], all(explore, pinTo('a'), m))
+    const reference = selectionOf(base(() => {}))
+    for (const variant of [
+      disclose(manualOrigin),
+      disclose(pinOrigin('a')),
+      disclose(pinOrigin('c')),
+      disclose(pinOrigin('a'), [ACTOR, OTHER, 'viewer-z']),
+      disclose(pinOrigin('a'), []),
+      (i: SelectionInput) => (i.strictSettingsDisclosure = null),
+    ])
+      assert.deepEqual(selectionOf(base(variant)), reference)
+  })
+
+  it('a malformed descriptor is invalid input; a well-typed mismatch is not', () => {
+    const bad = (descriptor: unknown) =>
+      run(
+        [ownApi('a')],
+        all(explore, manual, (i) => (i.strictSettingsDisclosure = descriptor as StrictSettingsDisclosure)),
+      )
+    const cases: [unknown, string, string][] = [
+      [{ origin: manualOrigin, viewerRefs: ['bad viewer'] }, 'malformed_ref', '/strictSettingsDisclosure/viewerRefs'],
+      [
+        { origin: manualOrigin, viewerRefs: Array.from({ length: 51 }, (_, n) => `v${String(n)}`) },
+        'bound_exceeded',
+        '/strictSettingsDisclosure/viewerRefs',
+      ],
+      [{ origin: { kind: 'everyone' }, viewerRefs: [] }, 'malformed_origin', '/strictSettingsDisclosure/origin'],
+      [
+        { origin: { ...pinOrigin('a'), level: 'team' }, viewerRefs: [] },
+        'malformed_origin',
+        '/strictSettingsDisclosure/origin',
+      ],
+      [
+        { origin: pinOrigin('bad target'), viewerRefs: [] },
+        'malformed_ref',
+        '/strictSettingsDisclosure/origin/targetRef',
+      ],
+      [
+        { origin: pinOrigin('a', { revisionRef: ' ' }), viewerRefs: [] },
+        'malformed_ref',
+        '/strictSettingsDisclosure/origin/revisionRef',
+      ],
+    ]
+    for (const [descriptor, code, path] of cases) {
+      const d = bad(descriptor)
+      assert.equal(d.outcome, 'invalid_input', code)
+      assert.deepEqual(d.errors, [{ code, path }])
+      assert.deepEqual(d.strictViewerRefs, [])
+    }
+    assert.equal(bad({ origin: pinOrigin('nowhere'), viewerRefs: [ACTOR] }).outcome, 'selected')
   })
 })
 

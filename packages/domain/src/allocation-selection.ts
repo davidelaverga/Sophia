@@ -6,11 +6,12 @@
 // nothing: a decision proposes at most one candidate and is never an execution binding.
 //
 // Does not guarantee. Nothing in the input authenticates anything: refs are caller-owned opaque identifiers, and every
-// fact (membership, holds, grants, proofs, observations, share policy) is only as true as the trusted server caller
-// that derived it. Existing admission stays the authority and must recheck all of it before any effect. The internal
-// Decision is for that trusted caller only; its throwing `toJSON` guards accidental serialization and is not a
-// security boundary. Only `projectSelection` output may enter public, log or event storage. The correlation tuple
-// identifies declared input revisions; it does not prove equal facts, an equal decision or any permission.
+// fact (membership, holds, grants, proofs, observations, share and strict-settings disclosure) is only as true as the
+// trusted server caller that derived it. Existing admission stays the authority and must recheck all of it before any
+// effect. The internal Decision is for that trusted caller only; its throwing `toJSON` guards accidental
+// serialization and is not a security boundary. Only `projectSelection` output may enter public, log or event
+// storage. The correlation tuple identifies declared input revisions; it does not prove equal facts, an equal
+// decision or any permission.
 // Structural bounds below are technical limits taken from existing source conventions, never quota or policy.
 
 export const SELECTION_INPUT_CONTRACT = 'inc04.selection.input.v1'
@@ -218,6 +219,18 @@ export interface Candidate {
   }
   share: readonly { viewerRef: string; fields: readonly ShareField[] }[]
 }
+/**
+ * Which effective strict settings a disclosure speaks for: the manual request, or the exact winning Pin record.
+ * A trusted caller derives it, with its viewers, from a genuine current read permission on that request or policy
+ * record (the submitter's own manual request, the Pin target's owner, an explicit settings disclosure). The kernel
+ * authenticates nothing: it only matches the origin exactly, and otherwise discloses nothing (R4, PR #516).
+ */
+export type StrictOrigin =
+  { kind: 'manual' } | { kind: 'pin'; level: ScopeLevel; targetRef: string; revisionRef: string }
+export interface StrictSettingsDisclosure {
+  origin: StrictOrigin
+  viewerRefs: readonly string[]
+}
 export interface SelectionInput {
   contract: string
   policyVersion: string
@@ -229,6 +242,8 @@ export interface SelectionInput {
   policy: SelectionPolicy
   /** Viewers the trusted caller permits to see this request's coarse summary. */
   summaryViewerRefs: readonly string[]
+  /** Viewers permitted to read the effective strict settings. Absent: nobody, whoever sees the summary. */
+  strictSettingsDisclosure?: StrictSettingsDisclosure | null
   candidates: readonly Candidate[]
 }
 
@@ -282,6 +297,8 @@ export interface Decision {
   readonly errors: readonly { code: string; path: string }[]
   readonly errorsTruncated: boolean
   readonly summaryViewerRefs: readonly string[]
+  /** Internal: viewers of the strict settings, resolved against their exact origin. Never projected. */
+  readonly strictViewerRefs: readonly string[]
 }
 
 // --- structural bounds (existing conventions) -----------------------------------------------------------------------
@@ -689,6 +706,21 @@ function checkCandidates(input: SelectionInput, out: Issues) {
   })
 }
 
+const ORIGIN_KINDS: ReadonlySet<string> = new Set(['manual', 'pin'])
+
+function checkDisclosure(input: SelectionInput, out: Issues) {
+  const d = input.strictSettingsDisclosure
+  if (d === undefined || d === null) return
+  const p = '/strictSettingsDisclosure'
+  checkRefSet(d.viewerRefs, `${p}/viewerRefs`, out)
+  const o = d.origin
+  if (!ORIGIN_KINDS.has(o.kind)) out.push({ code: 'malformed_origin', path: `${p}/origin` })
+  if (o.kind !== 'pin') return
+  if (!LEVEL_ORDER.includes(o.level)) out.push({ code: 'malformed_origin', path: `${p}/origin` })
+  checkRef(o.targetRef, `${p}/origin/targetRef`, out)
+  checkRef(o.revisionRef, `${p}/origin/revisionRef`, out)
+}
+
 /** Every structural problem, sorted by code then path; the caller reports a bounded prefix. */
 function structuralIssues(input: SelectionInput): Issues {
   const out: Issues = []
@@ -701,6 +733,7 @@ function structuralIssues(input: SelectionInput): Issues {
   checkRequest(input, out)
   checkScopes(input, out)
   checkCandidates(input, out)
+  checkDisclosure(input, out)
   strictConflict(input, out)
   const seen = new Set<string>()
   return out
@@ -737,6 +770,29 @@ function strictConflict(input: SelectionInput, out: Issues) {
 function effectiveStrict(input: SelectionInput, scope: PolicyScope | null): Settings | null {
   if (input.request.strictSettings !== null) return input.request.strictSettings
   return scope?.mode === 'pin' ? scope.settings : null
+}
+
+/** The origin of the effective strict settings, by the same precedence as `effectiveStrict`. */
+function strictOrigin(input: SelectionInput, scope: PolicyScope | null): StrictOrigin | null {
+  if (input.request.strictSettings !== null) return { kind: 'manual' }
+  if (scope?.mode !== 'pin' || scope.settings === null || scope.targetRef === null) return null
+  return { kind: 'pin', level: scope.level, targetRef: scope.targetRef, revisionRef: scope.revisionRef }
+}
+
+const sameOrigin = (a: StrictOrigin, b: StrictOrigin) =>
+  a.kind === 'manual' || b.kind === 'manual'
+    ? a.kind === b.kind
+    : a.level === b.level && a.targetRef === b.targetRef && a.revisionRef === b.revisionRef
+
+/**
+ * Viewers of the strict settings: those the disclosure names, only when it speaks for their exact origin. Nothing is
+ * inferred from the summary, ownership, shares, equal values or the proposal. Never read by selection.
+ */
+function strictViewersOf(input: SelectionInput, scope: PolicyScope | null): string[] {
+  const origin = strictOrigin(input, scope)
+  const d = input.strictSettingsDisclosure
+  if (origin === null || d === undefined || d === null || !sameOrigin(origin, d.origin)) return []
+  return sortedUnique(d.viewerRefs)
 }
 
 const ROUTE_DEFAULT: Partial<Record<Family, RouteKind>> = { explore: 'api', repository_execution: 'native' }
@@ -1276,6 +1332,7 @@ function emptyDecision(input: SelectionInput, outcome: Outcome): Decision {
     errors: [],
     errorsTruncated: false,
     summaryViewerRefs: sortedUnique(input.summaryViewerRefs),
+    strictViewerRefs: [],
   }
 }
 
@@ -1337,6 +1394,7 @@ function assemble(ctx: EvalCtx, all: Evaluated[], scope: PolicyScope | null): De
     proposedRef,
     alternatives: proposedRef === null ? [] : ranked.order.slice(1),
     fallback,
+    strictViewerRefs: ctx.strict === null ? [] : strictViewersOf(ctx.input, scope),
   }
 }
 
@@ -1443,8 +1501,12 @@ function limitationOf(row: Row): Limitation {
   return 'not_selected_by_policy'
 }
 
-/** The whitelist every candidate-derived field passes, wherever it appears in the view. */
-function viewRow(row: Row, viewerRef: string): ViewCandidate | null {
+/**
+ * The whitelist every candidate-derived field passes, wherever it appears in the view. While strict settings are in
+ * force every row's seed IS them (`seedFor`), so a seed also needs `seedVisible`: the viewer may read the strict
+ * settings' exact origin. Without it the seed is omitted, never replaced (R4).
+ */
+function viewRow(row: Row, viewerRef: string, seedVisible: boolean): ViewCandidate | null {
   const limitation = limitationOf(row)
   if (row.ownerRef === viewerRef) {
     const base = { candidateRef: row.candidateRef, relation: 'owner' as const, limitation }
@@ -1453,7 +1515,7 @@ function viewRow(row: Row, viewerRef: string): ViewCandidate | null {
       codes: row.reportedCodes,
       routeKind: row.routeKind,
       payerScopeRef: row.payerScopeRef,
-      seed: row.seed,
+      ...(seedVisible ? { seed: row.seed } : {}),
     }
   }
   const grants = row.share.filter((s) => s.viewerRef === viewerRef)
@@ -1465,7 +1527,7 @@ function viewRow(row: Row, viewerRef: string): ViewCandidate | null {
     limitation,
     ...(fields.has('route_kind') ? { routeKind: row.routeKind } : {}),
     ...(fields.has('payer_scope') ? { payerScopeRef: row.payerScopeRef } : {}),
-    ...(fields.has('settings') ? { seed: row.seed } : {}),
+    ...(fields.has('settings') && seedVisible ? { seed: row.seed } : {}),
   }
 }
 
@@ -1473,9 +1535,11 @@ function viewRow(row: Row, viewerRef: string): ViewCandidate | null {
 export function projectSelection(decision: Decision, viewerRef: string): SelectionView {
   const head = { contract: SELECTION_INPUT_CONTRACT, policyVersion: SELECTION_POLICY_VERSION }
   if (!decision.summaryViewerRefs.includes(viewerRef)) return { ...head, disclosure: 'restricted' }
+  const strict = decision.settings.strict
+  const strictVisible = strict !== null && decision.strictViewerRefs.includes(viewerRef)
   const visible = new Map<string, ViewCandidate>()
   for (const row of decision.rows) {
-    const v = viewRow(row, viewerRef)
+    const v = viewRow(row, viewerRef, strict === null || strictVisible)
     if (v !== null) visible.set(row.candidateRef, v)
   }
   return {
@@ -1486,7 +1550,7 @@ export function projectSelection(decision: Decision, viewerRef: string): Selecti
     globalCodes: decision.globalCodes,
     nextSteps: decision.nextSteps,
     mode: decision.resolvedPolicy?.mode ?? null,
-    strictSettings: decision.settings.strict,
+    strictSettings: strictVisible ? strict : null,
     candidates: [...visible.values()],
     proposal: proposalView(decision, visible),
     alternatives: decision.alternatives.filter((r) => visible.has(r)),
