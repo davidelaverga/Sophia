@@ -92,6 +92,11 @@ const EXPORTS = [
   'ProjectNativeResourcePage',
   'PersonalAnswerReceipt',
   'PersonalAnswerDecisionList',
+  'PersonalAnswerControlReceipt',
+  'PersonalAnswerControlView',
+  'PersonalAnswerControlLog',
+  'PersonalControlledTurnPage',
+  'PersonalControlledExport',
 ] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')

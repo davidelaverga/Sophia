@@ -281,6 +281,15 @@ export {
   takeBackPersonalRelease,
   type CompanionContext,
 } from './personal.ts'
+// INC03-CC-003 A3 (0103, A54): the versioned owner reads of a conversation with controlled inputs.
+export {
+  PERSONAL_CONTROLLED_PAGE,
+  readPersonalControlledExport,
+  readPersonalControlledTurns,
+  type PersonalControlledExportPage,
+  type PersonalControlledTurn,
+  type PersonalControlledTurnPage,
+} from './personal.ts'
 export {
   holdPersonalCompanion,
   personalCompanionAdmitted,
@@ -320,6 +329,27 @@ export {
   type PersonalAnswerRefusalReason,
   type PersonalAnswerSpend,
 } from './personal-answer-effects.ts'
+// INC03-CC-003 A3 (0103): the owner's control of an automatic answer, and the launch fence of a live call.
+export {
+  admitPersonalAnswerInput,
+  beginPersonalAnswerLaunch,
+  controlPersonalAnswerInput,
+  PERSONAL_ANSWER_CONTROL_PAGE,
+  personalAnswerControlled,
+  personalAnswerControlsInstalled,
+  readPersonalAnswerControl,
+  readPersonalAnswerControlLog,
+  readPersonalWithheldAnswer,
+  reserveControlledPersonalAnswer,
+  type PersonalAnswerAuthority,
+  type PersonalAnswerControlAction,
+  type PersonalAnswerControlReceipt,
+  type PersonalAnswerControlResult,
+  type PersonalAnswerExecution,
+  type PersonalAnswerLaunch,
+  type PersonalControlledEffect,
+  type PersonalControlledReservation,
+} from './personal-answer-controls.ts'
 export {
   PERSONAL_AUTOMATIC_V1,
   PERSONAL_INPUT_PAGE_LIMIT,

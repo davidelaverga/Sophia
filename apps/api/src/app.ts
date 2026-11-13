@@ -31,6 +31,7 @@ import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
 import { missionRoutes } from './routes/mission.ts'
 import { personalRoutes } from './routes/personal.ts'
 import { personalInputRoutes } from './routes/personal-inputs.ts'
+import { personalAnswerControlRoutes } from './routes/personal-answer-controls.ts'
 import { PERSONAL_ANSWERS_SCHEMA, personalAnswerRoutes } from './routes/personal-answers.ts'
 import { needsRoutes } from './routes/needs.ts'
 import { CONVERSATION_SCHEMA, projectConversationRoutes } from './routes/project-conversations.ts'
@@ -126,6 +127,15 @@ export interface AppDeps {
    * requires 0101's writers and 0102's guard. The guard and the resumption of waiting turns do not depend on it.
    */
   personalAnswers?: boolean
+  /**
+   * Paid admission of a Personal answer replacement (INC03-CC-003 A3, amendment A54, migration 0103): off unless set;
+   * server.ts does not set it. A replacement the owner asks for is admitted at once, or later by their own explicit
+   * admit, only with this AND personalAnswers on and the live companion's current profile; otherwise it is kept, held
+   * with its reason. It gates nothing else: the control routes (cancel, the held replacement, the reads, the export,
+   * replay) are served whenever 0103 is installed, whatever this or personalAnswers say. On without personalAnswers is a
+   * configuration error, refused when the app is built.
+   */
+  personalAnswerReplacementAdmission?: boolean
   /** The deployed commit (RENDER_GIT_COMMIT, 40 hex), served by /health so a probe can name what it reached; else null. */
   commit?: string | null
   /**
@@ -447,12 +457,30 @@ function registerPersonal(app: FastifyInstance, deps: AppDeps): void {
   personalRoutes(app, { pool: deps.pool, companion })
   if (deps.personalInputs === true) personalInputRoutes(app, { pool: deps.pool })
   if (companion && answersOn(deps)) personalAnswerRoutes(app, { pool: deps.pool, companion })
+  // Installation, not a switch, is the boundary (A54): served always, answering 503 where 0103 is not installed.
+  personalAnswerControlRoutes(app, {
+    pool: deps.pool,
+    companion,
+    replacementAdmission: replacementAdmissionOn(deps),
+  })
 }
 
 /** The switches' configuration errors, thrown before the app has anything of its own. */
 function refuseMisconfiguration(deps: AppDeps): void {
   inputsOn(deps)
   answersOn(deps)
+  replacementAdmissionOn(deps)
+}
+
+/**
+ * Whether a Personal answer replacement may be admitted with payment: personalAnswerReplacementAdmission AND
+ * personalAnswers (which itself requires a live companion with a supported profile). On without personalAnswers is a
+ * configuration error, refused when the app is built.
+ */
+function replacementAdmissionOn(deps: AppDeps): boolean {
+  if (deps.personalAnswerReplacementAdmission !== true) return false
+  if (!answersOn(deps)) throw new Error('personalAnswerReplacementAdmission requires personalAnswers')
+  return true
 }
 
 /**

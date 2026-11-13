@@ -361,3 +361,276 @@ commits the person's turn and starts the runner's answer asynchronously, so 3 tu
 - **The five-file DB set** (the API DB file, `personal`, `personal-inputs`, `readiness`, `personal-live`), plus the
   static and type checks.
 - **ONE ordinary** on the new head.
+
+## A3: Personal answer control (INC03-CC-003 A3, migration 0103, amendment A54)
+
+Lease `INC03-CC-003-A3-CONTROLS-IMPLEMENTATION-001` (`342f10e2…`). Built on `b760b04a`, the sole parent. Written
+before any product code. It is PLAN003 (`cee89f74…`) as corrected by all seven binding corrigenda (C1–C7) of the
+independent review `ca420d02…`. It is a backend slice: no Studio or UI, no activation, not AC03-12 app acceptance.
+
+### State: four separate axes
+
+| Axis | Kept in | Values |
+|---|---|---|
+| Control (desired state of one automatic input) | `personal_answer_controls` | no row = `active` revision 0; `held`, `active`, `withdrawn` |
+| Admission history (unchanged, 0101) | `personal_input_decisions` | `admitted`, `waiting`, `cancelled` (A53 waiting-cancel only); never appended to by A3 |
+| Financial (per bound call, unchanged, 0073) | usage + `personal_companion_calls` | `reserved_active`, `reserved_orphan`, `uncertain`, `settled`, `released` (+ its reason) |
+| Launch (per call reserved by the new entry) | `personal_answer_launches` | `tagged`, `launching`, `denied`, `refused` (no row = `untagged`: an old or pre-0103 caller) |
+
+The answer of a call is derived, never stored twice:
+
+| `answer` | Meaning |
+|---|---|
+| `published` | Its reply was written. |
+| `kept_unpublished` | 0078 holds it for a still-authorized turn. |
+| `withheld` | `personal_withheld_results` holds it. |
+| `no_answer` | Settled with `settled_without_answer`. |
+| `unknown` | Orphan, uncertain, or settled with `unfinished_call`, `usage_unknown`, `stopped_usage_unknown`, `settled_before_fence`, `prepare_unknown` or `stopped_after_launch`. |
+| `in_progress` | Reserved and still registered. |
+| `none` | Released, denied or refused. |
+
+**Possible external effect** means:
+- the launch is `launching`;
+- or the call is untagged and not released;
+- or the call is `uncertain` or `settled`.
+
+A launch intent is not "sent", "received" or "accepted". A missing intent or tag is not "never sent".
+
+### Closed control transitions
+
+All transitions run under `personal_hold`, in the lock order below. The revision is an int from 0 to 1000, independent of 0101's 100-decision cap, so an input whose latest admitted decision is seq 100 is fully controllable.
+
+| # | From | Operation (own key, expected revision r) | To | Turn |
+|---|---|---|---|---|
+| C1 | active r, latest decision `admitted` | `cancel` | withdrawn r+1 | `pending`/`failed` → `withdrawn`; `answered` stays (historical) |
+| C2 | active r, latest `admitted` | `replace(text)` | X as C1; new Y: `active` 1 with 0101 seq 1 `send` admitted, or `held` 1 with a reason | Y: new person turn, `pending` if admitted, else `recorded` |
+| C3 | held r (Y) | `admit(controlId)`, eligible now | active r+1; 0101 seq 1 `send` admitted | `recorded` → `pending` |
+| C3′ | held r | `admit(controlId)`, not eligible | unchanged (the refusal is remembered) | none |
+| C4 | held r | `cancel` | withdrawn r+1 | **stays `recorded`** (never admitted: not activity, not prompt) |
+
+**Refusals** (no state change, nothing remembered except C3′):
+
+| Case | Response |
+|---|---|
+| Stale revision | 409 `stale_revision` |
+| Withdrawn, any operation | 409 `invalid_state` |
+| Active with latest `waiting` (A53's) | 409 `invalid_state` |
+| No decision and not a Y (A52 record-only) | 409 `invalid_state` |
+| `replace` on held | 409 `invalid_state` |
+| Unknown or foreign input; a control id that is not this owner's `replace` creating this Y | 422 `not_found` (A53's nondisclosure) |
+
+**Replacement eligibility,** at C2 and re-read at C3. The first failing check is the held reason:
+
+| Order | Held reason | When |
+|---|---|---|
+| 1 | `prior_in_progress` | Any original binding is `reserved_active`. |
+| 2 | `prior_cost_unresolved` | Any is `reserved_orphan` or `uncertain`: authentic settlement or operator reconciliation must come first. Nothing is forgiven or reset. |
+| 3 | `admission_off` | `personalAnswers` AND `personalAnswerReplacementAdmission` are not both on (server-passed). |
+| 4 | `profile_unavailable` | No live `answerProfile()`, or 0101 refuses it. |
+| 5 | `payer_unavailable` | `personal_companion_admitted(profile.payer, owner)` is false. No 0101 `waiting` decision is written: held is not waiting. |
+
+Otherwise the replacement is admitted under the current profile. Its spend later goes through the 0102 guard and 0073's cumulative allowance and one-unresolved-per-payer rule.
+
+**Residual unknown (C7).** After authentic settlement, an `unknown` original answer stays reported as `unknown`. Admission of the distinct Y is allowed only because X is no longer:
+- queueable or reservable: its turn is not `pending`, and the legacy retry needs `failed`;
+- current-publishable: plain and kept writers need `pending`, and late bodies are withheld;
+- prompt-eligible.
+
+This is not a retry of X and does not prove an already-authorized provider call stopped. A fresh old intent ACK may still run its one call; a cooperative abort is a request. GET, replay, reconnect, reconciliation and flag changes never admit Y.
+
+### Launch protocol (C1, C2)
+
+| From | Event | To |
+|---|---|---|
+| — | `reserve_personal_answer_controlled` commits `reserved` | `tagged`, with the frozen execution snapshot and its digest, call/turn/epoch/input, and the control revision |
+| tagged | `begin_personal_answer_launch(call, claim, digest)` with every recheck passing, payer row held FOR UPDATE through COMMIT | `launching` → `granted` (the only permission to prepare) |
+| tagged | a recheck fails (digest, epoch, claim/turn, control revision/state, latest admission, frozen profile vs execution, payer enrolment, usage `reserved` with the same payer/route) | `refused` → that reason; the usage is released (`refused_before_launch`) |
+| tagged | a control on the turn wins first | `denied`; usage released (`withdrawn_before_launch`) in the control transaction |
+| launching/denied/refused | `begin_…` again | unchanged; `already_launched`/`withdrawn`/`refused`: never permission |
+| absent row | `begin_…` | `not_tagged`: no release, no resurrection (absence is not no-effect proof) |
+
+**Client side** (`companion-live.ts`):
+- The protocol is remembered from the reservation that returned `reserved`. Only a positively absent 0103 (marker function missing) takes the exact b760 path.
+- A read error is an error, never "absent".
+- A `controlled` call prepares only after its own fresh `granted` (a one-shot flag).
+- A thrown `begin_…` (unknown acknowledgement) never prepares; the call stays `reserved`, then `reserved_orphan`, so it is fenced `lost` until reconciled.
+
+**After `granted`** (C2):
+- A throw from `prepareCall`, a resolved-route mismatch, or an abort is held `uncertain` under the original call (`prepare_unknown`, or `stopped_after_launch` for an abort), never released.
+- Only an abort seen *before* `prepareCall` is invoked is released (`stopped_before_asking`).
+- Positively pre-0103 calls keep b760's releases unchanged.
+
+### Late results (C3)
+
+Withdrawal and settlement are keyed on control plus the original call's binding (owner, epoch), not on the reply value.
+- **On C1/C2:** a kept 0078 answer for X's turn is moved atomically to `personal_withheld_results` (`kept_transfer`).
+- **`settle_personal_companion_answer`** is replaced with the same signature, grants and old outcome meanings. For a call bound to a `withdrawn`-controlled turn in the current epoch:
+  - the body and suggestion are retained in the withheld store (`late_settlement`), whether the turn is `withdrawn` or still `answered`, and even when the cost was already settled or reconciled;
+  - financial settlement follows its own rule (`settle_personal_companion`; `not_settled` stays `not_settled`);
+  - the 0080 `settled_without_answer` mark is cleared only when this call settled in this same transaction, as 0080 does for kept answers;
+  - an identical retained body replays idempotently; a different one raises `23505` and is never overwritten.
+- **Lost acknowledgement:** recognized by the exact own-call withheld result (`personal_withheld_answer(call)`) as well as `keptAs`.
+- No plain, kept, fallback or suggestion path writes a reply for a withdrawn turn: both writers need `pending` and the claim. An answered X's existing receipt replay is history, not a new insertion.
+
+### Activity and prompt (C4)
+
+| Predicate | Definition | Used by |
+|---|---|---|
+| `ACTIVITY` | The b760 `NOT_HELD`: excludes person `recorded`. | `WELCOME_DUE`; identical to 0099, which `begin`/`record_personal_greeting` call. 0099 is unchanged. A withdrawn X counts. A never-admitted Y, held or cancelled, stays `recorded` and does not count. An admitted Y counts. |
+| `PROMPT_ELIGIBLE` | `ACTIVITY AND NOT EXISTS (control withdrawn on coalesce(t.reply_to, t.id))`, inside WHERE, before LIMIT | `HISTORY`'s `recent` CTE and `readWelcomeContext`'s history. Only when 0103 is positively installed; b760's query otherwise. |
+
+Owner-adopted notes and every old fact stay.
+
+### Owner projection (C5): A54, new route family only
+
+A10, A52 and A53 are byte-unchanged.
+
+**Routes:**
+
+| Route | Purpose |
+|---|---|
+| `POST /api/v1/personal/answers/{inputId}/control` | C1/C2/C4; body `PersonalAnswerControlRequest` |
+| `POST /api/v1/personal/answers/{inputId}/control/admit` | C3/C3′; body `PersonalAnswerAdmitRequest` |
+| `GET /api/v1/personal/answers/{inputId}/control` | `PersonalAnswerControlView`, the current view |
+| `GET /api/v1/personal/answer-controls/log?after=<seq>` | `PersonalAnswerControlLog`: ops `seq > after`, ≤ 100, `next` |
+| `GET /api/v1/personal/answer-controls/turns?after=<seq>` or `?before=<seq>` or none | `PersonalControlledTurnPage`: ≤ 100 turns, revision, epoch, `pending`, `earlier` |
+| `GET /api/v1/personal/answer-controls/export?after=<seq>` (epoch header) | `PersonalControlledExport`: ≤ 100 turns with `next`, every input view for those turns (decisions, control, calls, withheld bodies), notes, releases |
+
+**`PersonalAnswerControlView`** contains:
+- the input and its turn;
+- the immutable admission history: every 0101 decision, ≤ 100, ordered;
+- `route`: `{routeId, profileDigest}` from the latest admitted frozen profile. This is the only allowed non-secret reference; the full profile, payer and credentials are never exposed;
+- the control state, revision, held reason, withdrawal phase, `replaces` and `replacedBy`;
+- per bound call: `{callId, financial, reason, launch, answer}`, with no amounts;
+- every withheld `{callId, text, suggestion, source, at}`.
+
+**Controlled turn:** the A10 turn fields plus:
+- the physical `reply`, which may be `withdrawn`;
+- `input: {inputId, control, revision}` or null;
+- `prompt: eligible|excluded`;
+- `activity: true|false`.
+
+**Cursor and snapshot semantics:**
+- Turn cursors are turn `seq`.
+- The op log cursor is a global sequence allocated only after `personal_hold` and held through COMMIT, so one owner's page never later gains a lower seq.
+- Every page is one read transaction. No cross-stream immutable snapshot is claimed.
+- Export reads against the epoch header: another epoch is `request_erased`.
+- Receipts are immutable mutation snapshots. A GET is a current observation and never rewrites one.
+
+**Old unversioned reads** (`routes/personal.ts` space, poll, earlier, export):
+- When 0103 is installed and the owner has any control row, they answer **503 `projection_unavailable`**. This holds even for an answered X and while another, unrelated turn is pending.
+- They never return a turn they cannot represent.
+- Positively absent 0103 keeps b760.
+
+**Rollout:**
+- Readers ship first, with the producer off: there is no Studio caller.
+- Installing 0103 is a release action, and routine activation is held for a capable reader and a reviewed Personal UI.
+- An old cached Studio client is not refreshed by its next poll; the server-side failure is its boundary.
+
+### Availability and replay (C6)
+
+- **Installation is the boundary:** a positively complete 0103 (marker `sophia.personal_answer_controls_protocol()`).
+  - Absent → 503 `projection_unavailable`.
+  - A read error → 503 `unavailable`, never empty or legacy.
+- **No controls flag.** Cancel, held-replace retention, the GETs and replay work regardless of `personalAnswers`, `personalAnswerReplacementAdmission` and the live profile.
+- **Paid gate:** fresh replacement admission needs both flags (default off; `server.ts` unchanged) and current authority. Record-only `personalInputs` is not a paid flag.
+- **Writer order:** `personal_fence(epoch)`, then semantic identity, then the remembered receipt. The receipt returns before any profile, flag or state read, with no wake.
+  - **Semantic identity:** `{inputId (canonical), action, expectedRevision, text digest}`, or `{inputId, controlId, expectedRevision}`.
+  - Current profile and flags are never part of replay identity.
+- **Status codes:** control and admit answer 202 with a receipt, as A53's writes do. A refused admit is a remembered `outcome: refused` receipt, so its first answer and every replay are the same 202 body.
+- **Wake:** `resume(owner)` only after the first commit of an applied C1, C2 or C3.
+
+### SQL (0103, append-only; 0001–0102 byte-identical)
+
+**Turn reply CHECK:** gains `withdrawn` (the 0098 precedent).
+
+**New tables:**
+
+| Table | Access |
+|---|---|
+| `personal_answer_controls` | RLS owner SELECT |
+| `personal_answer_control_ops` | append-only; RLS owner SELECT |
+| `personal_answer_launches` | function-only |
+| `personal_withheld_results` | function-only |
+
+All cascade from the input or turn (erasure). Usage stays as it is.
+
+**Functions** (SECURITY DEFINER, `search_path=pg_catalog,sophia,pg_temp`, PUBLIC revoked):
+
+| Function | Grant | Notes |
+|---|---|---|
+| `personal_answer_controls_protocol() → integer` | sophia_api | the marker |
+| `reserve_personal_answer_controlled(uuid,text,text,bigint,uuid,uuid,jsonb,jsonb) → jsonb` | sophia_api | |
+| `begin_personal_answer_launch(uuid,uuid,text) → text` | sophia_api | |
+| `control_personal_answer_input(text,uuid,text,integer,bigint,text,jsonb,boolean) → jsonb` | sophia_api | |
+| `admit_personal_answer_input(text,uuid,uuid,integer,bigint,jsonb,boolean) → jsonb` | sophia_api | |
+| `personal_answer_control_view(uuid) → jsonb` | sophia_api | |
+| `personal_answer_control_log(bigint,integer) → jsonb` | sophia_api | |
+| `personal_withheld_answer(uuid) → jsonb` | sophia_api | |
+| `personal_answer_call_effects(uuid,bigint)` | internal | |
+| `personal_answer_replacement_hold(uuid,bigint,jsonb,boolean)` | internal | |
+
+**Replaced** (same signature and grants): `settle_personal_companion_answer(uuid,bigint,jsonb,text,text)`, as above.
+
+**Unchanged:** every other function, including:
+- `reserve_personal_answer_guarded`, `reserve_personal_answer(_companion)`;
+- `record_personal_reply`, `record_personal_settled_reply`;
+- claim, next, renew, fail, `retry_personal_turn`;
+- 0099;
+- every 0101 writer;
+- release, hold, settle, reconcile.
+
+**Lock order** (one order everywhere):
+1. space (`personal_fence`/`personal_hold`);
+2. request key;
+3. control, input, turn, decisions;
+4. launch rows;
+5. payer FOR UPDATE, then the usage row.
+Settlement keeps 0080's space → payer → usage → binding, then control/turn, then kept or withheld.
+
+### TS callers and paths
+
+| Path | Change |
+|---|---|
+| `packages/persistence/src/personal-answer-controls.ts` (new, exported by `index.ts`) | typed callers, controlled page and export reads, old-read boundary check |
+| `apps/api/src/companion-live.ts` | protocol, launch, prepare uncertainty, withheld lost-ACK |
+| `packages/persistence/src/personal.ts` | ACTIVITY / PROMPT_ELIGIBLE |
+| `apps/api/src/routes/personal-answer-controls.ts` (new) | the A54 routes |
+| `apps/api/src/routes/personal.ts` | the old-read boundary |
+| `apps/api/src/app.ts` | `personalAnswerReplacementAdmission`; mount always; misconfiguration refusal; `/ready` unchanged (installation is per request) |
+
+`companion.ts` is unchanged: `CompanionRefused('withdrawn')` reaches its existing failure path, whose `fail_personal_reply` needs `pending` + claim and so is a no-op.
+
+GEN (sole writer): `openapi.json`, `generated-types.ts`, `generated/validators.{js,d.ts}`, `generate-validators.ts`, `validate.ts`.
+
+### Checks
+
+**SQL tests:** 0103.
+
+**Persistence DB tests:**
+- callers;
+- positive pre-0103 absence;
+- a read error.
+
+**API DB tests** (real runner, live companion, counting fake provider; barriers placed before the correction's first statement or before the reservation/intent COMMIT, never after `personal_fence`):
+- before reservation;
+- bound before intent;
+- intent first (0 or 1 asks per real grant/abort);
+- fresh, repeated and lost ACK;
+- claim, epoch, payer and control races;
+- entered-prepare throw, mismatch and abort held;
+- late results on pending and answered X, after reconciliation, and after a withheld lost ACK;
+- authorized kept with 0 spend;
+- cancelled never-admitted Y vs admitted activity (TS = SQL);
+- HISTORY linked replies;
+- seq 100;
+- held admit/cancel races, path/control/foreign ownership;
+- flags/profile off: applied and refused receipt replay, erasure;
+- the new reads and export, and the old-read boundary with another pending turn;
+- owner cursor serialization.
+
+**Then:**
+- a few reached mutants;
+- one genuine `pnpm check`.
+
+New capability absence at b760 is E0.
