@@ -12,7 +12,8 @@
 --   mask for a reading bound to the replacement. Native scopes are not in this slice.
 -- * Sealed whole: the recorder writes the reading and every window in one call. A window is written only while the
 --   recorder holds its seal; a reading whose window count differs is refused at commit; nothing is ever updated,
---   deleted or truncated. The same key and canonical payload replays the original; a changed payload conflicts.
+--   deleted or truncated. The same key and canonical payload replays the original; a changed payload conflicts. Replay
+--   (R1) is judged against the RECORDED scope before any current check, so it survives a lost binding and grants nothing.
 -- * The epoch fence: a reading is never fresh past any of its windows' resets, so a prior-epoch "admits" becomes stale,
 --   never current, when the reset passes. Complete coverage must name exactly its windows, each of known
 --   applicability; no none-applicable claim exists (no qualified mechanism proves one).
@@ -256,12 +257,83 @@ BEGIN
  RETURN rq.id IS NOT NULL AND rq.qualified_at=o.route_qualified_at AND rq.expires_at=o.route_qualification_expires_at;
 END $$;
 
--- The recorder's checked reading: scope and qualifications derived from the connection's own rows, every shape rule, and
--- the canonical payload (its key excluded) whose SHA-256 decides replay versus conflict.
+-- The reading's closed fields and shape, and its canonical payload (its key excluded) over the given scope facts, whose
+-- SHA-256 decides replay versus conflict. Only the server-derived facts come from the scope (owner, account, provider,
+-- route, model, effort, the frozen route qualification facts); every caller-supplied field (connection, credential
+-- revision, operation, account qualification id and revision, route qualification id and all content) is the
+-- request's own, so a changed one never compares equal. It reads no current record and no clock: the scope is either the connection's
+-- current one (a new reading, capacity_observation_reading) or an occupied key's RECORDED one (a historical replay).
+-- s: {ownerId, accountId, provider, connectionId, credentialRevision, routeId, model, effort, routeQualifiedAt,
+-- routeQualificationExpiresAt}.
+CREATE FUNCTION sophia.capacity_observation_canonical(p jsonb, s jsonb) RETURNS jsonb LANGUAGE plpgsql STABLE
+SET search_path=pg_catalog,sophia SET TimeZone='UTC' AS $$
+DECLARE observed timestamptz; fresh timestamptz; cov text; req text[]; wins jsonb:='[]'; w jsonb; refs text[]; seq bigint;
+ lims text[];
+BEGIN
+ PERFORM sophia.capacity_observation_keys(p,
+  ARRAY['observationKey','connectionId','credentialRevision','accountQualificationId','accountQualificationRevision',
+   'routeQualificationId','operation','verification','evidenceRef','sourceChannel','windowSetRef','windowSetVersion',
+   'sourceSequence','coverage','requiredWindowRefs','reflection','limitations','observedAt','freshUntil','windows'],
+  ARRAY['observationKey','connectionId','credentialRevision','accountQualificationId','accountQualificationRevision',
+   'routeQualificationId','operation','verification','evidenceRef','sourceChannel','windowSetRef','windowSetVersion',
+   'coverage','reflection','observedAt','freshUntil','windows'],'reading');
+ IF jsonb_typeof(p->'accountQualificationRevision')<>'number' THEN
+  RAISE EXCEPTION 'A reading names its account qualification''s revision' USING ERRCODE='22023'; END IF;
+ cov:=sophia.capacity_observation_text(p,'coverage');
+ IF cov='none_applicable' THEN
+  RAISE EXCEPTION 'Unsupported coverage none_applicable: no qualified mechanism proves that no window applies'
+   USING ERRCODE='0A000'; END IF;
+ observed:=sophia.capacity_observation_text(p,'observedAt')::timestamptz;
+ fresh:=sophia.capacity_observation_text(p,'freshUntil')::timestamptz;
+ IF fresh<=observed THEN RAISE EXCEPTION 'A reading is fresh only after it was observed' USING ERRCODE='22023'; END IF;
+ IF jsonb_typeof(p->'windows')<>'array' OR jsonb_array_length(p->'windows')>20 THEN
+  RAISE EXCEPTION 'A reading has at most 20 windows' USING ERRCODE='22023'; END IF;
+ FOR w IN SELECT e FROM jsonb_array_elements(p->'windows') e LOOP
+  wins:=wins||jsonb_build_array(sophia.capacity_observation_window(w,s->>'model',observed,fresh));
+ END LOOP;
+ SELECT coalesce(array_agg(x->>'windowRef' ORDER BY x->>'windowRef' COLLATE "C"),'{}') INTO refs
+  FROM jsonb_array_elements(wins) x;
+ IF cardinality(refs)<>(SELECT count(DISTINCT r) FROM unnest(refs) r) THEN
+  RAISE EXCEPTION 'A window is named once' USING ERRCODE='22023'; END IF;
+ req:=sophia.capacity_observation_list(p,'requiredWindowRefs');
+ IF cov='complete' AND (req IS NULL OR cardinality(req)=0 OR req IS DISTINCT FROM refs
+    OR EXISTS(SELECT 1 FROM jsonb_array_elements(wins) x WHERE x->>'applicability'<>'known')) THEN
+  RAISE EXCEPTION 'Complete coverage names exactly its windows, at least one, each of known applicability'
+   USING ERRCODE='22023'; END IF;
+ IF cov<>'complete' AND req IS NOT NULL THEN
+  RAISE EXCEPTION 'Only complete coverage names required windows' USING ERRCODE='22023'; END IF;
+ IF p ? 'sourceSequence' AND jsonb_typeof(p->'sourceSequence') NOT IN ('number','null') THEN
+  RAISE EXCEPTION 'A source sequence is a number' USING ERRCODE='22023'; END IF;
+ seq:=CASE WHEN jsonb_typeof(p->'sourceSequence')='number' THEN (p->>'sourceSequence')::bigint END;
+ lims:=coalesce(sophia.capacity_observation_list(p,'limitations'),'{}');
+ RETURN jsonb_build_object('scopeVersion',1,'routeKind','api','ownerId',(s->>'ownerId')::uuid,
+  'accountId',(s->>'accountId')::uuid,'provider',s->>'provider',
+  -- Every caller-supplied identity field is the request's own, never replaced by a recorded or current fact.
+  'connectionId',sophia.capacity_observation_text(p,'connectionId')::uuid,
+  'credentialRevision',(p->>'credentialRevision')::bigint,'routeId',s->>'routeId','model',s->>'model',
+  'effort',s->>'effort','operation',sophia.capacity_observation_text(p,'operation'),
+  'accountQualificationId',(p->>'accountQualificationId')::uuid,
+  'accountQualificationRevision',(p->>'accountQualificationRevision')::bigint,
+  'routeQualificationId',sophia.capacity_observation_text(p,'routeQualificationId')::uuid,
+  'routeQualifiedAt',sophia.capacity_observation_instant((s->>'routeQualifiedAt')::timestamptz),
+  'routeQualificationExpiresAt',sophia.capacity_observation_instant((s->>'routeQualificationExpiresAt')::timestamptz),
+  'sourceKind','operator_recorded','verification',sophia.capacity_observation_text(p,'verification'),
+  'evidenceRef',sophia.capacity_observation_text(p,'evidenceRef'),
+  'sourceChannel',sophia.capacity_observation_text(p,'sourceChannel'),
+  'windowSetRef',sophia.capacity_observation_text(p,'windowSetRef'),
+  'windowSetVersion',sophia.capacity_observation_text(p,'windowSetVersion'),'sourceSequence',seq,'coverage',cov,
+  'requiredWindowRefs',to_jsonb(req),'reflection',sophia.capacity_observation_text(p,'reflection'),
+  'limitations',to_jsonb(lims),'observedAt',sophia.capacity_observation_instant(observed),
+  'freshUntil',sophia.capacity_observation_instant(fresh),
+  'windows',coalesce((SELECT jsonb_agg(x ORDER BY x->>'windowRef' COLLATE "C") FROM jsonb_array_elements(wins) x),'[]'));
+END $$;
+
+-- A NEW reading, admitted only on the current records: the named connection's CURRENT credential revision, its live
+-- account qualification and a current route qualification row, both holding when it was observed and now, and an
+-- observation not in the future. Then its canonical payload over that current scope.
 CREATE FUNCTION sophia.capacity_observation_reading(p jsonb) RETURNS jsonb LANGUAGE plpgsql
 SET search_path=pg_catalog,sophia AS $$
-DECLARE conn sophia.api_connections; acc sophia.api_accounts; rq sophia.api_route_qualifications; observed timestamptz;
- fresh timestamptz; cov text; req text[]; wins jsonb:='[]'; w jsonb; refs text[]; seq bigint; lims text[];
+DECLARE conn sophia.api_connections; acc sophia.api_accounts; rq sophia.api_route_qualifications;
 BEGIN
  PERFORM sophia.capacity_observation_keys(p,
   ARRAY['observationKey','connectionId','credentialRevision','accountQualificationId','accountQualificationRevision',
@@ -284,52 +356,39 @@ BEGIN
  IF rq.id IS NULL THEN
   RAISE EXCEPTION 'A reading names its connection''s current account qualification and a current route qualification, both holding when it was observed'
    USING ERRCODE='22023'; END IF;
+ IF sophia.capacity_observation_text(p,'observedAt')::timestamptz>clock_timestamp() THEN
+  RAISE EXCEPTION 'An observation cannot be in the future' USING ERRCODE='22023'; END IF;
  SELECT * INTO acc FROM sophia.api_accounts WHERE id=conn.account_id AND owner_id=conn.owner_id;
- cov:=sophia.capacity_observation_text(p,'coverage');
- IF cov='none_applicable' THEN
-  RAISE EXCEPTION 'Unsupported coverage none_applicable: no qualified mechanism proves that no window applies'
-   USING ERRCODE='0A000'; END IF;
- observed:=sophia.capacity_observation_text(p,'observedAt')::timestamptz;
- fresh:=sophia.capacity_observation_text(p,'freshUntil')::timestamptz;
- IF observed>clock_timestamp() THEN RAISE EXCEPTION 'An observation cannot be in the future' USING ERRCODE='22023'; END IF;
- IF fresh<=observed THEN RAISE EXCEPTION 'A reading is fresh only after it was observed' USING ERRCODE='22023'; END IF;
- IF jsonb_typeof(p->'windows')<>'array' OR jsonb_array_length(p->'windows')>20 THEN
-  RAISE EXCEPTION 'A reading has at most 20 windows' USING ERRCODE='22023'; END IF;
- FOR w IN SELECT e FROM jsonb_array_elements(p->'windows') e LOOP
-  wins:=wins||jsonb_build_array(sophia.capacity_observation_window(w,conn.model,observed,fresh));
- END LOOP;
- SELECT coalesce(array_agg(x->>'windowRef' ORDER BY x->>'windowRef' COLLATE "C"),'{}') INTO refs
-  FROM jsonb_array_elements(wins) x;
- IF cardinality(refs)<>(SELECT count(DISTINCT r) FROM unnest(refs) r) THEN
-  RAISE EXCEPTION 'A window is named once' USING ERRCODE='22023'; END IF;
- req:=sophia.capacity_observation_list(p,'requiredWindowRefs');
- IF cov='complete' AND (req IS NULL OR cardinality(req)=0 OR req IS DISTINCT FROM refs
-    OR EXISTS(SELECT 1 FROM jsonb_array_elements(wins) x WHERE x->>'applicability'<>'known')) THEN
-  RAISE EXCEPTION 'Complete coverage names exactly its windows, at least one, each of known applicability'
-   USING ERRCODE='22023'; END IF;
- IF cov<>'complete' AND req IS NOT NULL THEN
-  RAISE EXCEPTION 'Only complete coverage names required windows' USING ERRCODE='22023'; END IF;
- IF p ? 'sourceSequence' AND jsonb_typeof(p->'sourceSequence') NOT IN ('number','null') THEN
-  RAISE EXCEPTION 'A source sequence is a number' USING ERRCODE='22023'; END IF;
- seq:=CASE WHEN jsonb_typeof(p->'sourceSequence')='number' THEN (p->>'sourceSequence')::bigint END;
- lims:=coalesce(sophia.capacity_observation_list(p,'limitations'),'{}');
- RETURN jsonb_build_object('scopeVersion',1,'routeKind','api','ownerId',conn.owner_id,'accountId',acc.id,
+ RETURN sophia.capacity_observation_canonical(p,jsonb_build_object('ownerId',conn.owner_id,'accountId',acc.id,
   'provider',acc.provider,'connectionId',conn.id,'credentialRevision',conn.credential_revision,'routeId',conn.route_id,
-  'model',conn.model,'effort',conn.effort,'operation',sophia.capacity_observation_text(p,'operation'),
-  'accountQualificationId',(p->>'accountQualificationId')::uuid,
-  'accountQualificationRevision',(p->>'accountQualificationRevision')::bigint,'routeQualificationId',rq.id,
-  'routeQualifiedAt',sophia.capacity_observation_instant(rq.qualified_at),
-  'routeQualificationExpiresAt',sophia.capacity_observation_instant(rq.expires_at),
-  'sourceKind','operator_recorded','verification',sophia.capacity_observation_text(p,'verification'),
-  'evidenceRef',sophia.capacity_observation_text(p,'evidenceRef'),
-  'sourceChannel',sophia.capacity_observation_text(p,'sourceChannel'),
-  'windowSetRef',sophia.capacity_observation_text(p,'windowSetRef'),
-  'windowSetVersion',sophia.capacity_observation_text(p,'windowSetVersion'),'sourceSequence',seq,'coverage',cov,
-  'requiredWindowRefs',to_jsonb(req),'reflection',sophia.capacity_observation_text(p,'reflection'),
-  'limitations',to_jsonb(lims),'observedAt',sophia.capacity_observation_instant(observed),
-  'freshUntil',sophia.capacity_observation_instant(fresh),
-  'windows',coalesce((SELECT jsonb_agg(x ORDER BY x->>'windowRef' COLLATE "C") FROM jsonb_array_elements(wins) x),'[]'));
+  'model',conn.model,'effort',conn.effort,'routeQualifiedAt',rq.qualified_at,'routeQualificationExpiresAt',rq.expires_at));
 END $$;
+
+-- The recorded reading an occupied key names, or NULL: found by exactly the unique identity's own columns (the named
+-- connection's account, owner, route, model and effort, and the request's credential revision, operation and key), so
+-- there is at most one and no prior scope is ever chosen among several. It applies no current check: whether the
+-- connection's credential or qualifications are still current does not change what was recorded.
+CREATE FUNCTION sophia.capacity_observation_recorded(p jsonb) RETURNS sophia.capacity_observations LANGUAGE plpgsql STABLE
+SET search_path=pg_catalog,sophia AS $$
+DECLARE conn sophia.api_connections; o sophia.capacity_observations;
+BEGIN
+ IF jsonb_typeof(p)<>'object' OR jsonb_typeof(p->'connectionId')<>'string' OR jsonb_typeof(p->'observationKey')<>'string'
+    OR jsonb_typeof(p->'operation')<>'string' OR jsonb_typeof(p->'credentialRevision')<>'number'
+    OR (p->>'credentialRevision')::numeric<>trunc((p->>'credentialRevision')::numeric) THEN RETURN NULL; END IF;
+ SELECT * INTO conn FROM sophia.api_connections WHERE id=(p->>'connectionId')::uuid;
+ IF NOT FOUND THEN RETURN NULL; END IF;
+ SELECT x.* INTO o FROM sophia.capacity_observations x WHERE x.account_id=conn.account_id AND x.owner_id=conn.owner_id
+  AND x.connection_id=conn.id AND x.credential_revision=(p->>'credentialRevision')::numeric AND x.route_id=conn.route_id
+  AND x.model=conn.model AND x.effort=conn.effort AND x.operation=p->>'operation' AND x.observation_key=p->>'observationKey';
+ RETURN o;
+END $$;
+
+-- An occupied key's recorded scope and frozen route facts, as capacity_observation_canonical takes them.
+CREATE FUNCTION sophia.capacity_observation_scope(o sophia.capacity_observations) RETURNS jsonb LANGUAGE sql IMMUTABLE
+SET search_path=pg_catalog,sophia AS $$
+ SELECT jsonb_build_object('ownerId',o.owner_id,'accountId',o.account_id,'provider',o.provider,'connectionId',o.connection_id,
+  'credentialRevision',o.credential_revision,'routeId',o.route_id,'model',o.model,'effort',o.effort,
+  'routeQualifiedAt',o.route_qualified_at,'routeQualificationExpiresAt',o.route_qualification_expires_at) $$;
 
 -- What a recorded reading's receipt says: identical for its first write and every replay.
 CREATE FUNCTION sophia.capacity_observation_receipt(o sophia.capacity_observations) RETURNS jsonb LANGUAGE sql STABLE
@@ -378,20 +437,37 @@ BEGIN
 END $$;
 
 -- Operator: record one sealed reading on evidence kept outside the database. Migration owner only (EXECUTE granted to no
--- role). The same key and payload returns the original receipt, also under a concurrent race; a changed payload under
--- the same key in the same scope is a conflict (23505). Recording it qualifies nothing and changes no ledger.
+-- role). Recording it qualifies nothing and changes no ledger.
+-- * A HISTORICAL replay first (R1, C03): when the request's exact identity names an already recorded reading, the
+--   request is canonicalized against that reading's RECORDED scope and frozen facts. The same payload returns the
+--   original receipt, byte for byte, writing nothing, whatever has happened since (an expired, revoked or replaced
+--   qualification, a rotated credential); a changed payload is a conflict (23505). This grants nothing: the read still
+--   judges the reading against the current qualifications, so a reading whose binding was lost stays unbound.
+-- * Otherwise a NEW reading, admitted only on the current records (capacity_observation_reading), then written whole.
+--   A concurrent racer for the same key replays or conflicts the same way.
 CREATE FUNCTION sophia.record_capacity_observation(p jsonb) RETURNS jsonb LANGUAGE plpgsql
 SET search_path=pg_catalog,sophia SET TimeZone='UTC' AS $$
-DECLARE r jsonb; h text; key text; id_ uuid:=gen_random_uuid(); got uuid; o sophia.capacity_observations;
+DECLARE r jsonb; h text; key text; id_ uuid:=gen_random_uuid(); got uuid; prior sophia.capacity_observations;
+ o sophia.capacity_observations;
 BEGIN
  BEGIN
-  r:=sophia.capacity_observation_reading(p);
-  key:=sophia.capacity_observation_text(p,'observationKey');
-  h:=encode(sha256(convert_to(r::text,'UTF8')),'hex');
-  got:=sophia.capacity_observation_insert(id_,key,r,h);
+  prior:=sophia.capacity_observation_recorded(p);
+  IF prior.id IS NOT NULL THEN
+   r:=sophia.capacity_observation_canonical(p,sophia.capacity_observation_scope(prior));
+  ELSE
+   r:=sophia.capacity_observation_reading(p);
+   key:=sophia.capacity_observation_text(p,'observationKey');
+   h:=encode(sha256(convert_to(r::text,'UTF8')),'hex');
+   got:=sophia.capacity_observation_insert(id_,key,r,h);
+  END IF;
  EXCEPTION WHEN data_exception OR check_violation OR not_null_violation OR foreign_key_violation THEN
   RAISE EXCEPTION 'Invalid capacity observation: %', SQLERRM USING ERRCODE='22023';
  END;
+ IF prior.id IS NOT NULL THEN
+  IF prior.payload_sha256 IS DISTINCT FROM encode(sha256(convert_to(r::text,'UTF8')),'hex') THEN
+   RAISE EXCEPTION 'This observation key was recorded with a different reading' USING ERRCODE='23505'; END IF;
+  RETURN sophia.capacity_observation_receipt(prior);
+ END IF;
  IF got IS NULL THEN
   SELECT * INTO o FROM sophia.capacity_observations x WHERE x.account_id=(r->>'accountId')::uuid
    AND x.connection_id=(r->>'connectionId')::uuid AND x.credential_revision=(r->>'credentialRevision')::bigint
@@ -527,7 +603,9 @@ REVOKE ALL ON FUNCTION sophia.capacity_observation_immutable(), sophia.capacity_
  sophia.capacity_observation_window(jsonb,text,timestamptz,timestamptz),
  sophia.capacity_observation_qualifications(sophia.api_connections,uuid,bigint,uuid,timestamptz,timestamptz),
  sophia.capacity_observation_bound(sophia.api_connections,sophia.capacity_observations,timestamptz),
- sophia.capacity_observation_reading(jsonb), sophia.capacity_observation_receipt(sophia.capacity_observations),
+ sophia.capacity_observation_canonical(jsonb,jsonb), sophia.capacity_observation_reading(jsonb),
+ sophia.capacity_observation_recorded(jsonb), sophia.capacity_observation_scope(sophia.capacity_observations),
+ sophia.capacity_observation_receipt(sophia.capacity_observations),
  sophia.capacity_observation_insert(uuid,text,jsonb,text), sophia.record_capacity_observation(jsonb),
  sophia.revoke_capacity_observation(uuid,text),
  sophia.selection_capacity_observation_at(sophia.api_contribution_grants,sophia.api_connections,timestamptz),

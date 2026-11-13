@@ -8,6 +8,8 @@
 --   binding, judged FIRST (a revoke and requalification under unchanged credentials makes an old reading unbound, and an
 --   old-qualification stream neither masks nor conflicts with a replacement reading in another stream).
 -- * A reading observed before its qualification held is refused, whatever holds at record time.
+-- * R1 (C03): the original receipt replays after binding loss (account or route revoked and replaced, credential
+--   rotated), writing nothing; a changed payload conflicts; a new key is still refused; the read stays restrictive.
 BEGIN;
 
 -- --- privileges and the marker -------------------------------------------------------------------------------------
@@ -261,6 +263,73 @@ DO $$ BEGIN
  IF pg_temp.read_at(clock_timestamp())->>'state'<>'revoked' THEN RAISE EXCEPTION 'An older positive was resurrected'; END IF;
 END $$;
 ROLLBACK TO SAVEPOINT no_resurrection;
+
+-- --- historical replay after binding loss (R1, C03) -------------------------------------------------------------------
+-- The original input and receipt of k1, kept before any binding changes. After an account or route revocation and
+-- replacement, or a credential rotation, the identical (and canonically reordered) input still returns that receipt and
+-- writes nothing; a changed payload under the same key is a conflict; a new key is refused by the current checks; and
+-- the read stays restrictive (unbound, or outside the new credential's scope): the old reading is never made current.
+INSERT INTO fx SELECT 'k1-input', pg_temp.reading('k1')::text;
+INSERT INTO fx SELECT 'k1-receipt', sophia.record_capacity_observation(pg_temp.reading('k1'))::text;
+CREATE FUNCTION pg_temp.replay_holds(p_case text) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE orig jsonb:=(SELECT v FROM fx WHERE k='k1-input')::jsonb; rec jsonb:=(SELECT v FROM fx WHERE k='k1-receipt')::jsonb;
+ rows_before bigint[]:=ARRAY[(SELECT count(*) FROM sophia.capacity_observations),
+  (SELECT count(*) FROM sophia.capacity_observation_windows),(SELECT count(*) FROM sophia.capacity_observation_revocations)];
+ r jsonb;
+BEGIN
+ r:=sophia.record_capacity_observation(orig);
+ IF r IS DISTINCT FROM rec THEN RAISE EXCEPTION '%: the identical replay is not the original receipt: % / %', p_case, r, rec; END IF;
+ r:=sophia.record_capacity_observation(orig||jsonb_build_object('windows',
+  jsonb_build_array(orig->'windows'->1,(orig->'windows'->0)||'{"value":1.5}')));
+ IF r IS DISTINCT FROM rec THEN RAISE EXCEPTION '%: the reordered replay is not the original receipt', p_case; END IF;
+ IF NOT pg_temp.refused(orig||'{"reflection":"all"}','23505') THEN RAISE EXCEPTION '%: changed payload', p_case; END IF;
+ -- Changed caller-supplied qualification identities are changed payloads too, never replaced by recorded facts.
+ IF NOT pg_temp.refused(orig||jsonb_build_object('accountQualificationRevision',(orig->>'accountQualificationRevision')::int+5),
+   '23505') THEN RAISE EXCEPTION '%: changed account qualification revision', p_case; END IF;
+ IF NOT pg_temp.refused(orig||jsonb_build_object('accountQualificationId',gen_random_uuid()),'23505') THEN
+  RAISE EXCEPTION '%: changed account qualification id', p_case; END IF;
+ IF NOT pg_temp.refused(orig||jsonb_build_object('routeQualificationId',gen_random_uuid()),'23505') THEN
+  RAISE EXCEPTION '%: changed route qualification id', p_case; END IF;
+ IF NOT pg_temp.refused(orig||'{"observationKey":"k-new-after-loss"}','22023') THEN
+  RAISE EXCEPTION '%: a new key passed through replay', p_case; END IF;
+ IF ARRAY[(SELECT count(*) FROM sophia.capacity_observations),(SELECT count(*) FROM sophia.capacity_observation_windows),
+    (SELECT count(*) FROM sophia.capacity_observation_revocations)] IS DISTINCT FROM rows_before THEN
+  RAISE EXCEPTION '%: a replay or refusal wrote rows', p_case; END IF;
+ IF pg_temp.read_at(clock_timestamp())->>'state' IS NOT DISTINCT FROM 'recorded' THEN
+  RAISE EXCEPTION '%: the old reading became current', p_case; END IF;
+END $$;
+DO $$ BEGIN
+ IF pg_temp.read_at(clock_timestamp())->>'state'<>'recorded' THEN RAISE EXCEPTION 'The paired positive'; END IF;
+ IF (SELECT v FROM fx WHERE k='k1-receipt')::jsonb->>'observationId'<>(SELECT id::text FROM sophia.capacity_observations
+   WHERE observation_key='k1') THEN RAISE EXCEPTION 'The kept receipt is not k1''s'; END IF;
+END $$;
+SAVEPOINT replay_account;
+DO $$ BEGIN
+ PERFORM sophia.revoke_api_account_qualification((SELECT v FROM fx WHERE k='acq')::uuid,'synthetic: replace');
+ PERFORM sophia.qualify_api_account('a7000000-0000-0000-0000-0000000000c1','{research}','operator_verified_call',
+  'synthetic: not a live qualification',now()-interval '1 hour',now()+interval '1 day');
+ PERFORM pg_temp.replay_holds('account revoked and replaced');
+ IF pg_temp.read_at(clock_timestamp()) IS DISTINCT FROM '{"state":"unbound"}'::jsonb THEN RAISE EXCEPTION 'Account: not unbound'; END IF;
+END $$;
+ROLLBACK TO SAVEPOINT replay_account;
+SAVEPOINT replay_route;
+DO $$ BEGIN
+ PERFORM sophia.revoke_api_route_qualification((SELECT v FROM fx WHERE k='route')::uuid);
+ PERFORM sophia.qualify_api_route('research-sol-medium-v1','gpt-6.1-sol','medium','synthetic: replaced',now()+interval '1 day');
+ PERFORM pg_temp.replay_holds('route revoked and replaced');
+ IF pg_temp.read_at(clock_timestamp()) IS DISTINCT FROM '{"state":"unbound"}'::jsonb THEN RAISE EXCEPTION 'Route: not unbound'; END IF;
+END $$;
+ROLLBACK TO SAVEPOINT replay_route;
+SAVEPOINT replay_rotation;
+DO $$ BEGIN
+ -- SYNTHETIC rotation: the migration owner advances the credential revision, as a re-registration does.
+ UPDATE sophia.api_connections SET credential_revision=2 WHERE id='a7000000-0000-0000-0000-0000000000c1';
+ PERFORM pg_temp.replay_holds('credential rotated');
+ IF pg_temp.read_at(clock_timestamp()) IS NOT NULL THEN RAISE EXCEPTION 'Rotation: a reading spoke for the new revision'; END IF;
+ IF NOT pg_temp.refused(pg_temp.reading('k-rev2','{"credentialRevision":2}'),'22023') THEN
+  RAISE EXCEPTION 'Rotation: a new reading on the old qualification was accepted'; END IF;
+END $$;
+ROLLBACK TO SAVEPOINT replay_rotation;
 
 -- A grant whose settings are not the connection's (another model) sees no reading.
 DO $$ BEGIN

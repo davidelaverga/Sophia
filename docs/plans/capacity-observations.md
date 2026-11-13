@@ -1,6 +1,6 @@
 # Scoped capacity observations in the read-only selection preview (INC04-S03a)
 
-**Status:** INC04-S03a, root lease `INC04-S03A-OBSERVATIONS-001`; migration **0107**. There is no contract amendment and no generated change. Base: the accepted coherent `ef2c3cca` (0105 + 0106).
+**Status:** INC04-S03a, root lease `INC04-S03A-OBSERVATIONS-001`, repaired by R1 (`INC04-S03A-R1-C03-REPLAY-001`, finding A3-S03A-A4E8-F01); migration **0107**. There is no contract amendment and no generated change. Base: the accepted coherent `ef2c3cca` (0105 + 0106).
 
 This page is the coherent final plan. The sealed pre-code plan (`7dec776e`) and its amendment A1 (`5f97750d`) stay as history in [the handoff](../handoffs/INC04-S03.md).
 
@@ -50,7 +50,24 @@ Every scope column is NOT NULL, so its uniqueness is real.
 - A direct insert, or a post-seal append, is refused (55000).
 - A deferred constraint trigger refuses a commit whose window count differs from the promised count, so there are no half readings.
 
-**Replay and conflict.** Same key and same canonical payload (key excluded; windows sorted; numbers without trailing zeros; UTC microsecond instants) returns the original receipt, including under a concurrent race: `ON CONFLICT DO NOTHING`, then compare the hash. A changed payload under the same key is a conflict (23505).
+**Replay and conflict (R1).** The historical replay is judged before any current check, and is kept separate from admitting a new reading.
+
+1. **Historical replay.** `capacity_observation_recorded` looks up the request's exact identity using only the unique identity's own columns: the named connection's account, owner, route, model and effort, plus the request's credential revision, operation and key. There is at most one such row; no prior scope is ever chosen among several.
+
+   The lookup uses no current-state or qualification filter, and never a "latest" or another prior scope.
+
+   If a row exists, the request is canonicalized (`capacity_observation_canonical`: closed keys and shape only, no current record, no clock).
+   - **From the recorded row:** only the formerly server-derived facts, namely owner, account, provider, route, model, effort and the frozen route-qualification facts.
+   - **From the request:** every caller-supplied field, namely connection, credential revision, operation, account qualification id and revision, route qualification id and all content. A changed one is never replaced by a recorded fact and so never compares equal.
+
+   The result:
+   - same payload: the original receipt, byte for byte, with nothing written;
+   - changed payload, including a changed account qualification id or revision or route qualification id: 23505;
+   - malformed shape: 22023.
+
+   This holds whatever has happened since, such as an expired, revoked or replaced account or route qualification, or a rotated credential. It grants nothing: no timestamp, freshness, qualification or capacity changes, and the read still judges the reading against the current qualifications. A reading whose binding was lost stays `unbound` (or outside the new credential's scope), never current.
+2. **A new reading** (no such row) is admitted only on the current records (`capacity_observation_reading`), with every refusal listed below, then written whole. A new key or another credential revision never passes through replay.
+3. **A concurrent race** for one new key resolves through `ON CONFLICT DO NOTHING`: equal hash gives the original receipt, a different hash gives 23505. Canonical form excludes the key, sorts windows, writes numbers without trailing zeros and instants as UTC microseconds.
 
 **Refusals (22023):**
 
@@ -115,8 +132,8 @@ The accepted policy text (`docs/plans/api-contributions.md` lines 50-51) proves 
 
 | Suite | Covers |
 |---|---|
-| `db/tests/0107_capacity_observations.sql` | Privileges. The seal (update, delete, truncate, post-seal append, half reading at commit). Canonical replay and conflict. Every refusal, including a backdated reading before its account or route qualification. Visibility, staleness, a late older reading, two streams, equal-time conflict versus distinct sequences, revocation without resurrection. Account and route requalification: unbound-only stays `unbound`; a replacement reading in a **different stream and window set** is current; two current-bound streams still conflict. Model mismatch. |
-| `capacity-observations.db.test.ts` | A 4-way concurrent same-key race (one row, identical receipts) and a changed-payload conflict. Refusals with nothing written. No application login can record, revoke or select. Requalification, then a replacement in another stream, then credential rotation. The operator CLI recording, replaying (identical output) and revoking. |
+| `db/tests/0107_capacity_observations.sql` | **R1:** the original receipt replays, identical and reordered, after an account revoke and replacement, a route revoke and replacement, and a SYNTHETIC credential rotation, with no rows written. In each case a changed payload gives 23505 (both content and the caller-supplied account qualification revision, account qualification id and route qualification id); a new key gives 22023; and the read stays restrictive. Privileges. The seal (update, delete, truncate, post-seal append, half reading at commit). Canonical replay and conflict. Every refusal, including a backdated reading before its account or route qualification. Visibility, staleness, a late older reading, two streams, equal-time conflict versus distinct sequences, revocation without resurrection. Account and route requalification: unbound-only stays `unbound`; a replacement reading in a **different stream and window set** is current; two current-bound streams still conflict. Model mismatch. |
+| `capacity-observations.db.test.ts` | A 4-way concurrent same-key race (one row, identical receipts) and a changed-payload conflict. Refusals with nothing written. No application login can record, revoke or select. Requalification, then a replacement in another stream, then credential rotation. The operator CLI recording, replaying (identical output) and revoking. **R1:** after an account qualification **expiry**, identical and reordered replays return the original receipt; a racing mix of three identical replays and two changed payloads gives three original receipts and two conflicts; a changed account qualification revision, account qualification id or route qualification id is a conflict; a new key is refused; no row is written; the read stays `unbound`. After a route qualification **expiry**, the same. After a credential **rotation**, the CLI replay prints the original receipt and no reading speaks for the new revision. |
 | `selection-snapshot.db.test.ts` | The null baseline. The projected reading, without its value, evidence or channel. The same reading for another project's grant on the same account and connection, with identical capacity facts. Ledger, reservation, claim, binding, job, command and outbox rows byte-equal across record, revoke and a real reset passing (fresh becomes stale, the uncertain reservation still held). An expired account qualification gives `unbound`. |
 | `selection-snapshot.test.ts` | The byte-identical baseline; the fresh positive with an unchanged proof; one of two windows exhausted; ledger busy despite admits; eleven non-witnessing states giving `basis none`, `capacity_unproven` and an untouched grant; native unchanged; nothing projected. |
 | `selection-observations.db.test.ts` | Real HTTP: the baseline and the fresh positive selected; exhausted gives `unavailable_now`; stale and requalification-unbound are not selected; the viewer is restricted; nothing private in bodies or logs; previews write nothing. A SYNTHETIC helper fault: the viewer is still restricted, the editor fails without the database message. Nonmember 404, no token 401. The real migrator up to 0106 gives 503 for every role; after it applies 0107, the same app gives 200. |

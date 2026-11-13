@@ -68,14 +68,14 @@ async function world() {
       rotate,
     })
   await register(false)
-  const qualify = async () => {
+  const qualify = async (validMs = 86400_000) => {
     const q = await qualifyApiAccount(ownerPool, {
       connectionId: conn.connectionId,
       operations: ['research'],
       verification: 'operator_verified_call',
       evidenceRef: 'synthetic: not live evidence',
       observedAt: new Date(Date.now() - 60_000).toISOString(),
-      expiresAt: new Date(Date.now() + 86400_000).toISOString(),
+      expiresAt: new Date(Date.now() + validMs).toISOString(),
     })
     return q.qualificationId
   }
@@ -165,6 +165,20 @@ async function readFor(w: World) {
   )
   return rows[0]?.r ?? null
 }
+
+const wait = (ms: number) => new Promise((done) => setTimeout(done, ms))
+/** The reading, its windows reordered and a value respelled: canonically the same reading. */
+const reordered = (r: CapacityObservationInput): CapacityObservationInput => ({
+  ...r,
+  windows: r.windows
+    .toReversed()
+    .map((w) => (w.value === undefined || w.value === null ? w : { ...w, value: Number(w.value.toFixed(3)) })),
+})
+const rows = async () => [
+  await count('capacity_observations'),
+  await count('capacity_observation_windows'),
+  await count('capacity_observation_revocations'),
+]
 
 describe('operator custody of capacity readings (0107)', () => {
   it('replays one sealed reading under a concurrent same-key race, and conflicts on a changed payload', async () => {
@@ -262,5 +276,94 @@ describe('operator custody of capacity readings (0107)', () => {
       },
     )
     assert.deepEqual(await readFor(w), { state: 'revoked' })
+  })
+
+  // R1 (C03): replaying the recorded receipt is separate from admitting a new reading.
+  it('replays the original receipt after the account qualification expires, also racing a changed payload', async () => {
+    const w = await world()
+    const q = await w.qualify(1_500)
+    const r = await reading(w, q)
+    const original = await recordCapacityObservation(ownerPool, r)
+    assert.equal((await readFor(w))?.observationId, original.observationId, 'the paired positive')
+    await wait(1_700)
+    const initial = await rows()
+    assert.deepEqual(await recordCapacityObservation(ownerPool, r), original, 'the identical replay')
+    assert.deepEqual(await recordCapacityObservation(ownerPool, reordered(r)), original, 'the canonically equal replay')
+    const race = await Promise.allSettled([
+      recordCapacityObservation(ownerPool, r),
+      recordCapacityObservation(ownerPool, { ...r, reflection: 'all' }),
+      recordCapacityObservation(ownerPool, r),
+      recordCapacityObservation(ownerPool, { ...r, coverage: 'partial', requiredWindowRefs: null }),
+      recordCapacityObservation(ownerPool, r),
+    ])
+    for (const i of [0, 2, 4]) {
+      const x = race[i]
+      assert.ok(x?.status === 'fulfilled', JSON.stringify(x))
+      assert.deepEqual(x.value, original)
+    }
+    for (const i of [1, 3]) {
+      const x = race[i]
+      assert.ok(x?.status === 'rejected')
+      assert.ok(x.reason instanceof DomainError && x.reason.code === 'invalid_state', String(x.reason))
+    }
+    // Changed caller-supplied qualification identities are changed payloads, never replaced by recorded facts.
+    for (const changed of [
+      { accountQualificationRevision: r.accountQualificationRevision + 1 },
+      { accountQualificationId: randomUUID() },
+      { routeQualificationId: randomUUID() },
+    ])
+      assert.equal(
+        await codeOf(recordCapacityObservation(ownerPool, { ...r, ...changed })),
+        'invalid_state',
+        JSON.stringify(changed),
+      )
+    assert.equal(
+      await codeOf(recordCapacityObservation(ownerPool, { ...r, observationKey: `k-${randomUUID()}` })),
+      'invalid_request',
+      'a new key is still refused by the expired qualification',
+    )
+    assert.deepEqual(await rows(), initial, 'no replay, conflict or refusal wrote anything')
+    assert.deepEqual(await readFor(w), { state: 'unbound' }, 'the old reading is not made current')
+  })
+
+  it('replays the original receipt after its route qualification expires, and refuses a new key', async () => {
+    const w = await world()
+    const q = await w.qualify()
+    const route = await ownerPool.query<{ id: string }>(
+      `INSERT INTO sophia.api_route_qualifications(route_id,model,effort,evidence_ref,qualified_at,expires_at)
+       VALUES('research-sol-medium-v1','gpt-6.1-sol','medium','synthetic: short-lived',now()-interval '1 day',
+        now()+interval '1500 milliseconds') RETURNING id`,
+    )
+    const r = { ...(await reading(w, q)), routeQualificationId: String(route.rows[0]?.id) }
+    const original = await recordCapacityObservation(ownerPool, r)
+    await wait(1_700)
+    const initial = await rows()
+    assert.deepEqual(await recordCapacityObservation(ownerPool, r), original)
+    assert.equal(await codeOf(recordCapacityObservation(ownerPool, { ...r, reflection: 'some' })), 'invalid_state')
+    assert.equal(
+      await codeOf(recordCapacityObservation(ownerPool, { ...r, observationKey: `k-${randomUUID()}` })),
+      'invalid_request',
+    )
+    assert.deepEqual(await rows(), initial)
+    assert.notEqual((await readFor(w))?.state, 'recorded', 'still restrictive')
+  })
+
+  it('replays through the operator CLI after a credential rotation, writing nothing', async () => {
+    const w = await world()
+    const r = await reading(w, await w.qualify())
+    const dir = mkdtempSync(join(tmpdir(), 'sophia-capacity-cli-'))
+    const file = join(dir, 'reading.json')
+    writeFileSync(file, JSON.stringify(r), { mode: 0o600 })
+    const run = () =>
+      promisify(execFile)(process.execPath, ['scripts/record-capacity-observation.ts', 'record', file], {
+        env: { ...process.env, SOPHIA_MIGRATION_DATABASE_URL: db.ownerUrl },
+      })
+    const first = await run()
+    await w.register(true)
+    const initial = await rows()
+    const again = await run()
+    assert.equal(again.stdout, first.stdout, 'the original receipt, after the rotation')
+    assert.deepEqual(await rows(), initial)
+    assert.equal(await readFor(w), null, 'no reading speaks for the new credential revision')
   })
 })
