@@ -5,9 +5,14 @@ import { checkRoleSafety, createPool } from '@sophia/persistence'
 import { CoordinationDispatcher, httpPaperclipClient } from './coordination-dispatch.ts'
 import { liveKitRemover, RemovalReconciler } from './room-removals.ts'
 import { assemblyConfig, RuntimeDispatcher } from './runtime-dispatch.ts'
+import { runnerDispatchFromEnv } from './runner-dispatch.ts'
 
 const url = process.env.SOPHIA_WORKER_DATABASE_URL?.trim()
 if (!url) throw new Error('SOPHIA_WORKER_DATABASE_URL is required (a login granted sophia_worker; see .env.example)')
+
+// Owner-runner operations (0092, A47): no owner-host transport is qualified yet, so this worker sends none. Admitted
+// operations wait, visibly, as admitted; any setting but off refuses to start, before anything else does.
+runnerDispatchFromEnv(process.env)
 
 const pool = createPool(url, { max: 4 })
 await checkRoleSafety(pool, 'sophia_worker') // refuse to run as an owner, superuser or BYPASSRLS login
@@ -20,6 +25,7 @@ const assembly = assemblyConfig({ ...process.env, workerUrl: url })
 const dispatcher = new RuntimeDispatcher(pool, { workerId, log, ...assembly })
 dispatcher.start()
 log('runtime dispatch started')
+log('owner-runner dispatch: off (no qualified owner-host transport)')
 
 // Room removals (amendment A07) need the LiveKit server; without it they stay pending, visibly, never "done".
 const livekitUrl = process.env.LIVEKIT_URL?.trim()

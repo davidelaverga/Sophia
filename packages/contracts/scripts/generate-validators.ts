@@ -89,6 +89,7 @@ const EXPORTS = [
   'ConversationErasure',
   'DesignEditReceipt',
   'DesignRetryReceipt',
+  'ProjectNativeResourcePage',
 ] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
