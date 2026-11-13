@@ -488,11 +488,22 @@ export {
   type SelectionCandidateFacts,
   type SelectionCapacityReason,
   type SelectionNativeFacts,
+  type RecordedSelectionObservation,
+  type SelectionObservation,
+  type SelectionObservationWindow,
   type SelectionProtection,
   type SelectionRouteState,
   type SelectionSnapshot,
   type SelectionSourceState,
 } from './selection-snapshot.ts'
+// INC04-S03a (0107): operator custody of scoped capacity readings (migration owner only).
+export {
+  recordCapacityObservation,
+  revokeCapacityObservation,
+  type CapacityObservationInput,
+  type CapacityObservationReceipt,
+  type CapacityWindowInput,
+} from './capacity-observations.ts'
 export {
   createOwnerHostPairing,
   DbExchangeStore,

@@ -2,6 +2,8 @@
 // server-internal snapshot (0104) to the kernel's SelectionInput for ONE closed profile: a new standalone research
 // request (explore, explorer). It reads no clock, network or storage; the snapshot's one instant is the evaluation's.
 // Only a FULL snapshot (an evaluator's, 0106) is ever assembled; a restricted one has nothing to assemble (R2).
+// INC04-S03a (0107; docs/plans/capacity-observations.md): an API candidate's operator-recorded reading for its exact
+// scope maps to the kernel's existing capacity fields (apiCapacity). Advisory only: admission does not read it.
 //
 // Guarantees: the actor, project and every fact come from the authenticated snapshot, never from a client field;
 // missing proof stays unknown or absent and is never mapped to clear, current or not_applicable; no Prefer, route
@@ -23,11 +25,15 @@ import {
   type SelectionView,
   type Settings,
   type SettingsDeclaration,
+  type Window,
 } from '@sophia/domain'
 import type {
   FullSelectionSnapshot,
+  RecordedSelectionObservation,
   SelectionApiFacts,
   SelectionNativeFacts,
+  SelectionObservation,
+  SelectionObservationWindow,
   SelectionSnapshot,
 } from '@sophia/persistence'
 
@@ -161,7 +167,7 @@ function apiCandidate(s: FullSelectionSnapshot, f: SelectionApiFacts): Candidate
     candidateRef: apiRef(f.grantId),
     factsRevisionRef: `g${String(f.grantRevision)}.c${String(f.connectionRevision)}.a${String(f.accountRevision)}.q${
       f.accountQualification.state === 'current' ? String(f.accountQualification.revision) : '0'
-    }`,
+    }${observationRevision(f.observation)}`,
     routeKind: 'api',
     providerRef: f.provider,
     ownerRef: f.ownerId,
@@ -175,12 +181,7 @@ function apiCandidate(s: FullSelectionSnapshot, f: SelectionApiFacts): Candidate
     sourceDisclosure: apiDisclosure(s, f),
     qualification: apiQualification(f),
     settings: { declared: grantDeclaration(f), defaultSeed: grantSeed(f) },
-    capacity: {
-      basis: 'conservative_policy',
-      limits: { witness: 'unknown' },
-      windows: [],
-      policy: { proof: capacityProof(s, f), verdict: f.capacity.admits ? 'admits' : 'busy' },
-    },
+    capacity: apiCapacity(s, f),
     protection: apiProtection(f),
     commitments: {
       unsettledEffects: f.uncertainEffects ? 'present' : 'none',
@@ -189,6 +190,68 @@ function apiCandidate(s: FullSelectionSnapshot, f: SelectionApiFacts): Candidate
     session: { kind: 'new' },
     ranking: UNKNOWN_RANKING,
     share: [{ viewerRef: s.actorId, fields: ['route_kind', 'settings'] }],
+  }
+}
+
+/** The reading's part of the facts revision: nothing without one, so the no-reading baseline stays byte-identical. */
+function observationRevision(o: SelectionObservation | null): string {
+  if (o === null) return ''
+  return o.state === 'recorded' ? `.o${o.observationId}` : `.o-${o.state}`
+}
+
+/**
+ * Whether a reading is a positive witness at the snapshot's instant (S03-C02): recorded and still bound to the
+ * candidate's qualifications, fresh, complete, and every window of known applicability with the source's own admits or
+ * exhausted. Anything else proves nothing about the provider.
+ */
+function witnessOf(o: SelectionObservation): RecordedSelectionObservation | null {
+  if (o.state !== 'recorded' || !o.fresh || o.coverage !== 'complete') return null
+  const refs = o.windows.map((w) => w.windowRef)
+  const required = new Set(o.requiredWindowRefs ?? [])
+  const whole =
+    o.windows.length > 0 &&
+    required.size === refs.length &&
+    refs.every((r) => required.has(r)) &&
+    o.windows.every((w) => w.applicability === 'known' && w.verdict !== 'unknown')
+  return whole ? o : null
+}
+
+function windowOf(o: RecordedSelectionObservation, w: SelectionObservationWindow): Window {
+  return {
+    windowRef: w.windowRef,
+    scope: w.scope,
+    unit: w.unit,
+    provenanceRef: o.observationId,
+    observedAt: o.observedAt,
+    freshUntil: o.freshUntil,
+    applicability: w.applicability,
+    verdict: w.verdict,
+    resetAt: w.resetAt,
+  }
+}
+
+/**
+ * The capacity basis (S03-C05, root precision). No reading: the unchanged baseline, the owner's bounded-spend grant as
+ * the conservative proof over the existing ledgers, which accepted source shows operating with provider usage unknown.
+ * A witnessing reading: the same unchanged financial gate, plus its windows, so a fresh exhausted window excludes the
+ * candidate. Any other reading (stale, partial, unavailable, unknown verdict, conflict, revoked, unbound): the policy
+ * is not shown to cover it, so the capacity is unproven: basis none, no policy. The grant's proof, revision and
+ * validity are never altered, and no timestamp is made up.
+ */
+function apiCapacity(s: FullSelectionSnapshot, f: SelectionApiFacts): Candidate['capacity'] {
+  const o = f.observation
+  const policy = { proof: capacityProof(s, f), verdict: f.capacity.admits ? ('admits' as const) : ('busy' as const) }
+  if (o === null) return { basis: 'conservative_policy', limits: { witness: 'unknown' }, windows: [], policy }
+  const witness = witnessOf(o)
+  if (witness === null) {
+    const partial = o.state === 'recorded' && o.coverage === 'partial'
+    return { basis: 'none', limits: { witness: partial ? 'partial' : 'unknown' }, windows: [], policy: null }
+  }
+  return {
+    basis: 'conservative_policy',
+    limits: { witness: 'covered', requiredWindowRefs: witness.windows.map((w) => w.windowRef) },
+    windows: witness.windows.map((w) => windowOf(witness, w)),
+    policy,
   }
 }
 

@@ -1,4 +1,4 @@
-// INC04-S01b (0104, 0106): the selection snapshot on real PostgreSQL with the production role split, against the REAL money
+// INC04-S01b (0104, 0106) and INC04-S03a (0107): the selection snapshot on real PostgreSQL with the production role split, against the REAL money
 // and slot ledgers. Members read through the non-owner sophia_api login in withActor 'read' (REPEATABLE READ READ
 // ONLY). Contributions are admitted, reserved and settled by the real 0094 functions; the operator steps (custody,
 // route and account qualification) run as the migration owner. Every grant, account, qualification and token is
@@ -34,9 +34,15 @@ import {
   createContributionGrant,
   qualifyApiAccount,
   registerContributionRuntime,
+  revokeApiAccountQualification,
   setResearchFundingPin,
   updateApiAccount,
 } from './api-contributions.ts'
+import {
+  recordCapacityObservation,
+  revokeCapacityObservation,
+  type CapacityObservationInput,
+} from './capacity-observations.ts'
 
 let db: TestDatabase
 let api: pg.Pool
@@ -229,6 +235,7 @@ describe('the selection snapshot (0104) on the real ledgers', () => {
     )
     assert.deepEqual(f.protection, { witness: 'none_applicable' })
     assert.equal(f.uncertainEffects, false)
+    assert.equal(f.observation, null, '0107: no reading in its scope is null, the unchanged baseline')
     assert.equal(await snap(w.projectId, randomUUID()), null)
     // A current viewer of the same project reads the restricted form only (0106): no pool, budget, Pin, gate or source.
     const VIEW = randomUUID()
@@ -300,5 +307,193 @@ describe('the selection snapshot (0104) on the real ledgers', () => {
     const s = await snap(w.projectId, w.REQ)
     assert.equal(full(s).projectBudget, false, 'a project-paid search leaves no room for a new 5 USD allowance')
     assert.ok(apiFacts(s, w.grantId).capacity.reasons.includes('project_budget'))
+  })
+})
+
+// --- INC04-S03a: scoped readings (0107) -------------------------------------------------------------------------------
+
+const at = (ms: number) => new Date(Date.now() + ms).toISOString()
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+/** The connection's one live account qualification and the current route qualification, as the operator names them. */
+async function qualificationsOf(connectionId: string) {
+  const a = await ownerPool.query<{ id: string; revision: string }>(
+    `SELECT id, revision FROM sophia.api_account_qualifications WHERE connection_id=$1 AND revoked_at IS NULL`,
+    [connectionId],
+  )
+  const r = await ownerPool.query<{ id: string }>(
+    `SELECT id FROM sophia.api_route_qualifications WHERE revoked_at IS NULL AND expires_at>now() ORDER BY qualified_at DESC, id LIMIT 1`,
+  )
+  // As microsecond text: a Date would round the instant down, to before the qualification.
+  const since = await ownerPool.query<{ t: string }>(
+    `SELECT to_char(greatest(a.observed_at, r.qualified_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS t
+      FROM sophia.api_account_qualifications a,
+      sophia.api_route_qualifications r WHERE a.id=$1 AND r.id=$2`,
+    [a.rows[0]?.id, r.rows[0]?.id],
+  )
+  return {
+    ids: {
+      accountQualificationId: String(a.rows[0]?.id),
+      accountQualificationRevision: Number(a.rows[0]?.revision),
+      routeQualificationId: String(r.rows[0]?.id),
+    },
+    /** The first instant both qualifications held: a reading is observed at or after it. */
+    since: String(since.rows[0]?.t),
+  }
+}
+/** A SYNTHETIC complete reading through the world's connection, recorded by the operator. */
+async function record(w: World, over: Partial<CapacityObservationInput> = {}) {
+  const q = await qualificationsOf(w.connectionId)
+  return recordCapacityObservation(ownerPool, {
+    observationKey: `k-${randomUUID()}`,
+    connectionId: w.connectionId,
+    credentialRevision: 1,
+    ...q.ids,
+    operation: 'research',
+    verification: 'operator_verified_console',
+    evidenceRef: 'synthetic evidence held outside',
+    sourceChannel: 'synthetic-console',
+    windowSetRef: 'synthetic-limits',
+    windowSetVersion: 'v1',
+    coverage: 'complete',
+    requiredWindowRefs: ['requests-per-day'],
+    reflection: 'unknown',
+    observedAt: q.since,
+    freshUntil: at(600_000),
+    windows: [
+      {
+        windowRef: 'requests-per-day',
+        scope: 'account',
+        unit: 'requests',
+        value: 3,
+        verdict: 'admits',
+        applicability: 'known',
+      },
+    ],
+    ...over,
+  })
+}
+/** Every ledger, reservation, claim and binding row an observation must never touch, as one comparable value. */
+async function ledgers() {
+  const tables = [
+    'research_allowances',
+    'research_reservations',
+    'api_contribution_tasks',
+    'api_contribution_claims',
+    'api_contribution_reservations',
+    'owner_runner_reservations',
+    'jobs',
+    'commands',
+    'outbox',
+  ]
+  const out: Record<string, unknown> = {}
+  for (const name of tables) {
+    const { rows } = await ownerPool.query<{ v: unknown }>(
+      `SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY to_jsonb(x)::text),'[]') AS v FROM sophia.${name} x`,
+    )
+    out[name] = rows[0]?.v
+  }
+  return out
+}
+
+describe('the selection snapshot with scoped readings (0107)', () => {
+  it('projects the matched reading without its value or evidence, the same for another project on the same account', async () => {
+    const w = await world()
+    const r = await record(w)
+    const s = await snap(w.projectId, w.REQ)
+    const f = apiFacts(s, w.grantId)
+    assert.ok(f.observation && f.observation.state === 'recorded', JSON.stringify(f.observation))
+    assert.equal(f.observation.observationId, r.observationId)
+    assert.equal(f.observation.fresh, true)
+    assert.deepEqual(
+      f.observation.windows.map((x) => [x.windowRef, x.unit, x.verdict]),
+      [['requests-per-day', 'requests', 'admits']],
+    )
+    const text = JSON.stringify(full(s))
+    for (const secret of ['synthetic evidence', 'synthetic-console', '"value"', 'reflection'])
+      assert.equal(text.includes(secret), false, secret)
+    // One accounting root across projects: the same connection's grant elsewhere sees the same one reading, and no
+    // separate capacity comes with it.
+    const p2 = await seedProject(db.ownerUrl, { admin: randomUUID(), editors: [w.OWNER, w.REQ] })
+    await ownerPool.query(`SELECT sophia.set_research_grant($1, 'enabled', 5, 40, 'web-pilot-v1', 'approval:test')`, [
+      p2.projectId,
+    ])
+    const g2 = await withActor(api, w.OWNER, 'write', (c) =>
+      createContributionGrant(c, w.connectionId, p2.projectId, {
+        expiresAt: new Date(Date.now() + 30 * 86400_000).toISOString(),
+        taskCapUsd: 1,
+        totalCapUsd: 5,
+        fundingPolicy: 'bounded_total_spend',
+        fundingAcknowledgementRef: 'synthetic acknowledgement',
+      }),
+    )
+    const f2 = apiFacts(await snap(p2.projectId, w.REQ), g2.grantId)
+    assert.deepEqual(f2.observation, f.observation)
+    assert.deepEqual([f2.capacity, f2.slotsBusy], [f.capacity, f.slotsBusy])
+  })
+
+  it('changes no ledger, reservation, claim or binding by recording, revoking or a reset passing', async () => {
+    const w = await world()
+    const t = await started(w)
+    const m = await reserve(w, t.at, 'model', 0.2)
+    await service((c) =>
+      runtimeResearchSettle(c, w.who, { ...t.at, reservationId: m.reservationId, outcome: 'uncertain' }),
+    )
+    const beforeAll = await ledgers()
+    const a = await record(w)
+    await revokeCapacityObservation(ownerPool, a.observationId, 'synthetic: superseded')
+    // A reading whose window resets in 1.5 s, fresh for 1 s (never past the reset): after it, stale, never replenished.
+    const b = await record(w, {
+      // Later than the revoked one (observed when the qualifications began): equal times would be a conflict.
+      observedAt: at(-500),
+      freshUntil: at(1_000),
+      windows: [
+        {
+          windowRef: 'requests-per-day',
+          scope: 'account',
+          unit: 'requests',
+          verdict: 'exhausted',
+          applicability: 'known',
+          resetAt: at(1_500),
+        },
+      ],
+    })
+    const during = apiFacts(await snap(w.projectId, w.REQ), w.grantId).observation
+    assert.ok(during?.state === 'recorded' && during.fresh && during.observationId === b.observationId)
+    await wait(1_700)
+    const passed = apiFacts(await snap(w.projectId, w.REQ), w.grantId)
+    assert.ok(
+      passed.observation?.state === 'recorded' && !passed.observation.fresh,
+      'after the reset it is stale, not admits',
+    )
+    assert.equal(passed.uncertainEffects, true, 'the uncertain reservation still holds')
+    assert.deepEqual(await ledgers(), beforeAll, 'every ledger row is byte-equal')
+  })
+
+  it('leaves an old reading unbound when its account qualification expires or is replaced', async () => {
+    const w = await world()
+    const live = await qualificationsOf(w.connectionId)
+    await revokeApiAccountQualification(
+      ownerPool,
+      live.ids.accountQualificationId,
+      'synthetic: short-lived requalification',
+    )
+    await qualifyApiAccount(ownerPool, {
+      connectionId: w.connectionId,
+      operations: ['research'],
+      verification: 'operator_verified_call',
+      evidenceRef: 'synthetic: not live evidence',
+      observedAt: at(-60_000),
+      expiresAt: at(1_200),
+    })
+    await record(w, { freshUntil: at(1_000) })
+    assert.equal(
+      apiFacts(await snap(w.projectId, w.REQ), w.grantId).observation?.state,
+      'recorded',
+      'the paired positive',
+    )
+    await wait(1_400)
+    const f = apiFacts(await snap(w.projectId, w.REQ), w.grantId)
+    assert.equal(f.accountQualification.state, 'expired')
+    assert.deepEqual(f.observation, { state: 'unbound' })
   })
 })

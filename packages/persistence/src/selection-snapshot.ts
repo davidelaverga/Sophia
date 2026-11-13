@@ -1,4 +1,5 @@
-// The selection preview's snapshot (INC04-S01b, migrations 0104 and 0106; docs/plans/selection-preview.md). One read
+// The selection preview's snapshot (INC04-S01b, migrations 0104 and 0106; docs/plans/selection-preview.md; INC04-S03a,
+// migration 0107; docs/plans/capacity-observations.md). One read
 // of sophia.selection_snapshot, which checks the caller's current membership and role itself and judges every expiry at
 // one instant it fixes first. It writes, locks, reserves, notifies and sends nothing.
 //
@@ -10,6 +11,10 @@
 // What it returns is SERVER-INTERNAL: ids, states, booleans and revisions the trusted assembler needs, including other
 // owners' account ids. It holds no amount, label, eligible list, other member's pin, evidence reference or credential,
 // and it must never be returned, logged or stored as it is: only the kernel's viewer projection leaves the server.
+//
+// 0107 adds one fact to each API candidate: the operator-recorded capacity reading that speaks for its exact scope at
+// the snapshot's instant, or null when none does. It carries no value, evidence, channel or reflection. A full snapshot
+// whose API candidates lack it (an older helper body) is not guessed: it is unavailable.
 import type pg from 'pg'
 import { DomainError } from '@sophia/domain'
 import { classifyDbError } from './errors.ts'
@@ -37,6 +42,37 @@ export type SelectionProtection =
 /** Why the owner's conservative policy does not admit one more prospective task now (owner-internal). */
 export type SelectionCapacityReason =
   'grant_spend' | 'account_spend' | 'project_budget' | 'account_slots' | 'grant_slots'
+
+/** One window of a recorded reading (0107): provider-native unit and the source's own verdict; never a value. */
+export interface SelectionObservationWindow {
+  windowRef: string
+  windowEpoch: string | null
+  scope: 'account' | 'model' | 'spend' | 'concurrency'
+  unit: string
+  verdict: 'admits' | 'exhausted' | 'unknown'
+  applicability: 'known' | 'partial' | 'unknown'
+  resetAt: string | null
+}
+
+/** A recorded reading still bound to the candidate's current qualifications, judged at the snapshot's instant. */
+export interface RecordedSelectionObservation {
+  state: 'recorded'
+  observationId: string
+  observedAt: string
+  freshUntil: string
+  /** freshUntil is after the snapshot's instant. */
+  fresh: boolean
+  coverage: 'complete' | 'partial' | 'unavailable'
+  requiredWindowRefs: string[] | null
+  windows: SelectionObservationWindow[]
+}
+
+/**
+ * The reading for one API candidate's exact scope (0107). `conflict`: two streams, or contradictory equal-time readings
+ * without an authoritative order. `revoked`: the operator revoked it. `unbound`: its account or route qualification is
+ * no longer the one it was recorded under. None of these is evidence of capacity.
+ */
+export type SelectionObservation = RecordedSelectionObservation | { state: 'conflict' | 'revoked' | 'unbound' }
 
 export interface SelectionApiFacts {
   kind: 'api'
@@ -69,6 +105,8 @@ export interface SelectionApiFacts {
   slotsBusy: boolean
   uncertainEffects: boolean
   protection: SelectionProtection
+  /** 0107: the reading for this candidate's exact scope, or null when none was observed and recorded by then. */
+  observation: SelectionObservation | null
 }
 
 export interface SelectionNativeFacts {
@@ -136,7 +174,20 @@ function isSnapshot(v: unknown): v is SelectionSnapshot {
   const evaluation = field(v, 'evaluation')
   const role = field(field(v, 'member'), 'role')
   if (evaluation === 'restricted') return role === 'viewer'
-  return evaluation === 'full' && (role === 'admin' || role === 'editor')
+  return evaluation === 'full' && (role === 'admin' || role === 'editor') && observed(field(v, 'candidates'))
+}
+
+/**
+ * Whether every API candidate carries 0107's observation fact (null, or a reading with its state). The read helper
+ * returns it whenever 0107 is installed; its absence means another body answered, and nothing is guessed.
+ */
+function observed(candidates: unknown): boolean {
+  if (!Array.isArray(candidates)) return false
+  return candidates.every((c: unknown) => {
+    if (field(c, 'kind') !== 'api') return true
+    const o = field(c, 'observation')
+    return o === null || typeof field(o, 'state') === 'string'
+  })
 }
 
 /**

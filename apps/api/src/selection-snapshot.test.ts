@@ -1,13 +1,16 @@
-// The selection preview's pure assembler (INC04-S01b): synthetic snapshots through the real kernel and projection.
-// These are source-logic checks of the mapping only; a synthetic record never qualifies a live route or passes AC-04.
+// The selection preview's pure assembler (INC04-S01b; INC04-S03a observations, 0107): synthetic snapshots through the
+// real kernel and projection. These are source-logic checks of the mapping only; a synthetic record or reading never
+// qualifies a live route, a telemetry source or provider capacity, and passes no AC-04 case.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { DomainError, evaluateSelection, projectSelection } from '@sophia/domain'
 import type {
   FullSelectionSnapshot,
+  RecordedSelectionObservation,
   RestrictedSelectionSnapshot,
   SelectionApiFacts,
   SelectionNativeFacts,
+  SelectionObservation,
   SelectionSnapshot,
 } from '@sophia/persistence'
 import { apiRef, assembleSelectionInput, nativeRef, previewSelection, requestRevisionOf } from './selection-snapshot.ts'
@@ -49,6 +52,7 @@ function api(over: Partial<SelectionApiFacts> = {}): SelectionApiFacts {
     slotsBusy: false,
     uncertainEffects: false,
     protection: { witness: 'none_applicable' },
+    observation: null,
     ...over,
   }
 }
@@ -311,5 +315,159 @@ describe('the selection preview assembler', () => {
     assert.equal(input.strictSettingsDisclosure, undefined)
     assert.deepEqual(input.policy, { scopes: [], routeOverrides: [] })
     assert.equal(input.evaluatedAt, NOW)
+  })
+})
+
+// --- INC04-S03a: an API candidate's scoped reading (0107) -------------------------------------------------------------
+
+const OBS = '99999999-9999-4999-8999-999999999999'
+/** A SYNTHETIC recorded reading at NOW: fresh, complete, an account and a model window that both admit. */
+function reading(over: Partial<RecordedSelectionObservation> = {}): RecordedSelectionObservation {
+  return {
+    state: 'recorded',
+    observationId: OBS,
+    observedAt: '2026-11-13T11:50:00.000000+00:00',
+    freshUntil: '2026-11-13T12:10:00.000000+00:00',
+    fresh: true,
+    coverage: 'complete',
+    requiredWindowRefs: ['requests-per-day', 'tokens-per-minute'],
+    windows: [
+      {
+        windowRef: 'requests-per-day',
+        windowEpoch: null,
+        scope: 'account',
+        unit: 'requests',
+        verdict: 'admits',
+        applicability: 'known',
+        resetAt: null,
+      },
+      {
+        windowRef: 'tokens-per-minute',
+        windowEpoch: 'e7',
+        scope: 'model',
+        unit: 'tokens',
+        verdict: 'admits',
+        applicability: 'known',
+        resetAt: '2026-11-13T13:00:00.000000+00:00',
+      },
+    ],
+    ...over,
+  }
+}
+const exhaustedModel = (): RecordedSelectionObservation => {
+  const r = reading()
+  return { ...r, windows: r.windows.map((w) => (w.scope === 'model' ? { ...w, verdict: 'exhausted' as const } : w)) }
+}
+/** The one candidate's input and its evaluated row, from a snapshot whose only candidate is `f`. */
+function evaluated(f: SelectionApiFacts) {
+  const input = assembleSelectionInput(snapshot({ candidates: [f] }))
+  const c = input.candidates[0]
+  const row = evaluateSelection(input).rows[0]
+  assert.ok(c && row)
+  return { c, codes: row.failures.map((x) => x.code), view: shared(snapshot({ candidates: [f] })) }
+}
+
+describe('the selection preview assembler with scoped observations (0107)', () => {
+  const baseline = evaluated(api())
+
+  it('keeps the no-reading baseline byte for byte: the conservative financial gate over the ledgers', () => {
+    assert.deepEqual(baseline.c.capacity, {
+      basis: 'conservative_policy',
+      limits: { witness: 'unknown' },
+      windows: [],
+      policy: { proof: baseline.c.capacity.policy?.proof, verdict: 'admits' },
+    })
+    assert.equal(baseline.c.factsRevisionRef, 'g1.c2.a2.q1', 'no reading adds nothing to the facts revision')
+    assert.equal(baseline.view.outcome, 'selected')
+  })
+
+  it('selects on a fresh, complete, admitting reading, with the same financial gate and its windows verbatim', () => {
+    const { c, codes, view } = evaluated(api({ observation: reading() }))
+    assert.equal(view.outcome, 'selected')
+    assert.deepEqual(codes, [])
+    assert.equal(c.capacity.basis, 'conservative_policy')
+    assert.deepEqual(c.capacity.policy, baseline.c.capacity.policy, 'the grant proof and ledger verdict are unchanged')
+    assert.deepEqual(c.capacity.limits, {
+      witness: 'covered',
+      requiredWindowRefs: ['requests-per-day', 'tokens-per-minute'],
+    })
+    assert.deepEqual(
+      c.capacity.windows.map((w) => [w.windowRef, w.scope, w.unit, w.verdict, w.provenanceRef, w.resetAt]),
+      [
+        ['requests-per-day', 'account', 'requests', 'admits', OBS, null],
+        ['tokens-per-minute', 'model', 'tokens', 'admits', OBS, '2026-11-13T13:00:00.000000+00:00'],
+      ],
+    )
+    assert.equal(c.factsRevisionRef, `g1.c2.a2.q1.o${OBS}`)
+    assert.deepEqual(c.authority, baseline.c.authority)
+  })
+
+  it('excludes on a fresh exhausted window even when the other limiting window admits', () => {
+    const { codes, view } = evaluated(api({ observation: exhaustedModel() }))
+    assert.notEqual(view.outcome, 'selected')
+    assert.ok(codes.includes('capacity_exhausted'), codes.join())
+    assert.equal(limitation(view, apiRef(api().grantId)), 'unavailable_now')
+  })
+
+  it('keeps the ledger gate: an admitting reading never overcomes busy money or slots', () => {
+    const { codes, view } = evaluated(
+      api({ observation: reading(), capacity: { admits: false, reasons: ['account_spend'] }, slotsBusy: true }),
+    )
+    assert.notEqual(view.outcome, 'selected')
+    assert.ok(codes.includes('account_busy'), codes.join())
+  })
+
+  it('leaves every non-witnessing reading unproven (basis none, no policy) and never alters the grant proof', () => {
+    const stale = reading({ fresh: false })
+    const cases: [string, SelectionObservation][] = [
+      ['stale, including a prior epoch whose reset has passed', stale],
+      ['stale and exhausted before its reset', { ...exhaustedModel(), fresh: false }],
+      ['partial', reading({ coverage: 'partial', requiredWindowRefs: null })],
+      ['unavailable', reading({ coverage: 'unavailable', requiredWindowRefs: null, windows: [] })],
+      [
+        'a verdict the source did not state',
+        reading({ windows: reading().windows.map((w) => ({ ...w, verdict: 'unknown' as const })) }),
+      ],
+      [
+        'an applicability not known',
+        reading({ windows: reading().windows.map((w) => ({ ...w, applicability: 'partial' as const })) }),
+      ],
+      ['a required window missing', reading({ requiredWindowRefs: ['requests-per-day'] })],
+      ['complete but empty', reading({ requiredWindowRefs: [], windows: [] })],
+      ['conflict', { state: 'conflict' }],
+      ['revoked', { state: 'revoked' }],
+      ['unbound by a requalification', { state: 'unbound' }],
+    ]
+    for (const [name, observation] of cases) {
+      const { c, codes, view } = evaluated(api({ observation }))
+      assert.notEqual(view.outcome, 'selected', name)
+      assert.equal(c.capacity.basis, 'none', name)
+      assert.equal(c.capacity.policy, null, name)
+      assert.deepEqual(c.capacity.windows, [], name)
+      assert.ok(codes.includes('capacity_unproven'), `${name}: ${codes.join()}`)
+      assert.ok(!codes.includes('capacity_policy_unproven'), `${name}: the grant proof is not made stale`)
+      assert.deepEqual(c.authority, baseline.c.authority, `${name}: the grant is untouched`)
+    }
+    const partial = evaluated(api({ observation: reading({ coverage: 'partial', requiredWindowRefs: null }) }))
+    assert.deepEqual(partial.c.capacity.limits, { witness: 'partial' })
+  })
+
+  it('never lets a reading reach another candidate or a native resource', () => {
+    const own = native()
+    const input = assembleSelectionInput(snapshot({ candidates: [api({ observation: exhaustedModel() }), own] }))
+    const n = input.candidates.find((c) => c.routeKind === 'native')
+    assert.ok(n)
+    assert.deepEqual(n.capacity, { basis: 'none', limits: { witness: 'unknown' }, windows: [], policy: null })
+    assert.deepEqual(n.protection, { witness: 'policy_absent' })
+  })
+
+  it('projects no reading fact: no id, window, unit or verdict reaches the view', () => {
+    for (const observation of [reading(), exhaustedModel(), { state: 'unbound' as const }]) {
+      const text = JSON.stringify(previewSelection(snapshot({ candidates: [api({ observation })] })))
+      for (const secret of [OBS, 'requests-per-day', 'tokens-per-minute', 'tokens', 'unbound', 'e7']) {
+        assert.equal(text.includes(secret), false, secret)
+      }
+    }
+    assert.deepEqual(previewSelection({ ...restricted }), RESTRICTED_VIEW)
   })
 })
