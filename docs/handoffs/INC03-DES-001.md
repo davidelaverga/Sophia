@@ -78,3 +78,41 @@ The work is on the new branch `inc03-des-001-reader-r1`, in its own worktree; `3
    - The second run showed the refresh test waiting on the query's retries; local read errors are no longer retried.
      Escape had also taken the read-more test to Home.
    - The third run passed 13 of 13.
+
+## R2, a window read back joins only the read it was read for, as it happened (a child of `1d977858`)
+
+The same reviewer's whole-source review of `1d977858` (`ccf09b9a`, with addendum `27bc64ab`) was NEEDS_REVISION on F01,
+and root adopted it (`6ff232a`; task `6076b708…9c661`). The repair ran only after `1d977858`'s ordinary ended with exit 0
+inside and out, its own cluster was stopped, and its FINAL was delivered (`cd7124bf…859f`). The plan was sealed before
+any edit (`a56d6b0d…d0c9`). The work is on the new branch `inc03-des-001-reader-r2`, in its own worktree; `1d977858`,
+`360176e4` and their packets are unchanged. Three paths change: the hook, the app spec and this handoff.
+
+1. **The finding.** R1's Read more checked the read shown now only by when it ended (`asOf`). That is this device's
+   clock, not which read it is. A newer read ending at the same instant (a new revision, a new epoch, or newer money at
+   the same revision) could take an older window and its views. `360176e4` had refused the epoch and revision cases.
+2. **The repair.** `readControlledBack` joins only into the very read object it was read for. Each read builds new
+   view maps, so a read since is never the same object, even with the same revision, epoch, instant and facts. The
+   window's epoch and revision must also equal the read's.
+   - A window for a read since is let go: no merge and no invalidation, since the read shown is newer and whole. Show
+     earlier days then reads against it.
+   - A window that doesn't hold with the read it was read for still reads the space whole (R01).
+   - The reader, the model, Copy, the fixtures, R01's binding, R02's full refresh and the abort, account, lock and
+     erasure fences are unchanged.
+3. **Crossings in the actual app.** They use a fixed clock (`setFixedTime`, so every read ends at the same instant) and
+   a read-back page held at a gate. The next cursor Show earlier days asks says which read is shown.
+   - A, the read still shown: joined.
+   - B, revision 8: not joined; then its own window joins.
+   - C, epoch 2 with a new conversation: the erased epoch's window is never shown. No other fence cancelled this case
+     in the app.
+   - D, newer money at the same revision, epoch and instant: not joined, and the newer money stays.
+   - E, a later instant: not joined.
+4. **First failures, kept.**
+   - The first run of the new crossings on the unchanged hook stalled four times on a probe of my own: a joined window
+     saying nothing earlier hides Show earlier days. The probe page now says there is more.
+   - The second run failed B, C and D on their assertion (the next cursor 5: joined) and passed A and E. With the
+     repair, the whole controlled app spec passed 17 of 17.
+5. **Limits.**
+   - A key collision between an older window's views and a newer read's can't be made with source-consistent data:
+     each input is in one turn. D shows that the merge is refused whole against a replaced read; the map precedence
+     itself is reasoning, as the addendum says.
+   - Synthetic routed app only: no real erasure, account, server or deployed reading.

@@ -157,6 +157,11 @@ function shownBack(space: SpaceRead | undefined, back: ReadBackState | null) {
  * to the cached read only while that read is still the one shown and the window holds with it: its revision, its epoch
  * and each input's control as its page has it (R01). One that doesn't hold isn't joined: the space is read whole again
  * instead (a round reads it back as far as was read, and says it is stale if it still isn't whole).
+ *
+ * The read shown is the very read the window was read for, not one like it (R2): when it ended (asOf) is this device's
+ * clock, not which read it is, and a read since, even at the same instant, revision and epoch, may know newer money or
+ * kept answers. Each read is its own object (its views are new maps), so a read since never takes an older window or
+ * its views; it is let go, and Show earlier days reads against the read shown now.
  */
 async function readControlledBack(client: QueryClient, identity: Identity, read: ControlledRead, signal: AbortSignal) {
   const before = read.back[0]?.page.turns[0]?.seq ?? read.turns[0]?.seq
@@ -165,8 +170,8 @@ async function readControlledBack(client: QueryClient, identity: Identity, read:
   const window = await readControlledWindow(identity.token, before, read, viewed, signal)
   const key = ['personal', identity.name]
   const now = client.getQueryData<SpaceRead>(key)
-  if (!now || !isControlled(now) || now.asOf !== read.asOf) return
-  if (window) {
+  if (now !== read || !isControlled(now) || now.asOf !== read.asOf) return
+  if (window && window.page.epoch === now.epoch && window.page.revision === now.revision) {
     const joined: ControlledRead = {
       ...now,
       back: [window, ...now.back],

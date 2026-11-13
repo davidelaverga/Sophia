@@ -180,12 +180,13 @@ interface SpaceOver {
   earlier?: boolean
   pending?: boolean
   companion?: string
+  epoch?: number
 }
 const space = (h: ReturnType<typeof histories>, over: SpaceOver = {}) => ({
   spaceContract: 'personal_controlled_space_v1',
   companion: over.companion ?? 'rehearsal',
   revision: over.revision ?? 7,
-  epoch: 1,
+  epoch: over.epoch ?? 1,
   days: 3,
   turns: over.turns ?? h.turns,
   earlier: over.earlier ?? false,
@@ -233,7 +234,7 @@ const C5 = refusal(503, 'projection_unavailable', 'never')
 interface World {
   legacy: () => Answer
   space: () => Answer | 'hold'
-  before: (seq: number) => Answer
+  before: (seq: number) => Answer | 'hold'
   view: (inputId: string) => Answer
   exported: (after: number) => Answer
 }
@@ -528,6 +529,133 @@ test('R01 · a refresh whose view and page disagree keeps the last whole read, s
   await expect(page.locator('[data-stale]')).toBeVisible()
   await neverMixed(page)
   await expect(page.locator('.c3-failed', { hasText: 'Sophia couldn’t answer this one.' })).toHaveCount(1)
+  expect(asked(ledger)).toMatchObject({ legacyAfterPin: 0, writes: [] })
+})
+
+// R2 (CORE ccf09b9a F01): a window read back while the space is read again joins only the very read it was read for.
+// asOf is when a read ended, by this device's clock, not which read it is: with the clock held still (setFixedTime),
+// every read ends at the same instant, and a newer read (a new revision, a new epoch, or newer money at the same
+// revision) must never take an older window or its views. The read-back page is held at a gate until let through.
+const R2_FIXED = new Date(T0)
+const R2_OLD = turn(5, 'An older, private question from before.', 300, {
+  input: { inputId: IN.v, control: 'active', revision: 1 },
+})
+/** A window read back; more before it, so Show earlier days stays and says which read is shown by its cursor. */
+const r2Page = (revision: number, epoch: number, turns: Turn[] = [R2_OLD], earlier = true) => ({
+  json: { revision, epoch, turns, earlier, pending: false },
+})
+/** After an erasure elsewhere: epoch 2, a new conversation, earlier days of its own. */
+const R2_AFTER = turn(31, 'A new beginning, after the erasure.', 1, { reply: 'answered' })
+
+async function r2Crossing(context: BrowserContext) {
+  const h = histories('answered')
+  const world = controlledWorld(h)
+  world.space = () => ({ json: space(h, { earlier: true }) })
+  const gate: { open: boolean; page: Answer } = { open: false, page: r2Page(7, 1) }
+  world.before = () => (gate.open ? gate.page : 'hold')
+  world.view = (inputId) => (inputId === IN.v ? { json: view(IN.v, R2_OLD) } : refusal(422, 'not_found', 'never'))
+  const served = await serve(context, world)
+  const { ledger } = served
+  const page = await signedIn(context)
+  await page.clock.install()
+  await page.clock.setFixedTime(R2_FIXED)
+  await openPersonal(page)
+  await showsHistories(page, h)
+  const cursors = () => ledger.filter((l) => l.includes('/answer-controls/turns?before=')).map((l) => l.split('=')[1])
+  const views = () => ledger.filter((l) => l.endsWith(`/answers/${IN.v}/control`)).length
+  /** Show earlier days, and the cursor it asks: the first seq of the read shown now. */
+  const more = async () => {
+    const n = cursors().length
+    // The days' menu stays open after a read and is drawn again as the read changes: open it only when it's shut.
+    if (!(await page.getByRole('menuitem').first().isVisible())) await page.locator('.c3-day').first().click()
+    await page.getByRole('menuitem', { name: 'Show earlier days' }).click()
+    await expect.poll(() => cursors().length).toBe(n + 1)
+    return cursors()[n]
+  }
+  /** The page held at the gate is let through as `answer`, with its input's view; the gate shuts again after. */
+  const letThrough = async (answer: Answer) => {
+    const n = views()
+    gate.page = answer
+    gate.open = true
+    served.release()
+    await expect.poll(views).toBe(n + 1)
+    gate.open = false
+  }
+  /** The space read again while the page is held (20 s on); `later` ends that read at another instant. */
+  const readAgain = async (answer: () => Answer, later?: Date) => {
+    const reads = asked(ledger).controlled
+    world.space = answer
+    if (later) await page.clock.setFixedTime(later)
+    await page.clock.fastForward(21_000)
+    await expect.poll(() => asked(ledger).controlled).toBeGreaterThan(reads)
+  }
+  return { h, page, ledger, more, letThrough, readAgain }
+}
+
+const r2Old = (page: Page) => page.getByText('An older, private question from before.')
+
+test('R2 · read more joins the read it was read for, when that read is still the one shown', async ({ context }) => {
+  const { page, ledger, more, letThrough } = await r2Crossing(context)
+  expect(await more()).toBe('11')
+  await letThrough(r2Page(7, 1))
+  await expect(r2Old(page)).toBeVisible()
+  expect(await more()).toBe('5') // joined: the next window is asked before it
+  expect(asked(ledger)).toMatchObject({ legacyAfterPin: 0, writes: [] })
+})
+
+test('R2 · a newer revision read at the same instant never takes the older window; read more then reads against it', async ({
+  context,
+}) => {
+  const { h, page, ledger, more, letThrough, readAgain } = await r2Crossing(context)
+  expect(await more()).toBe('11')
+  await readAgain(() => ({ json: space(h, { earlier: true, revision: 8 }) }))
+  await letThrough(r2Page(7, 1))
+  expect(await more()).toBe('11') // not joined: the read shown still begins at 11
+  await expect(r2Old(page)).toHaveCount(0)
+  // Read more against revision 8 joins its own window.
+  await letThrough(r2Page(8, 1))
+  await expect(r2Old(page)).toBeVisible()
+  expect(asked(ledger)).toMatchObject({ legacyAfterPin: 0, writes: [] })
+})
+
+test('R2 · a new epoch read at the same instant never takes the erased epoch’s window', async ({ context }) => {
+  const { h, page, ledger, more, letThrough, readAgain } = await r2Crossing(context)
+  expect(await more()).toBe('11')
+  await readAgain(() => ({ json: space(h, { epoch: 2, revision: 1, turns: [R2_AFTER], inputs: [], earlier: true }) }))
+  await expect(page.getByText('A new beginning, after the erasure.')).toBeVisible()
+  await letThrough(r2Page(7, 1))
+  expect(await more()).toBe('31') // the erased epoch's window was let go
+  await expect(r2Old(page)).toHaveCount(0)
+  expect(asked(ledger)).toMatchObject({ legacyAfterPin: 0, writes: [] })
+})
+
+test('R2 · newer money at the same revision, epoch and instant stays; the older window isn’t joined to it', async ({
+  context,
+}) => {
+  const { h, page, ledger, more, letThrough, readAgain } = await r2Crossing(context)
+  expect(await more()).toBe('11')
+  await expect(statusOf(page, h.w)).toContainText('cost not settled yet')
+  await readAgain(() => ({ json: space(h, { earlier: true, inputs: viewsOf(h, { settled: true }) }) }))
+  await expect(statusOf(page, h.w)).not.toContainText('cost not settled yet')
+  await letThrough(r2Page(7, 1))
+  expect(await more()).toBe('11') // the read the window was read for was replaced: not joined
+  await expect(r2Old(page)).toHaveCount(0)
+  await expect(statusOf(page, h.w)).not.toContainText('cost not settled yet') // the newer money stays
+  await letThrough(r2Page(7, 1))
+  await expect(r2Old(page)).toBeVisible()
+  await expect(statusOf(page, h.w)).not.toContainText('cost not settled yet')
+  expect(asked(ledger)).toMatchObject({ legacyAfterPin: 0, writes: [] })
+})
+
+test('R2 · a read that ended at another instant isn’t the one read for either: the window waits for the next', async ({
+  context,
+}) => {
+  const { h, page, ledger, more, letThrough, readAgain } = await r2Crossing(context)
+  expect(await more()).toBe('11')
+  await readAgain(() => ({ json: space(h, { earlier: true }) }), new Date(T0 + 60_000))
+  await letThrough(r2Page(7, 1))
+  expect(await more()).toBe('11')
+  await expect(r2Old(page)).toHaveCount(0)
   expect(asked(ledger)).toMatchObject({ legacyAfterPin: 0, writes: [] })
 })
 
