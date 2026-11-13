@@ -53,9 +53,16 @@ export function roomElsewhere(
   now: Date,
   viewerId: string,
 ): Room | null {
-  if (!short(capacityOf(from, observations, now))) return null
+  // An account not reported (null) is no account to compare: it has room nowhere and gives none (INC01-DES-002).
+  if (from.entitlementId === null || !short(capacityOf(from, observations, now))) return null
   const roomy = resources
-    .filter((r) => r.id !== from.id && r.entitlementId !== from.entitlementId && r.host.state === 'online')
+    .filter(
+      (r) =>
+        r.id !== from.id &&
+        r.entitlementId !== null &&
+        r.entitlementId !== from.entitlementId &&
+        r.host.state === 'online',
+    )
     .map((r) => ({ r, c: capacityOf(r, observations, now) }))
     .filter(({ c }) => (c.limiting?.percent ?? 100) < WARN_AT && !c.pace?.runsOut)
     .toSorted(
