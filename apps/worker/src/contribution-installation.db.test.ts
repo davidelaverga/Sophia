@@ -1,6 +1,7 @@
 // INC04-S02a coherent: the worker's new-work installation hold on real PostgreSQL, with the worker's own login. Level:
-// sql-run. The database is the earlier source's installation: every migration of this tree except 0105 (0106
-// included), a set no prefix can express. The rows come from the real producers: a research admission through the old
+// sql-run. The database is the earlier source's installation: this tree's migrations before 0109 except 0105 (0106,
+// 0107 and 0108 included), a set no prefix can express; 0109 and later declare on 0105's objects, so that history never
+// ran them without it. The rows come from the real producers: a research admission through the old
 // same-signature SQL (as an earlier API binary would write it), and Stop commands (control.settle and native.stop,
 // cleanup true). It shows:
 // * a mixed batch: cleanup is dispatched, new work is held, its claimed state and lease kept as committed, with no
@@ -10,7 +11,8 @@
 // * a row that already has a runtime command (written by an earlier worker binary, then left outcome_unknown by a
 //   SYNTHETIC fault the migration owner records) reconciles from that command and is never resent;
 // * the real dispatcher loop over held work runs a bounded number of passes;
-// * once the actual 0105 file is applied, the same held row is dispatched to its runtime.
+// * once the actual 0105 file is applied (its SQL directly, the old-SQL lifecycle; the API installation test owns the
+//   real migrator's all-pending upgrade), the same held row is dispatched to its runtime.
 // Everything is SYNTHETIC: no provider, account or route is qualified, and no real runtime runs.
 import { randomUUID } from 'node:crypto'
 import { mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync } from 'node:fs'
@@ -38,31 +40,42 @@ import { dispatchOnce, RuntimeDispatcher } from './runtime-dispatch.ts'
 
 const MIGRATIONS = fileURLToPath(new URL('../../../db/migrations', import.meta.url))
 const ATOMIC = '0105_contribution_atomic_admission.sql'
+/** The end of the earlier source's history: 0109 is the first migration that declares on 0105's objects. */
+const EARLIER_BOUNDARY = '0109'
 const LEASE_SECONDS = 5 // the smallest lease claim_runtime_outbox accepts
 const MD = { id: 'sophia-research-md-v1', route: 'research-sol-medium-v1', presetDigest: 'sha256:md' }
 const QUESTION = { question: 'Which sandboxes do PDF rendering services use?', outputs: ['markdown'] }
 
-let dir: string
 let db: TestDatabase
 let api: pg.Pool
 let worker: pg.Pool
 let owner: pg.Pool
+// Teardown acts only on what setup actually made. A setup failure (a refused migration, say) is then the error
+// reported, never masked by a teardown reading a handle it never created; every pool that exists is still ended, in
+// order and with its own failure raised, before the database it was opened on is dropped.
+let dir: string | undefined
+let drop: (() => Promise<void>) | undefined
+const opened: pg.Pool[] = []
+const open = (pool: pg.Pool): pg.Pool => {
+  opened.push(pool)
+  return pool
+}
 
 before(async () => {
-  dir = mkdtempSync(join(tmpdir(), 'sophia-without-0105-'))
-  for (const f of readdirSync(MIGRATIONS).filter((n) => n.endsWith('.sql') && n !== ATOMIC))
-    symlinkSync(join(MIGRATIONS, f), join(dir, f))
-  db = await createTestDatabase(dir)
-  api = createPool(db.apiUrl, { max: 4 })
-  worker = createPool(db.workerUrl, { max: 2 })
-  owner = new pg.Pool({ connectionString: db.ownerUrl, max: 2 })
+  const linked = mkdtempSync(join(tmpdir(), `sophia-before-${EARLIER_BOUNDARY}-without-0105-`))
+  dir = linked
+  for (const f of readdirSync(MIGRATIONS).filter((n) => n.endsWith('.sql') && n < EARLIER_BOUNDARY && n !== ATOMIC))
+    symlinkSync(join(MIGRATIONS, f), join(linked, f))
+  db = await createTestDatabase(linked)
+  drop = () => db.drop()
+  api = open(createPool(db.apiUrl, { max: 4 }))
+  worker = open(createPool(db.workerUrl, { max: 2 }))
+  owner = open(new pg.Pool({ connectionString: db.ownerUrl, max: 2 }))
 })
 after(async () => {
-  await api.end()
-  await worker.end()
-  await owner.end()
-  await db.drop()
-  rmSync(dir, { recursive: true, force: true })
+  for (const pool of opened) await pool.end()
+  if (drop !== undefined) await drop()
+  if (dir !== undefined) rmSync(dir, { recursive: true, force: true })
 })
 
 const one = async <T>(sql: string, params: unknown[] = []): Promise<T> => (await owner.query(sql, params)).rows[0] as T

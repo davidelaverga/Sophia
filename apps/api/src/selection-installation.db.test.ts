@@ -6,12 +6,14 @@
 // * F02: with contributions on, /ready and the contribution routes' own installation check require everything they
 //   promise (0094, 0100, 0104's protection and qualification, 0105, 0106). Real partial schemas are built from exact
 //   prefixes of this tree's own migrations. A refused write leaves no account change, idempotency row or command.
-// * INC04-S02a coherent: 0105's atomic admission is core. A database of the earlier source (every migration but 0105,
-//   0106 included: no prefix) proves nothing installed: /ready refuses on and off, and the contribution routes, the
-//   preview, the maintained research admission and the runtime's paid reserve all refuse before their SQL, while the
-//   same fixtures through the old SQL still succeed there (the gap the guards close for the maintained callers only).
-//   The real migrator, on a ledger that already records 0106, applies the pending 0105 and keeps 0106; the same
-//   running API instances then serve, nothing having cached the refusal.
+// * INC04-S02a coherent: 0105's atomic admission is core. A database of the earlier source (this tree's migrations
+//   before 0109 except 0105, 0106, 0107 and 0108 included: no prefix; 0109 and later declare on 0105's objects, so
+//   that history never ran them without it) proves nothing installed: /ready refuses on and off, and the contribution
+//   routes, the preview, the maintained research admission and the runtime's paid reserve all refuse before their
+//   SQL, while the same fixtures through the old SQL still succeed there (the gap the guards close for the maintained
+//   callers only). The real migrator, on a ledger that already records 0106, applies every pending migration (0105
+//   first, then 0109 and every later one, derived from the directory) and keeps 0106; the same running API instances
+//   then serve, nothing having cached the refusal.
 // Every account, grant, resource and token is SYNTHETIC; nothing here qualifies a real owner, account or route.
 // * E62-SQL-F01 (fixture lifecycle): every pool this file opens is owned, and a teardown drops its database only after
 //   each client those pools opened has actually ended (`owned`, `endOwned`, and the fence's own check at the end).
@@ -570,11 +572,23 @@ describe('with 0104 and 0106 installed (F02)', () => {
 
 // ---- INC04-S02a coherent: 0105's atomic admission is core, and 0106 can be installed without it ----
 
-/** Every migration of this tree except `omit`, linked into a fresh directory: no prefix can express this set. */
-function allBut(omit: string): string {
-  const dir = mkdtempSync(join(tmpdir(), `sophia-without-${omit}-`))
+/**
+ * The explicit end of the earlier source's history: 0109 (C2A's research call evidence) is the first migration that
+ * declares on 0105's objects (`sophia.api_contribution_claims`), so a database without 0105 never ran it or any later one.
+ */
+const EARLIER_BOUNDARY = '0109'
+
+/**
+ * The earlier source's installation: this tree's migrations before `EARLIER_BOUNDARY` (exclusive) except `omit`,
+ * linked into a fresh directory, the exact bytes of every later one it holds (0106, 0107, 0108) included. No prefix
+ * can express this set.
+ */
+function earlierWithout(omit: string): string {
+  const dir = mkdtempSync(join(tmpdir(), `sophia-before-${EARLIER_BOUNDARY}-without-${omit}-`))
   const migrations = resolve('db/migrations')
-  for (const f of readdirSync(migrations).filter((n) => n.endsWith('.sql') && !n.startsWith(`${omit}_`))) {
+  for (const f of readdirSync(migrations).filter(
+    (n) => n.endsWith('.sql') && n < EARLIER_BOUNDARY && !n.startsWith(`${omit}_`),
+  )) {
     symlinkSync(join(migrations, f), join(dir, f))
   }
   return dir
@@ -694,7 +708,7 @@ describe('on a database of the earlier source: 0106 installed, 0105 not (no pref
   let owner: pg.Pool
   let on: FastifyInstance
   let off: FastifyInstance
-  const dir = allBut('0105')
+  const dir = earlierWithout('0105')
 
   before(async () => {
     db = await createTestDatabase(dir)
@@ -805,7 +819,7 @@ describe('the real migrator on a ledger that already records 0106, without 0105 
   let worker: pg.Pool
   let on: FastifyInstance
   let off: FastifyInstance
-  const dir = allBut('0105')
+  const dir = earlierWithout('0105')
   const suffix = randomBytes(6).toString('hex')
   const logins = [`sophia_api_u_${suffix}`, `sophia_worker_u_${suffix}`]
 
@@ -844,7 +858,7 @@ describe('the real migrator on a ledger that already records 0106, without 0105 
     rmSync(dir, { recursive: true, force: true })
   })
 
-  it('applies only the pending 0105, keeps 0106 exactly, and the same running API instances then serve', async () => {
+  it('applies every pending migration, 0105 first, keeps 0106 exactly, and the same running API instances then serve', async () => {
     const ledger = async () =>
       new Map(
         (
@@ -861,8 +875,17 @@ describe('the real migrator on a ledger that already records 0106, without 0105 
       ).rows[0]?.d
     const files = new Map(readMigrations(resolve('db/migrations')).map((f) => [f.version, f.sha256]))
     const first = await ledger()
+    assert.deepEqual(
+      [...first.keys()].toSorted(),
+      [...files.keys()].filter((v) => v < EARLIER_BOUNDARY && v !== '0105'),
+      'the ledger records exactly the earlier source: every migration before 0109 except 0105',
+    )
     assert.equal(first.get('0106'), files.get('0106'), 'the ledger already records 0106, as written')
     assert.equal(first.has('0105'), false, 'and not 0105')
+    // Every current migration the ledger does not record is pending: derived from the directory, never from a report.
+    const pending = [...files.keys()].filter((v) => !first.has(v))
+    assert.equal(pending[0], '0105', 'the pending upgrade begins with the missing 0105')
+    assert.ok(pending.includes(EARLIER_BOUNDARY), 'and includes the dependent 0109 (no ceiling on later ones)')
     const snapshotBefore = await snapshotDef()
 
     // Refused while 0105 is missing (each answer is asked again, never remembered as false).
@@ -874,14 +897,16 @@ describe('the real migrator on a ledger that already records 0106, without 0105 
 
     const report = await withClusterMigrationLock(() => migrate(empty.ownerUrl, resolve('db/migrations')))
     assert.deepEqual(
-      report.rows.filter((r) => r.status !== 'already_applied').map((r) => [r.version, r.status]),
-      [['0105', 'applied']],
-      'only the pending 0105 was applied',
+      report.rows.map((r) => [r.version, r.status]),
+      [...files.keys()].map((v) => [v, first.has(v) ? 'already_applied' : 'applied']),
+      'every recorded migration already applied, and exactly every pending one applied, in order',
     )
     const second = await ledger()
+    assert.deepEqual([...second.keys()].toSorted(), [...files.keys()], 'the ledger now records every migration')
+    for (const [v, sha] of first) assert.equal(second.get(v), sha, `${v} keeps its recorded checksum`)
     assert.equal(second.get('0106'), first.get('0106'), '0106 keeps its recorded checksum')
-    assert.equal(second.get('0105'), files.get('0105'))
-    assert.equal(await snapshotDef(), snapshotBefore, '0106’s role-first snapshot is unchanged by 0105')
+    for (const v of pending) assert.equal(second.get(v), files.get(v), `${v} is recorded with its file's checksum`)
+    assert.equal(await snapshotDef(), snapshotBefore, '0106’s role-first snapshot is unchanged by the upgrade')
     assert.equal(await atomicAdmissionInstalled(pool), true)
     assert.equal(await atomicAdmissionInstalled(worker), true)
 
