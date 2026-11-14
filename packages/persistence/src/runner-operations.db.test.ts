@@ -19,8 +19,11 @@ import {
   prepareRunnerSend,
   readRunnerOperation,
   readRunnerOperations,
+  recordRunnerAnswer,
+  recordRunnerModelReport,
   withActor,
 } from './index.ts'
+import { modelReportFailure } from './runner-operations.ts'
 
 const A = randomUUID() // admin, the resource's owner
 const E = randomUUID() // editor
@@ -687,4 +690,363 @@ describe('source authority at admission (0096)', () => {
       assert.equal((await counts(p.projectId)).ops, expires ? 0 : 1)
     })
   }
+})
+
+// ---- provider-reported model evidence (INC04-S03b B2, migration 0108) ----
+// Every report is SYNTHETIC, in the carried producer's shape: nothing here is a provider's report or qualifies a T3
+// install. Operations reach `received` through the real 0092 functions on the worker login.
+
+const NATIVE = { namespace: 'client:fake-session-1', commandId: 'mcp:launch:c-1', messageId: 'mcp:launch:m-1' }
+
+/** A create of `who` sent and received (bound to `journalId`), with its thread and run. */
+async function receivedCreate(journalId = randomUUID()) {
+  const who = randomUUID()
+  const p = await seedProject(db.ownerUrl, { admin: who })
+  const r = await nativeResource(p.projectId, who)
+  const created = await admit(who, p.projectId, createReq(r.resourceId, p.goalId))
+  const claimed = await claimRunnerOutbox(
+    worker,
+    'runner-worker',
+    { ownerId: who, environmentRef: 'env-owner-1' },
+    { newWork: true, limit: 50, leaseSeconds: 30 },
+  )
+  const row = claimed.find((o) => o.project_id === p.projectId)
+  assert.ok(row?.lease_token)
+  assert.equal((await prepareRunnerSend(worker, p.projectId, row.id, row.lease_token, journalId)).result, 'send')
+  const threadId = `t-${randomUUID()}`
+  const runId = `r-${randomUUID()}`
+  const target = { projectId: p.projectId, operationId: created.operationId, journalId }
+  await recordRunnerAnswer(
+    worker,
+    { ...target, leaseToken: row.lease_token },
+    { kind: 'received', identity: { ...NATIVE, threadId }, runId, delivery: 'started' },
+  )
+  return { ...p, who, ...r, target, threadId, runId, operationId: created.operationId }
+}
+
+const attemptOf = (over: Record<string, unknown> = {}) => ({
+  attemptId: 'attempt:1',
+  attemptOrdinal: 1,
+  reason: 'initial',
+  status: 'completed',
+  active: true,
+  providerInstanceId: 'claudeAgent',
+  rootTurns: 1,
+  terminalRootTurns: 1,
+  reportingRootTurns: 1,
+  unboundTurns: 0,
+  modelEvidence: 'reported',
+  models: ['synthetic-model-a'],
+  modelsOmitted: 0,
+  excludedModelValues: 0,
+  ...over,
+})
+const collectedOf = (threadId: string, runId: string, over: Record<string, unknown> = {}, attempt = attemptOf()) => ({
+  state: 'collected',
+  threadId,
+  runId,
+  collectedAt: '2026-11-14T00:00:00.000Z',
+  activeAttemptId: 'attempt:1',
+  attemptPolicy: 'latest_by_attempt_ordinal',
+  attemptLimit: 8,
+  attemptsOwned: 1,
+  attemptsOmitted: 0,
+  attempts: [attempt],
+  ...over,
+})
+
+interface EvidenceRow {
+  seq: number
+  state: string
+  evidence: Record<string, unknown> | null
+  unavailable_reason: string | null
+  malformed_reason: string | null
+  reported_collected_at: string | null
+  evidence_sha256: string | null
+  native_thread_id: string | null
+  native_run_id: string | null
+  owner_id: string
+  connection_id: string
+  requested_settings_sha256: string | null
+  gateway_journal_id: string
+  operation_kind: string
+}
+const evidenceOf = async (operationId: string) =>
+  (
+    await owner.query<EvidenceRow>(
+      `SELECT * FROM sophia.owner_runner_model_reports WHERE operation_id=$1 ORDER BY seq`,
+      [operationId],
+    )
+  ).rows
+/** The worker's own call with a raw JSON text: what the database itself accepts. */
+const appendRaw = (t: { projectId: string; operationId: string; journalId: string }, text: string) =>
+  worker.query<{ r: { changed: boolean; seq?: number; state?: string; capped?: boolean } }>(
+    'SELECT sophia.owner_runner_record_models($1, $2, $3, $4::jsonb) AS r',
+    [t.projectId, t.operationId, t.journalId, text],
+  )
+/** Everything the appender must never change: the operation, its outbox row, command, binding and reservations. */
+const untouched = async (projectId: string, operationId: string) =>
+  one<{ s: string }>(
+    `SELECT md5(concat_ws('|',
+       (SELECT to_jsonb(o)::text FROM sophia.owner_runner_operations o WHERE o.id=$2),
+       (SELECT to_jsonb(x)::text FROM sophia.outbox x JOIN sophia.owner_runner_operations o ON x.id=o.outbox_id WHERE o.id=$2),
+       (SELECT to_jsonb(c)::text FROM sophia.commands c JOIN sophia.owner_runner_operations o ON c.id=o.command_id WHERE o.id=$2),
+       (SELECT to_jsonb(b)::text FROM sophia.execution_bindings b JOIN sophia.owner_runner_operations o ON b.id=o.binding_id WHERE o.id=$2),
+       (SELECT coalesce(jsonb_agg(to_jsonb(r) ORDER BY r.binding_id)::text,'') FROM sophia.owner_runner_reservations r WHERE r.project_id=$1),
+       (SELECT count(*)::text FROM sophia.project_events WHERE project_id=$1),
+       (SELECT event_sequence::text FROM sophia.projects WHERE id=$1))) AS s`,
+    [projectId, operationId],
+  )
+
+describe('provider-reported model evidence (INC04-S03b B2, 0108)', () => {
+  it("records absent from the operation's own ids, copies its provenance, and changes nothing else", async () => {
+    const w = await receivedCreate()
+    const beforeAppend = (await untouched(w.projectId, w.operationId)).s
+    assert.deepEqual(await recordRunnerModelReport(worker, w.target, { state: 'absent' }), {
+      recorded: true,
+      changed: true,
+    })
+    assert.deepEqual(await recordRunnerModelReport(worker, w.target, { state: 'absent' }), {
+      recorded: true,
+      changed: false,
+    })
+    const [row, ...rest] = await evidenceOf(w.operationId)
+    assert.equal(rest.length, 0)
+    assert.equal(row?.state, 'absent')
+    assert.deepEqual(
+      [row?.native_thread_id, row?.native_run_id, row?.owner_id, row?.connection_id, row?.gateway_journal_id],
+      [w.threadId, w.runId, w.who, w.connectionId, w.target.journalId],
+    )
+    assert.equal(row?.operation_kind, 'create')
+    assert.equal(row?.evidence, null)
+    const digest = await one<{ d: string }>(
+      `SELECT sophia.owner_runner_sha256(requested_settings::text) AS d FROM sophia.owner_runner_operations WHERE id=$1`,
+      [w.operationId],
+    )
+    assert.equal(row?.requested_settings_sha256, digest.d, 'the frozen request, as provenance only')
+    assert.equal((await untouched(w.projectId, w.operationId)).s, beforeAppend)
+  })
+
+  it('appends a collected report on change only: collectedAt and integer spellings are no change, A-B-A is', async () => {
+    const w = await receivedCreate()
+    const a = collectedOf(w.threadId, w.runId)
+    assert.equal((await recordRunnerModelReport(worker, w.target, a as never)).recorded, true)
+    const [first] = await evidenceOf(w.operationId)
+    assert.equal(first?.state, 'collected')
+    assert.equal(first?.reported_collected_at, '2026-11-14T00:00:00.000Z')
+    const { collectedAt: _t, ...rest } = a
+    assert.deepEqual(first?.evidence, rest)
+    // The same content collected later, or spelled 8.0 and 1e0: the first sighting is kept, nothing is appended.
+    assert.equal((await appendRaw(w.target, JSON.stringify({ ...a, collectedAt: 'later' }))).rows[0]?.r.changed, false)
+    const spelled = JSON.stringify(a)
+      .replace('"attemptLimit":8', '"attemptLimit":8.0')
+      .replace('"rootTurns":1', '"rootTurns":1e0')
+    assert.notEqual(spelled, JSON.stringify(a))
+    assert.equal((await appendRaw(w.target, spelled)).rows[0]?.r.changed, false)
+    const b = collectedOf(w.threadId, w.runId, {}, attemptOf({ models: ['synthetic-model-a', 'synthetic-model-b'] }))
+    assert.equal((await recordRunnerModelReport(worker, w.target, b as never)).recorded, true)
+    // A later report without the models: an erasure is appended, never a retraction.
+    assert.equal((await recordRunnerModelReport(worker, w.target, a as never)).recorded, true)
+    assert.deepEqual(
+      (await evidenceOf(w.operationId)).map((r) => [
+        r.seq,
+        r.state,
+        (r.evidence?.attempts as { models: string[] }[])?.[0]?.models,
+      ]),
+      [
+        [1, 'collected', ['synthetic-model-a']],
+        [2, 'collected', ['synthetic-model-a', 'synthetic-model-b']],
+        [3, 'collected', ['synthetic-model-a']],
+      ],
+    )
+  })
+
+  it('records foreign, malformed and oversized reports with no content; another journal, a Stop or a settled run add nothing', async () => {
+    const w = await receivedCreate()
+    await recordRunnerModelReport(worker, w.target, collectedOf(w.threadId, 'another-run') as never)
+    await appendRaw(w.target, JSON.stringify({ state: 'collected', models: ['secret-model'] }))
+    await recordRunnerModelReport(worker, w.target, { state: 'malformed', reason: 'oversize' })
+    await appendRaw(w.target, JSON.stringify({ ...collectedOf(w.threadId, w.runId), collectedAt: 'x'.repeat(50_000) }))
+    await recordRunnerModelReport(worker, w.target, {
+      state: 'unavailable',
+      threadId: w.threadId,
+      runId: w.runId,
+      reason: 'provider_turns_load_failed',
+      collectedAt: 'c',
+    })
+    const rows = await evidenceOf(w.operationId)
+    assert.deepEqual(
+      rows.map((r) => [r.state, r.malformed_reason ?? r.unavailable_reason, r.evidence, r.reported_collected_at]),
+      [
+        ['foreign', null, null, null],
+        ['malformed', 'invalid', null, null],
+        ['malformed', 'oversize', null, null],
+        ['unavailable', 'provider_turns_load_failed', null, 'c'],
+      ],
+      'the second oversize is the same as the first: no new row',
+    )
+    assert.ok(!JSON.stringify(rows).includes('secret-model'))
+    const other = { ...w.target, journalId: randomUUID() }
+    assert.equal((await appendRaw(other, '{"state":"absent"}')).rows[0]?.r.changed, false)
+    // Settled: the terminal observation is recorded, and nothing is appended after it.
+    await recordRunnerAnswer(
+      worker,
+      { ...w.target, leaseToken: null },
+      { kind: 'run', status: 'completed', terminal: true },
+    )
+    assert.equal((await appendRaw(w.target, '{"state":"absent"}')).rows[0]?.r.changed, false)
+    assert.equal((await evidenceOf(w.operationId)).length, 4)
+  })
+
+  it('appends nothing for a Stop, even received and bound to the journal', async () => {
+    const w = await receivedCreate()
+    const stop = await admit(w.who, w.projectId, {
+      kind: 'stop',
+      resourceId: w.resourceId,
+      targetOperationId: w.operationId,
+    })
+    const claimed = await claimRunnerOutbox(
+      worker,
+      'runner-worker',
+      { ownerId: w.who, environmentRef: 'env-owner-1' },
+      { newWork: true, limit: 50, leaseSeconds: 30 },
+    )
+    const row = claimed.find((o) => o.project_id === w.projectId)
+    assert.ok(row?.lease_token)
+    assert.equal(
+      (await prepareRunnerSend(worker, w.projectId, row.id, row.lease_token, w.target.journalId)).result,
+      'send',
+    )
+    const t = { projectId: w.projectId, operationId: stop.operationId, journalId: w.target.journalId }
+    await recordRunnerAnswer(
+      worker,
+      { ...t, leaseToken: row.lease_token },
+      {
+        kind: 'received',
+        identity: { ...NATIVE, messageId: null, threadId: w.threadId },
+        runId: null,
+        delivery: 'stop_requested',
+      },
+    )
+    assert.equal(
+      (await one<{ state: string }>(`SELECT state FROM sophia.owner_runner_operations WHERE id=$1`, [stop.operationId]))
+        .state,
+      'received',
+    )
+    assert.equal((await appendRaw(t, '{"state":"absent"}')).rows[0]?.r.changed, false)
+    assert.deepEqual(await evidenceOf(stop.operationId), [])
+  })
+
+  it('keeps 32 ordinary rows, then exactly one capped mark, then nothing', async () => {
+    const w = await receivedCreate()
+    for (let i = 0; i < 34; i++) {
+      const r = await recordRunnerModelReport(
+        worker,
+        w.target,
+        collectedOf(w.threadId, w.runId, {}, attemptOf({ excludedModelValues: i })) as never,
+      )
+      assert.equal(r.recorded, true)
+      assert.equal(r.recorded && r.changed, i < 33, String(i))
+    }
+    const rows = await evidenceOf(w.operationId)
+    assert.equal(rows.length, 33)
+    assert.deepEqual(
+      rows.slice(30).map((r) => [r.seq, r.state, r.evidence_sha256 === null]),
+      [
+        [31, 'collected', false],
+        [32, 'collected', false],
+        [33, 'capped', true],
+      ],
+    )
+    assert.equal((await appendRaw(w.target, '{"state":"absent"}')).rows[0]?.r.capped, true)
+  })
+
+  it('serializes concurrent appends: the same report twice is one row, two reports are two ordered rows', async () => {
+    const w = await receivedCreate()
+    const same = JSON.stringify(collectedOf(w.threadId, w.runId))
+    const twice = await Promise.all([appendRaw(w.target, same), appendRaw(w.target, same)])
+    assert.deepEqual(
+      twice.map((r) => String(r.rows[0]?.r.changed)).toSorted((a, b) => a.localeCompare(b)),
+      ['false', 'true'],
+    )
+    const x = JSON.stringify(collectedOf(w.threadId, w.runId, {}, attemptOf({ unboundTurns: 1 })))
+    const y = JSON.stringify(collectedOf(w.threadId, w.runId, {}, attemptOf({ unboundTurns: 2 })))
+    const both = await Promise.all([appendRaw(w.target, x), appendRaw(w.target, y)])
+    assert.deepEqual(
+      both.map((r) => r.rows[0]?.r.seq ?? 0).toSorted((a, b) => a - b),
+      [2, 3],
+    )
+    assert.deepEqual(
+      (await evidenceOf(w.operationId)).map((r) => r.seq),
+      [1, 2, 3],
+    )
+  })
+
+  it('is append-only and private: no update, delete or truncate even for the owner; no application read or call', async () => {
+    const w = await receivedCreate()
+    await recordRunnerModelReport(worker, w.target, { state: 'absent' })
+    for (const sql of [
+      `UPDATE sophia.owner_runner_model_reports SET state='foreign' WHERE operation_id=$1`,
+      `DELETE FROM sophia.owner_runner_model_reports WHERE operation_id=$1`,
+    ])
+      assert.match(await codeOf(owner.query(sql, [w.operationId])), /append-only/)
+    assert.match(await codeOf(owner.query('TRUNCATE sophia.owner_runner_model_reports')), /append-only/)
+    assert.match(await codeOf(pool.query('SELECT * FROM sophia.owner_runner_model_reports')), /permission denied/)
+    assert.match(await codeOf(worker.query('SELECT * FROM sophia.owner_runner_model_reports')), /permission denied/)
+    assert.deepEqual(await recordRunnerModelReport(pool, w.target, { state: 'absent' }), {
+      recorded: false,
+      reason: 'failed',
+    })
+    assert.equal((await evidenceOf(w.operationId)).length, 1)
+  })
+
+  it('fails closed with a fixed class only: a missing function, a refused report, a lost connection', async () => {
+    const w = await receivedCreate()
+    // A NUL cannot be held by jsonb: the database refuses the text before the recorder runs.
+    assert.deepEqual(
+      await recordRunnerModelReport(worker, w.target, {
+        state: 'unavailable',
+        threadId: w.threadId,
+        runId: w.runId,
+        reason: 'attempts_not_loaded',
+        collectedAt: 'a\u0000b',
+      }),
+      {
+        recorded: false,
+        reason: 'refused',
+      },
+    )
+    await owner.query(
+      'ALTER FUNCTION sophia.owner_runner_record_models(uuid,uuid,uuid,jsonb) RENAME TO owner_runner_record_models_hidden',
+    )
+    try {
+      assert.deepEqual(await recordRunnerModelReport(worker, w.target, { state: 'absent' }), {
+        recorded: false,
+        reason: 'not_installed',
+      })
+    } finally {
+      await owner.query(
+        'ALTER FUNCTION sophia.owner_runner_record_models_hidden(uuid,uuid,uuid,jsonb) RENAME TO owner_runner_record_models',
+      )
+    }
+    assert.deepEqual(
+      ['42883', '22023', '22P05', '22001', '40001', '40P01', '08006', '57P01', '53300', 'XX000', ''].map((code) =>
+        modelReportFailure(Object.assign(new Error('detail that must not leak'), { code })),
+      ),
+      [
+        'not_installed',
+        'refused',
+        'refused',
+        'refused',
+        'transient',
+        'transient',
+        'transient',
+        'transient',
+        'transient',
+        'failed',
+        'failed',
+      ],
+    )
+    assert.deepEqual(await evidenceOf(w.operationId), [])
+  })
 })

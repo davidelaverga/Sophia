@@ -14,6 +14,8 @@ import { launchCommandId, stableMessageId, type T3Call, type T3Reply, type T3Tra
 interface FakeRun {
   runId: string
   status: string
+  /** INC04-S03b B2: a patched producer's `providerReportedModels` for this run, sent as given; unset = unpatched. */
+  providerReportedModels?: unknown
 }
 interface FakeMessage {
   messageId: string
@@ -118,6 +120,18 @@ export class FakeT3 implements T3Transport {
   /** End a run, as the native agent finishing (or failing) would. */
   finishRun(runId: string, status = 'completed'): void {
     for (const t of this.threads.values()) for (const r of t.runs) if (r.runId === runId) r.status = status
+  }
+
+  /**
+   * What a patched T3 reports for a run's models (patches/t3code/ade47301-provider-reported-models.patch), sent as
+   * given with every later read of it: SYNTHETIC, never a provider's report. `undefined` makes it unpatched again.
+   */
+  reportModels(runId: string, value: unknown): void {
+    const runs = [...this.threads.values()].flatMap((t) => t.runs).filter((r) => r.runId === runId)
+    for (const r of runs) {
+      if (value === undefined) delete r.providerReportedModels
+      else r.providerReportedModels = value
+    }
   }
 
   count(tool: T3Call['tool']): number {
@@ -239,7 +253,11 @@ export class FakeT3 implements T3Transport {
         recentRuns: thread.runs
           .slice(-runLimit)
           .toReversed()
-          .map((r) => ({ runId: r.runId, status: r.status })),
+          .map((r) => ({
+            runId: r.runId,
+            status: r.status,
+            ...('providerReportedModels' in r ? { providerReportedModels: r.providerReportedModels } : {}),
+          })),
         items: items.slice(after, after + this.pageSize),
         hasMore,
         nextPosition: hasMore ? after + this.pageSize : null,

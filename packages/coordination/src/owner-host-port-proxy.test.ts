@@ -285,6 +285,27 @@ describe('the owner-host port proxy: reconcile and observe', () => {
     assert.equal((await proxy(bad.s).observe(ident())).kind, 'unknown')
   })
 
+  it("passes a run's checked report through (INC04-S03b B2): malformed content is dropped, the status kept", async () => {
+    const reportedModels = {
+      state: 'unavailable',
+      threadId: 't-1',
+      runId: 'r-1',
+      reason: 'attempts_not_loaded',
+      collectedAt: 'x',
+    }
+    const run = { kind: 'run', status: 'completed', terminal: true }
+    const ok = store({ views: [view({ state: 'answered', answer: { ...run, reportedModels } })] })
+    assert.deepEqual(await proxy(ok.s).observe(ident()), { ...run, reportedModels })
+    const bad = store({
+      views: [
+        view({ state: 'answered', answer: { ...run, reportedModels: { state: 'collected', model: 'secret-m' } } }),
+      ],
+    })
+    const got = await proxy(bad.s).observe(ident())
+    assert.deepEqual(got, { ...run, reportedModels: { state: 'malformed', reason: 'invalid' } })
+    assert.ok(!JSON.stringify(got).includes('secret-m'))
+  })
+
   it('checks an observation for its own operation: a Stop needs the thread proof, a Create or Input its run (r5)', async () => {
     const observe = async (kind: 'create' | 'input' | 'stop', answer: unknown) => {
       const e = env({

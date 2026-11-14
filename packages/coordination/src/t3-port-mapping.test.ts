@@ -591,3 +591,41 @@ describe('a run window is exactly what T3 returns, and its newest active run is 
     )
   })
 })
+
+describe("a patched producer's providerReportedModels (INC04-S03b B2, 0108): carried raw, never part of validity", () => {
+  const report = { evidence: 'unavailable', reason: 'attempts_not_loaded', collectedAt: 'x' }
+  it('keeps nothing for an unpatched read: the decoded read has no modelReports key at all', () => {
+    const read = decodeThreadRead(readOf([{ runId: 'r-1', status: 'completed' }]), 't-1')
+    assert.ok(!('error' in read))
+    assert.ok(!('modelReports' in read))
+  })
+  it("keeps each listed run's raw value, malformed or not, and decodes the lifecycle exactly as without it", () => {
+    const runs = [
+      { runId: 'r-2', status: 'running', providerReportedModels: report },
+      { runId: 'r-1', status: 'completed', providerReportedModels: { garbage: true } },
+      { runId: 'r-0', status: 'completed' },
+    ]
+    const read = decodeThreadRead(readOf(runs, 'r-2'), 't-1')
+    const plain = decodeThreadRead(
+      readOf(
+        runs.map(({ runId, status }) => ({ runId, status })),
+        'r-2',
+      ),
+      't-1',
+    )
+    assert.ok(!('error' in read) && !('error' in plain))
+    const { modelReports, ...lifecycle } = read
+    assert.deepEqual(lifecycle, plain)
+    assert.deepEqual(
+      [...(modelReports ?? new Map())],
+      [
+        ['r-2', report],
+        ['r-1', { garbage: true }],
+      ],
+    )
+  })
+  it('never makes an inconsistent read evidence because a report is present', () => {
+    const body = readOf([{ runId: 'r-1', status: 'completed', providerReportedModels: report }], 'r-1')
+    assert.ok('error' in decodeThreadRead(body, 't-1'), 'a terminal run named active stays no evidence')
+  })
+})

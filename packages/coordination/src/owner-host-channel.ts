@@ -21,6 +21,7 @@ import {
   type RunnerOperationKind,
   type RunObservation,
 } from './runner-port.ts'
+import { checkReport } from './runner-model-report.ts'
 import { runState } from './t3-port-mapping.ts'
 
 export const OWNER_HOST_PROTOCOL_VERSION = 1
@@ -359,7 +360,9 @@ function statusState(status: string): 'terminal' | 'running' | 'unknown' {
  *   stop          `no_active_run` only: settlement proven by a complete, decoded read of the exact thread. A run
  *                 summary, whatever its status, is not that proof.
  *   create, input its own recorded run: a status the mapping knows, with `terminal` exactly as the mapping reads it.
- *                 Absence of an active run in the thread is not its run's state.
+ *                 Absence of an active run in the thread is not its run's state. INC04-S03b B2 (0108): it may carry
+ *                 one more key, `reportedModels`, checked on its own (runner-model-report checkReport): a malformed
+ *                 or oversized report becomes `malformed` with no content and never changes the checked status.
  *   any           `unknown`, with a reason.
  * A malformed, contradictory or operation-mismatched observation is null: the caller keeps it unknown. Nothing is
  * inferred from it, no native state is asserted, and the raw answer stays the exchange's evidence.
@@ -374,11 +377,14 @@ export function checkObservation(v: unknown, kind: RunnerOperationKind): RunObse
 
 /** A create's or input's own run: a status the mapping knows, with `terminal` exactly as the mapping reads it. */
 function ownRun(v: Fields): RunObservation | null {
-  if (v.kind !== 'run' || !sameKeys(v, ['kind', 'status', 'terminal'])) return null
+  const reported = Object.hasOwn(v, 'reportedModels')
+  if (v.kind !== 'run' || !sameKeys(v, ['kind', 'status', 'terminal', ...(reported ? ['reportedModels'] : [])]))
+    return null
   if (!text(v.status, 40) || typeof v.terminal !== 'boolean') return null
   const state = statusState(v.status)
   if (state === 'unknown' || (state === 'terminal') !== v.terminal) return null
-  return { kind: 'run', status: v.status, terminal: v.terminal }
+  const run = { kind: 'run', status: v.status, terminal: v.terminal } as const
+  return reported ? { ...run, reportedModels: checkReport(v.reportedModels) } : run
 }
 
 /** A short reason with no secret-shaped text: secrets, bearer tokens and long opaque runs are masked. */

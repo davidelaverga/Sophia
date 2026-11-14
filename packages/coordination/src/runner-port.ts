@@ -21,6 +21,8 @@
  */
 import { createHash } from 'node:crypto'
 import { canonicalJson } from './canonical.ts'
+import type { RunnerModelReport } from './runner-model-report.ts'
+export type { RunnerModelEvidence, RunnerModelReport } from './runner-model-report.ts'
 
 export const RUNNER_PROTOCOL_VERSION = 1
 /** The source-authority envelope (0096): a create or input whose instruction travels as a hash-checked payload. */
@@ -175,9 +177,19 @@ export type RunnerAnswer =
    */
   | { readonly kind: 'settled'; readonly identity: NativeIdentity | null; readonly reason: string }
 
-/** An observation: `terminal` and `no_active_run` only from a complete, decoded read of the exact thread (R1-F04). */
+/**
+ * An observation: `terminal` and `no_active_run` only from a complete, decoded read of the exact thread (R1-F04).
+ * INC04-S03b B2 (0108): a run's observation may carry what a patched producer reported for it (runner-model-report.ts).
+ * It is evidence beside the status, never part of it: absent for an unpatched producer, so that answer keeps exactly
+ * `kind`, `status` and `terminal`.
+ */
 export type RunObservation =
-  | { readonly kind: 'run'; readonly status: string; readonly terminal: boolean }
+  | {
+      readonly kind: 'run'
+      readonly status: string
+      readonly terminal: boolean
+      readonly reportedModels?: RunnerModelReport
+    }
   | { readonly kind: 'no_active_run' }
   | { readonly kind: 'unknown'; readonly reason: string }
 

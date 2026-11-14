@@ -36,6 +36,7 @@
  * @module @sophia/coordination/runner-gateway
  */
 import { canonicalJson } from './canonical.ts'
+import { reportFromProducer } from './runner-model-report.ts'
 import {
   checkEnvelope,
   checkPayload,
@@ -510,7 +511,11 @@ function observed(kind: RunnerOperationKind, read: ThreadRead, runId: string | n
   if (!runId) return { kind: 'unknown', reason: 'its receipt names no run' }
   const state = runState(read, runId)
   if (state === 'unknown') return { kind: 'unknown', reason: 'its run is not in the read with a known status' }
-  return { kind: 'run', status: read.runs.get(runId) ?? '', terminal: state === 'terminal' }
+  const run = { kind: 'run', status: read.runs.get(runId) ?? '', terminal: state === 'terminal' } as const
+  // INC04-S03b B2 (0108): only the receipt's own run's report, and only when the producer sent the field. An unpatched
+  // producer leaves this answer exactly as before. The report is checked and bounded here, before the host answers.
+  if (!read.modelReports?.has(runId)) return run
+  return { ...run, reportedModels: reportFromProducer(read.modelReports.get(runId), read.threadId, runId) }
 }
 
 /** The thread and run a journaled receipt (or a proven stop settlement) names, or null. */

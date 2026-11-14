@@ -265,3 +265,47 @@ describe('operation-aware receipts (r2, CC003-S1A-STUDY-F01)', () => {
       assert.deepEqual(checkReceipt(e, a), a)
   })
 })
+
+describe("a run observation's reported models (INC04-S03b B2, 0108)", () => {
+  const collected = {
+    state: 'unavailable',
+    threadId: 't-1',
+    runId: 'r-1',
+    reason: 'provider_turns_load_failed',
+    collectedAt: '2026-11-14T00:00:00.000Z',
+  }
+  it('accepts exactly one more key on a create or input run, checked on its own', () => {
+    for (const kind of ['create', 'input'] as const) {
+      assert.deepEqual(checkObservation({ kind: 'run', status: 'completed', terminal: true }, kind), {
+        kind: 'run',
+        status: 'completed',
+        terminal: true,
+      })
+      assert.deepEqual(
+        checkObservation({ kind: 'run', status: 'completed', terminal: true, reportedModels: collected }, kind),
+        { kind: 'run', status: 'completed', terminal: true, reportedModels: collected },
+      )
+    }
+  })
+  it('keeps the checked status when the report is malformed or oversized, and keeps no content', () => {
+    for (const bad of [{ state: 'collected', secret: 'model-x' }, null, 'x', { ...collected, reason: 'other' }])
+      assert.deepEqual(
+        checkObservation({ kind: 'run', status: 'running', terminal: false, reportedModels: bad }, 'create'),
+        { kind: 'run', status: 'running', terminal: false, reportedModels: { state: 'malformed', reason: 'invalid' } },
+        JSON.stringify(bad),
+      )
+    const big = { ...collected, collectedAt: 'x'.repeat(40_000) }
+    assert.deepEqual(
+      checkObservation({ kind: 'run', status: 'running', terminal: false, reportedModels: big }, 'input'),
+      { kind: 'run', status: 'running', terminal: false, reportedModels: { state: 'malformed', reason: 'oversize' } },
+    )
+  })
+  it('still voids a status it cannot check, any further key, and a report on a Stop', () => {
+    for (const bad of [
+      { kind: 'run', status: 'running', terminal: true, reportedModels: collected },
+      { kind: 'run', status: 'running', terminal: false, reportedModels: collected, extra: 1 },
+    ])
+      assert.equal(checkObservation(bad, 'create'), null, JSON.stringify(bad))
+    assert.equal(checkObservation({ kind: 'no_active_run', reportedModels: collected }, 'stop'), null)
+  })
+})

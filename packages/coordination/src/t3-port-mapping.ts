@@ -298,6 +298,13 @@ export interface ThreadRead {
   /** The items of this page, by exact message id, with the run each started. */
   readonly messages: ReadonlyMap<string, string | null>
   readonly nextPosition: number | null
+  /**
+   * INC04-S03b B2 (0108): each listed run's `providerReportedModels` value, raw, for the runs that carried the field (a
+   * patched producer, patches/t3code/ade47301-provider-reported-models.patch). Absent for an unpatched producer. It is
+   * never part of the read's validity: a malformed value is judged where it is used (runner-model-report.ts) and leaves
+   * the lifecycle evidence above unchanged.
+   */
+  readonly modelReports?: ReadonlyMap<string, unknown>
 }
 
 const nonNegative = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0
@@ -401,6 +408,18 @@ function activeStatusError(runs: Map<string, string>, activeRunId: string | null
     : 'the read names an active run it lists as not active'
 }
 
+/** The raw `providerReportedModels` of each listed run that carried it (the runs are already decoded). */
+function modelReportsIn(list: unknown): Map<string, unknown> {
+  const reports = new Map<string, unknown>()
+  if (!Array.isArray(list)) return reports
+  for (const run of list) {
+    const id = isRecord(run) ? entityId(run.runId) : null
+    if (id !== null && isRecord(run) && Object.hasOwn(run, 'providerReportedModels'))
+      reports.set(id, run.providerReportedModels)
+  }
+  return reports
+}
+
 /** The decoded read of exactly `threadId`, or why it is not evidence. */
 export function decodeThreadRead(body: unknown, threadId: string): ThreadRead | { error: string } {
   if (!isRecord(body)) return { error: 'the read is not an object' }
@@ -413,7 +432,8 @@ export function decodeThreadRead(body: unknown, threadId: string): ThreadRead | 
   if (summary) return { error: summary }
   const next = nextOf(body)
   if (typeof next === 'object' && next !== null) return next
-  return { threadId, ...detail, runs, messages, nextPosition: next }
+  const modelReports = modelReportsIn(body.recentRuns)
+  return { threadId, ...detail, runs, messages, nextPosition: next, ...(modelReports.size > 0 ? { modelReports } : {}) }
 }
 
 /** The read's next page position (null when it has no more), or why its paging fields are malformed. */
