@@ -3276,3 +3276,245 @@ describe('settings agree in code points and edges from declaration to the gatewa
     })
   }
 })
+
+// ---- provider-reported model evidence across the dispatcher (INC04-S03b B2, migration 0108) ----
+// The real 0092 functions, the real gateway and fsynced journal, the real owner-host channel where named, and the real
+// dispatcher, over a FAKE T3 whose reports are SYNTHETIC (patches/t3code/ade47301-provider-reported-models.patch
+// shape): nothing here is a provider's report or qualifies a T3 install, account or route.
+
+interface EvidenceRow {
+  seq: number
+  state: string
+  malformed_reason: string | null
+  evidence: Record<string, unknown> | null
+  recorded_at: Date
+}
+const evidenceOf = async (operationId: string) =>
+  (
+    await owner.query<EvidenceRow>(
+      'SELECT seq, state, malformed_reason, evidence, recorded_at FROM sophia.owner_runner_model_reports WHERE operation_id=$1 ORDER BY seq',
+      [operationId],
+    )
+  ).rows
+const settledAt = async (operationId: string) =>
+  (
+    await one<{ settled_at: Date | null }>(`SELECT settled_at FROM sophia.owner_runner_operations WHERE id=$1`, [
+      operationId,
+    ])
+  ).settled_at
+/** A SYNTHETIC patched report for one run (the producer's `providerReportedModels`, keyed by `evidence`). */
+const reportFor = (runId: string, collectedAt = '2026-11-14T00:00:00.000Z', attemptId = `${runId}:a1`) => ({
+  evidence: 'collected',
+  collectedAt,
+  activeAttemptId: attemptId,
+  attemptPolicy: 'latest_by_attempt_ordinal',
+  attemptLimit: 8,
+  attemptsOwned: 1,
+  attemptsOmitted: 0,
+  attempts: [
+    {
+      attemptId,
+      attemptOrdinal: 1,
+      reason: 'initial',
+      status: 'completed',
+      active: true,
+      providerInstanceId: 'claudeAgent',
+      rootTurns: 1,
+      terminalRootTurns: 1,
+      reportingRootTurns: 1,
+      unboundTurns: 0,
+      modelEvidence: 'reported',
+      models: ['synthetic-reported-model'],
+      modelsOmitted: 0,
+      excludedModelValues: 0,
+    },
+  ],
+})
+/** One dispatcher pass through `port`, its log lines kept. */
+async function passLogged(w: World, port: SophiaRunnerPort, minAge = 0) {
+  const lines: string[] = []
+  const pass = await runnerDispatchOnce(worker, {
+    workerId: 'runner-test',
+    runner: w.runner,
+    port,
+    sends: true,
+    leaseSeconds: 30,
+    followupMinAgeSeconds: minAge,
+    log: (l) => lines.push(l),
+  })
+  return { pass, lines }
+}
+
+describe('provider-reported model evidence across the dispatcher (INC04-S03b B2, 0108)', () => {
+  it('an unpatched producer: the lifecycle is unchanged and one absent row is kept, change-only', async () => {
+    const w = await world()
+    const created = await w.create()
+    assert.deepEqual((await w.pass()).sent, ['received'])
+    const sent = await op(created.operationId)
+    await w.pass()
+    await w.pass()
+    assert.equal((await op(created.operationId)).state, 'received')
+    w.t3.finishRun(sent.native_run_id ?? '')
+    await w.pass()
+    assert.equal((await op(created.operationId)).state, 'settled')
+    assert.deepEqual(await reservations(w.accountKey), [])
+    assert.deepEqual(
+      (await evidenceOf(created.operationId)).map((r) => [r.seq, r.state]),
+      [[1, 'absent']],
+    )
+  })
+
+  it("a patched producer's terminal report is appended before the terminal status settles the operation", async () => {
+    const w = await world()
+    const created = await w.create()
+    await w.pass()
+    const run = (await op(created.operationId)).native_run_id ?? ''
+    w.t3.reportModels(run, reportFor(run))
+    w.t3.finishRun(run)
+    await w.pass()
+    // The send's own pass observed the running run first (no report yet: absent); the terminal report follows.
+    const rows = await evidenceOf(created.operationId)
+    assert.deepEqual(
+      rows.map((r) => [r.seq, r.state]),
+      [
+        [1, 'absent'],
+        [2, 'collected'],
+      ],
+    )
+    const attempts = rows[1]?.evidence?.attempts as { models: string[] }[] | undefined
+    assert.deepEqual(attempts?.[0]?.models, ['synthetic-reported-model'])
+    const at = await settledAt(created.operationId)
+    assert.ok(at && rows[1] && rows[1].recorded_at.getTime() <= at.getTime(), 'collected before the settle')
+    // Settled: follow-ups stop, so a later report is never collected (it stays unknown).
+    w.t3.reportModels(run, reportFor(run, 'later', `${run}:a9`))
+    await w.pass()
+    assert.equal((await evidenceOf(created.operationId)).length, 2)
+  })
+
+  it('a missing recorder or a refused report never poisons the status: it settles, with a fixed log line only', async () => {
+    const w = await world()
+    const created = await w.create()
+    await w.pass()
+    const run = (await op(created.operationId)).native_run_id ?? ''
+    // The send's own pass already observed the running run: one absent row. The terminal pass then cannot append.
+    assert.deepEqual(
+      (await evidenceOf(created.operationId)).map((r) => r.state),
+      ['absent'],
+    )
+    w.t3.reportModels(run, reportFor(run))
+    w.t3.finishRun(run)
+    await owner.query(
+      'ALTER FUNCTION sophia.owner_runner_record_models(uuid,uuid,uuid,jsonb) RENAME TO owner_runner_record_models_hidden',
+    )
+    let lines: string[] = []
+    try {
+      lines = (await passLogged(w, w.gateway)).lines
+    } finally {
+      await owner.query(
+        'ALTER FUNCTION sophia.owner_runner_record_models_hidden(uuid,uuid,uuid,jsonb) RENAME TO owner_runner_record_models',
+      )
+    }
+    assert.equal((await op(created.operationId)).state, 'settled')
+    assert.deepEqual(lines, [`runner operation ${created.operationId}: model evidence not recorded (not_installed)`])
+    assert.deepEqual(
+      (await evidenceOf(created.operationId)).map((r) => r.state),
+      ['absent'],
+    )
+    // A report the database refuses (a NUL it cannot hold, sent past the checks by a broken port): same outcome.
+    const w2 = await world()
+    const c2 = await w2.create()
+    await w2.pass()
+    const run2 = (await op(c2.operationId)).native_run_id ?? ''
+    w2.t3.finishRun(run2)
+    const broken: SophiaRunnerPort = {
+      journalId: w2.gateway.journalId,
+      send: (...a) => w2.gateway.send(...a),
+      reconcile: (i) => w2.gateway.reconcile(i),
+      observe: async (i) => {
+        const seen = await w2.gateway.observe(i)
+        if (seen.kind !== 'run') return seen
+        const reportedModels = {
+          state: 'unavailable',
+          threadId: 'x',
+          runId: run2,
+          reason: 'attempts_not_loaded',
+          collectedAt: 'secret-model\u0000',
+        } as const
+        return { ...seen, reportedModels }
+      },
+    }
+    const out = await passLogged(w2, broken)
+    assert.equal((await op(c2.operationId)).state, 'settled')
+    assert.deepEqual(out.lines, [`runner operation ${c2.operationId}: model evidence not recorded (refused)`])
+    assert.ok(!out.lines.join('\n').includes('secret-model'))
+    assert.deepEqual(
+      (await evidenceOf(c2.operationId)).map((r) => r.state),
+      ['absent'],
+    )
+  })
+
+  it('through the real owner-host channel: a 32768-byte report crosses whole, one byte more is malformed, the status kept', async () => {
+    /** A producer report whose canonical wire form, bound to `thread` and `run`, is exactly `bytes` long. */
+    const sized = (thread: string, run: string, bytes: number) => {
+      const wire = (collectedAt: string) => {
+        const { evidence: _e, ...rest } = reportFor(run, collectedAt, `${run}:a1 "q" \\ \u0001 é`)
+        return JSON.stringify({ state: 'collected', threadId: thread, runId: run, ...rest })
+      }
+      const base = Buffer.byteLength(wire(''), 'utf8')
+      const pad = '😀é"\\'
+      const head = pad.repeat(Math.floor((bytes - base) / 13))
+      const tail = 'x'.repeat(bytes - Buffer.byteLength(wire(head), 'utf8'))
+      assert.equal(Buffer.byteLength(wire(head + tail), 'utf8'), bytes)
+      return reportFor(run, head + tail, `${run}:a1 "q" \\ \u0001 é`)
+    }
+    for (const [bytes, expected] of [
+      [32768, ['collected', null]],
+      [32769, ['malformed', 'oversize']],
+    ] as const) {
+      const w = await world({ t3: new FakeT3(NS) })
+      const host = await hostOf(w, (c) => c)
+      const created = await w.create()
+      await hostPass(w, host, 8000)
+      const sent = await op(created.operationId)
+      assert.equal(sent.state, 'received')
+      const run = sent.native_run_id ?? ''
+      w.t3.reportModels(run, sized(sent.native_thread_id ?? '', run, bytes))
+      w.t3.finishRun(run)
+      const port = new OwnerHostPortProxy({
+        store: new DbExchangeStore(worker),
+        ownerId: w.who,
+        environmentRef: 'env-owner-1',
+        journalId: host.journal.id,
+        namespace: NS,
+        deadlineMs: 8000,
+        pollMs: 20,
+      })
+      const state = { done: false }
+      const result = w.pass({ port, minAge: 0 }).finally(() => {
+        state.done = true
+      })
+      while (!state.done) {
+        await host.agent.serveOnce()
+        await sleep(15)
+      }
+      await result
+      assert.equal((await op(created.operationId)).state, 'settled', String(bytes))
+      const rows = await evidenceOf(created.operationId)
+      assert.deepEqual(
+        rows.map((r) => [r.state, r.malformed_reason]),
+        [expected],
+        String(bytes),
+      )
+      // The answer the host actually stored, as PostgreSQL serializes it: within the exchange's 65536 bytes.
+      const answer = await one<{ n: number; keys: string[] }>(
+        `SELECT octet_length(answer::text) AS n, array(SELECT jsonb_object_keys(answer) ORDER BY 1) AS keys
+           FROM sophia.owner_host_exchanges WHERE operation_id=$1 AND kind='observe' AND state='answered'
+          ORDER BY created_at DESC LIMIT 1`,
+        [created.operationId],
+      )
+      assert.deepEqual(answer.keys, ['kind', 'reportedModels', 'status', 'terminal'])
+      assert.ok(answer.n <= 65536, `${bytes}: ${answer.n} bytes of jsonb text`)
+      if (bytes === 32768) assert.ok(answer.n > 32768, 'the report crossed whole')
+    }
+  })
+})

@@ -11,7 +11,12 @@
 // beside its content-free envelope, only after its recheck.
 import type pg from 'pg'
 import type { OwnerRunnerOperation, OwnerRunnerOperationReceipt, OwnerRunnerOperationRequest } from '@sophia/contracts'
-import { digestOf, type RunnerAnswer, type RunnerEnvelope, type RunObservation } from '@sophia/coordination/runner-port'
+import {
+  digestOf,
+  type RunnerAnswer,
+  type RunnerEnvelope,
+  type RunnerModelEvidence,
+} from '@sophia/coordination/runner-port'
 import { DomainError } from '@sophia/domain'
 import { classifyDbError } from './errors.ts'
 import type { OutboxRow } from './outbox.ts'
@@ -229,7 +234,9 @@ export async function prepareRunnerSend(
  */
 export type RunnerRecord =
   | RunnerAnswer
-  | (Exclude<RunObservation, { kind: 'unknown' }> & { readonly barrier?: string | null })
+  // INC04-S03b B2: the observation's fields only; a run's reported models are recorded apart (recordRunnerModelReport).
+  | { readonly kind: 'run'; readonly status: string; readonly terminal: boolean; readonly barrier?: string | null }
+  | { readonly kind: 'no_active_run'; readonly barrier?: string | null }
   | { kind: 'unobserved' }
 
 /** Record an answer for a send (with its lease) or a reconciliation or observation (without). */
@@ -257,6 +264,49 @@ export async function recordRunnerAnswer(
 }
 
 /** Expired leases and superseded rows: requeue what was never possibly sent, mark the rest unknown or denied. */
+/**
+ * INC04-S03b B2 (migration 0108): append what a run's observation carried about its provider-reported models, through
+ * sophia.owner_runner_record_models (the worker login only). The database records it only for a create or input in
+ * `received`, bound to this journal, against the operation's own ids; `absent` is the worker's record that the
+ * observation carried no report. Append-only, change-only, at most 32 entries and one `capped` mark per operation.
+ *
+ * It never throws: the lifecycle record that follows must not depend on it. A failure gives a fixed class from the
+ * SQLSTATE alone, read before any classifier, so no database text, report or model id reaches a caller or a log.
+ */
+export type ModelReportRecorded =
+  | { readonly recorded: true; readonly changed: boolean }
+  | { readonly recorded: false; readonly reason: 'not_installed' | 'refused' | 'transient' | 'failed' }
+
+const sqlstateOf = (err: unknown): string =>
+  typeof err === 'object' && err !== null && 'code' in err && typeof err.code === 'string' ? err.code : ''
+
+/** A fixed class for a failed append, from its SQLSTATE only. */
+export function modelReportFailure(err: unknown): 'not_installed' | 'refused' | 'transient' | 'failed' {
+  const code = sqlstateOf(err)
+  if (code === '42883') return 'not_installed'
+  // Class 22, data exceptions: the database refused the report itself (a NUL, a malformed or out-of-range value).
+  if (code.startsWith('22')) return 'refused'
+  if (code === '40001' || code === '40P01' || code.startsWith('08') || code.startsWith('57') || code.startsWith('53'))
+    return 'transient'
+  return 'failed'
+}
+
+export async function recordRunnerModelReport(
+  pool: pg.Pool,
+  { projectId, operationId, journalId }: Omit<RunnerRecordTarget, 'leaseToken'>,
+  evidence: RunnerModelEvidence,
+): Promise<ModelReportRecorded> {
+  try {
+    const { rows } = await pool.query<{ result: { changed: boolean } }>(
+      'SELECT sophia.owner_runner_record_models($1, $2, $3, $4) AS result',
+      [projectId, operationId, journalId, JSON.stringify(evidence)],
+    )
+    return { recorded: true, changed: rows[0]?.result.changed === true }
+  } catch (err) {
+    return { recorded: false, reason: modelReportFailure(err) }
+  }
+}
+
 export async function maintainRunnerOperations(pool: pg.Pool, limit = 50): Promise<number> {
   const { rows } = await wrap(pool.query<{ n: number }>('SELECT sophia.owner_runner_maintain($1) AS n', [limit]))
   return onlyRow(rows, 'owner_runner_maintain').n

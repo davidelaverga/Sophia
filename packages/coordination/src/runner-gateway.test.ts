@@ -2325,3 +2325,85 @@ describe('settings of up to 200 code points reach the native call exactly (repai
     )
   })
 })
+
+/** A SYNTHETIC patched report for one run (the producer's `providerReportedModels`, keyed by `evidence`). */
+const patchedReport = (runId: string) => ({
+  evidence: 'collected',
+  collectedAt: '2026-11-14T00:00:00.000Z',
+  activeAttemptId: `${runId}:a1`,
+  attemptPolicy: 'latest_by_attempt_ordinal',
+  attemptLimit: 8,
+  attemptsOwned: 1,
+  attemptsOmitted: 0,
+  attempts: [
+    {
+      attemptId: `${runId}:a1`,
+      attemptOrdinal: 1,
+      reason: 'initial',
+      status: 'completed',
+      active: true,
+      providerInstanceId: 'claudeAgent',
+      rootTurns: 1,
+      terminalRootTurns: 1,
+      reportingRootTurns: 1,
+      unboundTurns: 0,
+      modelEvidence: 'reported',
+      models: ['synthetic-reported-model'],
+      modelsOmitted: 0,
+      excludedModelValues: 0,
+    },
+  ],
+})
+
+describe("an observation carries its own run's reported models only from a patched producer (INC04-S03b B2, 0108)", () => {
+  async function launched() {
+    const w = setup()
+    const created = await w.send(create(140))
+    return { ...w, e: create(140), thread: threadOf(created), runId: runOf(created) }
+  }
+
+  it('answers an unpatched read exactly as before: kind, status and terminal, no further key', async () => {
+    const w = await launched()
+    assert.deepEqual(await w.obs(w.e), { kind: 'run', status: 'running', terminal: false })
+    w.t3.finishRun(w.runId)
+    assert.deepEqual(await w.obs(w.e), { kind: 'run', status: 'completed', terminal: true })
+  })
+
+  it("attaches the receipt run's checked report, bound to the receipt thread and run", async () => {
+    const w = await launched()
+    w.t3.finishRun(w.runId)
+    w.t3.reportModels(w.runId, patchedReport(w.runId))
+    const seen = await w.obs(w.e)
+    assert.equal(seen.kind === 'run' && seen.status, 'completed')
+    assert.equal(seen.kind === 'run' && seen.reportedModels?.state, 'collected')
+    const r = seen.kind === 'run' ? seen.reportedModels : undefined
+    assert.equal(r?.state === 'collected' && r.threadId, w.thread)
+    assert.equal(r?.state === 'collected' && r.runId, w.runId)
+    assert.deepEqual(r?.state === 'collected' && r.attempts[0]?.models, ['synthetic-reported-model'])
+  })
+
+  it("keeps the status when its run's report is malformed, and never attaches another run's report", async () => {
+    const w = await launched()
+    w.t3.reportModels(w.runId, { evidence: 'collected', models: ['x'] })
+    assert.deepEqual(await w.obs(w.e), {
+      kind: 'run',
+      status: 'running',
+      terminal: false,
+      reportedModels: { state: 'malformed', reason: 'invalid' },
+    })
+    w.t3.reportModels(w.runId, undefined)
+    const input = follow(141, 140, w.thread)
+    const sent = await w.send(input)
+    w.t3.reportModels(runOf(sent), patchedReport(runOf(sent)))
+    assert.deepEqual(await w.obs(w.e), { kind: 'run', status: 'running', terminal: false })
+  })
+
+  it('keeps a Stop observation free of any report', async () => {
+    const w = await launched()
+    w.t3.reportModels(w.runId, patchedReport(w.runId))
+    const stop = follow(142, 140, w.thread, 'stop')
+    await w.send(stop)
+    w.t3.finishRun(w.runId, 'interrupted')
+    assert.deepEqual(await w.obs(stop), { kind: 'no_active_run' })
+  })
+})

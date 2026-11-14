@@ -25,6 +25,7 @@ import {
   prepareRunnerSend,
   ProjectEventListener,
   recordRunnerAnswer,
+  recordRunnerModelReport,
   runnerFollowups,
   type OutboxRow,
   type OwnerRunner,
@@ -114,15 +115,30 @@ async function sendClaimed(
   }
 }
 
-/** Observe one operation and record what the read proves; a Stop's observation carries its barrier token. */
+/**
+ * Observe one operation and record what the read proves; a Stop's observation carries its barrier token.
+ * INC04-S03b B2 (0108): a create's or input's run observation first appends its reported models, or `absent` when it
+ * carried none, in its own statement. That append never decides the lifecycle: whatever its outcome (a missing
+ * function, a refused report, a lost connection), the status is recorded next, from the observation's own fields only.
+ * Its failure is logged as a fixed class with the operation id, never with database text, a report or a model id.
+ */
 async function observeOne(pool: pg.Pool, options: RunnerDispatchOptions, f: RunnerFollowup, pass: RunnerPass) {
   const journalId = options.port.journalId
   const seen = await options.port.observe({ envelope: f.envelope, digest: digestOf(f.envelope), journalId })
   const target = { projectId: f.projectId, operationId: f.operationId, leaseToken: null, journalId }
+  if (seen.kind === 'run' && f.kind !== 'stop') {
+    const appended = await recordRunnerModelReport(pool, target, seen.reportedModels ?? { state: 'absent' })
+    if (!appended.recorded)
+      options.log?.(`runner operation ${f.operationId}: model evidence not recorded (${appended.reason})`)
+  }
   await recordRunnerAnswer(
     pool,
     target,
-    seen.kind === 'unknown' ? { kind: 'unobserved' } : { ...seen, barrier: f.barrier },
+    seen.kind === 'unknown'
+      ? { kind: 'unobserved' }
+      : seen.kind === 'run'
+        ? { kind: 'run', status: seen.status, terminal: seen.terminal, barrier: f.barrier }
+        : { kind: 'no_active_run', barrier: f.barrier },
   )
   pass.observed += 1
 }
