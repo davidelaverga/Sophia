@@ -6,7 +6,8 @@
 // * Membership is unchanged: a current viewer gets the uniform restricted view even when the new read helper raises (a
 //   SYNTHETIC fault: it is never called for them), a nonmember 404, no token 401.
 // * Installation: on a database migrated by the real migrator to just before 0107, the preview is 503 for every role,
-//   never an empty or unobserved pool; once the same migrator applies the pending 0107, the same running app serves.
+//   never an empty or unobserved pool; once the same migrator applies 0107 and every later pending migration, the same
+//   running app serves.
 // Every account, grant, qualification, reading and token is SYNTHETIC; nothing here qualifies a real owner, account,
 // route, provider or telemetry source, or passes an AC-04 case.
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
@@ -76,6 +77,8 @@ const LEDGERS = [
   'capacity_observations',
 ]
 
+/** A migration file as the migrator names one (`NNNN_slug.sql`). */
+const MIGRATION_FILE = /^\d{4}_[a-z0-9_]+\.sql$/u
 const at = (ms: number) => new Date(Date.now() + ms).toISOString()
 const wait = (ms: number) => new Promise((done) => setTimeout(done, ms))
 const previewUrl = (projectId: string) => `/api/v1/projects/${projectId}/selection-preview?operation=research`
@@ -320,11 +323,15 @@ describe('installation: the real migrator before and after 0107', () => {
   const suffix = randomBytes(6).toString('hex')
   const login = `sophia_api_o_${suffix}`
   const dir = mkdtempSync(join(tmpdir(), 'sophia-before-0107-'))
+  /** The fixture's migrations: every file before 0107, as the before-0107 database applies them. */
+  const linked: string[] = []
 
   before(async () => {
     const migrations = resolve('db/migrations')
-    for (const f of readdirSync(migrations).filter((n) => n.endsWith('.sql') && n < '0107'))
+    for (const f of readdirSync(migrations).filter((n) => n.endsWith('.sql') && n < '0107')) {
       symlinkSync(join(migrations, f), join(dir, f))
+      linked.push(f)
+    }
     empty = await createEmptyDatabase('sophia_o')
     await withClusterMigrationLock(() => migrate(empty.ownerUrl, dir))
     owner = new pg.Pool({ connectionString: empty.ownerUrl, max: 2 })
@@ -367,10 +374,20 @@ describe('installation: the real migrator before and after 0107', () => {
       const r = await preview(app, who, w.projectId)
       assert.deepEqual([r.status, JSON.parse(r.body).code], [503, 'projection_unavailable'], r.body)
     }
+    // The upgrade runs the real migrator over the full current directory, so it applies 0107 and then every later pending
+    // migration (0108 today, and any added after it), in order. The expectation comes from the directory itself, never
+    // from the report: the fixture's prefix stays already applied, and everything after it is applied.
+    const shipped = readdirSync(resolve('db/migrations'))
+      .filter((n) => MIGRATION_FILE.test(n))
+      .toSorted()
+      .map((n) => n.slice(0, 4))
+    const prior = linked.toSorted().map((n) => n.slice(0, 4))
+    const pending = shipped.filter((v) => !prior.includes(v))
+    assert.deepEqual(pending.slice(0, 2), ['0107', '0108'], 'the pending upgrade starts at 0107, then 0108')
     const report = await withClusterMigrationLock(() => migrate(empty.ownerUrl, resolve('db/migrations')))
     assert.deepEqual(
-      report.rows.filter((r) => r.status !== 'already_applied').map((r) => [r.version, r.status]),
-      [['0107', 'applied']],
+      report.rows.map((r) => [r.version, r.status]),
+      [...prior.map((v) => [v, 'already_applied']), ...pending.map((v) => [v, 'applied'])],
     )
     assert.deepEqual(JSON.parse((await preview(app, w.VIEW, w.projectId)).body), RESTRICTED)
     assert.equal(
