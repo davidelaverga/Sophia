@@ -278,15 +278,336 @@ How to read this section:
   `639ed015` (§2c).
 - **Nothing qualified.** No profile, account, toolkit, owner-host route,
   designer setup or product candidate is qualified by this section.
-- **Nothing relied on yet.** No file in this repository relies on these
-  sources. When a goal starts relying on one, record its exact upstream file
-  and the Sophia files grounded in it here, as in §2–2j.
+- **Relied on only as §2l, §2m, §2n, §2o and §2p record.** Apart from the T3
+  files that §2l records for INC01-CC-002, §2m for INC01-CC-003 S1a, §2n for
+  INC01-CC-005, §2o for INC01-CC-003 S2 and §2p for INC04-S03b B1, no file in
+  this repository relies on these sources. §2o and §2p each record one patch
+  artifact for the T3 pin (`patches/t3code/ade47301-darwin-process-observation.patch`
+  and `patches/t3code/ade47301-provider-reported-models.patch`). Sophia neither
+  applies nor installs either. When a goal starts relying on one, record its
+  exact upstream file and the Sophia files grounded in it here, as in §2–2j and
+  §2l–2p.
 
 | Register id | Repository and studied pin | Upstream files relied on | Purpose in the programme | Status and limits |
 |---|---|---|---|---|
 | D1, D2 | DSH Super Agent, `deepseek-ai/dsh-superagent-prototype@8c32a9dc5d72c033816c6a8110b37f40cf94fba4` (MIT; a research prototype) | [`README.md`](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9dc5d72c033816c6a8110b37f40cf94fba4/README.md), [`src/policy.ts`](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9dc5d72c033816c6a8110b37f40cf94fba4/src/policy.ts), [`src/app/delivery.ts`](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9dc5d72c033816c6a8110b37f40cf94fba4/src/app/delivery.ts) (D1); [`package.json`](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9dc5d72c033816c6a8110b37f40cf94fba4/package.json), [`src/app/role-models.ts`](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9dc5d72c033816c6a8110b37f40cf94fba4/src/app/role-models.ts) (D2) | Patterns only: admission and intent evidence, observation mode, durable delivery, correlation, model defaults | Studied, not installed. It is not a second coordinator, agent loop, scheduler or subscription broker. It targets the `0.2.1-alpha.2` family; Sophia records `0.2.0-rc.2`. Adopting a pattern requires no runtime migration |
 | T1, T2 | T3 Code, `pingdotgg/t3code@ade473018d32003658b7d38693e083ee2e314bd8` (MIT) | [`apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts), [`apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts) (T1); [`docs/orchestration-v2/orchestrator-mcp-server.md`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/docs/orchestration-v2/orchestrator-mcp-server.md), [`docs/user/outside-agents.md`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/docs/user/outside-agents.md) (T2) | The preferred bounded native-session adapter candidate, behind Sophia's authority: instance, session, input, events, control, reconciliation. An ordinary follow-up queues; steer and restart are stronger interventions, not the default. T3's environment-wide MCP scope must be narrowed by Sophia's owner, project, repository and grant gateway | A source-bound candidate. Not installed. These documents qualify no live profile, account, injected toolkit or owner-host route; that is INC-01's work |
 | I1, I2 | Impeccable, `pbakaus/impeccable@924bbd194d02e5e15a227e75b5901fb0d7a4ecad`, package and skill 4.8.1 (Apache-2.0) | [`README.md`](https://github.com/pbakaus/impeccable/blob/924bbd194d02e5e15a227e75b5901fb0d7a4ecad/README.md) (I1); [`.claude/skills/impeccable/SKILL.md`](https://github.com/pbakaus/impeccable/blob/924bbd194d02e5e15a227e75b5901fb0d7a4ecad/.claude/skills/impeccable/SKILL.md) (I2) | Project-scoped Claude Code design tooling for the designer: a pinned, reviewed setup, refinement of the incumbent UI and real preview checks, through the normal agent-permission path | Studied, not installed here. Its documented live Apply fallback is excluded because it bypasses normal agent permissions. A studied pin is neither runtime or product qualification nor Davide's approval of a candidate. Evidence of the designer's actual setup is kept separately. Nothing here installs, authenticates or runs it |
+## 2l. Upstream sources at INC01-CC-002 (owner-runner port, T3 mapping)
+
+Numbered 2l on purpose. The November programme's donor-pin entry (INC00-DOC-003, on the unmerged installation branch
+of PR #503) is §2k there, so the two sections never claim the same number. That entry records T3 Code from the
+programme's source register only; this section is the study this candidate's code relies on.
+
+T3 Code, [`pingdotgg/t3code`](https://github.com/pingdotgg/t3code) at
+`ade473018d32003658b7d38693e083ee2e314bd8` (MIT), read outside this tree. It is a **studied pin, not an installed or
+qualified version**: no T3 code is copied, installed or called by Sophia. `packages/coordination/src/t3-port-mapping.ts`
+derives identities and builds calls exactly as these files do at the pin; the fake in `runner-fake-t3.ts` mirrors them.
+
+| File at the pin | Blob | What Sophia relies on |
+|---|---|---|
+| `apps/server/src/mcp/toolkits/project/handlers.ts` | `667b878e` | `t3_thread_launch`: command, thread and message id are all `mcp:launch:<sha256(JSON.stringify([requestNamespace, clientRequestId]))>`; a retry under the same key replays the launch |
+| `apps/server/src/mcp/toolkits/project/tools.ts` | `56799959` | The launch input (`projectId`, `title`, `message`, `runtimeMode`, `clientRequestId`) and result (`threadId`, `runId`, `status`) |
+| `apps/server/src/mcp/OrchestratorMcpService.ts` | `9d154084` | `stableCommandId` / `stableOperationMessageId`: `command\|message:mcp:<enc(namespace)>:<operation>:<enc(key)>`; `t3_thread_send` defaults to `auto` (`mode ?? "auto"`); `thread-stop` operation for `t3_thread_interrupt(stop:true)` |
+| `apps/server/src/mcp/McpSessionRegistry.ts` | `80dc4936` | In-thread namespace is the provider session id; the orchestration capability is granted unconditionally |
+| `apps/server/src/auth/McpOAuth.ts` | `0be7c1eb` | An outside OAuth client's namespace is `client:<MCP client session id>` |
+| `apps/server/src/mcp/toolkits/thread/tools.ts`, `handlers.ts` | `c6670c4e`, `f9683124` | `t3_pending_request` answers `user_input` questions only (never approvals; `respond` takes no `clientRequestId`); `t3_queue` entries carry `queuedRunId`, not `messageId` |
+| `packages/contracts/src/orchestratorMcp.ts` | `c73bbd48` | Send, interrupt, read and timeline-item schemas (`delivery`, `messageId`, `runId`, `nextPosition`) |
+| `packages/contracts/src/orchestrationV2.ts` | `5c430ef7` | Run statuses: active (`preparing` … `waiting`) and terminal (`completed`, `interrupted`, `failed`, `cancelled`, `rolled_back`) |
+| `docs/orchestration-v2/orchestrator-mcp-server.md`, `docs/user/outside-agents.md` | `2f6ba536`, `ebc477d7` | Delivery modes (`auto`, `queue`, `steer`, `restart`); `clientRequestId` is scoped to its namespace; outside-agent scopes cover every project in the environment |
+| `apps/server/src/orchestration-v2/ThreadManagementService.ts` | `46ea4543` | r2 (R1-F04): `isActiveRun` counts `preparing`, `starting`, `running` and `waiting`, not `queued`; `latestActiveRun` (the read's `activeRunId`) covers every run of the thread, while `recentRuns` is cut by `runLimit` |
+| `apps/server/src/mcp/OrchestratorMcpService.ts` (`threadDetail`) | `9d154084` | r2 (R1-F04): the read's `thread` carries `threadId`, `activeRunId` and `runCount`; its `settled` is the user-interface `settledOverride`, never run settlement, and is not read |
+
+## 2m. Upstream sources at INC01-CC-003 S1a (owner-host transport)
+
+The same T3 Code pin as §2l, [`pingdotgg/t3code`](https://github.com/pingdotgg/t3code) at
+`ade473018d32003658b7d38693e083ee2e314bd8` (MIT), read outside this tree from a local clone whose `HEAD` is that commit;
+each blob below was checked against it. It is a **studied pin, not an installed or qualified version**: no T3 code is
+copied, installed or called by Sophia, and the runtime pin is unchanged.
+
+This is source-study evidence only. The operational evidence for this slice is a fake loopback Streamable HTTP server
+backed by `runner-fake-t3.ts`, in `t3-mcp-transport.test.ts`. No T3 install, sign-in, account, provider or profile was
+used, and none is qualified here.
+
+Sophia files grounded here: `packages/coordination/src/t3-mcp-transport.ts` (the protocol), and the declared namespace
+rule in `packages/coordination/src/owner-host-channel.ts`, `scripts/owner-host.ts` and
+`db/migrations/0093_owner_host_enrollment.sql` (`owner_hosts.t3_namespace`).
+
+| File at the pin | Blob | What Sophia relies on |
+|---|---|---|
+| [`apps/server/src/peer/PeerMcpClient.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/peer/PeerMcpClient.ts) | `885c91dc` | T3's own Streamable HTTP client, which the transport follows. Protocol `2025-06-18` (L22). A JSON body, or one server-sent event's `data:` lines (L88–95). A POST with `accept: application/json, text/event-stream` and a bearer (L104–114). `initialize`, the `mcp-session-id` header, then `notifications/initialized` (L116–153). `tools/call` with `mcp-session-id` and `mcp-protocol-version`; a 404 renews the session once (L184–188); a 401 is `capability_denied` (L189–195). An `isError` result's text decodes as `{code, message}`, success as JSON text (L225–242). Not followed: T3 maps a JSON-RPC error to `invalid_request` (L214–217); Sophia keeps it `unknown`, conservatively |
+| [`apps/server/src/auth/McpOAuth.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/auth/McpOAuth.ts) | `0be7c1eb` | An outside agent's request namespace is `client:${client.sessionId}` (L599). Only the `authorization_code` grant is offered (L96) and accepted (L499–500): there is no refresh grant, so a new sign-in is a new namespace |
+| [`apps/server/src/auth/EnvironmentAuth.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/auth/EnvironmentAuth.ts) | `b6bf6379` | `authenticateMcpClient` (L1298–1311): that `sessionId` is the verified bearer's auth session (`session.sessionId`), not the MCP transport session. Hence the namespace is declared in the host's configuration and bound at hello, never derived from `Mcp-Session-Id` |
+
+Still unproven, for live qualification: that the namespace a host declares is the one T3 uses (a launch receipt's thread
+id must equal `launchCommandId(namespace, key)`); that HTTP 401 and 403 are pre-dispatch for an outside agent; and the
+response shapes of a real install.
+
+## 2n. Upstream sources at INC01-CC-005 (owner-runner source authority, launch settings)
+
+The same T3 Code pin as §2l and §2m, [`pingdotgg/t3code`](https://github.com/pingdotgg/t3code) at
+`ade473018d32003658b7d38693e083ee2e314bd8` (MIT). The files were read outside this tree from the public pin. Each
+full-file SHA-256 below was computed from the whole file and matches both the INC01-CC-005 qualification record
+([NATIVE_PORT_QUALIFICATION](coordination/SOPHIA-INC-2026-11/NATIVE_PORT_QUALIFICATION.md)) and the independent
+reviewer's receipt. The lines are the passages relied on; the hash covers the whole file. This is a **studied pin**:
+nothing is copied, installed, called or qualified.
+
+**Sophia files grounded here:**
+
+- `packages/coordination/src/t3-port-mapping.ts`: the launch call;
+- `packages/coordination/src/runner-port.ts`: the settings and base it carries;
+- `packages/coordination/src/runner-fake-t3.ts`: the fake that mirrors them;
+- `db/migrations/0096_owner_runner_source_authority.sql`: the frozen requested base and settings.
+
+| File at the pin | Lines | Full-file SHA-256 | What Sophia relies on |
+|---|---|---|---|
+| [`packages/contracts/src/orchestrationV2.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/packages/contracts/src/orchestrationV2.ts) | 654–674 | `9f791f7e75031f56c36fddabb2529913c2c4f1f539415037f9d7b9355dc597fb` | The launch `workspaceStrategy` is a tagged union, `root`, `existing_worktree` or `worktree`; there is no worktree boolean. `worktree` carries `baseRef` and an optional `branch` and `startFromOrigin`. Sophia sends `{type: "worktree", baseRef}` with its frozen 40-hex base |
+| [`packages/contracts/src/modelSelection.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/packages/contracts/src/modelSelection.ts) | 9–50 | `54832cd6d41fae198eca90fe58cfceab4f6b97572c90e32cbfff703b584b434a` | `ModelSelection` is `{instanceId, model, options?}` on the wire. A legacy `provider` decodes to `instanceId`, and encoding emits `instanceId` |
+| [`packages/contracts/src/providerInstance.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/packages/contracts/src/providerInstance.ts) | 7–22 | `ade67de404651ff6c5373ba1b0359f598c06d49f5e4de2aa77ebf396ab91233a` | `ProviderInstanceId` is a branded slug: a letter, then letters, digits, `_` or `-`, at most 64 characters. It names a native provider instance, not an account |
+| [`packages/contracts/src/orchestratorMcp.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/packages/contracts/src/orchestratorMcp.ts) | 501–525 | `a1a1f5ffc84c5cc151947db666069a440f1f4f15c96cdd6dabfbc0b9bae826d1` | `t3_thread_send` input has no model, effort or workspace field. A queued input therefore carries no launch settings and runs under the thread's. Its result's `delivery` is `started`, `queued`, `steered` or `restarted` |
+| [`apps/server/src/mcp/toolkits/project/tools.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/mcp/toolkits/project/tools.ts) | 124–164 | `ccaba4a185d959ce0c3c0b812f23cbc5196e21dfa87349f06b15904b66bd0d6c` | `t3_thread_launch` accepts an optional `modelSelection` and `workspaceStrategy`, and its success echoes `modelSelection`, `runId` and `status` |
+| [`apps/server/src/mcp/toolkits/project/handlers.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/mcp/toolkits/project/handlers.ts) | 146–236, 277–284 | `0d7027332a51cf6d8e23222484daf50be263e61f8b2c665ccbe66dbdd4bb0284` | Two passages. First, a `worktree` base is pre-checked only for resolvability before acceptance, and checkout happens later. Second, the launch stores the selection it resolved (the given one, else an inherited or project default) and echoes the thread's stored `modelSelection` |
+
+**Limits.**
+
+- **Requested, accepted, reported and observed stay distinct.** The launch echo is the thread's stored selection, and
+  a run's `model` is a label. Neither proves the model or effort actually used, so accepted and observed stay
+  `unknown`.
+- **Still unqualified:**
+  - that T3 checks out exactly the requested base (its pre-check is permissive, and nothing echoes the base after
+    checkout);
+  - the upstream checkout itself;
+  - `read_only` enforcement;
+  - effective effort and a real profile's catalog values;
+  - account and billing;
+  - the injected toolkit's scope;
+  - the privacy of a native copy once delivered;
+  - operational release isolation.
+- **Nothing is inferred** from these references, a profile declaration, an echoed setting or the fake.
+- **Recorded on a blocked parent.** These facts were recorded on development parent `33c020af` (INC01-CC-005,
+  final-gate blocked on two P1 authority races). They are source facts, not acceptance.
+
+### Pagination sources (INC01-CC-005 repair 11)
+
+The same T3 Code pin, [`pingdotgg/t3code`](https://github.com/pingdotgg/t3code) at
+`ade473018d32003658b7d38693e083ee2e314bd8` (MIT). It was read outside this tree, from the read-only reference
+`NATIVE11_PINNED_READONLY_REFERENCE` (archive SHA-256 `886369f4746fcb5a27c3334fc6598cb22d4a07d7bb1b3222a1d0992565036127`),
+whose `PIN.json` records the full-file and excerpt provenance.
+
+**What was read.** Only the bounded excerpts below were supplied and consulted. Each full-file SHA-256 identifies the
+original file at the pin; it does not mean the whole file was read. Nothing is copied, installed, run or qualified.
+
+**Sophia file grounded here:** `packages/coordination/src/runner-gateway.ts`, the bounded targeted scan (its cursor and
+its last-page summary).
+
+| File at the pin | Lines read | Full-file SHA-256 | Excerpt SHA-256 | What Sophia relies on |
+|---|---|---|---|---|
+| [`apps/server/src/orchestration-v2/ProjectionStore.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/orchestration-v2/ProjectionStore.ts) | 5977–6082 | `a5295e7d9f0aa9db402d4992e852eb4f75fde1c44a048eb3ca90c142d2af07dd` | `0f056839ed58946386d3611b58e0b7dcd91dab54fa3e1127d0b290a24cea5477` | `getTimelinePage` gives each visible row its position before the view filter, then keeps rows with `position > afterPosition` and cuts to `limit`. Positions may therefore have gaps, and a valid cursor strictly increases. `hasMore` compares the matching rows with the page. Each page is one SQL transaction, which gives no atomicity across pages |
+| [`apps/server/src/orchestration-v2/Orchestrator.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/orchestration-v2/Orchestrator.ts) | 14437–14443 | `fd0644826587f652d05fae07961f1674b6ccc39bfc75000fa79359e693a64efd` | `c35741f4dda7be83be7bf0e6b50de09a7b8115405df73a1c8ccb574f8f6d3764` | `getTimelinePage` forwards to the projection store's and maps its errors |
+
+**Limits.** These are source facts only:
+- no upstream execution;
+- no authenticated tool, account, profile or native qualification;
+- no atomic snapshot across pages, or between a thread's runs and its timeline.
+
+This registration grants no authority and changes no protocol.
+
+## 2o. Upstream sources and a compatibility patch at INC01-CC-003 S2 (Darwin startup)
+
+The same T3 Code pin as §2l, §2m and §2n: [`pingdotgg/t3code`](https://github.com/pingdotgg/t3code) at
+`ade473018d32003658b7d38693e083ee2e314bd8` (MIT, tree `107c4f087f85dd137429e3d441ab770fd4b2a67b`). The files were
+read outside this tree from the public pin. Each full-file SHA-256 below was computed from the whole file at the pin;
+the lines are the passages relied on. Upstream code and tests stay outside Sophia.
+
+| File at the pin | Lines | Full-file SHA-256 | What it shows |
+|---|---|---|---|
+| [`packages/provider-opencode/src/server/OpenCodeServerLedger.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/packages/provider-opencode/src/server/OpenCodeServerLedger.ts) | 123–148, 181–184 | `5e8d948ab208aa26c32cf89f1317f2aad083e558f15fe37dd6566b3f3065e845` | On `darwin` the ledger observes a pid by running the fixed `/bin/ps`. `observe` absorbs typed failures only (`orElseSucceed`). `make` observes the server's own pid unguarded |
+| [`packages/provider-opencode/src/server/OpenCodeServerLedger.test.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/packages/provider-opencode/src/server/OpenCodeServerLedger.test.ts) | 1–291 | `b588b5de32aa9bf18176f8658c3e35ddeee95580d97109191eed84fef62238cc` | The existing suite runs the Darwin `ps` path on Linux too (procps takes the same flags) |
+| [`apps/server/src/server.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/server.ts) | 708–720 | `4d983a3e62db868bb9ae235ada9156bc3d15d1accde274dfdba841666ff7f1f9` | Every server composes `OpenCodeServerLedger.layer`, whichever providers it uses |
+| `@effect/platform-node-shared@4.1.2` `dist/NodeChildProcessSpawner.js` (lockfile-pinned dependency) | 336–346 | `02348e968a2d00159d0428050ba25b6013e1009ea6bcf71a2c9b4666f0ea6a93` | `spawn` calls Node's `spawn` inside `Effect.callback`. A synchronous throw becomes a defect, and only an emitted `error` becomes a typed failure |
+
+**The patch.** [`patches/t3code/ade47301-darwin-process-observation.patch`](../patches/t3code/ade47301-darwin-process-observation.patch),
+SHA-256 `295a7da12d62967a0c4cd27d5dddd6beeb02260f8af4fafae45d23605cd0d554`. It is the source and regression diff for
+those two upstream files only, written for this pin:
+
+- **What it changes.** In `make`, a cause that is exactly one `Die` whose defect is Node's synchronous spawn refusal
+  (`code: "EPERM"`, `syscall: "spawn"`) leaves the owner unknown, with one warning. The ledger's existing unknown-owner
+  path then applies: nothing is recorded, nothing is promised and nothing is reaped. Interruption, every other defect,
+  typed failures, the shared `observe` and the Linux path are unchanged.
+- **Hashes.** Patched ledger `2cdf9a113a4359f608e910de55546fc7053eb988952edaac6345285bbc4fe857` and test
+  `feb246e4d80d7afbfa83e8718a8d74e278d4db10e4388660de5f365c460dc89d`. It applies with `git apply` and reverses to the
+  pin's tree.
+- **Provenance.** Authored for INC01-CC-003 S2 from root's diagnostic `T3-NATIVE-HOST-STARTUP-BOUNDED-DIAGNOSTIC-001`.
+  Tested outside Sophia with Node 26.12.1 and pnpm 12.14.0 against the pin's frozen lockfile (filtered install,
+  lifecycle scripts off).
+
+**Limits.**
+
+- **Not applied by Sophia.** No Sophia build, install or startup uses it. It is not an upstream change and not a
+  fork.
+- **The shared observation is unchanged.** Only `make`'s owner observation is caught. A refused observation inside
+  `track` or the reaper stays a logged defect. An older recorded entry that cannot be verified is therefore kept: it
+  is never cleaned on a guess, and its server is never signalled.
+- **An owner-unknown warning is not a ready host.** It means OpenCode servers this server starts are not recorded for
+  orphan cleanup. OpenCode stays unavailable under the profile.
+- **Linux runs prove only the source.** The 16 upstream cases ran through the real Node spawner, answering only
+  `/bin/ps` with Node's own synchronous `EPERM`. That proves the source behavior; it does not qualify macOS.
+- **Root's external Mac diagnostic.** This is root's report, not performed or reproduced here. Root applied this
+  exact patch and rebuilt the pinned server offline, under the unchanged fake profile:
+  - one incomplete anonymous MCP 503 attempt;
+  - then a bounded poll that reached 401 `invalid_mcp_credential`, with protected-resource metadata;
+  - both owned process groups gone afterwards;
+  - a login-shell `zsh` EPERM remaining.
+
+  That is a fake anonymous authentication denial only. No authenticated tool, native, account, provider, profile or
+  app behavior was qualified, and the profile's technical isolation stays UNQUALIFIED.
+- **Nothing qualified.** Build, help or startup qualifies no native, account, `read_only`, toolkit, billing, model,
+  base or Stop behavior. F03, F04 and the owner's four routes stay open.
+- **Recorded on a held base.** `f15dad08` is the composed native repair-7 candidate. Its newer gateway P2 (repair 8)
+  holds it, so this is not acceptance.
+
+**Current annotation (INC01 coherent composition).** §2o was written on `f15dad08`. It is integrated here after the
+native §2n pagination sources, which are unchanged. The original startup diagnostic was the independent reviewer's,
+routed by root. The later external Mac patch, build and probe were root's (artifact
+`89fdba95288c3664b8fa35fb2f8ee88f4c3595ab2ad1b29f412c3ba54e391cf8`, profile `5db1`, pin `ade47301`); their outcome,
+an initial 503 then a fake anonymous MCP 401 and cleanup, is not authenticated tool, native or profile qualification.
+Of the patch's five mutants, four were caught and one survived (M3), not shown equivalent.
+
+## 2p. A carried patch at INC04-S03b B1 (provider-reported models on a thread read)
+
+The same T3 Code pin as §2l–2o: [`pingdotgg/t3code`](https://github.com/pingdotgg/t3code) at
+`ade473018d32003658b7d38693e083ee2e314bd8` (MIT, tree `107c4f087f85dd137429e3d441ab770fd4b2a67b`). Each full-file
+SHA-256 below was computed from the whole file at the pin. Upstream code and tests stay outside Sophia; only the patch
+is carried.
+
+| File at the pin | Git blob | Bytes | Full-file SHA-256 | Role |
+|---|---|---|---|---|
+| [`apps/server/src/mcp/OrchestratorMcpService.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/mcp/OrchestratorMcpService.ts) | `9d15408483a3eac9fe4b09ff20c6c987a46711f7` | 132,657 | `11a7215f6c55129a5908b5cc9189ad50458db844ccab64c7e2b71db2f7a5372a` | Changed: the thread read's runs and its one added provider-turn load |
+| [`apps/server/src/mcp/OrchestratorMcpService.test.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/mcp/OrchestratorMcpService.test.ts) | `f52ac95174277f9a521b8914cf26ff40504a76b3` | 150,845 | `f3e345d5826ab7e4219a1a9d26443b2e9a490ad05e1b5c0caca9cee2d8cb767a` | Changed: read cases added |
+| [`packages/contracts/src/orchestratorMcp.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/packages/contracts/src/orchestratorMcp.ts) | `c73bbd48e26f5aa16b1a8836852bd900d856429c` | 35,732 | `a1a1f5ffc84c5cc151947db666069a440f1f4f15c96cdd6dabfbc0b9bae826d1` (as in §2n) | Changed: one optional run field |
+| [`apps/server/src/orchestration-v2/ThreadManagementService.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/orchestration-v2/ThreadManagementService.ts) | `46ea45431055488dec1344429bcc791bb4be1f19` | 64,959 | `01be64da05bdc45642e246bc8501a7ce268830ad558bfe9b67ecf5b13b1d053e` | Read only: `getProjectThreadRecords` (399–406) and its existing runs-and-turns load (815–818) |
+| [`apps/server/src/orchestration-v2/ProjectionStore.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/orchestration-v2/ProjectionStore.ts) | `dea68ee7723d11ee3ccb464c7615b3cfe338e94d` | 335,542 | `a5295e7d9f0aa9db402d4992e852eb4f75fde1c44a048eb3ca90c142d2af07dd` (as in §2n) | Read only: the provider-turn and attempt loaders (3389–3402, 3532–3552), `matchesNothing` (1087–1088), one transaction per record read (5641–5650), and `upsertProviderTurn` (745–756) |
+| [`packages/contracts/src/orchestrationV2.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/packages/contracts/src/orchestrationV2.ts) | `5c430ef75581a165d94ce16c7369c0245bdef5d8` | 163,596 | `9f791f7e75031f56c36fddabb2529913c2c4f1f539415037f9d7b9355dc597fb` (as in §2n) | Read only: run attempts (738–760) and provider turns (1179–1198) |
+| [`packages/contracts/src/providerRuntime.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/packages/contracts/src/providerRuntime.ts) | `4769bfd7955c7e6fad74f9927916a48347ce97bc` | 5,920 | `cf73b6737e501ad1f602044f84ead7874c7b25cf5ad94d68e94863762a3322a7` | Read only: `TurnTokenUsage.models`, "absent means unknown" (57–85) |
+
+**The patch.** [`patches/t3code/ade47301-provider-reported-models.patch`](../patches/t3code/ade47301-provider-reported-models.patch),
+43,888 bytes, SHA-256 `fbb60840c6a73e572eee15e384b4d683adf357facce96e76377f83d06e62cb91`, Git blob
+`f971ff784f90aa3aebf7cde064b5e0e2993804c0`. It is a full-index `git diff` of five files at this pin, carried as the
+sealed bytes (LF only, never reformatted):
+
+| Path | Pin blob | Patched blob | Patched SHA-256 | Bytes |
+|---|---|---|---|---|
+| `apps/server/src/mcp/OrchestratorMcpService.ts` | `9d154084` | `5b9014da90ee9cb8cb0f4878e6f1a07ad3afe487` | `5efa0aa4cc139fec8bf08cd26a5c3aa0199aef84772de6b1c5621f6d1a6e65e6` | 135,303 |
+| `apps/server/src/mcp/OrchestratorMcpService.test.ts` | `f52ac951` | `19b9aee7b5ffd7bb83ecf7f4c0cfbe15deb1c4df` | `f8e284cd50b43aa9f3a24c2011b597fea6ae171a120ac10ff7469e5e485922ad` | 168,363 |
+| `apps/server/src/mcp/providerReportedModels.ts` | added | `ea77b2842ddcbe52f763d7b9d355e7efc933d775` | `d11d3cf0ffd8a9b2cf363317cbb3b0bd266de40c39183b6687a4b05adfee09b8` | 6,036 |
+| `apps/server/src/mcp/providerReportedModels.test.ts` | added | `26dff74a1e4d94d727756bf802546c29a687b759` | `075982852f12d0dd342d033fdf804bd3dad4666f625b0f5331ab227c45ea75dc` | 6,985 |
+| `packages/contracts/src/orchestratorMcp.ts` | `c73bbd48` | `44358e481f5c9d29acadf3c709e07d9d8dc057b1` | `f394ee0b60d6d6309c6857d74bef16e0ed279d36d1f8541818d1ed91bc229c2d` | 39,528 |
+
+It applies with `git apply` to the pin's tree, giving tree `1416b7a32820d3fc625323b16297140f9d74293e`, and reverses to
+`107c4f08`. Every other entry of the pin's tree is unchanged. It is disjoint from §2o's patch: applied with it in
+either order, the tree is `49942efdc3659baf8314de099372b74971a3851b`, and both reverse to the pin.
+
+**What it changes.**
+
+- **One optional field.** Each run of `t3_thread_read` gains `providerReportedModels`. A producer without the patch
+  omits it, and its absence means an unpatched producer, never "no models". The run's `model` stays the requested
+  selection, and the new field never falls back to it, to the thread or launch selection, to a catalog or to a
+  default.
+- **Exact ownership.** A model id counts only from `turnTokenUsage.models` of a terminal provider turn whose non-null
+  run attempt is one of the run's selected attempts, on that attempt's own root node and provider thread, loaded within
+  the read's own thread. Null-attempt (child), other-node, other-provider-thread and other-run turns never count.
+  Each attempt is reported separately: a restart's models are never merged into another attempt's.
+- **Unknown stays unknown.** An attempt with no valid id from such a turn is `unknown`. That includes absent, empty,
+  erased or wholly invalid reports and running turns, and it is never "none" or zero. A missing or failed load is
+  `unavailable` with a reason, never an empty success.
+- **Bounded output.** The latest 8 attempts per run, at most 8 ids per attempt, each 1–200 UTF-16 units. The read
+  records attempts and ids it left out and values it excluded as invalid.
+- **No finality.** `collectedAt` is when the read finished loading, not when a provider observed anything, and not a
+  freshness or snapshot claim. There is no complete, final, accepted or effort field.
+
+**Provenance.** Authored for INC04-S03B-D2-DONOR-PATCH-A-001 outside Sophia, against this pin's frozen lockfile with
+Node 26.12.1 and pnpm 12.14.0 (filtered install, lifecycle scripts off). Adopted by root (`008d9e6a…92b5`) after an
+independent review (`c741699e…ffa71`) that found no donor-code defect. Its META erratum
+(INC04-S03B-D2-DONOR-PATCH-A-001-META-ERRATUM-001) qualifies the authored checks, and its limits are part of this
+record.
+
+**Limits.**
+
+- **Not applied, installed or used by Sophia.** No Sophia build, install, startup, owner host or production path uses
+  it. It is not an upstream change, not a fork and not a merged upstream behavior. Carrying it qualifies no native,
+  account, profile, toolkit or owner route, and it does not close R11: Sophia does not consume the field yet, and no
+  owner host runs a patched T3.
+- **The controls are compact.** Its 13 mutation controls are reported test failures that are source-plausible, not 13
+  independent full raw causal proofs: the runner kept only summaries and failing names, and ignored exit codes. Its
+  fail-before shows the five new read cases failing on the pin's own source; the missing helper's import error is not
+  a semantic failure.
+- **Advisories are location-normalized.** The contracts typecheck's 161 advisories equal the pin's only after one
+  location shift (`orchestratorMcp.ts` 880 to 958); the server's 486 are equal as printed.
+- **Setup failures are retained.** The authored logs keep a missing `pnpm.cjs`, a first pnpm 11.7.0 invocation and a
+  first server typecheck that failed for an uninstalled workspace. The final runs are separate, and their six inner
+  exits are each 0.
+- **Fake against store.** Its read cases drive the real `OrchestratorMcpService` against a labelled fake
+  `ThreadManagementService` whose filter models the store SQL. The store's own filter is covered by the pin's unchanged
+  `ProjectionStore` suite. No end-to-end read against a real store ran.
+- **No new mutation, not an effect-free read.** The existing thread read can already acknowledge a caller's child-task
+  result, and that is unchanged. The patch adds evidence and one filtered read, and no other effect.
+- **Bounded output, unbounded loads.** Runs and attempts, then provider turns, are two transactions, so no coherent
+  snapshot is claimed. The store does not cap the whole-thread attempt load, the selected turns or a turn's model list.
+- **The erasure hazard is not patched.** The store can drop a turn's `turnTokenUsage` on a later update, so a later
+  read may show an earlier model as unknown. That is not a retraction: a future Sophia consumer must keep earlier
+  evidence append-only and read a later absence as unknown, never as "no model".
+- **Shape is not semantics.** The schema bounds only lengths. Trimming, control characters, lone surrogates and count
+  relations are enforced by this producer, so a value that decodes proves neither its ownership nor its semantics.
+
+## 2q. Two applied dependency patches at INC04-S03A-R07-C1P (provider usage provenance)
+
+Read in the frozen install of the af82 lockfile (dsh `0.2.0-rc.2` at `639ed015…`, pi-ai `0.87.1`, the OpenAI SDK
+`openai@6.40.0`), 2026-11-14. These are the upstream passages C1P relies on, at their unpatched pins. Unlike §2o and
+§2p, the two patches below ARE applied by Sophia (`patchedDependencies`), so the installed and deployed copies of
+these two packages are not the official registry bytes. Patch details and pre/post hashes: [patches/README.md](../patches/README.md).
+
+| ID | Upstream file (unpatched) | Full-file SHA-256 | Lines | What it shows |
+|---|---|---|---|---|
+| C1P-PI-INIT | pi-ai `dist/api/openai-responses.js` | `3e95145f94ac2a255d1adc0ae65cf02c2e6d479f7a2dbf5c466db21885c29ec6` | 87–99, 129–157 | Every call starts with an all-zero `usage`. After the terminal event, a caller abort or an error stop throws, and the catch emits `error` with whatever usage the call holds. |
+| C1P-PI-FINAL | pi-ai `dist/api/openai-responses-shared.js` | `7846279b34c2a569bda2b0753c8b083f8b976204b4fdd7586095ebbb6a643410` | 433–476, 637–653 | `finalizeResponse` (completed/incomplete) replaces the zeros only `if (response?.usage)`, so a terminal response without usage looks like explicit zeros. `response.failed` and the stream `error` event throw without reading usage. |
+| C1P-PI-TYPE | pi-ai `dist/types.d.ts` | `5e08c1db4740b95b7107d3c3540a6d0e414a82d9c75fab950150827c994e14a3` | 353–375 | `AssistantMessage.usage: Usage` is required: absence is not representable. |
+| C1P-DSH-READ | dsh-llm-pi-ai `lib/index.js` | `d46dbc30aeb3414190000e6f8aeaaf994246b5e5c651de07639f4a7e92de37ef` | 1366–1379, 1559–1585 | `toStreamChunks` always yields a `usage` chunk on `done` and on `error`, from `mapUsage` (zero cache counters omitted). |
+| C1P-DSH-GRAMMAR | dsh-llm `lib/invariant.js` | `8cb78641252b7a41523fef2c571dd42c698de4c9475dd91683191cefa4dced48` | 18–58 | The stream grammar allows at most one `usage` chunk and requires none. |
+| C1P-OAI-USAGE | openai `resources/responses/responses.d.ts` | (SDK 6.40.0, lock `sha512-MWtTjd…6lcK9JiA==`) | 5171–5212 | `ResponseUsage`: input_tokens, input_tokens_details.cached_tokens, output_tokens, output_tokens_details.reasoning_tokens, total_tokens. There is **no** `cache_write_tokens`. `Response.usage` is optional. |
+
+**Decisions encoded in the patches (root D-C1P-1/2).**
+
+- `complete` requires `input_tokens`, `output_tokens` and `input_tokens_details.cached_tokens` as finite non-negative safe integers, with `cached_tokens <= input_tokens`.
+- `cache_write_tokens` absent or 0 adds no class. Anything else is `partial`: an unqualified extension, never used as qualified cost attribution.
+- Total and reasoning counts are informational.
+- Partial and absent usage never become `TokenUsage`, and no field is defaulted to zero.
+- On `openai-responses`, the reader reports usage only for `complete`. Every other pi-ai API is unchanged.
+- This is the producer contract for the SDK 6.40.0 shape and the test double. Live provider behavior (Q5) and provider-billed amounts are not established by it.
+
+| Applied patch | Lock `patch_hash` = file SHA-256 |
+|---|---|
+| `patches/@earendil-works__pi-ai@0.87.1.patch` | `fc9c52c812d9e32a3869d20832fdacc944312e7333a57a5eebcf9eba6fb92bc1` |
+| `patches/@deepseek-ai__dsh-llm-pi-ai@0.2.0-rc.2.patch` | `e61fcb0f763e32f571e01e85cf00c11ba2feaf8ff8f1a777aa7e4844e8c33147` |
+
+## 2r. PostgreSQL client lifecycle at INC04-S03-CI-SQL-CLEANUP-001 (test fixture teardown)
+
+Read in the frozen install of the 548 lockfile, 2026-11-14. These are the upstream passages the fixture teardown in
+`apps/api/src/selection-installation.db.test.ts` relies on (finding E62-SQL-F01). Nothing here is patched or copied into
+the tree, and no production pool changes; `createPool` (`packages/persistence/src/tx.ts`) is unchanged.
+
+| ID | Upstream file (as installed) | Full-file SHA-256 | Lines | What it shows |
+|---|---|---|---|---|
+| PGL-POOL-END | pg-pool `3.14.0` `index.js` (lock `sha512-gKtPkF…IpBaw==`) | `6f304776edaabde2954cbf8c4366fa6d9512bfba0e408e78cc56b3c46c69d058` | 127–143, 172–188, 488–499 | `end()` sets `ending` and pulses. On ending, each idle client goes through `_remove`, which drops it from `_clients` at once and only then calls `client.end(callback)`. The pulse sees `_clients` empty and resolves `end()` before those callbacks run. So `await pool.end()` does not mean the pool's connections have closed. |
+| PGL-POOL-EVENTS | same file | (as above) | 51–62, 335–338 | A client's later `'error'` is forwarded as the pool's `'error'` event (an uncaught exception without a listener). The pool emits the public `'connect'` event once per newly connected client, before its first use. |
+| PGL-CLIENT-END | pg `8.23.0` `lib/client.js` (lock `sha512-Ip2EQC…F34qLg==`) | `992c12d10cd42ece06b0b224601fa783a02ed08f3ace8bd8089cc441b6308abf` | 203–229, 416–434, 781–818 | `end()` sets `_ending` and resolves (or calls back) only on the connection's `'end'`. When that happens the client emits its own public `'end'` event. A backend error message arriving with no active query is emitted as the client's `'error'` even while `_ending`. |
+| PGL-CONN-END | pg `8.23.0` `lib/connection.js` | `836b6abbfbc68744769ba499e2a79062dba5fd281af31fc5e83431514bdefd4a` | 63–65 | The connection's `'end'` is the socket's `'close'`: the client's `'end'` means its TCP connection is actually closed. |
+
+**The fence this file uses.**
+
+- It registers each owned pool through the public `'connect'` event before first use, keeping each client's own public `'end'`.
+- At teardown it ends the pools, then awaits every such `'end'`, and only then FORCE-drops its own fixture database.
+- It reads no private pool field. The labelled controls instrument only a test-local `Client` subclass, passed through the public `Client` pool option.
+- Which client owned the e62 CI's backend 4393 is not mapped.
 
 ## 3. Facts learned at the pin (not in the pack)
 

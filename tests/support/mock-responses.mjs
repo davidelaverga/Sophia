@@ -18,6 +18,7 @@ export async function startMockResponses() {
   const queue = []
   let active = 0
   let abandoned = 0
+  let terminalSent = 0
   const server = createServer(async (req, res) => {
     let raw = ''
     for await (const chunk of req) raw += chunk
@@ -47,13 +48,28 @@ export async function startMockResponses() {
     const answer = step.toolCall
       ? { id: `fc_mock_${n}`, type: 'function_call', status: 'completed', call_id: `call_mock_${n}`, name: step.toolCall.name, arguments: JSON.stringify(args ?? {}) }
       : { id: `msg_mock_${n}`, type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: step.text, annotations: [] }] }
-    const response = (status, output) => ({ id, object: 'response', created_at: 0, model: body.model, status, output, usage: status === 'completed' ? { input_tokens: 1, output_tokens: 1, total_tokens: 2, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 }, ...step.usage } : null })
+    // INC04-S03A-R07-C1P: `terminal` ('incomplete' or 'failed') ends with that event instead of response.completed, and
+    // `omitUsage` sends the terminal response with no `usage` field at all. Without them every answer is as before.
+    const reported = { input_tokens: 1, output_tokens: 1, total_tokens: 2, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 }, ...step.usage }
+    const response = (status, output) => {
+      const answer = { id, object: 'response', created_at: 0, model: body.model, status, output, usage: status === 'in_progress' ? null : reported }
+      if (status === 'incomplete') answer.incomplete_details = { reason: step.incompleteReason ?? 'content_filter' }
+      if (status === 'failed') answer.error = { code: 'server_error', message: 'the test double failed this response' }
+      if (step.omitUsage && status !== 'in_progress') delete answer.usage
+      return answer
+    }
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
     let sequence = 0
     const send = (type, payload) => { if (!closed) res.write(`event: ${type}\ndata: ${JSON.stringify({ type, sequence_number: sequence++, ...payload })}\n\n`) }
     send('response.created', { response: response('in_progress', []) })
     send('response.output_item.added', { output_index: 0, item: { ...reasoning } })
     send('response.output_item.done', { output_index: 0, item: reasoning })
+    // `cutAfterCreated`: the connection is cut before any terminal event (no response.completed, failed or incomplete).
+    if (step.cutAfterCreated) {
+      res.destroy()
+      active -= 1
+      return
+    }
     if (step.delayMs) await new Promise((resolve) => setTimeout(resolve, step.delayMs))
     if (step.toolCall) {
       send('response.output_item.added', { output_index: 1, item: { ...answer, status: 'in_progress', arguments: '' } })
@@ -64,7 +80,11 @@ export async function startMockResponses() {
       send('response.output_text.delta', { output_index: 1, item_id: answer.id, content_index: 0, delta: step.text })
     }
     send('response.output_item.done', { output_index: 1, item: answer })
-    send('response.completed', { response: response('completed', [reasoning, answer]) })
+    const terminal = step.terminal ?? 'completed'
+    send(`response.${terminal}`, { response: response(terminal, [reasoning, answer]) })
+    terminalSent += 1
+    // `holdOpenMs`: the terminal event is sent but the stream stays open that long (a late abort can arrive after it).
+    if (step.holdOpenMs) await new Promise((resolve) => setTimeout(resolve, step.holdOpenMs))
     if (!closed) res.end()
     active -= 1
   })
@@ -77,11 +97,16 @@ export async function startMockResponses() {
      * Queue answers; each request consumes one (default: a short "ok"). `{ toolCall: { name, arguments } }` calls a tool;
      * `arguments` may be a function of the request body, for an argument only what the model received can give.
      * `usage` replaces fields of the reported usage. `{ status }` answers that HTTP error (429, 5xx) with no stream.
+     * INC04-S03A-R07-C1P: `omitUsage` sends the terminal response without a `usage` field; `terminal: 'incomplete' |
+     * 'failed'` ends with that event (with `incompleteReason`, default content_filter); `cutAfterCreated` cuts the
+     * connection after response.created; `holdOpenMs` keeps the stream open that long after its terminal event.
      */
     script: (...steps) => { queue.push(...steps) },
     get active() { return active },
     /** Streamed answers the client closed before they finished (an aborted call). */
     get abandoned() { return abandoned },
+    /** Terminal events (response.completed, .incomplete or .failed) the double has sent. */
+    get terminalSent() { return terminalSent },
     close: () => new Promise((resolve) => { server.closeAllConnections?.(); server.close(resolve) }),
   }
 }

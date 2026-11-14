@@ -1,0 +1,111 @@
+diff --git a/dist/api/openai-responses-shared.js b/dist/api/openai-responses-shared.js
+index 53597d2c3becdd2c03d4fd265c213a36b403f26b..02a92d74e2c92bc952e357dd6a882b3af23f803e 100644
+--- a/dist/api/openai-responses-shared.js
++++ b/dist/api/openai-responses-shared.js
+@@ -317,6 +317,22 @@ function appendCustomToolCallInput(block, nextInput, close) {
+     block.arguments = { [customInput.property]: nextInput };
+     return delta;
+ }
++// Sophia patch (INC04-S03A-R07-C1P): this call's provider usage provenance, judged from one terminal Responses `usage`
++// object alone. "complete" needs input_tokens, output_tokens and input_tokens_details.cached_tokens as finite
++// non-negative safe integers with cached_tokens <= input_tokens; cache_write_tokens may be absent or 0 (no separately
++// reported write class), and anything else there is an unqualified extension. Total and reasoning counts are
++// informational. A missing object is "absent"; anything not complete is "partial". Nothing is defaulted to zero.
++function responsesUsageProvenance(usage) {
++    if (usage === undefined || usage === null) return "absent";
++    if (typeof usage !== "object") return "partial";
++    const count = (value) => Number.isSafeInteger(value) && value >= 0;
++    const details = usage.input_tokens_details;
++    if (!count(usage.input_tokens) || !count(usage.output_tokens)) return "partial";
++    if (details === null || typeof details !== "object" || !count(details.cached_tokens)) return "partial";
++    if (details.cached_tokens > usage.input_tokens) return "partial";
++    if (details.cache_write_tokens !== undefined && details.cache_write_tokens !== 0) return "partial";
++    return "complete";
++}
+ export async function processResponsesStream(openaiStream, output, stream, model, options) {
+     let sawTerminalResponseEvent = false;
+     const outputSlots = new Map();
+@@ -451,6 +467,8 @@ export async function processResponsesStream(openaiStream, output, stream, model
+                 cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+             };
+         }
++        // Sophia patch: the provenance of THIS terminal response's usage, never one carried over from earlier data.
++        output.usageProvenance = responsesUsageProvenance(response?.usage);
+         calculateCost(model, output.usage);
+         if (options?.applyServiceTierPricing) {
+             const serviceTier = options.resolveServiceTier
+@@ -643,6 +661,22 @@ export async function processResponsesStream(openaiStream, output, stream, model
+         else if (event.type === "response.failed") {
+             sawTerminalResponseEvent = true;
+             output.rawStopReason = event.response?.status;
++            // Sophia patch: usage the provider reported for this failed response is kept, under the same rule.
++            const failedUsage = event.response?.usage;
++            output.usageProvenance = responsesUsageProvenance(failedUsage);
++            if (output.usageProvenance === "complete") {
++                const cachedTokens = failedUsage.input_tokens_details.cached_tokens;
++                output.usage = {
++                    input: failedUsage.input_tokens - cachedTokens,
++                    output: failedUsage.output_tokens,
++                    cacheRead: cachedTokens,
++                    cacheWrite: 0,
++                    reasoning: failedUsage.output_tokens_details?.reasoning_tokens || 0,
++                    totalTokens: failedUsage.total_tokens || 0,
++                    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
++                };
++                calculateCost(model, output.usage);
++            }
+             const error = event.response?.error;
+             const details = event.response?.incomplete_details;
+             const msg = error
+@@ -686,4 +720,4 @@ function mapStopReason(status, incompleteReason) {
+         }
+     }
+ }
+-//# sourceMappingURL=openai-responses-shared.js.map
+\ No newline at end of file
++// Sophia patch: the original source map no longer describes this file, so it is not referenced.
+\ No newline at end of file
+diff --git a/dist/api/openai-responses.js b/dist/api/openai-responses.js
+index 1396c8d57ffb0e300382281a026d878e6a96b43a..0eaec1e22f893432b12852ef7e4b7b6d4e768d08 100644
+--- a/dist/api/openai-responses.js
++++ b/dist/api/openai-responses.js
+@@ -98,6 +98,8 @@ export const stream = (model, context, options) => {
+                 totalTokens: 0,
+                 cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+             },
++            // Sophia patch (INC04-S03A-R07-C1P): no provider usage is known until a terminal response reports it.
++            usageProvenance: "absent",
+             stopReason: "pending",
+             timestamp: Date.now(),
+         };
+@@ -290,4 +292,4 @@ function applyServiceTierPricing(usage, serviceTier, model) {
+     usage.cost.cacheWrite *= multiplier;
+     usage.cost.total = usage.cost.input + usage.cost.output + usage.cost.cacheRead + usage.cost.cacheWrite;
+ }
+-//# sourceMappingURL=openai-responses.js.map
+\ No newline at end of file
++// Sophia patch: the original source map no longer describes this file, so it is not referenced.
+\ No newline at end of file
+diff --git a/dist/types.d.ts b/dist/types.d.ts
+index 5915ca64b161bc7bcebdb14d2ad1a2c18cde942e..b516ef16165d48363da9355f46233d4ec4447cc8 100644
+--- a/dist/types.d.ts
++++ b/dist/types.d.ts
+@@ -362,6 +362,11 @@ export interface AssistantMessage {
+     providerThinkingLevel?: string;
+     diagnostics?: AssistantMessageDiagnostic[];
+     usage: Usage;
++    /**
++     * Sophia patch (INC04-S03A-R07-C1P): whether this call's provider usage was reported completely, partially or not
++     * at all. Set by the openai-responses API only; absent for every other API.
++     */
++    usageProvenance?: "complete" | "partial" | "absent";
+     stopReason: StopReason;
+     deferred?: DeferredHandle;
+     errorMessage?: string;
+@@ -833,4 +838,4 @@ export interface ImagesModel<TApi extends ImagesApi> extends Omit<Model<Api>, "a
+     provider: ImagesProviderId;
+     output: ("text" | "image")[];
+ }
+-//# sourceMappingURL=types.d.ts.map
+\ No newline at end of file
++// Sophia patch: the original source map no longer describes this file, so it is not referenced.

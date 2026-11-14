@@ -1,0 +1,61 @@
+diff --git a/lib/index.js b/lib/index.js
+index 0c74b3ab2b556f4b0e656a304e1242ffceb8c288..666b51ee30548f35d9352ab7eb9989f229908104 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -1377,6 +1377,17 @@ function mapUsage(usage) {
+ 		...usage.cacheWrite > 0 ? { cacheWriteTokens: usage.cacheWrite } : {}
+ 	};
+ }
++/**
++* Sophia patch (INC04-S03A-R07-C1P): the usage this call's provider reported, or undefined when it is not known. On the
++* openai-responses API a usage chunk is emitted only for a recognized complete provenance: an absent, partial or
++* unrecognized marker (a producer without it included) stays unknown, never a default zero. Every other API keeps its
++* behavior.
++* @param message - the assistant message carried by the `done` or `error` event.
++*/
++function reportedUsage(message) {
++	if (message.api === "openai-responses") return message.usageProvenance === "complete" ? mapUsage(message.usage) : void 0;
++	return mapUsage(message.usage);
++}
+ function classifyPiAiError(message) {
+ 	if (/\b(?:401|403)\b/.test(message)) return "AUTH";
+ 	if (isQuotaExceededError(message)) return QUOTA_EXCEEDED_CODE;
+@@ -1556,10 +1567,11 @@ async function* toStreamChunks(events, contextWindow, callerSignal, requestedMod
+ 				}
+ 			};
+ 			break;
+-		case "done":
+-			yield {
++		case "done": {
++			const usage = reportedUsage(event.message);
++			if (usage !== void 0) yield {
+ 				type: "usage",
+-				usage: mapUsage(event.message.usage)
++				usage
+ 			};
+ 			yield {
+ 				type: "finish",
+@@ -1567,10 +1579,12 @@ async function* toStreamChunks(events, contextWindow, callerSignal, requestedMod
+ 				replayState: toPiReplayState(event.message, requestedModel)
+ 			};
+ 			return;
+-		case "error":
+-			yield {
++		}
++		case "error": {
++			const usage = reportedUsage(event.error);
++			if (usage !== void 0) yield {
+ 				type: "usage",
+-				usage: mapUsage(event.error.usage)
++				usage
+ 			};
+ 			yield {
+ 				type: "finish",
+@@ -1580,6 +1594,7 @@ async function* toStreamChunks(events, contextWindow, callerSignal, requestedMod
+ 				} : event.error, contextWindow)
+ 			};
+ 			return;
++		}
+ 	}
+ 	throw new LlmError("pi-ai event stream ended without done/error", "STREAM_CLOSED");
+ }

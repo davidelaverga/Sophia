@@ -38,3 +38,7 @@ injectWorkspacePackages: true
 # version S1-02 was built and tested with.
 minimumReleaseAgeExclude:
   - vite@8.3.1
+
+patchedDependencies:
+  '@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.2': patches/@deepseek-ai__dsh-llm-pi-ai@0.2.0-rc.2.patch
+  '@earendil-works/pi-ai@0.87.1': patches/@earendil-works__pi-ai@0.87.1.patch

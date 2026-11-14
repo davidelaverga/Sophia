@@ -5,7 +5,8 @@
 // (writeOnce): not ready without it, and an API without a store requires nothing of 0044. The brief and the room's
 // chat read the authors' names of 0048 and 0049 (Codex P1 on #336), and a voice write the room names of 0050: not
 // ready on a database short of any. A report's Sources read a cited project text through 0090's guard: not ready
-// without it.
+// without it. The atomic contributed admission (0105) is core whatever the switches say (INC04-S02a coherent): short
+// of it, no API is ready, so the optional voice contrast (0085, 0087) is shown with every other migration installed.
 import { randomUUID } from 'node:crypto'
 import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -131,6 +132,18 @@ async function current() {
   await through('9999')
 }
 
+/**
+ * The core an API needs whatever its switches say, 0105's atomic admission included, without the optional voice
+ * qualification: every migration after 0044 not yet applied, as written and in order, except 0085 and 0087 (no later
+ * migration replaces or calls their objects, so they can follow it; nothing of 0044 is needed, as in through()).
+ */
+async function atomicCore() {
+  for (const file of readdirSync(MIGRATIONS)
+    .filter((f) => f.endsWith('.sql') && f > WRITE_ONCE && f !== VOICE && f !== NUMBERING)
+    .toSorted())
+    if (!applied.has(file)) await migrate(file)
+}
+
 describe('readiness across 0043', () => {
   it('is not ready on a database migrated through 0042, nor short of 0048, 0049, 0050 or 0051; ready with all', async () => {
     assert.ok(readdirSync(dir).includes('0042_source_review_coordination.sql'), 'migrated through 0042')
@@ -242,6 +255,15 @@ describe('readiness across 0043', () => {
     // Every API reads a report's cited project text through 0090 (getCitedReportText), which needs nothing of 0085.
     assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0090')
     await migrate(CITED_TEXT)
+    // Everything the earlier source required is here; this source also requires the atomic admission (0105) as core.
+    assert.deepEqual(
+      await ready(),
+      [503, { ready: false, reason: 'schema' }],
+      'without 0105, the core atomic admission',
+    )
+    assert.deepEqual(await ready(voiced), [503, { ready: false, reason: 'schema' }], 'voice on, without 0105')
+    await atomicCore()
+    assert.ok(!applied.has(VOICE) && !applied.has(NUMBERING), 'the core, without 0085 or 0087')
     assert.deepEqual(await ready(), [200, { ready: true }], 'voice qualification off: needs nothing of 0085 or 0087')
     assert.deepEqual(await ready(voiced), [503, { ready: false, reason: 'schema' }], 'voice on, without 0085')
     await migrate(VOICE)
