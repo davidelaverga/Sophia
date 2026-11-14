@@ -32,7 +32,25 @@ jobs:
         with:
           node-version-file: .node-version
       - run: pnpm install --frozen-lockfile
-      - run: pnpm check
+      # PR519-CI-F2-OBSERVABILITY-001: the check's integration suite also writes TAP to one file in this directory, test
+      # by test as Node reports it, so a run cut off still leaves what had been reported by then. Nothing else is written
+      # there. The file is uploaded whether the check passed or not, and the upload never decides the job.
+      - name: Prepare the diagnostics directory
+        run: mkdir -p "$RUNNER_TEMP/sophia-ci-diagnostics"
+      # 25 minutes, below the job's 30, so the upload after it still runs when the check is cut off.
+      - timeout-minutes: 25
+        env:
+          SOPHIA_INTEGRATION_TAP: ${{ runner.temp }}/sophia-ci-diagnostics/integration.tap
+        run: pnpm check
+      - name: Upload the integration TAP report
+        if: always()
+        timeout-minutes: 3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integration-tap-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/sophia-ci-diagnostics/integration.tap
+          if-no-files-found: warn
+          retention-days: 7
       - name: Pinned dsh source and release provenance
         run: pnpm dsh:source --dir "$RUNNER_TEMP/dsh-src/deepseek-harness" --verify-release
 

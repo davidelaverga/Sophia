@@ -609,6 +609,26 @@ the tree, and no production pool changes; `createPool` (`packages/persistence/sr
 - It reads no private pool field. The labelled controls instrument only a test-local `Client` subclass, passed through the public `Client` pool option.
 - Which client owned the e62 CI's backend 4393 is not mapped.
 
+## 2t. Node 24 test reporters and the CI step deadline at PR519-CI-F2-OBSERVABILITY-001
+
+Read on 2026-11-14 from the official sources listed. They are fetched for reading only; nothing here is copied into the tree. These are the passages relied on by `scripts/test-integration.mjs` (optional TAP report) and by the `runtime-unit` diagnostics in `.github/workflows/ci.yml`. The local runtime is Node 24.21.0, the pinned toolchain.
+
+| ID | Upstream file (exact ref) | Full-file SHA-256 | Lines | What it shows |
+|---|---|---|---|---|
+| F2T-DOCS-REPORTERS | `https://nodejs.org/download/release/v24.21.0/docs/api/test.html` (HTML) | `e8228f27a4c7f63959e1cd6a964da924a4fc6063ba9bf54e474f18368dd497d3` | 1801–1807, 2032–2044 | spec is the default reporter, on non-TTY stdout too since v23.0.0. `--test-reporter` may be repeated, each with its own `--test-reporter-destination` (`stdout`, `stderr` or a file path), paired in the order given. |
+| F2T-DEST | node `v24.21.0` `lib/internal/test_runner/utils.js` | `56bc4b056d4f77ff87a9e691a385e91dff0c15ac47e4444179c5b7fdd0a26013` | 129–132, 200–203, 284–301 | `stdout`/`stderr` are the built-in destinations. Any other destination is opened with `createWriteStream(path, { flush: true })`. Reporter and destination counts must match, or the run is refused. |
+| F2T-TAP | node `v24.21.0` `lib/internal/test_runner/reporter/tap.js` | `3aadb6a08fab850e8dc365cc14432fa77464c2b7f794b934c91426bc5c513f3b` | 31–77 | The TAP reporter yields its text event by event: the version line first, then `ok`/`not ok` with details as each `test:pass`/`test:fail` arrives, and `# Interrupted while running: …` on `test:interrupted`. |
+| F2T-JUNIT | node `v24.21.0` `lib/internal/test_runner/reporter/junit.js` | `2ed2cdbfde3f7d53eb693dc184af48ca04e99d656ea7b7dd1e1adab6934fca64` | 67–72, 159–172 | JUnit keeps its tree in memory and writes it only after the last event. A cut-off run leaves no record, so it is not used. |
+| F2T-UPLOAD | `actions/upload-artifact` at `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` (v7.0.1, the repository's existing pin) `action.yml` | `c5979822866a72362e609844b6ebe77d4b7e759af68cc1c2c425dcf51481fab4` | 4–25 | Inputs `name`, `path` (required), `if-no-files-found` (default `warn`: a warning, not a failure) and `retention-days` (1 to 90). |
+| F2T-STEP-TIMEOUT | GitHub Docs `content/actions/reference/workflows-and-actions/workflow-syntax.md` (github/docs `main` as fetched; not a pinned release) | `50c73cf50995a0c7641988b1f72ca9e3447ce2920f4a48cb468d7765eff0b6f1` | 1066–1074, 1228–1230 | `steps[*].timeout-minutes` kills the step's process after that many minutes, and `continue-on-error` would let a failed step pass the job (not used). `jobs.<id>.timeout-minutes` cancels the job. |
+
+**What these passages do not establish.**
+
+- The TAP file holds only what Node emitted and the stream flushed before the process ended.
+- A hard kill, a lost runner or a failed upload can still leave no file, a short file, or no artifact.
+- Which signals the runner sends on a step timeout is not documented in these passages, and is not relied on.
+- None of this identifies F2's cause.
+
 ## 3. Facts learned at the pin (not in the pack)
 
 These are observed behaviors of the pinned release, recorded so later goals
