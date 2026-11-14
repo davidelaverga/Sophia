@@ -47,7 +47,12 @@ Two kinds of patch live here. Neither is an upstream change or a fork.
 - The original `.js.map` and `.d.ts.map` files remain unreferenced and unchanged. They do carry `sourcesContent`; they were simply not regenerated.
 - dsh-llm-pi-ai's `index.js` carries no source map reference.
 
-**License.** Both packages are MIT. Their LICENSE files stay in the installed packages, unchanged. These patches are derivative changes under the same license, with copyright remaining with the upstream authors for their code.
+**License.** Both packages declare MIT. What each one ships differs, and neither patch adds, removes or changes a license file:
+
+- `@earendil-works/pi-ai` 0.87.1 declares `"license": "MIT"` in its `package.json` (whose `files` are `dist` and `README.md`), and its README ends with a `## License` section reading `MIT`. It ships no LICENSE or NOTICE file: none exists in the registry original, the installed copy or the local `pnpm deploy` runtime.
+- `@deepseek-ai/dsh-llm-pi-ai` 0.2.0-rc.2 declares `"license": "MIT"` and ships its MIT `LICENSE` (1,065 bytes, SHA-256 `ebb4f09972aee8608be255debaf78451a68e95c290f55c240dec2ecfa16ea6be`), unchanged in the installed and deployed copies.
+
+These patches are derivative changes under the same license, with copyright remaining with the upstream authors for their code.
 
 **Re-evaluate on any pin change.**
 
