@@ -5,6 +5,7 @@
 import { execFile } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdtempSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -179,6 +180,92 @@ const rows = async () => [
   await count('capacity_observation_windows'),
   await count('capacity_observation_revocations'),
 ]
+
+// R1 (CLI numbers): an operator's file is raw text. These fixtures write each number as a literal lexeme into the file,
+// never through JSON.stringify of a number (which would hand the CLI an already rounded value and witness nothing).
+const NUMBER_SLOTS = {
+  revision: '@@credentialRevision@@',
+  qualificationRevision: '@@accountQualificationRevision@@',
+  sequence: '@@sourceSequence@@',
+  value: '@@tokensPerMinuteValue@@',
+} as const
+type Lexemes = { [K in keyof typeof NUMBER_SLOTS]?: string | null }
+/**
+ * The reading as file text with its credential revision, account qualification revision, source sequence and model
+ * window value written exactly as given (defaults 1, its revision, 0 and 0.3); null leaves the source sequence out.
+ */
+function fileText(r: CapacityObservationInput, given: Lexemes = {}): string {
+  const lexemes: Required<Lexemes> = {
+    revision: '1',
+    qualificationRevision: String(r.accountQualificationRevision),
+    sequence: '0',
+    value: '0.3',
+    ...given,
+  }
+  const shaped: Record<string, unknown> = {
+    ...r,
+    credentialRevision: NUMBER_SLOTS.revision,
+    accountQualificationRevision: NUMBER_SLOTS.qualificationRevision,
+    windows: r.windows.map((w) => (w.windowRef === 'tokens-per-minute' ? { ...w, value: NUMBER_SLOTS.value } : w)),
+  }
+  if (lexemes.sequence !== null) shaped.sourceSequence = NUMBER_SLOTS.sequence
+  let text = JSON.stringify(shaped)
+  for (const [slot, marker] of Object.entries(NUMBER_SLOTS)) {
+    const lexeme = Reflect.get(lexemes, slot)
+    if (typeof lexeme === 'string') text = text.replace(`"${marker}"`, lexeme)
+  }
+  assert.equal(text.includes('@@'), false, 'every number is written as its lexeme')
+  return text
+}
+interface CliRun {
+  code: number
+  stdout: string
+  stderr: string
+}
+/** `record` of this exact file text through the operator CLI, as the migration owner of the given database. */
+async function cliRecord(text: string, url: string = db.ownerUrl): Promise<CliRun> {
+  const file = join(mkdtempSync(join(tmpdir(), 'sophia-capacity-cli-')), 'reading.json')
+  writeFileSync(file, text, { mode: 0o600 })
+  try {
+    const { stdout, stderr } = await promisify(execFile)(
+      process.execPath,
+      ['scripts/record-capacity-observation.ts', 'record', file],
+      { env: { ...process.env, SOPHIA_MIGRATION_DATABASE_URL: url } },
+    )
+    return { code: 0, stdout, stderr }
+  } catch (err: unknown) {
+    const field = (name: string): unknown => Reflect.get(Object(err), name)
+    return { code: Number(field('code')), stdout: String(field('stdout')), stderr: String(field('stderr')) }
+  }
+}
+const INEXACT = "A reading's numbers must be finite and keep their written value\n"
+const unsafe = (field: string, least: number) =>
+  `A reading's ${field} must be a safe integer of at least ${String(least)}\n`
+const CLI_REFUSALS = new Set([
+  INEXACT,
+  unsafe('sourceSequence', 0),
+  unsafe('credentialRevision', 1),
+  unsafe('accountQualificationRevision', 1),
+  'A reading file is JSON\n',
+  'A reading is a JSON object\n',
+])
+/** A CLI refusal: exit 1, nothing printed but its fixed message (so no token is echoed). */
+const refused = (run: CliRun, message: string, label: string) =>
+  assert.deepEqual(run, { code: 1, stdout: '', stderr: message }, label)
+const storedOf = async (observationId: string) =>
+  (
+    await ownerPool.query<{ sequence: string | null; value: string | null }>(
+      `SELECT o.source_sequence::text AS sequence, w.value::text AS value FROM sophia.capacity_observations o
+        JOIN sophia.capacity_observation_windows w ON w.observation_id=o.id AND w.window_ref='tokens-per-minute'
+       WHERE o.id=$1`,
+      [observationId],
+    )
+  ).rows[0]
+const receiptId = (run: CliRun) => {
+  const id = /observation ([0-9a-f-]{36})/u.exec(run.stdout)?.[1]
+  assert.ok(id, JSON.stringify(run))
+  return id
+}
 
 describe('operator custody of capacity readings (0107)', () => {
   it('replays one sealed reading under a concurrent same-key race, and conflicts on a changed payload', async () => {
@@ -404,5 +491,153 @@ describe('operator custody of capacity readings (0107)', () => {
     assert.deepEqual(await raw(spelled('1.0', { reflection: 'all' })), { ok: false, code: '23505' }, 'changed payload')
     assert.deepEqual(await rows(), initial, 'nothing written')
     assert.deepEqual(await readFor(w), { state: 'unbound' }, 'still restrictive')
+  })
+
+  it('records and replays exact numbers through the operator CLI by value, whatever their spelling', async () => {
+    const w = await world()
+    const r = await reading(w, await w.qualify())
+    const rev = String(r.accountQualificationRevision)
+    const first = await cliRecord(fileText(r, { revision: '1.0', sequence: '0', value: '0.1' }))
+    assert.equal(first.code, 0, JSON.stringify(first))
+    const id = receiptId(first)
+    assert.deepEqual(await storedOf(id), { sequence: '0', value: '0.1' }, 'a genuine 0 sequence and a fraction')
+    const initial = await rows()
+    for (const spelled of [
+      { revision: '1' },
+      { revision: '1e0' },
+      { revision: '10e-1' },
+      { revision: '0.1e1' },
+      { qualificationRevision: `${rev}.0` },
+      { qualificationRevision: `${rev}e0` },
+      { sequence: '0.0' },
+      { sequence: '-0' },
+      { sequence: '0e5' },
+      { value: '1e-1' },
+      { value: '0.10' },
+      { value: '100e-3' },
+    ]) {
+      const again = await cliRecord(fileText(r, { revision: '1.0', sequence: '0', value: '0.1', ...spelled }))
+      assert.deepEqual(again, first, `the replay ${JSON.stringify(spelled)}`)
+    }
+    // A changed but exact payload still meets the database's conflict, never a CLI refusal.
+    for (const changed of [{ sequence: '1' }, { value: '0.2' }, { value: '0.1000000000000001' }]) {
+      const conflict = await cliRecord(fileText(r, { revision: '1.0', sequence: '0', value: '0.1', ...changed }))
+      assert.equal(conflict.code, 1, JSON.stringify(changed))
+      assert.equal(CLI_REFUSALS.has(conflict.stderr), false, `the database's conflict: ${JSON.stringify(changed)}`)
+    }
+    assert.deepEqual(await rows(), initial, 'replays and conflicts wrote nothing')
+    // The largest safe sequence, and an exponent-written window value, cross exactly.
+    const big = { ...r, observationKey: `k-${randomUUID()}` }
+    const max = await cliRecord(fileText(big, { sequence: '9007199254740991', value: '1e21' }))
+    assert.equal(max.code, 0, JSON.stringify(max))
+    assert.deepEqual(await storedOf(receiptId(max)), { sequence: '9007199254740991', value: '1000000000000000000000' })
+    for (const sequence of ['9.007199254740991e15', '9007199254740991.000'])
+      assert.deepEqual(await cliRecord(fileText(big, { sequence, value: '1e21' })), max, sequence)
+    // A null or absent source sequence, and a null window value.
+    for (const given of [{ sequence: 'null', value: 'null' }, { sequence: null }]) {
+      const other = { ...r, observationKey: `k-${randomUUID()}` }
+      const run = await cliRecord(fileText(other, given))
+      assert.equal(run.code, 0, JSON.stringify(run))
+      assert.equal((await storedOf(receiptId(run)))?.sequence, null, JSON.stringify(given))
+      assert.deepEqual(await cliRecord(fileText(other, given)), run, `the replay ${JSON.stringify(given)}`)
+    }
+  })
+
+  it('refuses inexact, unsafe, overflowing and underflowing numbers, even where the rounded value would replay', async () => {
+    const w = await world()
+    const r = await reading(w, await w.qualify())
+    const rev = r.accountQualificationRevision
+    // Original A, recorded through the CLI with exact numbers.
+    const a = await cliRecord(fileText(r))
+    assert.equal(a.code, 0, JSON.stringify(a))
+    // Original B, recorded through SQL as raw text: its sequence 2^53 is valid authority for the bigint column, but not a
+    // safe integer, so the CLI could only ever reach it by rounding.
+    const b = { ...r, observationKey: `k-${randomUUID()}` }
+    await ownerPool.query('SELECT sophia.record_capacity_observation($1::jsonb)', [
+      fileText(b, { sequence: '9007199254740992' }),
+    ])
+    const initial = await rows()
+    const cases: { reading: CapacityObservationInput; given: Lexemes; message: string; rounds?: number }[] = [
+      { reading: r, given: { revision: '1.00000000000000001' }, message: INEXACT, rounds: 1 },
+      { reading: r, given: { revision: '9007199254740993' }, message: INEXACT },
+      { reading: r, given: { revision: '1e999' }, message: INEXACT },
+      { reading: r, given: { revision: '1.5' }, message: unsafe('credentialRevision', 1) },
+      {
+        reading: r,
+        given: { qualificationRevision: `${String(rev)}.000000000000000001` },
+        message: INEXACT,
+        rounds: rev,
+      },
+      {
+        reading: r,
+        given: { qualificationRevision: `${String(rev)}.5` },
+        message: unsafe('accountQualificationRevision', 1),
+      },
+      { reading: r, given: { qualificationRevision: '0' }, message: unsafe('accountQualificationRevision', 1) },
+      { reading: r, given: { sequence: '1e-999' }, message: INEXACT, rounds: 0 },
+      { reading: r, given: { sequence: '1e999' }, message: INEXACT },
+      { reading: r, given: { sequence: '0.000000000000000000001' }, message: unsafe('sourceSequence', 0) },
+      { reading: r, given: { sequence: '-1' }, message: unsafe('sourceSequence', 0) },
+      { reading: r, given: { value: '0.30000000000000001' }, message: INEXACT, rounds: 0.3 },
+      { reading: r, given: { value: '0.299999999999999999999' }, message: INEXACT, rounds: 0.3 },
+      { reading: r, given: { value: '1e-999' }, message: INEXACT },
+      { reading: r, given: { value: '1e400' }, message: INEXACT },
+      { reading: r, given: { value: '123456789012345678901234567890' }, message: INEXACT },
+      { reading: b, given: { sequence: '9007199254740993' }, message: INEXACT, rounds: 9007199254740992 },
+      { reading: b, given: { sequence: '9.007199254740993e15' }, message: INEXACT, rounds: 9007199254740992 },
+      {
+        reading: b,
+        given: { sequence: '9007199254740992' },
+        message: unsafe('sourceSequence', 0),
+        rounds: 9007199254740992,
+      },
+    ]
+    for (const { reading: x, given, message, rounds } of cases) {
+      const label = JSON.stringify(given)
+      if (rounds !== undefined) {
+        // The premise: JS reads this lexeme as exactly the recorded authority's number, so it would have replayed.
+        const lexeme = Object.values(given)[0]
+        assert.equal(typeof lexeme === 'string' && JSON.parse(lexeme), rounds, `rounds onto the authority: ${label}`)
+      }
+      refused(await cliRecord(fileText(x, given)), message, label)
+    }
+    assert.deepEqual(await rows(), initial, 'no refused file wrote anything')
+    assert.deepEqual(await cliRecord(fileText(r)), a, 'the exact original still replays')
+  })
+
+  it('refuses an inexact file before contacting any database, where an exact one connects', async () => {
+    // A SYNTHETIC boundary, not a database: it counts connection attempts and closes each at once.
+    let connections = 0
+    const boundary = createServer((socket) => {
+      connections += 1
+      socket.destroy()
+    })
+    await new Promise<void>((done) => boundary.listen(0, '127.0.0.1', done))
+    try {
+      const address = boundary.address()
+      assert.ok(address !== null && typeof address === 'object')
+      const fake = `postgres://synthetic@127.0.0.1:${String(address.port)}/synthetic`
+      const w = await world()
+      const r = await reading(w, await w.qualify())
+      for (const [text, message] of [
+        [fileText(r, { revision: '9007199254740993' }), INEXACT],
+        [fileText(r, { revision: '1.00000000000000001' }), INEXACT],
+        [fileText(r, { sequence: '1e-999' }), INEXACT],
+        [fileText(r, { value: '1e400' }), INEXACT],
+        [fileText(r, { qualificationRevision: '1.5' }), unsafe('accountQualificationRevision', 1)],
+        [fileText(r, { sequence: '9007199254740992' }), unsafe('sourceSequence', 0)],
+        ['{"windows": [', 'A reading file is JSON\n'],
+        ['[1]', 'A reading is a JSON object\n'],
+      ] as const) {
+        refused(await cliRecord(text, fake), message, text.slice(0, 40))
+        assert.equal(connections, 0, 'refused before any connection')
+      }
+      const control = await cliRecord(fileText(r), fake)
+      assert.equal(control.code, 1)
+      assert.equal(CLI_REFUSALS.has(control.stderr), false, 'an exact file passes the CLI checks')
+      assert.ok(connections >= 1, 'and reaches the boundary, so the count can see a connection')
+    } finally {
+      await new Promise((done) => boundary.close(done))
+    }
   })
 })

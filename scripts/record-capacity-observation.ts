@@ -32,11 +32,84 @@ function usage(): never {
   process.exit(2)
 }
 
-/** The file's reading. Only its JSON shape is checked here; every rule is the database's (0107). */
+// A JSON number crosses to the database as a JS number (the persistence wrapper re-serializes the reading), so a file's
+// number must already BE that number: 9007199254740993 parses to …992, 1.00000000000000001 to 1 and 1e-999 to 0, and
+// each would reach SQL as a different, valid-looking value. Every numeric token is therefore checked against its own
+// lexeme (Node 24's reviver context.source) before any database is contacted, and refused, never rounded, unless its
+// decimal value is exactly the number's. Nothing here echoes a token: the errors are fixed.
+const INEXACT = "A reading's numbers must be finite and keep their written value"
+/** Integral fields that must be exact safe integers, with their least value. */
+const INTEGRAL = [
+  ['sourceSequence', 0],
+  ['credentialRevision', 1],
+  ['accountQualificationRevision', 1],
+] as const
+/** A JSON number, or a JS number's JSON text: sign, integer digits, fraction digits, exponent. */
+const NUMBER_TEXT = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?)(\d+))?$/u
+/** Longer exponents cannot belong to a finite nonzero double whatever the digits (a file is far shorter than 1e15). */
+const MAX_EXPONENT_DIGITS = 15
+
+/**
+ * A decimal value in one form per value: its significant digits (no leading or trailing zeros) and the exponent of the
+ * first, signed; zero is "0" whatever its sign or spelling. So 1, 1.0, 10e-1 and 1e0 are equal and 1.1 is not 1. Bounded:
+ * one regular scan and Number arithmetic on lengths and an exponent of at most 15 digits. undefined: no such value.
+ */
+function decimalOf(text: string): string | undefined {
+  const m = NUMBER_TEXT.exec(text)
+  if (!m) return undefined
+  const [, sign = '', int = '', frac = '', expSign = '', expDigits = '0'] = m
+  const digits = int + frac
+  const lead = digits.search(/[1-9]/u)
+  if (lead < 0) return '0'
+  const exponentText = expDigits.replace(/^0+(?=\d)/u, '')
+  if (exponentText.length > MAX_EXPONENT_DIGITS) return undefined
+  const exponent = (expSign === '-' ? -1 : 1) * Number(exponentText) + int.length - 1 - lead
+  return `${sign}${digits.slice(lead).replace(/0+$/u, '')}e${String(exponent)}`
+}
+
+/**
+ * Whether a number's own JSON (what crosses to SQL) has exactly its lexeme's decimal value: 0.1 and 1e-1 cross as 0.1,
+ * while 1.00000000000000001 would cross as 1. Equality is by value, never by spelling.
+ */
+function exact(value: number, source: string | undefined): boolean {
+  if (!Number.isFinite(value) || source === undefined) return false
+  const lexeme = decimalOf(source)
+  return lexeme !== undefined && lexeme === decimalOf(JSON.stringify(value))
+}
+
+/** Node 24 passes the primitive's source text; the ES2024 lib does not yet declare the third argument. */
+interface ParseContext {
+  readonly source?: string
+}
+
+function parseExact(text: string): unknown {
+  try {
+    return JSON.parse(text, (_key: string, value: unknown, context?: ParseContext): unknown => {
+      if (typeof value === 'number' && !exact(value, context?.source)) throw new Error(INEXACT)
+      return value
+    })
+  } catch (err: unknown) {
+    // A syntax error's message quotes the file: it is neither printed nor kept as a cause.
+    // oxlint-disable-next-line eslint/preserve-caught-error -- the cause would carry raw evidence
+    if (err instanceof SyntaxError) throw new Error('A reading file is JSON')
+    throw err
+  }
+}
+
+/**
+ * The file's reading. Its JSON shape and the exactness of its numbers are checked here, with the three integral fields'
+ * safe range; every other rule is the database's (0107).
+ */
 function readingOf(file: string): CapacityObservationInput {
-  const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'))
+  const parsed = parseExact(readFileSync(file, 'utf8'))
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
     throw new Error('A reading is a JSON object')
+  const fields = new Map<string, unknown>(Object.entries(parsed))
+  for (const [field, least] of INTEGRAL) {
+    const v = fields.get(field)
+    if (typeof v === 'number' && (!Number.isSafeInteger(v) || v < least))
+      throw new Error(`A reading's ${field} must be a safe integer of at least ${String(least)}`)
+  }
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the database validates every field and refuses the rest
   return parsed as CapacityObservationInput
 }
