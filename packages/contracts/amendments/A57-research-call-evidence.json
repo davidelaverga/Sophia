@@ -1,0 +1,378 @@
+{
+  "id": "A57",
+  "goal": "INC04-S03A-R07-C2A",
+  "title": "Research call evidence: a tracked model reservation's closed call binding and its settlement's private facts",
+  "why": [
+    "SOPHIA-INC-2026-11 INC-04 R07 C2A under root contracts R1 5c5f89ee and R2 c2dde9b6 with mandatory C01/C02 (migration 0109). Assigned to INC04-S03A-R07-C2A-001; the generated output is regenerated with `pnpm --filter @sophia/contracts generate`, never by hand.",
+    "C01: a tracked reserve (mode tracked_v1 with its honest contract) is answered with a closed call binding the bridge compares with its exact request before any provider effect; a reply without it, or with another call's, refuses the call. A request without a mode is legacy and its reply is byte-identical.",
+    "A tracked settlement carries closed facts: disjoint counts each known, unknown or no separate reported class, the consumer's ending, and the response id in its own namespace (1..8192 UTF-8 bytes of well-formed text, or omitted with a fixed reason). The service answers a bounded disposition and digest only. No header id, partial or provider-terminal carrier (C2B); no raw id in usage, providerRequestId, logs or errors.",
+    "All four shapes stay closed (additionalProperties false); the new fields are optional, so the three reserve and three settle routes keep their legacy contract. The declared route is metadata only, never a price the service applies."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/ResearchReserveRequest/properties/mode",
+      "value": {
+        "type": "string",
+        "enum": ["tracked_v1"],
+        "description": "A tracked model reservation (C2A). Without it the reservation is legacy and its reply is unchanged."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ResearchReserveRequest/properties/contract",
+      "value": {
+        "type": "string",
+        "enum": ["c1p_complete_report", "legacy_report"],
+        "description": "The honest report contract of the call's loaded decoder: c1p_complete_report only for the qualified C1P Responses route; otherwise legacy_report."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ResearchReserveRequest/properties/declared",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The route the bridge meters the call on, as metadata only: never a price the service applies.",
+        "properties": {
+          "routeId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$"
+          },
+          "model": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
+          },
+          "reasoningEffort": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z]{1,16}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prices": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "input": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10000
+              },
+              "cacheRead": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10000
+              },
+              "cacheWrite": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10000
+              },
+              "output": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10000
+              }
+            },
+            "required": ["input", "cacheRead", "cacheWrite", "output"]
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ResearchReservation/properties/binding",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A tracked reservation's closed call binding, from the authenticated rows: the bridge compares it with its exact request before the call leaves. No token, credential or provider id.",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": ["tracked_v1"],
+            "description": "The mode frozen at reserve."
+          },
+          "contract": {
+            "type": "string",
+            "enum": ["c1p_complete_report", "legacy_report"]
+          },
+          "evidenceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "callId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$"
+          },
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "projectId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          },
+          "runtimeUnitId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"
+          }
+        },
+        "required": [
+          "mode",
+          "contract",
+          "evidenceId",
+          "callId",
+          "attemptId",
+          "nativeSessionId",
+          "projectId",
+          "runtimeUnitId"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ResearchSettleRequest/properties/evidence",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A tracked reservation's closed call facts (required for it, refused for a legacy one). Disjoint counts, each known, unknown or no separate reported class; the consumer's ending (the provider's terminal kind stays unknown); the response id in its own namespace, kept whole only when supported. The request header id is not carried.",
+        "properties": {
+          "contract": {
+            "type": "string",
+            "enum": ["c1p_complete_report", "legacy_report"]
+          },
+          "report": {
+            "type": "string",
+            "enum": ["complete_report", "not_complete", "legacy_usage"]
+          },
+          "counts": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "nonCachedInput": {
+                "description": "Input tokens not read from the cache.",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "class": {
+                        "type": "string",
+                        "enum": ["known"]
+                      },
+                      "value": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": ["class", "value"]
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "class": {
+                        "type": "string",
+                        "enum": ["unknown", "no_separate_reported_class"]
+                      }
+                    },
+                    "required": ["class"]
+                  }
+                ]
+              },
+              "cacheRead": {
+                "description": "Input tokens read from the cache.",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "class": {
+                        "type": "string",
+                        "enum": ["known"]
+                      },
+                      "value": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": ["class", "value"]
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "class": {
+                        "type": "string",
+                        "enum": ["unknown", "no_separate_reported_class"]
+                      }
+                    },
+                    "required": ["class"]
+                  }
+                ]
+              },
+              "cacheWrite": {
+                "description": "Tokens written to the cache, when the provider reports them as their own class.",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "class": {
+                        "type": "string",
+                        "enum": ["known"]
+                      },
+                      "value": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": ["class", "value"]
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "class": {
+                        "type": "string",
+                        "enum": ["unknown", "no_separate_reported_class"]
+                      }
+                    },
+                    "required": ["class"]
+                  }
+                ]
+              },
+              "output": {
+                "description": "Output tokens.",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "class": {
+                        "type": "string",
+                        "enum": ["known"]
+                      },
+                      "value": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": ["class", "value"]
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "class": {
+                        "type": "string",
+                        "enum": ["unknown", "no_separate_reported_class"]
+                      }
+                    },
+                    "required": ["class"]
+                  }
+                ]
+              }
+            },
+            "required": ["nonCachedInput", "cacheRead", "cacheWrite", "output"]
+          },
+          "ending": {
+            "type": "string",
+            "enum": ["stream_completed", "stream_error", "consumer_closed"]
+          },
+          "responseId": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["unknown"]
+                  }
+                },
+                "required": ["status"]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["supported"]
+                  },
+                  "value": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8192,
+                    "pattern": "^(?:[^\\u0000\\uD800-\\uDFFF]|[\\uD800-\\uDBFF][\\uDC00-\\uDFFF])+$"
+                  }
+                },
+                "required": ["status", "value"]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["identity_unsupported"]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": ["empty", "not_string", "nul", "unpaired_surrogate", "over_bound"]
+                  },
+                  "correlation": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": ["status", "reason"]
+              }
+            ]
+          }
+        },
+        "required": ["contract", "report", "counts", "ending", "responseId"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ResearchSettlement/properties/evidence",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "What the service recorded for a tracked settlement: a bounded disposition and the canonical digest; never the facts or the id.",
+        "properties": {
+          "disposition": {
+            "type": "string",
+            "enum": ["accepted", "extended", "subsumed", "conflict", "current", "capped"]
+          },
+          "replay": {
+            "type": "boolean"
+          },
+          "capped": {
+            "type": "boolean"
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": ["disposition", "replay", "capped", "digest"]
+      }
+    }
+  ]
+}

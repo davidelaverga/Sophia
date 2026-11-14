@@ -18,7 +18,8 @@ import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import { ControlBridge } from './control-bridge.js'
 import { ClosureUnverifiable, executorClosure, loadedClosureInputs } from './executor-identity.js'
-import type { BridgeReadiness, RouteConfig, RoutePrices } from './control-bridge.js'
+import type { ClosureInputs } from './executor-identity.js'
+import type { BridgeReadiness, EvidenceContract, RouteConfig, RoutePrices } from './control-bridge.js'
 import type { ReplyServiceSettings } from './reply-service.js'
 import type { ResearchSources } from './research-tools.js'
 import { roleOf } from './role-registry.js'
@@ -296,15 +297,113 @@ export function parseConfig(config: unknown): ControlBridgeConfig {
   }
 }
 
-/** This process's executor closure (executor-identity.ts): its runtime, this installed bundle, its profile and overlays. */
-const loadedClosure = (): string =>
-  executorClosure(
-    loadedClosureInputs(process.argv, process.execArgv, process.env, join(dirname(fileURLToPath(import.meta.url)), '..'), `sophia-dsh-bundle-${BUNDLE.version}.tgz`, {
-      node: process.version,
-      platform: process.platform,
-      arch: process.arch,
-    }),
-  ).digest
+/** This process's executor closure inputs (executor-identity.ts): its runtime, this installed bundle, its profile and overlays. */
+const loadedInputs = (): ClosureInputs =>
+  loadedClosureInputs(process.argv, process.execArgv, process.env, join(dirname(fileURLToPath(import.meta.url)), '..'), `sophia-dsh-bundle-${BUNDLE.version}.tgz`, {
+    node: process.version,
+    platform: process.platform,
+    arch: process.arch,
+  })
+
+/** This process's executor closure digest (executor-identity.ts). */
+const loadedClosure = (): string => executorClosure(loadedInputs()).digest
+
+// --- C2A (K04, root R2 §3): which priced routes may claim a complete report, from the LOADED decoder ---------------------
+
+/**
+ * The qualified C1P SDK runtime: the recorded dsh runtime tree (config/runtime-unit.json dsh.artifacts_by_platform, the
+ * pinned dsh with the C1P-patched pi-ai and dsh-llm-pi-ai), by platform. It is the closure's `runtime` component alone,
+ * which the Sophia bundle does not change; a runtime under the same unit label with other bytes is not qualified.
+ */
+export const C1P_RUNTIMES: Readonly<Record<string, string>> = {
+  'linux-x64': 'sophia-tree-v2:sha256:c97621b453d098206d859f2c1307cfff30ecfebf464000ec8245c2bf1d311f14',
+}
+
+/** The routes whose C1P Responses decoder reports usage only when complete (INC04-S03A-R07-C1P), by route id. */
+export const C1P_ROUTES: Readonly<Record<string, { readonly provider: string; readonly model: string; readonly reasoningEffort: string }>> = {
+  'research-sol-medium-v1': { provider: 'openai-research', model: 'gpt-6.1-sol', reasoningEffort: 'medium' },
+  'source-review-luna-high-v1': { provider: 'openai-review', model: 'gpt-6-luna', reasoningEffort: 'high' },
+}
+
+/** The provider API of the C1P decoder, and this bundle's own llm-pi-ai layer for those providers (cordis.patch.yml). */
+export const C1P_API = 'openai-responses'
+export const BUNDLE_PROVIDER_APIS: Readonly<Record<string, string>> = { 'openai-research': C1P_API, 'openai-review': C1P_API }
+
+/** Why a route's calls carry `legacy_report`, or `qualified`: fixed words, never a path or a value. */
+export type EvidenceQualification = 'qualified' | 'route_unqualified' | 'closure_unverifiable' | 'runtime_not_c1p' | 'provider_api_unqualified'
+
+/**
+ * The effective provider APIs of llm-pi-ai: a patch row `{ id, config }` replaces a row's whole config (dsh-app-boot
+ * applyEntryPatches), so the LAST layer naming llm-pi-ai decides; with none, this bundle's own layer. `layers` are the
+ * profile patch then each overlay, in order, each already refused unless a strict JSON list of config-only rows
+ * (executorClosure). Returns null when the effective config's providers are not a readable map.
+ */
+export function effectiveProviderApis(layers: readonly Buffer[]): Readonly<Record<string, unknown>> | null {
+  let config: unknown = undefined
+  for (const layer of layers) {
+    const rows: unknown = JSON.parse(layer.toString('utf8'))
+    if (!Array.isArray(rows)) return null
+    for (const row of rows) if (isRecord(row) && row.id === 'llm-pi-ai') config = row.config
+  }
+  if (config === undefined) return BUNDLE_PROVIDER_APIS
+  if (!isRecord(config) || !isRecord(config.providers)) return null
+  return Object.fromEntries(Object.entries(config.providers).map(([name, provider]) => [name, isRecord(provider) ? provider.api : undefined]))
+}
+
+/**
+ * Each configured route's contract from what this process LOADED: `c1p_complete_report` only when the route is one of
+ * C1P_ROUTES with exactly its provider, model and effort, the loaded closure is verifiable, its runtime component is the
+ * qualified C1P runtime for this platform, and the effective llm-pi-ai API of the route's provider is openai-responses.
+ * Anything else, or a closure that cannot be read, is `legacy_report` with its fixed reason: known usage is still kept,
+ * and nothing here blocks startup or any route.
+ */
+export function evidenceQualifications(
+  routes: Readonly<Record<string, RouteConfig>>,
+  loaded: () => { readonly runtime: string; readonly platform: string; readonly layers: readonly Buffer[] },
+): Record<string, { readonly contract: EvidenceContract; readonly why: EvidenceQualification }> {
+  const out: Record<string, { contract: EvidenceContract; why: EvidenceQualification }> = {}
+  const candidates = Object.keys(routes).filter((id) => {
+    const want = C1P_ROUTES[id]
+    const route = routes[id]
+    return want !== undefined && route !== undefined && route.provider === want.provider && route.model === want.model && route.reasoningEffort === want.reasoningEffort
+  })
+  for (const id of Object.keys(routes)) out[id] = { contract: 'legacy_report', why: 'route_unqualified' }
+  if (candidates.length === 0) return out
+  let facts: ReturnType<typeof loaded>
+  let apis: Readonly<Record<string, unknown>> | null
+  try {
+    facts = loaded()
+    apis = effectiveProviderApis(facts.layers)
+  } catch {
+    for (const id of candidates) out[id] = { contract: 'legacy_report', why: 'closure_unverifiable' }
+    return out
+  }
+  for (const id of candidates) {
+    const provider = routes[id]?.provider ?? ''
+    out[id] = facts.runtime !== C1P_RUNTIMES[facts.platform]
+      ? { contract: 'legacy_report', why: 'runtime_not_c1p' }
+      : apis?.[provider] !== C1P_API
+        ? { contract: 'legacy_report', why: 'provider_api_unqualified' }
+        : { contract: 'c1p_complete_report', why: 'qualified' }
+  }
+  return out
+}
+
+/** The loaded closure's runtime component, platform and patch layers (profile patch, then overlays), or a throw. */
+const loadedDecoder = () => {
+  const inputs = loadedInputs()
+  const { components } = executorClosure(inputs)
+  const runtime = typeof components.runtime === 'string' ? components.runtime : ''
+  const profilePatch = readFileSync(join(inputs.profileDir, 'cordis.patch.yml'))
+  return { runtime, platform: `${inputs.toolchain.platform}-${inputs.toolchain.arch}`, layers: [profilePatch, ...inputs.overlays] }
+}
+
+/** The contracts the bridge uses, each route's outcome logged once with its fixed reason. */
+function evidenceContracts(routes: Readonly<Record<string, RouteConfig>>): Record<string, EvidenceContract> {
+  const qualified = evidenceQualifications(routes, loadedDecoder)
+  for (const [id, q] of Object.entries(qualified)) log(`call_evidence route=${id} contract=${q.contract} reason=${q.why}`)
+  return Object.fromEntries(Object.entries(qualified).map(([id, q]) => [id, q.contract]))
+}
 
 const log = (line: string): void => {
   process.stderr.write(`[${name}] ${line}\n`)
@@ -344,6 +443,7 @@ export function apply(ctx: Context, config: unknown): void {
     routes: settings.routes,
     roleRoutes: settings.roleRoutes,
     research: researchSources(settings.sources),
+    evidenceContracts: evidenceContracts(settings.routes),
     replies: null, // The native child composition is not qualified; only service mode may run, when configured.
     replyService: replyServiceSettings(settings.replies, settings.routes, process.env, log, loadedClosure),
     log,

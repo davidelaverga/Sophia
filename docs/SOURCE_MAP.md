@@ -609,6 +609,19 @@ the tree, and no production pool changes; `createPool` (`packages/persistence/sr
 - It reads no private pool field. The labelled controls instrument only a test-local `Client` subclass, passed through the public `Client` pool option.
 - Which client owned the e62 CI's backend 4393 is not mapped.
 
+## 2s. Loaded-decoder provenance and the call's response id at INC04-S03A-R07-C2A (call evidence)
+
+Read in the frozen install of the d3e lockfile (equal in the deployed `.artifacts/runtime`), 2026-11-14. These are the
+upstream passages `packages/dsh-bundle/src/index.ts` (the K04 qualifier) and `packages/dsh-bundle/src/control-bridge.ts`
+(the tracked settlement's response id) rely on. Nothing here is patched or copied into the tree; the C1P patches (§2q)
+are unchanged.
+
+| ID | Upstream file (as installed) | Full-file SHA-256 | Lines | What it shows |
+|---|---|---|---|---|
+| C2A-PATCH-REPLACE | dsh-app-boot `0.2.0-rc.2` `lib/index.js` | `234db45e1b3f8c683b5bc1f551948b2a2ec52a6468c7b6937725a23f1c0e0d96` | 61–108 | `applyEntryPatches`, the one patch semantics of boot and `--dump-config`: a non-insert patch `{ id, config }` assigns each override key on the target row (`target[key] = value`), so a row's `config` is REPLACED whole by the last layer naming it, in layer order (bundle layers, the profile patch, then `--patch` overlays). The qualifier therefore takes the effective `llm-pi-ai` provider API from the last such layer, else the bundle's own. |
+| C2A-RESPONSE-ID | dsh-llm-pi-ai `0.2.0-rc.2` `lib/index.js` (C1P-patched, §2q) | `fb1df48a21156976839740bdf358ccc4f6c128d70f4c9304ac10eee83ab0b26c` | 61–71, 1570–1597 | On `done` the adapter yields its `finish` with `replayState: toPiReplayState(…)`, whose `response.responseId` is the provider response id when pi-ai set one. On `error` the `finish` carries no replay state: no id is available there, so the bridge records it as unknown (C2B owns any new carrier). |
+
+
 ## 3. Facts learned at the pin (not in the pack)
 
 These are observed behaviors of the pinned release, recorded so later goals

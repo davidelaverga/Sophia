@@ -14,6 +14,8 @@ export interface MockResponsesStep {
   cutAfterCreated?: boolean
   /** INC04-S03A-R07-C1P: keep the stream open this long after its terminal event. */
   holdOpenMs?: number
+  /** INC04-S03A-R07-C2A: the provider response id this answer carries (any JSON value; default resp_mock_<n>). */
+  responseId?: unknown
 }
 export interface MockResponsesRequest {
   method: string
@@ -35,3 +37,4 @@ export function recordedRouteOverlay(bundlePatchText: string, baseURL: string): 
 export function researchRouteOverlay(bundlePatchText: string, baseURL: string): string
 export function conversationRouteOverlay(bundlePatchText: string, baseURL: string): string
 export function reviewRouteOverlay(bundlePatchText: string, baseURL: string): string
+export function providerOverlayJson(bundlePatchText: string, baseURL: string, provider: string, options?: { api?: string }): string

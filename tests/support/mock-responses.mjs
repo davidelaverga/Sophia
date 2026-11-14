@@ -35,7 +35,8 @@ export async function startMockResponses() {
       res.writeHead(step.status, { 'content-type': 'application/json', ...(step.status === 429 ? { 'retry-after': '0' } : {}) })
       return res.end(JSON.stringify({ error: { message: `test double answered ${step.status}`, type: 'test_double', code: null } }))
     }
-    const id = `resp_mock_${n}`
+    // INC04-S03A-R07-C2A: `responseId` replaces the provider response id (any JSON value, e.g. an unsupported one).
+    const id = 'responseId' in step ? step.responseId : `resp_mock_${n}`
     active += 1
     let closed = false
     res.on('close', () => {
@@ -146,6 +147,23 @@ export function conversationRouteOverlay(bundlePatchText, baseURL) {
 /** The same overlay for the source-review route's provider alias (WBC-02). */
 export function reviewRouteOverlay(bundlePatchText, baseURL) {
   return providerOverlay(bundlePatchText, baseURL, 'openai-review')
+}
+
+/**
+ * INC04-S03A-R07-C2A: the same provider overlay as a STRICT JSON patch list (a service composition's overlay shape,
+ * executor-identity.ts), so the loaded closure stays verifiable. `api` replaces the provider's API (a drift case).
+ * @param {string} bundlePatchText - the Sophia bundle's cordis.patch.yml.
+ * @param {string} baseURL - the stub's base URL.
+ * @param {string} provider - the provider alias (openai-research, openai-review).
+ * @param {{ api?: string }} [options]
+ */
+export function providerOverlayJson(bundlePatchText, baseURL, provider, { api } = {}) {
+  const rows = parseCordisYaml(bundlePatchText)
+  const route = rows.find((row) => row.id === 'llm-pi-ai')?.config
+  const declared = route?.providers?.[provider]
+  if (!declared) throw new Error(`the bundle patch declares no ${provider} route`)
+  const config = { ...route, providers: { ...route.providers, [provider]: { ...declared, baseURL, ...(api ? { api } : {}) } } }
+  return JSON.stringify([{ id: 'llm-pi-ai', config }])
 }
 
 function providerOverlay(bundlePatchText, baseURL, provider) {

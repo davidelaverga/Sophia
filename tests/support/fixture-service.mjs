@@ -29,13 +29,20 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
   const research = []
   let researchSeq = 0
   const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
+  // INC04-S03A-R07-C2A (C01): a TRACKED model reservation is answered with its closed call binding, as the service's
+  // SQL answers it (0109): derived from this exact request and this fixture's own project and runtime unit. A request
+  // without a mode is legacy and keeps the legacy reply exactly.
+  const bindingOf = (body) => body.mode === 'tracked_v1' && body.kind === 'model'
+    ? { binding: { mode: body.mode, contract: body.contract, evidenceId: uuid(9500 + researchSeq), callId: body.callId, attemptId: body.attemptId,
+        nativeSessionId: body.nativeSessionId, projectId: 'proj-fixture', runtimeUnitId } }
+    : {}
   const researchDefaults = {
     context: (body) => body.sourceId === undefined
       ? { taskId: uuid(1), rootTaskId: uuid(1), question: 'Fixture question?', outputs: ['markdown'], preferences: {}, assumptions: [], inputs: [], urls: [], base: null,
           allowance: { capUsd: 5, headroomUsd: 0.5, committedUsd: 0, searchesLeft: 5, readsLeft: 8 }, draft: null, roster: [] }
       : { sourceId: body.sourceId, offset: 0, nextOffset: null, totalChars: 0, truncated: false, text: '' },
     reserve: (body) => ({ reservationId: uuid(1000 + ++researchSeq), state: 'reserved', kind: body.kind, purpose: body.purpose ?? 'call', amountUsd: body.amountUsd,
-      target: body.kind === 'read' ? { ref: body.targetRef, url: 'https://example.org/page' } : null }),
+      target: body.kind === 'read' ? { ref: body.targetRef, url: 'https://example.org/page' } : null, ...bindingOf(body) }),
     settle: (body) => ({ reservationId: body.reservationId, state: body.outcome, settledUsd: body.costUsd ?? null }),
     capture: (body) => ({ sourceId: uuid(2000 + ++researchSeq), sha256: 'a'.repeat(64), byteLength: 1, kind: body.kind, refs: [] }),
     draft: () => ({ sourceId: uuid(3000 + ++researchSeq), sha256: 'b'.repeat(64), seq: 1 }),
@@ -77,7 +84,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
           limits: { maxSources: 3, maxInputBytes: 32768, maxModelRequests: 8, maxReportBytes: 16384, web: false, shell: false, connectors: false },
           allowance: { capUsd: 0.5, committedUsd: 0, modelCallsLeft: 8 } }
       : { sourceId: body.sourceId, offset: 0, nextOffset: null, totalChars: 26, truncated: false, text: 'The launch is on 3 March.', receipt: REVIEW_RECEIPT },
-    reserve: (body) => ({ reservationId: uuid(8000 + ++researchSeq), state: 'reserved', kind: body.kind, purpose: body.purpose ?? 'call', amountUsd: body.amountUsd, target: null }),
+    reserve: (body) => ({ reservationId: uuid(8000 + ++researchSeq), state: 'reserved', kind: body.kind, purpose: body.purpose ?? 'call', amountUsd: body.amountUsd, target: null, ...bindingOf(body) }),
     settle: (body) => ({ reservationId: body.reservationId, state: body.outcome, settledUsd: body.costUsd ?? null }),
     submit: (body) => body.result
       ? { outcome: 'published', resultId: uuid(9000), sourceId: uuid(9001), sha256: 'd'.repeat(64), verdict: body.result.verdict, replayed: false }

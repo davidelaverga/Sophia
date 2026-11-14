@@ -208,12 +208,17 @@ describe('the meter keeps known usage when its consumer stops after it, and noth
   async function meteredWith(consume) {
     const settles = []
     const bridge = Object.create(ControlBridge.prototype)
+    // INC04-S03A-R07-C2A (C01): the reservation is tracked, and the stub answers it with the closed binding of that exact
+    // request in this bridge's own project and runtime unit, as the service does; nothing else about the meter changes.
     Object.assign(bridge, {
       transport: {
-        researchReserve: async () => ({ reservationId: 'r-1' }),
+        researchReserve: async (body) => ({ reservationId: 'r-1', state: 'reserved', kind: body.kind, purpose: body.purpose, amountUsd: body.amountUsd, target: null,
+          binding: { mode: body.mode, contract: body.contract, evidenceId: '00000000-0000-4000-8000-000000000001', callId: body.callId,
+            attemptId: body.attemptId, nativeSessionId: body.nativeSessionId, projectId: 'proj-w', runtimeUnitId: 'unit-w' } }),
         researchSettle: async (body) => { settles.push(body) },
       },
-      settings: { log: () => {} },
+      settings: { log: () => {}, routes: {}, runtimeUnitId: 'unit-w' },
+      projectId: 'proj-w',
       journal: { append: () => {} },
     })
     const next = () => (async function* () {
