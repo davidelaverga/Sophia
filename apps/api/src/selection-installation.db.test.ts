@@ -17,8 +17,10 @@
 // Every account, grant, resource and token is SYNTHETIC; nothing here qualifies a real owner, account or route.
 // * E62-SQL-F01 (fixture lifecycle): every pool this file opens is owned, and a teardown drops its database only after
 //   each client those pools opened has actually ended (`owned`, `endOwned`, and the fence's own check at the end).
+// * C15-F01 (fixture lifecycle): each suite's teardown releases exactly what its setup acquired (`Acquired`), so a setup
+//   that fails part way still ends, drains and drops what it made, in order, and never reads a handle it never made.
 import { randomBytes, randomUUID } from 'node:crypto'
-import { mkdtempSync, readdirSync, rmSync, symlinkSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { FastifyInstance } from 'fastify'
@@ -166,6 +168,55 @@ async function endOwned(...pools: pg.Pool[]): Promise<void> {
   await clientsEnded(...pools)
 }
 
+/**
+ * C15-F01: what one suite's setup actually acquired, so that its teardown releases exactly that and never reads a handle
+ * that was not made. Each resource is recorded the moment it exists: an app as soon as it is built, each pool through
+ * `owned` before its first use, a login role once its CREATE ROLE returned, the database before anything else runs
+ * against it (an EmptyDatabase before it is migrated), the linked directory. `release` keeps the suites' order: close
+ * the apps; end and drain the client pools; drop the roles created here, through the owner; end and drain the owner
+ * (with no role, the pools and the owner are ended and drained together); drop the database; remove the directory.
+ * Nothing is caught: the first failing step's error propagates and no later step runs, so a database is never dropped
+ * while a client of an owned pool may still be connected.
+ */
+class Acquired {
+  readonly apps: FastifyInstance[] = []
+  readonly pools: pg.Pool[] = []
+  readonly roles: string[] = []
+  owner: pg.Pool | undefined
+  database: { drop(): Promise<void> } | undefined
+  dir: string | undefined
+
+  /** An app, closed first. */
+  app(app: FastifyInstance): FastifyInstance {
+    this.apps.push(app)
+    return app
+  }
+  /** A client pool, owned before its first use; ended and drained after the apps. */
+  pool<P extends pg.Pool>(pool: P): P {
+    this.pools.push(owned(pool))
+    return pool
+  }
+  /** The owner pool, owned before its first use; it drops the roles created here, then is ended and drained. */
+  ownerPool<P extends pg.Pool>(pool: P): P {
+    this.owner = owned(pool)
+    return pool
+  }
+  async release(): Promise<void> {
+    for (const app of this.apps) await app.close()
+    const owner = this.owner
+    if (this.roles.length === 0) {
+      await endOwned(...this.pools, ...(owner === undefined ? [] : [owner]))
+    } else {
+      await endOwned(...this.pools)
+      assert.ok(owner, 'a role created here was created through the owner pool')
+      for (const role of this.roles) await owner.query(`DROP OWNED BY ${role}; DROP ROLE ${role}`)
+      await endOwned(owner)
+    }
+    if (this.database !== undefined) await this.database.drop()
+    if (this.dir !== undefined) rmSync(this.dir, { recursive: true, force: true })
+  }
+}
+
 /** The tree's own migrations before `upTo` (exclusive), linked into a fresh directory. */
 function prefixOf(upTo: string): string {
   const dir = mkdtempSync(join(tmpdir(), `sophia-before-${upTo}-`))
@@ -192,18 +243,18 @@ describe('the selection preview’s viewer boundary over HTTP (0106, F01)', () =
   let owner: pg.Pool
   let app: FastifyInstance
   const lines: string[] = []
+  const got = new Acquired()
 
   before(async () => {
     db = await createTestDatabase()
-    pool = owned(createPool(db.apiUrl, { max: 8 }))
-    owner = owned(new pg.Pool({ connectionString: db.ownerUrl, max: 4 }))
-    app = buildApp({ pool, verifyActor, logger: { stream: { write: (line: string) => lines.push(line) } } })
+    got.database = db
+    pool = got.pool(createPool(db.apiUrl, { max: 8 }))
+    owner = got.ownerPool(new pg.Pool({ connectionString: db.ownerUrl, max: 4 }))
+    app = got.app(buildApp({ pool, verifyActor, logger: { stream: { write: (line: string) => lines.push(line) } } }))
     await app.ready()
   })
   after(async () => {
-    await app.close()
-    await endOwned(pool, owner)
-    await db.drop()
+    await got.release()
   })
 
   const counts = async () =>
@@ -433,23 +484,22 @@ for (const [upTo, label, off200] of [
     let owner: pg.Pool
     let on: FastifyInstance
     let off: FastifyInstance
+    const got = new Acquired()
     const dir = prefixOf(upTo)
+    got.dir = dir
 
     before(async () => {
       db = await createTestDatabase(dir)
-      pool = owned(createPool(db.apiUrl, { max: 4 }))
-      owner = owned(new pg.Pool({ connectionString: db.ownerUrl, max: 2 }))
-      on = buildApp({ pool, verifyActor, apiContributions: true })
-      off = buildApp({ pool, verifyActor })
+      got.database = db
+      pool = got.pool(createPool(db.apiUrl, { max: 4 }))
+      owner = got.ownerPool(new pg.Pool({ connectionString: db.ownerUrl, max: 2 }))
+      on = got.app(buildApp({ pool, verifyActor, apiContributions: true }))
+      off = got.app(buildApp({ pool, verifyActor }))
       await on.ready()
       await off.ready()
     })
     after(async () => {
-      await on.close()
-      await off.close()
-      await endOwned(pool, owner)
-      await db.drop()
-      rmSync(dir, { recursive: true, force: true })
+      await got.release()
     })
 
     it('is not ready with contributions on, refuses every contribution route before SQL, and writes nothing', async (t) => {
@@ -511,24 +561,22 @@ for (const [upTo, label, off200] of [
 describe('with 0104 and 0106 installed (F02)', () => {
   let db: TestDatabase
   let pool: pg.Pool
-  let owner: pg.Pool
   let on: FastifyInstance
   let off: FastifyInstance
+  const got = new Acquired()
 
   before(async () => {
     db = await createTestDatabase()
-    pool = owned(createPool(db.apiUrl, { max: 4 }))
-    owner = owned(new pg.Pool({ connectionString: db.ownerUrl, max: 2 }))
-    on = buildApp({ pool, verifyActor, apiContributions: true })
-    off = buildApp({ pool, verifyActor })
+    got.database = db
+    pool = got.pool(createPool(db.apiUrl, { max: 4 }))
+    got.ownerPool(new pg.Pool({ connectionString: db.ownerUrl, max: 2 }))
+    on = got.app(buildApp({ pool, verifyActor, apiContributions: true }))
+    off = got.app(buildApp({ pool, verifyActor }))
     await on.ready()
     await off.ready()
   })
   after(async () => {
-    await on.close()
-    await off.close()
-    await endOwned(pool, owner)
-    await db.drop()
+    await got.release()
   })
 
   it('is ready on and off, and the owner declares, replays, conflicts, reads and withdraws protection', async () => {
@@ -708,24 +756,23 @@ describe('on a database of the earlier source: 0106 installed, 0105 not (no pref
   let owner: pg.Pool
   let on: FastifyInstance
   let off: FastifyInstance
+  const got = new Acquired()
   const dir = earlierWithout('0105')
+  got.dir = dir
 
   before(async () => {
     db = await createTestDatabase(dir)
-    pool = owned(createPool(db.apiUrl, { max: 4 }))
-    worker = owned(createPool(db.workerUrl, { max: 2 }))
-    owner = owned(new pg.Pool({ connectionString: db.ownerUrl, max: 2 }))
-    on = buildApp({ pool, verifyActor, apiContributions: true })
-    off = buildApp({ pool, verifyActor })
+    got.database = db
+    pool = got.pool(createPool(db.apiUrl, { max: 4 }))
+    worker = got.pool(createPool(db.workerUrl, { max: 2 }))
+    owner = got.ownerPool(new pg.Pool({ connectionString: db.ownerUrl, max: 2 }))
+    on = got.app(buildApp({ pool, verifyActor, apiContributions: true }))
+    off = got.app(buildApp({ pool, verifyActor }))
     await on.ready()
     await off.ready()
   })
   after(async () => {
-    await on.close()
-    await off.close()
-    await endOwned(pool, worker, owner)
-    await db.drop()
-    rmSync(dir, { recursive: true, force: true })
+    await got.release()
   })
 
   it('proves nothing installed although 0106 and every old signature are: not ready on or off', async () => {
@@ -819,7 +866,9 @@ describe('the real migrator on a ledger that already records 0106, without 0105 
   let worker: pg.Pool
   let on: FastifyInstance
   let off: FastifyInstance
+  const got = new Acquired()
   const dir = earlierWithout('0105')
+  got.dir = dir
   const suffix = randomBytes(6).toString('hex')
   const logins = [`sophia_api_u_${suffix}`, `sophia_worker_u_${suffix}`]
 
@@ -828,6 +877,7 @@ describe('the real migrator on a ledger that already records 0106, without 0105 
     await owner.query(
       `CREATE ROLE ${role} LOGIN PASSWORD '${password}' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE`,
     )
+    got.roles.push(role)
     await owner.query(`GRANT ${group} TO ${role}`)
     await owner.query(`GRANT CONNECT ON DATABASE ${new URL(empty.ownerUrl).pathname.slice(1)} TO ${role}`)
     const u = new URL(empty.ownerUrl)
@@ -838,24 +888,19 @@ describe('the real migrator on a ledger that already records 0106, without 0105 
 
   before(async () => {
     empty = await createEmptyDatabase('sophia_u')
+    got.database = empty // before the migration: a failed migration still reaches its drop
     await withClusterMigrationLock(() => migrate(empty.ownerUrl, dir))
-    owner = owned(new pg.Pool({ connectionString: empty.ownerUrl, max: 2 }))
+    owner = got.ownerPool(new pg.Pool({ connectionString: empty.ownerUrl, max: 2 }))
     const password = randomBytes(12).toString('hex')
-    pool = owned(createPool(await login(logins[0]!, 'sophia_api', password), { max: 4 }))
-    worker = owned(createPool(await login(logins[1]!, 'sophia_worker', password), { max: 2 }))
-    on = buildApp({ pool, verifyActor, apiContributions: true })
-    off = buildApp({ pool, verifyActor })
+    pool = got.pool(createPool(await login(logins[0]!, 'sophia_api', password), { max: 4 }))
+    worker = got.pool(createPool(await login(logins[1]!, 'sophia_worker', password), { max: 2 }))
+    on = got.app(buildApp({ pool, verifyActor, apiContributions: true }))
+    off = got.app(buildApp({ pool, verifyActor }))
     await on.ready()
     await off.ready()
   })
   after(async () => {
-    await on.close()
-    await off.close()
-    await endOwned(pool, worker)
-    for (const role of logins) await owner.query(`DROP OWNED BY ${role}; DROP ROLE ${role}`)
-    await endOwned(owner)
-    await empty.drop()
-    rmSync(dir, { recursive: true, force: true })
+    await got.release()
   })
 
   it('applies every pending migration, 0105 first, keeps 0106 exactly, and the same running API instances then serve', async () => {
@@ -932,14 +977,15 @@ describe('the real migrator on a ledger that already records 0106, without 0105 
 describe('the teardown fence: an owned client’s actual end, before its database is dropped (E62-SQL-F01)', () => {
   let db: TestDatabase
   let owner: pg.Pool
+  const got = new Acquired()
 
   before(async () => {
     db = await createTestDatabase()
-    owner = owned(new pg.Pool({ connectionString: db.ownerUrl, max: 1 }))
+    got.database = db
+    owner = got.ownerPool(new pg.Pool({ connectionString: db.ownerUrl, max: 1 }))
   })
   after(async () => {
-    await endOwned(owner)
-    await db.drop()
+    await got.release()
   })
 
   it('a pool’s end resolves while its client is still connected; the drain waits for that client’s actual end', async () => {
@@ -991,6 +1037,303 @@ describe('the teardown fence: an owned client’s actual end, before its databas
       release()
       if (!poolEnded) await pool.end()
       await clientsEnded(pool)
+    }
+  })
+})
+
+// ---- C15-F01: the registry each suite's teardown uses, under the failures a setup can actually meet ----
+
+/** A read of the cluster's catalog through its maintenance database, beside (never inside) the database it observes. */
+async function catalog<T extends pg.QueryResultRow>(ownerUrl: string, sql: string, params: unknown[] = []) {
+  const u = new URL(ownerUrl)
+  u.pathname = '/postgres'
+  const c = new pg.Client({ connectionString: u.toString() })
+  await c.connect()
+  try {
+    return (await c.query<T>(sql, params)).rows
+  } finally {
+    await c.end()
+  }
+}
+const nameOf = (url: string) => new URL(url).pathname.slice(1)
+const databaseExists = async (url: string, name: string) =>
+  (await catalog(url, 'SELECT 1 FROM pg_database WHERE datname = $1', [name])).length === 1
+const roleExists = async (url: string, role: string) =>
+  (await catalog(url, 'SELECT 1 FROM pg_roles WHERE rolname = $1', [role])).length === 1
+const backendsIn = async (url: string, name: string) =>
+  Number(
+    (await catalog<{ n: string }>(url, 'SELECT count(*) AS n FROM pg_stat_activity WHERE datname = $1', [name]))[0]?.n,
+  )
+/** Wait (bounded) until `done()` holds. */
+async function eventually(done: () => boolean, what: string, ms = 5_000): Promise<void> {
+  const deadline = Date.now() + ms
+  while (!done()) {
+    assert.ok(Date.now() < deadline, `${what}: not within ${String(ms)} ms`)
+    await new Promise((wake) => setTimeout(wake, 5))
+  }
+}
+
+/**
+ * C15-R1-F03: a case's `body`, then always its one cleanup lifecycle. The cleanup is memoised by the case, so one the
+ * body already awaited is not run again (no second Pool.end, no overlapping drop); here it is awaited once more, after
+ * any held gate is opened, before the case returns. The body's failure stays the reported error. A cleanup failure is
+ * never hidden: alone it is thrown; beside a body failure, both are thrown together, the body's failure as the cause.
+ */
+async function bodyThenCleanup(body: () => Promise<void>, cleanup: () => Promise<void>): Promise<void> {
+  let failure: { error: unknown } | undefined
+  try {
+    await body()
+  } catch (error) {
+    failure = { error }
+  }
+  let cleanupFailure: { error: unknown } | undefined
+  try {
+    await cleanup()
+  } catch (error) {
+    cleanupFailure = { error }
+  }
+  if (cleanupFailure !== undefined) {
+    if (failure === undefined || cleanupFailure.error === failure.error) throw cleanupFailure.error
+    throw new AggregateError([failure.error, cleanupFailure.error], 'the case failed, and so did its cleanup', {
+      cause: failure.error,
+    })
+  }
+  if (failure !== undefined) throw failure.error
+}
+/** A labelled SYNTHETIC early failure, thrown only by the F03 controls: it can never pass for a real one. */
+const syntheticEarly = (where: string) => new Error(`SYNTHETIC early failure: ${where}`)
+/** A pg.Client class whose end() waits for every `gate`: an owned client held open deterministically. */
+function heldClient(...gates: Promise<void>[]) {
+  return class HeldClient extends pg.Client {
+    override end(): Promise<void>
+    override end(callback: (err: Error) => void): void
+    override end(callback?: (err: Error) => void): Promise<void> | undefined {
+      const ended = Promise.all(gates).then(() => super.end())
+      if (!callback) return ended
+      void ended.then(() => (callback as () => void)())
+      return undefined
+    }
+  }
+}
+/** What an F03 control may ask of a case: a SYNTHETIC early failure, one more hold on an owned client, a view. */
+interface CaseControl {
+  failEarly?: boolean
+  hold?: Promise<void>
+  observe?: (view: CaseView) => void
+}
+interface CaseView {
+  url: string
+  name: string
+  order: string[]
+  marks: string[]
+}
+
+/**
+ * A partial setup (one role, one pool, one app), released through the registry. The case's one lifecycle is the
+ * registry's memoised release: awaited by the body on its own path, and started (if the body failed first) and awaited
+ * by the cleanup otherwise, so apps, pools, the created role and the owner are released before the database is dropped.
+ */
+async function partialSetupCase(control: CaseControl = {}): Promise<void> {
+  const got = new Acquired()
+  const empty = await createEmptyDatabase('sophia_u')
+  const name = nameOf(empty.ownerUrl)
+  const order: string[] = []
+  const marks: string[] = []
+  control.observe?.({ url: empty.ownerUrl, name, order, marks })
+  got.database = {
+    drop: async () => {
+      order.push(`drop with ${String(await backendsIn(empty.ownerUrl, name))} backends`)
+      await empty.drop()
+    },
+  }
+  const role = `sophia_c15_f01_${randomBytes(6).toString('hex')}`
+  let released: Promise<void> | undefined
+  const release = () => (released ??= got.release())
+  await bodyThenCleanup(async () => {
+    const owner = got.ownerPool(
+      new pg.Pool({
+        connectionString: empty.ownerUrl,
+        max: 2,
+        ...(control.hold === undefined ? {} : { Client: heldClient(control.hold) }),
+      }),
+    )
+    const password = randomBytes(12).toString('hex')
+    await owner.query(
+      `CREATE ROLE ${role} LOGIN PASSWORD '${password}' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE`,
+    )
+    got.roles.push(role)
+    await owner.query(`GRANT CONNECT ON DATABASE ${name} TO ${role}`)
+    const u = new URL(empty.ownerUrl)
+    u.username = role
+    u.password = password
+    const pool = got.pool(createPool(u.toString(), { max: 2 }))
+    assert.equal((await pool.query<{ ok: number }>('SELECT 1 AS ok')).rows[0]?.ok, 1, 'the login connects')
+    const app = got.app(buildApp({ pool, verifyActor }))
+    app.addHook('onClose', () => {
+      order.push('app closed')
+    })
+    await app.ready()
+    if (control.failEarly === true) {
+      marks.push('failed')
+      throw syntheticEarly('after the partial setup, before its release')
+    }
+    // The setup stops here (a second login, its pool and the second app are never made): only these are released.
+    assert.equal(await backendsIn(empty.ownerUrl, name), 2, 'the owner’s and the login’s clients are connected')
+    await release()
+    assert.deepEqual(order, ['app closed', 'drop with 0 backends'], 'the app first; no owned client left at the drop')
+    assert.equal(await roleExists(empty.ownerUrl, role), false, 'the role created here is dropped')
+    assert.equal(await databaseExists(empty.ownerUrl, name), false, 'and the database')
+  }, release)
+}
+
+/**
+ * A held client end through the registry. The release is started while the client's end is held, kept outside the
+ * body, and awaited exactly once by the body or, after an early failure, by the cleanup, which opens the gate first:
+ * the drop never precedes that client's actual end, and the case never returns before its release has finished.
+ */
+async function heldEndCase(control: CaseControl = {}): Promise<void> {
+  const { promise: held, resolve: releaseHeld } = Promise.withResolvers<void>()
+  const got = new Acquired()
+  const empty = await createEmptyDatabase('sophia_u')
+  const name = nameOf(empty.ownerUrl)
+  const order: string[] = []
+  const marks: string[] = []
+  control.observe?.({ url: empty.ownerUrl, name, order, marks })
+  got.database = {
+    drop: async () => {
+      order.push(`drop with ${String(await backendsIn(empty.ownerUrl, name))} backends`)
+      await empty.drop()
+    },
+  }
+  let released: Promise<void> | undefined
+  const release = () =>
+    (released ??= got.release().then(() => {
+      order.push('released')
+    }))
+  await bodyThenCleanup(
+    async () => {
+      const gates = control.hold === undefined ? [held] : [held, control.hold]
+      const pool = got.pool(new pg.Pool({ connectionString: empty.ownerUrl, max: 1, Client: heldClient(...gates) }))
+      const end = pool.end.bind(pool)
+      pool.end = async () => {
+        await end()
+        order.push('pool.end resolved')
+      }
+      const client = await pool.connect()
+      client.release()
+      void release()
+      await eventually(() => order.includes('pool.end resolved'), 'Pool.end resolves while its client’s end is held')
+      if (control.failEarly === true) {
+        marks.push('failed')
+        throw syntheticEarly('while the release is in flight')
+      }
+      assert.equal(await backendsIn(empty.ownerUrl, name), 1, 'the owned backend is still connected')
+      assert.deepEqual(order, ['pool.end resolved'], 'no drop, and the release has not finished')
+      releaseHeld()
+      await release()
+      assert.deepEqual(order, ['pool.end resolved', 'drop with 0 backends', 'released'])
+      assert.equal(await databaseExists(empty.ownerUrl, name), false)
+    },
+    async () => {
+      releaseHeld()
+      await release()
+    },
+  )
+}
+
+/**
+ * An F03 control: run `run` with a SYNTHETIC early failure and one more hold on an owned client, and show, while that
+ * client is held, that the case has not finished, its database is not dropped and its owned backend is connected; then
+ * that, once released, the actual end comes before the drop and the original failure is the one reported.
+ */
+async function earlyFailureControl(
+  run: (control: CaseControl) => Promise<void>,
+  heldOrder: string[],
+  finalOrder: string[],
+): Promise<void> {
+  const { promise: hold, resolve: letGo } = Promise.withResolvers<void>()
+  let view: CaseView | undefined
+  let settled = false
+  const running = run({ failEarly: true, hold, observe: (v) => (view = v) }).finally(() => {
+    settled = true
+  })
+  try {
+    await eventually(() => view?.marks.includes('failed') === true, 'the case fails early')
+    await new Promise((wake) => setTimeout(wake, 200)) // a bounded window in which an unsafe cleanup would have dropped
+    const v = view!
+    assert.equal(settled, false, 'the case has not finished while its owned client is held')
+    assert.equal(await databaseExists(v.url, v.name), true, 'its database is not dropped')
+    assert.equal(await backendsIn(v.url, v.name), 1, 'its owned backend is still connected')
+    assert.deepEqual(v.order, heldOrder, 'no drop yet')
+    letGo()
+    await assert.rejects(running, /^Error: SYNTHETIC early failure: /, 'the original failure is the one reported')
+    assert.deepEqual(v.order, finalOrder, 'the actual end, then the drop with no owned backend left')
+    assert.equal(await databaseExists(v.url, v.name), false)
+  } finally {
+    letGo()
+    await Promise.allSettled([running]) // the case's own outcome is asserted above; here it only must have finished
+  }
+}
+
+describe('C15-F01: a suite’s teardown releases exactly what its setup acquired', () => {
+  it('a real migration failure after its EmptyDatabase exists: the error stays, the database and directory go', async () => {
+    const got = new Acquired()
+    const empty = await createEmptyDatabase('sophia_u')
+    got.database = empty // as the upgrade suite does: before the migration
+    const name = nameOf(empty.ownerUrl)
+    try {
+      const dir = mkdtempSync(join(tmpdir(), 'sophia-c15-f01-broken-'))
+      got.dir = dir
+      writeFileSync(
+        join(dir, '0001_synthetic_fault.sql'),
+        'BEGIN;\nSELECT sophia_synthetic_fault_c15_f01();\nCOMMIT;\n',
+      )
+      await assert.rejects(
+        withClusterMigrationLock(() => migrate(empty.ownerUrl, dir)),
+        /sophia_synthetic_fault_c15_f01/,
+        'the setup’s own failure is the error reported',
+      )
+      assert.equal(await databaseExists(empty.ownerUrl, name), true, 'the failed migration leaves its database')
+      await got.release()
+      assert.equal(await databaseExists(empty.ownerUrl, name), false, 'released: the database is dropped')
+      assert.equal(existsSync(dir), false, 'and the linked directory is removed')
+    } finally {
+      if (await databaseExists(empty.ownerUrl, name)) await empty.drop()
+      if (got.dir !== undefined) rmSync(got.dir, { recursive: true, force: true })
+    }
+  })
+
+  it('a partial setup (one role, one pool, one app): exactly those are released, in order, before the drop', async () => {
+    await partialSetupCase()
+  })
+
+  it('a held client end: Pool.end resolves first, and the drop waits for that client’s actual end', async () => {
+    await heldEndCase()
+  })
+
+  it('F03 control (SYNTHETIC): a partial setup failing before its release still releases all, the drop last', async () => {
+    await earlyFailureControl(partialSetupCase, ['app closed'], ['app closed', 'drop with 0 backends'])
+  })
+
+  it('F03 control (SYNTHETIC): a held-end case failing mid-release waits for the actual end before the drop', async () => {
+    await earlyFailureControl(
+      heldEndCase,
+      ['pool.end resolved'],
+      ['pool.end resolved', 'drop with 0 backends', 'released'],
+    )
+  })
+
+  it('nothing acquired releases nothing; a failing drop stays visible and no later step runs', async () => {
+    await new Acquired().release()
+    const got = new Acquired()
+    const dir = mkdtempSync(join(tmpdir(), 'sophia-c15-f01-drop-'))
+    got.dir = dir
+    got.database = { drop: () => Promise.reject(new Error('SYNTHETIC drop failure')) }
+    try {
+      await assert.rejects(got.release(), /^Error: SYNTHETIC drop failure$/)
+      assert.equal(existsSync(dir), true, 'the directory step after the failed drop did not run')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
     }
   })
 })
