@@ -559,6 +559,36 @@ record.
 - **Shape is not semantics.** The schema bounds only lengths. Trimming, control characters, lone surrogates and count
   relations are enforced by this producer, so a value that decodes proves neither its ownership nor its semantics.
 
+## 2q. Two applied dependency patches at INC04-S03A-R07-C1P (provider usage provenance)
+
+Read in the frozen install of the af82 lockfile (dsh `0.2.0-rc.2` at `639ed015…`, pi-ai `0.87.1`, the OpenAI SDK
+`openai@6.40.0`), 2026-11-14. These are the upstream passages C1P relies on, at their unpatched pins. Unlike §2o and
+§2p, the two patches below ARE applied by Sophia (`patchedDependencies`), so the installed and deployed copies of
+these two packages are not the official registry bytes. Patch details and pre/post hashes: [patches/README.md](../patches/README.md).
+
+| ID | Upstream file (unpatched) | Full-file SHA-256 | Lines | What it shows |
+|---|---|---|---|---|
+| C1P-PI-INIT | pi-ai `dist/api/openai-responses.js` | `3e95145f94ac2a255d1adc0ae65cf02c2e6d479f7a2dbf5c466db21885c29ec6` | 87–99, 129–157 | Every call starts with an all-zero `usage`. After the terminal event, a caller abort or an error stop throws, and the catch emits `error` with whatever usage the call holds. |
+| C1P-PI-FINAL | pi-ai `dist/api/openai-responses-shared.js` | `7846279b34c2a569bda2b0753c8b083f8b976204b4fdd7586095ebbb6a643410` | 433–476, 637–653 | `finalizeResponse` (completed/incomplete) replaces the zeros only `if (response?.usage)`, so a terminal response without usage looks like explicit zeros. `response.failed` and the stream `error` event throw without reading usage. |
+| C1P-PI-TYPE | pi-ai `dist/types.d.ts` | `5e08c1db4740b95b7107d3c3540a6d0e414a82d9c75fab950150827c994e14a3` | 353–375 | `AssistantMessage.usage: Usage` is required: absence is not representable. |
+| C1P-DSH-READ | dsh-llm-pi-ai `lib/index.js` | `d46dbc30aeb3414190000e6f8aeaaf994246b5e5c651de07639f4a7e92de37ef` | 1366–1379, 1559–1585 | `toStreamChunks` always yields a `usage` chunk on `done` and on `error`, from `mapUsage` (zero cache counters omitted). |
+| C1P-DSH-GRAMMAR | dsh-llm `lib/invariant.js` | `8cb78641252b7a41523fef2c571dd42c698de4c9475dd91683191cefa4dced48` | 18–58 | The stream grammar allows at most one `usage` chunk and requires none. |
+| C1P-OAI-USAGE | openai `resources/responses/responses.d.ts` | (SDK 6.40.0, lock `sha512-MWtTjd…6lcK9JiA==`) | 5171–5212 | `ResponseUsage`: input_tokens, input_tokens_details.cached_tokens, output_tokens, output_tokens_details.reasoning_tokens, total_tokens. There is **no** `cache_write_tokens`. `Response.usage` is optional. |
+
+**Decisions encoded in the patches (root D-C1P-1/2).**
+
+- `complete` requires `input_tokens`, `output_tokens` and `input_tokens_details.cached_tokens` as finite non-negative safe integers, with `cached_tokens <= input_tokens`.
+- `cache_write_tokens` absent or 0 adds no class. Anything else is `partial`: an unqualified extension, never used as qualified cost attribution.
+- Total and reasoning counts are informational.
+- Partial and absent usage never become `TokenUsage`, and no field is defaulted to zero.
+- On `openai-responses`, the reader reports usage only for `complete`. Every other pi-ai API is unchanged.
+- This is the producer contract for the SDK 6.40.0 shape and the test double. Live provider behavior (Q5) and provider-billed amounts are not established by it.
+
+| Applied patch | Lock `patch_hash` = file SHA-256 |
+|---|---|
+| `patches/@earendil-works__pi-ai@0.87.1.patch` | `fc9c52c812d9e32a3869d20832fdacc944312e7333a57a5eebcf9eba6fb92bc1` |
+| `patches/@deepseek-ai__dsh-llm-pi-ai@0.2.0-rc.2.patch` | `e61fcb0f763e32f571e01e85cf00c11ba2feaf8ff8f1a777aa7e4844e8c33147` |
+
 ## 3. Facts learned at the pin (not in the pack)
 
 These are observed behaviors of the pinned release, recorded so later goals
