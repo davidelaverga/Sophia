@@ -589,6 +589,26 @@ these two packages are not the official registry bytes. Patch details and pre/po
 | `patches/@earendil-works__pi-ai@0.87.1.patch` | `fc9c52c812d9e32a3869d20832fdacc944312e7333a57a5eebcf9eba6fb92bc1` |
 | `patches/@deepseek-ai__dsh-llm-pi-ai@0.2.0-rc.2.patch` | `e61fcb0f763e32f571e01e85cf00c11ba2feaf8ff8f1a777aa7e4844e8c33147` |
 
+## 2r. PostgreSQL client lifecycle at INC04-S03-CI-SQL-CLEANUP-001 (test fixture teardown)
+
+Read in the frozen install of the 548 lockfile, 2026-11-14. These are the upstream passages the fixture teardown in
+`apps/api/src/selection-installation.db.test.ts` relies on (finding E62-SQL-F01). Nothing here is patched or copied into
+the tree, and no production pool changes; `createPool` (`packages/persistence/src/tx.ts`) is unchanged.
+
+| ID | Upstream file (as installed) | Full-file SHA-256 | Lines | What it shows |
+|---|---|---|---|---|
+| PGL-POOL-END | pg-pool `3.14.0` `index.js` (lock `sha512-gKtPkF…IpBaw==`) | `6f304776edaabde2954cbf8c4366fa6d9512bfba0e408e78cc56b3c46c69d058` | 127–143, 172–188, 488–499 | `end()` sets `ending` and pulses. On ending, each idle client goes through `_remove`, which drops it from `_clients` at once and only then calls `client.end(callback)`. The pulse sees `_clients` empty and resolves `end()` before those callbacks run. So `await pool.end()` does not mean the pool's connections have closed. |
+| PGL-POOL-EVENTS | same file | (as above) | 51–62, 335–338 | A client's later `'error'` is forwarded as the pool's `'error'` event (an uncaught exception without a listener). The pool emits the public `'connect'` event once per newly connected client, before its first use. |
+| PGL-CLIENT-END | pg `8.23.0` `lib/client.js` (lock `sha512-Ip2EQC…F34qLg==`) | `992c12d10cd42ece06b0b224601fa783a02ed08f3ace8bd8089cc441b6308abf` | 203–229, 416–434, 781–818 | `end()` sets `_ending` and resolves (or calls back) only on the connection's `'end'`. When that happens the client emits its own public `'end'` event. A backend error message arriving with no active query is emitted as the client's `'error'` even while `_ending`. |
+| PGL-CONN-END | pg `8.23.0` `lib/connection.js` | `836b6abbfbc68744769ba499e2a79062dba5fd281af31fc5e83431514bdefd4a` | 63–65 | The connection's `'end'` is the socket's `'close'`: the client's `'end'` means its TCP connection is actually closed. |
+
+**The fence this file uses.**
+
+- It registers each owned pool through the public `'connect'` event before first use, keeping each client's own public `'end'`.
+- At teardown it ends the pools, then awaits every such `'end'`, and only then FORCE-drops its own fixture database.
+- It reads no private pool field. The labelled controls instrument only a test-local `Client` subclass, passed through the public `Client` pool option.
+- Which client owned the e62 CI's backend 4393 is not mapped.
+
 ## 3. Facts learned at the pin (not in the pack)
 
 These are observed behaviors of the pinned release, recorded so later goals

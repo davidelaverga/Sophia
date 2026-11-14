@@ -13,6 +13,8 @@
 //   The real migrator, on a ledger that already records 0106, applies the pending 0105 and keeps 0106; the same
 //   running API instances then serve, nothing having cached the refusal.
 // Every account, grant, resource and token is SYNTHETIC; nothing here qualifies a real owner, account or route.
+// * E62-SQL-F01 (fixture lifecycle): every pool this file opens is owned, and a teardown drops its database only after
+//   each client those pools opened has actually ended (`owned`, `endOwned`, and the fence's own check at the end).
 import { randomBytes, randomUUID } from 'node:crypto'
 import { mkdtempSync, readdirSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -130,6 +132,38 @@ const within = <T>(ms: number, p: Promise<T>, what: string) =>
     ),
   ])
 
+/**
+ * E62-SQL-F01: the pools this file owns, and the actual end of every client each one opened. At the pinned pg-pool
+ * 3.14.0, `Pool.end()` resolves as soon as its idle clients have left the pool's own accounting, while each one's
+ * `Client.end()` (pg 8.23.0) is still waiting for its connection to end (docs/SOURCE_MAP.md §2r). A FORCE drop of the
+ * fixture database in that window terminates an owned backend that is still connected, and the pool forwards the late
+ * FATAL as an 'error'. So each pool is registered here before its first use, through its public 'connect' event, and a
+ * teardown ends its pools and then waits for every owned client's own 'end' before it drops the database. Nothing is
+ * caught or ignored: an error from an owned client stays exactly as visible as before.
+ */
+const clientEnds = new WeakMap<pg.Pool, Promise<void>[]>()
+function owned<P extends pg.Pool>(pool: P): P {
+  const ends: Promise<void>[] = []
+  pool.on('connect', (client) => {
+    ends.push(new Promise((ended) => client.once('end', () => ended())))
+  })
+  clientEnds.set(pool, ends)
+  return pool
+}
+/** Every client `pools` opened has actually ended (bounded: a client that never ends fails the teardown, loudly). */
+async function clientsEnded(...pools: pg.Pool[]): Promise<void> {
+  for (const pool of pools) {
+    const ends = clientEnds.get(pool)
+    assert.ok(ends, 'a pool this file ends was registered as owned before its first use')
+    await within(15_000, Promise.all(ends), 'the owned clients’ actual end')
+  }
+}
+/** End `pools`, then wait until each client they opened has actually ended; only then may a database be dropped. */
+async function endOwned(...pools: pg.Pool[]): Promise<void> {
+  for (const pool of pools) await pool.end()
+  await clientsEnded(...pools)
+}
+
 /** The tree's own migrations before `upTo` (exclusive), linked into a fresh directory. */
 function prefixOf(upTo: string): string {
   const dir = mkdtempSync(join(tmpdir(), `sophia-before-${upTo}-`))
@@ -159,15 +193,14 @@ describe('the selection preview’s viewer boundary over HTTP (0106, F01)', () =
 
   before(async () => {
     db = await createTestDatabase()
-    pool = createPool(db.apiUrl, { max: 8 })
-    owner = new pg.Pool({ connectionString: db.ownerUrl, max: 4 })
+    pool = owned(createPool(db.apiUrl, { max: 8 }))
+    owner = owned(new pg.Pool({ connectionString: db.ownerUrl, max: 4 }))
     app = buildApp({ pool, verifyActor, logger: { stream: { write: (line: string) => lines.push(line) } } })
     await app.ready()
   })
   after(async () => {
     await app.close()
-    await pool.end()
-    await owner.end()
+    await endOwned(pool, owner)
     await db.drop()
   })
 
@@ -402,8 +435,8 @@ for (const [upTo, label, off200] of [
 
     before(async () => {
       db = await createTestDatabase(dir)
-      pool = createPool(db.apiUrl, { max: 4 })
-      owner = new pg.Pool({ connectionString: db.ownerUrl, max: 2 })
+      pool = owned(createPool(db.apiUrl, { max: 4 }))
+      owner = owned(new pg.Pool({ connectionString: db.ownerUrl, max: 2 }))
       on = buildApp({ pool, verifyActor, apiContributions: true })
       off = buildApp({ pool, verifyActor })
       await on.ready()
@@ -412,8 +445,7 @@ for (const [upTo, label, off200] of [
     after(async () => {
       await on.close()
       await off.close()
-      await pool.end()
-      await owner.end()
+      await endOwned(pool, owner)
       await db.drop()
       rmSync(dir, { recursive: true, force: true })
     })
@@ -483,8 +515,8 @@ describe('with 0104 and 0106 installed (F02)', () => {
 
   before(async () => {
     db = await createTestDatabase()
-    pool = createPool(db.apiUrl, { max: 4 })
-    owner = new pg.Pool({ connectionString: db.ownerUrl, max: 2 })
+    pool = owned(createPool(db.apiUrl, { max: 4 }))
+    owner = owned(new pg.Pool({ connectionString: db.ownerUrl, max: 2 }))
     on = buildApp({ pool, verifyActor, apiContributions: true })
     off = buildApp({ pool, verifyActor })
     await on.ready()
@@ -493,8 +525,7 @@ describe('with 0104 and 0106 installed (F02)', () => {
   after(async () => {
     await on.close()
     await off.close()
-    await pool.end()
-    await owner.end()
+    await endOwned(pool, owner)
     await db.drop()
   })
 
@@ -667,9 +698,9 @@ describe('on a database of the earlier source: 0106 installed, 0105 not (no pref
 
   before(async () => {
     db = await createTestDatabase(dir)
-    pool = createPool(db.apiUrl, { max: 4 })
-    worker = createPool(db.workerUrl, { max: 2 })
-    owner = new pg.Pool({ connectionString: db.ownerUrl, max: 2 })
+    pool = owned(createPool(db.apiUrl, { max: 4 }))
+    worker = owned(createPool(db.workerUrl, { max: 2 }))
+    owner = owned(new pg.Pool({ connectionString: db.ownerUrl, max: 2 }))
     on = buildApp({ pool, verifyActor, apiContributions: true })
     off = buildApp({ pool, verifyActor })
     await on.ready()
@@ -678,9 +709,7 @@ describe('on a database of the earlier source: 0106 installed, 0105 not (no pref
   after(async () => {
     await on.close()
     await off.close()
-    await pool.end()
-    await worker.end()
-    await owner.end()
+    await endOwned(pool, worker, owner)
     await db.drop()
     rmSync(dir, { recursive: true, force: true })
   })
@@ -796,10 +825,10 @@ describe('the real migrator on a ledger that already records 0106, without 0105 
   before(async () => {
     empty = await createEmptyDatabase('sophia_u')
     await withClusterMigrationLock(() => migrate(empty.ownerUrl, dir))
-    owner = new pg.Pool({ connectionString: empty.ownerUrl, max: 2 })
+    owner = owned(new pg.Pool({ connectionString: empty.ownerUrl, max: 2 }))
     const password = randomBytes(12).toString('hex')
-    pool = createPool(await login(logins[0]!, 'sophia_api', password), { max: 4 })
-    worker = createPool(await login(logins[1]!, 'sophia_worker', password), { max: 2 })
+    pool = owned(createPool(await login(logins[0]!, 'sophia_api', password), { max: 4 }))
+    worker = owned(createPool(await login(logins[1]!, 'sophia_worker', password), { max: 2 }))
     on = buildApp({ pool, verifyActor, apiContributions: true })
     off = buildApp({ pool, verifyActor })
     await on.ready()
@@ -808,10 +837,9 @@ describe('the real migrator on a ledger that already records 0106, without 0105 
   after(async () => {
     await on.close()
     await off.close()
-    await pool.end()
-    await worker.end()
+    await endOwned(pool, worker)
     for (const role of logins) await owner.query(`DROP OWNED BY ${role}; DROP ROLE ${role}`)
-    await owner.end()
+    await endOwned(owner)
     await empty.drop()
     rmSync(dir, { recursive: true, force: true })
   })
@@ -873,5 +901,71 @@ describe('the real migrator on a ledger that already records 0106, without 0105 
     assert.equal(sharedCount(await http(off, p.EDIT, previewUrl(p.projectId))), 0)
     const admitted = await admitMaintained(pool, p)
     assert.ok('admitted' in admitted, JSON.stringify(admitted))
+  })
+})
+
+describe('the teardown fence: an owned client’s actual end, before its database is dropped (E62-SQL-F01)', () => {
+  let db: TestDatabase
+  let owner: pg.Pool
+
+  before(async () => {
+    db = await createTestDatabase()
+    owner = owned(new pg.Pool({ connectionString: db.ownerUrl, max: 1 }))
+  })
+  after(async () => {
+    await endOwned(owner)
+    await db.drop()
+  })
+
+  it('a pool’s end resolves while its client is still connected; the drain waits for that client’s actual end', async () => {
+    // A test-local client whose end() is held until this test releases it: the window the e62 CI failure fell into,
+    // made deterministic. Only this client class is instrumented, through pg-pool's public `Client` option.
+    const { promise: held, resolve: release } = Promise.withResolvers<void>()
+    class HeldClient extends pg.Client {
+      override end(): Promise<void>
+      override end(callback: (err: Error) => void): void
+      override end(callback?: (err: Error) => void): Promise<void> | undefined {
+        const ended = held.then(() => super.end())
+        if (!callback) return ended
+        void ended.then(() => (callback as () => void)())
+        return undefined
+      }
+    }
+    const pool = owned(new pg.Pool({ connectionString: db.apiUrl, max: 1, Client: HeldClient }))
+    let poolEnded = false
+    const order: string[] = []
+    try {
+      const client = await pool.connect()
+      const pid = (await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]?.pid
+      client.release()
+      assert.ok(pid)
+      const connected = async () =>
+        Number(
+          (await owner.query<{ n: string }>('SELECT count(*) AS n FROM pg_stat_activity WHERE pid = $1', [pid])).rows[0]
+            ?.n,
+        )
+
+      await pool.end()
+      poolEnded = true
+      order.push('pool.end resolved')
+      assert.equal(await connected(), 1, 'Pool.end() resolved while the owned backend is still connected')
+      let drained = false
+      const drain = clientsEnded(pool).then(() => {
+        drained = true
+        order.push('owned client ended')
+      })
+      assert.equal(await connected(), 1, 'still connected while its end is held')
+      assert.equal(drained, false, 'the drain does not resolve before the owned client actually ends')
+
+      release()
+      await drain
+      assert.equal(await connected(), 0, 'after the drain, no owned backend remains to be terminated by a drop')
+      order.push('drop may run')
+      assert.deepEqual(order, ['pool.end resolved', 'owned client ended', 'drop may run'])
+    } finally {
+      release()
+      if (!poolEnded) await pool.end()
+      await clientsEnded(pool)
+    }
   })
 })

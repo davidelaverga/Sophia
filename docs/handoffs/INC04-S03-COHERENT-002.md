@@ -131,3 +131,88 @@ The raw logs and their mapping to the executed tree are in the external EARLY pa
 ## 6. Next bounded action
 
 Root reviews this local candidate, with its EARLY and later its FINAL. No publication, push, merge to main, review request, comment, resolution, CI action, deploy, flag, account, provider or native effect is taken or implied by this handoff.
+
+## 7. INC04-S03-CI-SQL-CLEANUP-001: ACK and plan (appended before any other edit)
+
+Sections 1 to 6 above are unchanged from 548 and remain true as written for 548. This section and the ones after it record a separate, later, local repair candidate.
+
+**Base.** A new, normal, signed sole child of exact `54801a654eca597e4554f3f9df067f73191700fc`:
+
+- tree `a212b0ec90fe269a8faf07c7bad247f50b18c9f2`;
+- ordered parents `[e62c4ad5, 9444df97, 0a8d036a]`;
+- on its own branch and worktree, `inc04-s03-ci-sql-cleanup-001`.
+
+e62, 9444 and 548 were imported from their supplied EARLY bundles into new private refs (`refs/intake/sqlclean-001/*`). For each bundle, SUMS and `git bundle verify` passed. FETCH_HEAD, the index and the worktrees were unchanged.
+
+**Starting blobs, verified at 548.**
+
+| Path | Starting blob |
+|---|---|
+| `apps/api/src/selection-installation.db.test.ts` | `60b16400cfcef3dba0f96c1b2e9d3148e1fb380d` (the same at af82, e62 and 548) |
+| this handoff (append only; its 9974 bytes stay an exact prefix) | `462d8e8740a52d44797522f2e38f698f48436b85` |
+| `docs/SOURCE_MAP.md` (append §2r; every old byte kept) | `8922b8fe51bcffa9601d9e21d7473ec3cd790337` |
+
+**Root decision acknowledged: E62-SQL-F01.** The e62 CI job `132306277629` failed. All 13 subtests of this file printed pass, and then the file failed on an uncaught `terminating connection due to administrator command`.
+
+- **The mechanism.** At the pinned `pg-pool` 3.14.0, `Pool.end()` resolves once its idle clients leave its own accounting, before their sockets close. The fixture then FORCE-drops its database, and the raw owner pool has no `'error'` listener.
+- **What is not claimed.** Mapping the exact backend 4393 to its owner stays out of scope; it is not mapped. The old CI run stays FAILED, and this candidate does not turn it green.
+
+**Plan.**
+
+1. **The fix, in the test file only.** Register every pool the file owns before its first use, through the public `'connect'` event: each connected client's own `'end'` is recorded. Teardown then runs in this order: close the apps, end each pool, wait for every owned client's actual `'end'`, and only then drop the fixture database.
+   - This covers all five teardowns (lines 167–171, 412–418, 493–498, 678–685, 808–815) and the API, worker and owner pools.
+   - It includes clients the pool has already removed from its accounting.
+   - The borrowed lock holder's `ROLLBACK` and `release` and all 13 existing assertions stay as they are.
+   - Excluded: error handlers, ignoring `57P01` or messages, retries, skips, sleeps, longer timeouts, a FORCE removal, and any production, SQL, shared test-support, dependency, lock or GEN change.
+2. **A minimal committed drain control in the same file.** A pool built with a test-local `Client` subclass that holds `end()` until released. It shows `Pool.end()` resolving while the owned backend is still connected, the drain waiting for the actual end, and the backend gone afterwards. The hold is always released in a `finally`.
+3. **External labelled controls,** on a fresh owned PG16 on 55529:
+   - the old teardown order with the hold, then a FORCE drop: the uncaught error is reproduced;
+   - the new drain with the same hold: no error, and the backend census is 0 before the drop;
+   - error sensitivity: an unexpected termination of an owned idle client still surfaces as uncaught.
+4. **Checks:**
+   - the whole changed DB file;
+   - format, lint, typecheck and contracts;
+   - `pnpm artifacts` (no record, since this is a test and docs change only);
+   - then one signed commit, EARLY, ONE ordinary, cleanup of 55529 only, and FINAL.
+
+## 8. CI-SQL-CLEANUP-001 results (before commit; the ONE ordinary is pending)
+
+### 8.1 The repair: three paths
+
+**`apps/api/src/selection-installation.db.test.ts`.**
+
+- **Registry.** `owned(pool)` registers each pool before its first use. Through pg-pool's public `'connect'` event it keeps a promise for each connected client's own public `'end'`. `clientsEnded` awaits all of them, bounded by the file's existing `within` helper, so a client that never ends fails the teardown loudly instead of hanging. `endOwned` ends the pools and then awaits `clientsEnded`.
+- **The 12 pools.** All twelve the file opens (API, worker and owner, across the five suites) are now `owned(...)`. Every teardown runs: close the apps, then `endOwned`, then the FORCE drop.
+- **The upgrade suite.** It ends and drains its API and worker pools before dropping their logins through the owner, then drains the owner before dropping the database.
+- **Unchanged.** The borrowed lock holder's `ROLLBACK` and `release`, the seeding helpers' awaited `Client.end()`, and all 13 existing tests and their assertions. No error listener, catch, retry, skip, sleep or production change was added, and the FORCE drop stays.
+- **One new committed control (the 14th test).** A pool built with a test-local `Client` subclass whose `end()` is held. It shows three things in order:
+  1. `Pool.end()` resolves while the owned backend is still connected (census 1);
+  2. the drain stays pending while the end is held;
+  3. after release, the drain resolves and the census is 0.
+
+  Order: `pool.end resolved`, then `owned client ended`, then `drop may run`. The hold is always released in a `finally`.
+
+**`docs/SOURCE_MAP.md`.** A new §2r binds the exact pinned passages relied on: pg-pool 3.14.0 `index.js`, pg 8.23.0 `lib/client.js` and `lib/connection.js`, with full-file SHA-256 and line ranges. Nothing else in the file changes.
+
+**This handoff.** It is append-only.
+
+### 8.2 Checks (owned PG16 on 55529, Node 24.21.0, pnpm 11.7.0, frozen install, umask 022)
+
+| Run | Result |
+|---|---|
+| The whole changed DB file, on the final source with §2r in place | 14/14: the 13 existing tests plus the new fence control. 0 skipped, 0 todo, 0 cancelled |
+| **External labelled control `old`** (the 548 order, with a held close) | `Pool.end()` resolved with the backend still connected (census 1). The FORCE drop then raised an uncaught `57P01 terminating connection due to administrator command` on the pool, as in e62's CI. Exit 1. |
+| **External labelled control `new`** (the candidate's order, same hold) | The drain stayed pending while held (census 1). After the actual end the census was 0, then the drop; no error within the observation window. Exit 0. |
+| **External labelled control `sensitivity`** (the registry in place, an unexpected termination of an owned idle client) | Still an uncaught `57P01` on the pool. Exit 1. The fence hides nothing. |
+| format, lint, typecheck, contracts, build | each exit 0 |
+| `pnpm artifacts` | every identity matches; no record was written |
+| uid 65534 preflight | node runs and the modules import. The 0600 credential and the data directory are denied. |
+
+A first run of the three external controls exited 1 at a harness bug: my version print asked for `pg-pool/package.json`, which that package does not export. None of those runs reached a database. They are kept as history. The controls and their raw logs live in the external packet, not in Git.
+
+### 8.3 Not claimed
+
+- Which client owned the e62 CI's backend 4393 is unmapped.
+- The e62 CI run stays FAILED.
+- This candidate's own CI, independent review and any publication are separate.
+- Every hold in §5 stands.
