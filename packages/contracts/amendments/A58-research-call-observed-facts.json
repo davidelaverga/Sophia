@@ -1,0 +1,221 @@
+{
+  "id": "A58",
+  "goal": "INC04-R07-C2B-DURABLE-001",
+  "title": "Research call observed facts: an opted-in tracked call's closed optional observation on its original ledger",
+  "why": [
+    "SOPHIA-INC-2026-11 INC-04 R07 C2B durable backend half, Stage A (task 8725260d, root SI01-SI04 on the shared 022d interface; migration 0110). Assigned to INC04-R07-C2B-DURABLE-001; the generated output is regenerated with `pnpm --filter @sophia/contracts generate`, never by hand. A57 and 0109 are unchanged.",
+    "SI01: a tracked reserve may opt in with facts observed_v1; its closed binding then echoes facts observed_v1, and only then. Without it the request, reply, binding and digest stay byte-identical to A57. The opt-in is frozen at reserve; another under the same key is another reservation.",
+    "A tracked settlement of an opted-in call may add evidence.observed, the sole new closed object: transport sending, HTTP status, the provider response id (n1) and request id (n2) each with their sources, the provider terminal, the terminal's raw counts, at most eight first conflict witnesses and the required delivery stage. Each nested shape is closed; absent members are unknown; null is refused. The service never echoes an id or a raw count, and never moves money from them.",
+    "The settlement reply keeps A57's closed disposition and digest: an all-unknown observation keeps the exact v1 digest; any other uses research-call-facts-v2."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/ResearchReserveRequest/properties/facts",
+      "value": {
+        "type": "string",
+        "enum": ["observed_v1"],
+        "description": "Opt a tracked model reservation into observed facts (C2B, A58). Omitted: v1, byte-identical."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ResearchReservation/properties/binding/properties/facts",
+      "value": {
+        "type": "string",
+        "enum": ["observed_v1"],
+        "description": "Echoed only when the reservation opted in to observed facts at reserve (A58)."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ResearchSettleRequest/properties/evidence/properties/observed",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "C2B (A58): the closed observed facts of an opted-in (facts observed_v1) tracked call, only what actually crossed. Every member but deliveryUnknownReason is optional and absent means unknown; explicit null is refused. Metadata only: no header, id or raw count is ever a charge, a price or a release.",
+        "properties": {
+          "sent": {
+            "type": "string",
+            "enum": ["unknown", "observable_transport_response"]
+          },
+          "httpStatus": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599
+          },
+          "n1": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "The provider response id (the same namespace as responseId) and the events it was seen on.",
+            "properties": {
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": ["supported"]
+                      },
+                      "value": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 8192,
+                        "pattern": "^(?:[^\\u0000\\uD800-\\uDFFF]|[\\uD800-\\uDBFF][\\uDC00-\\uDFFF])+$"
+                      }
+                    },
+                    "required": ["status", "value"]
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": ["identity_unsupported"]
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": ["empty", "not_string", "nul", "unpaired_surrogate", "over_bound"]
+                      }
+                    },
+                    "required": ["status", "reason"]
+                  }
+                ]
+              },
+              "sources": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 4,
+                "items": {
+                  "type": "string",
+                  "enum": ["created", "completed", "incomplete", "failed"]
+                },
+                "description": "Each source once; a duplicate is refused by the service (the standalone wire validator carries no ajv runtime for uniqueItems)."
+              }
+            },
+            "required": ["id", "sources"]
+          },
+          "n2": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "The provider request id (x-request-id) and where it was seen; never equated with n1.",
+            "properties": {
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": ["supported"]
+                      },
+                      "value": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 8192,
+                        "pattern": "^(?:[^\\u0000\\uD800-\\uDFFF]|[\\uD800-\\uDBFF][\\uDC00-\\uDFFF])+$"
+                      }
+                    },
+                    "required": ["status", "value"]
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": ["identity_unsupported"]
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": ["empty", "not_string", "nul", "unpaired_surrogate", "over_bound"]
+                      }
+                    },
+                    "required": ["status", "reason"]
+                  }
+                ]
+              },
+              "sources": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 2,
+                "items": {
+                  "type": "string",
+                  "enum": ["response_header", "typed_error"]
+                },
+                "description": "Each source once; a duplicate is refused by the service (the standalone wire validator carries no ajv runtime for uniqueItems)."
+              }
+            },
+            "required": ["id", "sources"]
+          },
+          "providerTerminal": {
+            "type": "string",
+            "enum": ["completed", "incomplete", "failed", "error_event"],
+            "description": "The actual provider terminal event only; never a consumer return, abort or transport throw."
+          },
+          "rawCounts": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "The terminal event's own counts, only with a known providerTerminal. cacheWrite stays unknown; reasoning and total are deliberately omitted from this durable slice.",
+            "properties": {
+              "inputTotal": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "cacheRead": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "output": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            }
+          },
+          "conflicts": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "dimension": {
+                  "type": "string",
+                  "enum": [
+                    "n1",
+                    "n2",
+                    "http_status",
+                    "provider_terminal",
+                    "input_total",
+                    "cache_read",
+                    "output",
+                    "cross_c1p"
+                  ]
+                },
+                "witness": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": ["dimension", "witness"]
+            },
+            "description": "At most eight first witnesses, one per dimension; a repeated dimension is refused by the service."
+          },
+          "deliveryUnknownReason": {
+            "type": "string",
+            "enum": ["no_frame_delivered", "closed_before_terminal_frame", "none"],
+            "description": "Delivered-frame knowledge (none = the final frame crossed); neither a provider terminal nor a consumer ending."
+          }
+        },
+        "required": ["deliveryUnknownReason"]
+      }
+    }
+  ]
+}

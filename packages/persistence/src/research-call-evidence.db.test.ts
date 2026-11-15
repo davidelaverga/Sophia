@@ -8,7 +8,13 @@ import { createHash, randomUUID } from 'node:crypto'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import type { RuntimeCommand, RuntimeReceipt, RuntimeRole } from '@sophia/contracts'
+import type {
+  ResearchSettleRequest,
+  ResearchSettlement,
+  RuntimeCommand,
+  RuntimeReceipt,
+  RuntimeRole,
+} from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { createTestDatabase, registerRuntime, seedProject, type TestDatabase } from '@sophia/test-support'
 import {
@@ -28,6 +34,7 @@ import {
   runtimeResearchSettle,
   runtimeResearchSubmit,
   runtimeSourceReviewReserve,
+  runtimeSourceReviewSettle,
   runtimeTokenHash,
   submitContribution,
   withActor,
@@ -1005,6 +1012,64 @@ describe('C2A all three wrappers: design and review derive the original funding 
     ])
     assert.equal(await codeOf(reviewReserve(w.who, at, 'llm-v2')), 'provider_not_contributed')
   })
+
+  it('C2B: design and review negotiate observed_v1 and settle an observation on their own ledger; an account-backed review stays refused (C02-01)', async () => {
+    const w = await world()
+    const s = await started(w)
+    const v04 = {
+      sent: 'observable_transport_response' as const,
+      httpStatus: 200,
+      n1: { id: { status: 'supported' as const, value: 'resp_W' }, sources: ['completed' as const] },
+      providerTerminal: 'completed' as const,
+      rawCounts: { inputTotal: 3, cacheRead: 0, output: 4 },
+      deliveryUnknownReason: 'none' as const,
+    }
+    const observedBody = (at: At, reservationId: string) => {
+      const b = evidenceBody(at, reservationId, { cost: 0.01, id: 'resp_W' })
+      return { ...b, evidence: { ...b.evidence, observed: v04 } }
+    }
+    const opt = { ...tracked(), facts: 'observed_v1' as const }
+    // Design (account-backed, sharing the contributed lineage's allowance).
+    const dAt = await syntheticAttempt(w, s, 'design')
+    const d = await designReserve(w, w.who, dAt, 'llm-od', opt)
+    assert.equal(d.binding?.facts, 'observed_v1')
+    const plain = await designReserve(w, w.who, dAt, 'llm-pd')
+    assert.equal(plain.binding?.facts, undefined, 'echoed only on opt-in')
+    const ds = await service((c) => runtimeDesignSettle(c, w.who, observedBody(dAt, d.reservationId)))
+    assert.deepEqual([ev(ds).disposition, ds.state], ['accepted', 'settled'])
+    const dt = await one<{ n1: string; delivery: string; raw_input_total: string }>(
+      `SELECT n1, delivery, raw_input_total FROM sophia.research_call_truth WHERE reservation_id=$1`,
+      [d.reservationId],
+    )
+    assert.deepEqual([dt.n1, dt.delivery, Number(dt.raw_input_total)], ['resp_W', 'none', 3])
+    // Review (account-null, its own allowance): the same contract (another project: one synthetic attempt per runtime).
+    const w2 = await world({ owner: w.OWNER })
+    const s2 = await started(w2)
+    const reviewReserve = (at: At, callId: string) =>
+      service((c) =>
+        runtimeSourceReviewReserve(c, w2.who, {
+          ...at,
+          callId,
+          kind: 'model',
+          provider: 'openai-review',
+          amountUsd: 0.1,
+          purpose: 'call',
+          ...opt,
+        }),
+      )
+    const vAt = await syntheticAttempt(w2, s2, 'source_review')
+    const v = await reviewReserve(vAt, 'llm-ov')
+    assert.equal(v.binding?.facts, 'observed_v1')
+    const vs = await service((c) => runtimeSourceReviewSettle(c, w2.who, observedBody(vAt, v.reservationId)))
+    assert.deepEqual([ev(vs).disposition, vs.state], ['accepted', 'settled'])
+    // C02-01 stays open: an account-backed review is refused before any effect, opted in or not.
+    const contributed = await allowanceOf(s2.taskId)
+    await ownerPool.query(`UPDATE sophia.work_items SET allowance_id=$2 WHERE project_id=$1 AND allowance_id<>$2`, [
+      w2.projectId,
+      contributed.id,
+    ])
+    assert.equal(await codeOf(reviewReserve(vAt, 'llm-ov2')), 'provider_not_contributed')
+  })
 })
 
 // --- REPAIR-001: the formal findings C2A-F01/F02/F03 and the finite proofs C02-02..04 ----------------------------------
@@ -1909,5 +1974,878 @@ describe('REPAIR-001 C2A-C02-04: original-authority retries count cumulatively; 
     assert.equal(ev(await settle(next, s.at, r.reservationId, { cost: 0.03, id: 'resp_after_lease' })).replay, true)
     assert.deepEqual(await allowanceOf(s.taskId), settled)
     assert.equal(await countIn('research_reservations', w.projectId), reservationsBefore, 'no new paid effect')
+  })
+})
+
+// --- C2B-DURABLE-001 (0110, A58): an opted-in call's closed observed facts on the same original ledger --------------------
+// The backend half only: reserve negotiation and ACK echo, the closed observation, its first-known merge and sticky
+// witnesses, the cross check against the A57 facts before money, and the literal v1 / v2 digests. No SDK producer emits an
+// observation here; every observation below is a SYNTHETIC report sent by the test as a runtime would.
+
+type Observed = NonNullable<NonNullable<ResearchSettleRequest['evidence']>['observed']>
+const OPT_IN = { ...tracked(), facts: 'observed_v1' as const }
+const sha = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex')
+type C1p = { nci?: number; cr?: number; out?: number; id?: string; cost?: number }
+/** A complete C1P settlement (800/200/50, resp_A, $0.000046 by default), with an optional observation. */
+function c1pBody(at: At, reservationId: string, f: C1p = {}, observed?: Observed): ResearchSettleRequest {
+  return {
+    ...at,
+    reservationId,
+    outcome: 'settled',
+    costUsd: f.cost ?? 0.000046,
+    usage: { inputTokens: (f.nci ?? 800) + (f.cr ?? 200), outputTokens: f.out ?? 50 },
+    evidence: {
+      contract: 'c1p_complete_report',
+      report: 'complete_report',
+      counts: {
+        nonCachedInput: known(f.nci ?? 800),
+        cacheRead: known(f.cr ?? 200),
+        cacheWrite: { class: 'no_separate_reported_class' },
+        output: known(f.out ?? 50),
+      },
+      ending: 'stream_completed',
+      responseId: { status: 'supported', value: f.id ?? 'resp_A' },
+      ...(observed ? { observed } : {}),
+    },
+  }
+}
+/** A not_complete settlement (uncertain), its id optional, with an optional observation. */
+function partialBody(at: At, reservationId: string, observed?: Observed, id?: string): ResearchSettleRequest {
+  return {
+    ...at,
+    reservationId,
+    outcome: 'uncertain',
+    evidence: {
+      contract: 'c1p_complete_report',
+      report: 'not_complete',
+      counts: UNKNOWN_COUNTS,
+      ending: 'stream_error',
+      responseId: id === undefined ? { status: 'unknown' } : { status: 'supported', value: id },
+      ...(observed ? { observed } : {}),
+    },
+  }
+}
+const settleBody = (who: RuntimeCaller, body: ResearchSettleRequest) =>
+  service((c) => runtimeResearchSettle(c, who, body))
+/** The literal 0109 v1 preimage of a complete C1P settlement (800/200/50 by default), recomputed here, not read back. */
+const v1Preimage = (evidenceId: string, f: C1p = {}) =>
+  `research-call-facts-v1|${evidenceId}|tracked_v1|c1p_complete_report|complete_report|known|${String(f.nci ?? 800)}|known|${String(f.cr ?? 200)}|no_separate_reported_class|-|known|${String(f.out ?? 50)}|stream_completed|provider_terminal=unknown|settled|0.000046|supported|${sha(f.id ?? 'resp_A')}|-|-|header=unknown`
+// 022d V04's observation and its proposed canonical (equal to the vector's string and sha256 05087a64…).
+const V04: Observed = {
+  sent: 'observable_transport_response',
+  httpStatus: 200,
+  n1: { id: { status: 'supported', value: 'resp_A' }, sources: ['created', 'completed'] },
+  n2: { id: { status: 'supported', value: 'req_X' }, sources: ['response_header'] },
+  providerTerminal: 'completed',
+  rawCounts: { inputTotal: 1000, cacheRead: 200, output: 50 },
+  deliveryUnknownReason: 'none',
+}
+const V04_CANONICAL =
+  'c2b-facts-v2|sent=observable_transport_response|status=200|n1=s:ec703a88658a37077b84de06a7653b50faf6912bc2ce17daac42d3a293af5eca@created,completed|n2=s:be836566264d01df9977f9730737cfa2d1b951decd3aab95ffc89af09004fdd6@response_header|term=completed|in=1000|cr=200|out=50|cf=-|dr=none'
+const observedTruth = (reservationId: string) =>
+  one<Record<string, unknown>>(
+    `SELECT delivery, sent, http_status, n1_status, n1, n1_reason, n1_sources, header_id_status, header_id, header_id_sources,
+      provider_terminal, raw_input_total::int AS raw_in, raw_cache_read::int AS raw_cr, raw_output::int AS raw_out,
+      noncached_input_class, cache_read_class, outcome, cost_usd::text AS cost, digest, first_conflict_reason,
+      w_n1, w_n2, w_http_status, w_provider_terminal, w_input_total, w_cache_read, w_output, w_cross_c1p
+     FROM sophia.research_call_truth WHERE reservation_id=$1`,
+    [reservationId],
+  )
+const historyOf = (reservationId: string) =>
+  rows<{ ordinal: number; disposition: string; observed: string | null; digest: string }>(
+    `SELECT ordinal, disposition, observed, digest FROM sophia.research_call_history WHERE reservation_id=$1 ORDER BY ordinal`,
+    [reservationId],
+  )
+/** An N1 seen on `completed`: supported with `value`, else unsupported (over_bound). */
+const n1Only = (value?: string): Observed => ({
+  n1: {
+    id: value ? { status: 'supported', value } : { status: 'identity_unsupported', reason: 'over_bound' },
+    sources: ['completed'],
+  },
+  deliveryUnknownReason: 'none',
+})
+/** A delivered terminal with its raw counts. */
+const terminal = (
+  providerTerminal: NonNullable<Observed['providerTerminal']>,
+  rawCounts: NonNullable<Observed['rawCounts']>,
+): Observed => ({
+  sent: 'observable_transport_response',
+  httpStatus: 200,
+  providerTerminal,
+  rawCounts,
+  deliveryUnknownReason: 'none',
+})
+/** A project-funded (account-null) opted-in reservation of a fresh world. */
+async function optedIn(callId = 'llm-o1') {
+  const w = await world()
+  const s = await projectFunded(w)
+  const r = await reserve(w.legacy, s.at, callId, 0.2, OPT_IN)
+  return { w, s, r, who: w.legacy }
+}
+
+describe('C2B opt-in (SI01): observed_v1 is negotiated at reserve, frozen, and echoed only when opted in', () => {
+  it('an old client is byte-identical: no facts in its binding, the literal v1 digest, and an observation refused', async () => {
+    const w = await world()
+    const s = await projectFunded(w)
+    const r = await reserve(w.legacy, s.at, 'llm-v1-only', 0.2)
+    assert.deepEqual(Object.keys(r.binding ?? {}).toSorted(), [
+      'attemptId',
+      'callId',
+      'contract',
+      'evidenceId',
+      'mode',
+      'nativeSessionId',
+      'projectId',
+      'resourceId',
+      'runtimeUnitId',
+    ])
+    const fv = await one<{ v: number }>(
+      `SELECT facts_version AS v FROM sophia.research_call_identities WHERE reservation_id=$1`,
+      [r.reservationId],
+    )
+    assert.equal(fv.v, 1)
+    const prior = await allowanceOf(s.taskId)
+    const refused = await codeOf(settleBody(w.legacy, c1pBody(s.at, r.reservationId, {}, V04)))
+    assert.equal(refused, 'invalid_request', 'a v1 reservation carries no observation')
+    assert.equal(await historyRows(r.reservationId), 0)
+    assert.deepEqual(await allowanceOf(s.taskId), prior, 'nothing moved')
+    const done = ev(await settleBody(w.legacy, c1pBody(s.at, r.reservationId)))
+    assert.equal(done.digest, sha(v1Preimage(r.binding!.evidenceId)), 'the literal 0109 v1 digest')
+    assert.equal((await historyOf(r.reservationId))[0]!.observed, null)
+  })
+
+  it('an opted-in reserve echoes facts with its full original binding; another opt-in under the same key is another reservation', async () => {
+    const w = await world()
+    const s = await projectFunded(w)
+    const r = await reserve(w.legacy, s.at, 'llm-opt', 0.2, OPT_IN)
+    const plain = await reserve(w.legacy, s.at, 'llm-plain', 0.2)
+    assert.deepEqual(r.binding, {
+      ...plain.binding,
+      callId: 'llm-opt',
+      evidenceId: r.binding!.evidenceId,
+      facts: 'observed_v1',
+    })
+    assert.equal(
+      (
+        await one<{ v: number }>(
+          `SELECT facts_version AS v FROM sophia.research_call_identities WHERE reservation_id=$1`,
+          [r.reservationId],
+        )
+      ).v,
+      2,
+    )
+    assert.deepEqual(await reserve(w.legacy, s.at, 'llm-opt', 0.2, OPT_IN), r, 'the exact replay')
+    assert.equal(await codeOf(reserve(w.legacy, s.at, 'llm-opt', 0.2)), 'idempotency_conflict', 'dropping the opt-in')
+    assert.equal(await codeOf(reserve(w.legacy, s.at, 'llm-plain', 0.2, OPT_IN)), 'idempotency_conflict', 'adding it')
+    const n = await rows(`SELECT 1 FROM sophia.research_reservations WHERE allowance_id=$1`, [
+      (await allowanceOf(s.taskId)).id,
+    ])
+    assert.equal(
+      await codeOf(reserve(w.legacy, s.at, 'llm-bad', 0.2, { ...tracked(), facts: 'observed_v2' })),
+      'invalid_request',
+    )
+    assert.equal(await codeOf(reserve(w.legacy, s.at, 'llm-legacy', 0.2, { facts: 'observed_v1' })), 'invalid_request')
+    assert.equal(
+      (
+        await rows(`SELECT 1 FROM sophia.research_reservations WHERE allowance_id=$1`, [
+          (await allowanceOf(s.taskId)).id,
+        ])
+      ).length,
+      n.length,
+      'refused before any reservation',
+    )
+  })
+})
+
+describe('C2B observed facts (0110): closed, first-known, sticky; classified before money; metadata never moves USD', () => {
+  it('an all-unknown observation keeps the exact v1 digest; a nontrivial one is research-call-facts-v2 over the 0109 list (golden)', async () => {
+    const { s, r, who } = await optedIn()
+    const eid = r.binding!.evidenceId
+    const fallback = ev(
+      await settleBody(who, c1pBody(s.at, r.reservationId, {}, { deliveryUnknownReason: 'no_frame_delivered' })),
+    )
+    assert.deepEqual([fallback.disposition, fallback.digest], ['accepted', sha(v1Preimage(eid))])
+    assert.equal((await historyOf(r.reservationId))[0]!.observed, null, 'nothing observed is retained')
+    assert.equal((await observedTruth(r.reservationId)).delivery, null)
+    // The same A57 facts without the observation are the current truth: the same receipt.
+    assert.equal(ev(await settleBody(who, c1pBody(s.at, r.reservationId))).digest, fallback.digest)
+    assert.equal(
+      sha(V04_CANONICAL),
+      '05087a64b446df98659c5c293cf5ce044cd395876f00bb75099397439d785f35',
+      'the 022d vector',
+    )
+    const v2 = ev(await settleBody(who, c1pBody(s.at, r.reservationId, {}, V04)))
+    const v2Preimage = `${v1Preimage(eid).replace('research-call-facts-v1|', 'research-call-facts-v2|')}|${V04_CANONICAL}`
+    assert.deepEqual([v2.disposition, v2.replay, v2.digest], ['extended', false, sha(v2Preimage)])
+    assert.equal((await historyOf(r.reservationId))[1]!.observed, V04_CANONICAL, 'its canonical, ids by digest only')
+    const t = await observedTruth(r.reservationId)
+    assert.equal(t.digest, sha(v2Preimage), 'the truth is exactly that report')
+    assert.deepEqual(ev(await settleBody(who, c1pBody(s.at, r.reservationId, {}, V04))).replay, true)
+  })
+
+  it('known zeros settle C1P money once; raw counts never settle, reprice or release (metadata-only, R3)', async () => {
+    const { s, r, who } = await optedIn()
+    const zero = await settleBody(
+      who,
+      c1pBody(
+        s.at,
+        r.reservationId,
+        { nci: 0, cr: 0, out: 0, id: 'resp_Z', cost: 0 },
+        {
+          sent: 'observable_transport_response',
+          httpStatus: 200,
+          n1: { id: { status: 'supported', value: 'resp_Z' }, sources: ['completed'] },
+          providerTerminal: 'completed',
+          rawCounts: { inputTotal: 0, cacheRead: 0, output: 0 },
+          deliveryUnknownReason: 'none',
+        },
+      ),
+    )
+    assert.deepEqual([ev(zero).disposition, zero.state, zero.settledUsd], ['accepted', 'settled', 0])
+    const t = await observedTruth(r.reservationId)
+    assert.deepEqual([t.raw_in, t.raw_cr, t.raw_out, t.provider_terminal], [0, 0, 0, 'completed'], 'known zeros kept')
+    // A partial (failed) call: raw counts known, no money from them, and nonCachedInput / cacheRead stay unknown.
+    const p = await reserve(who, s.at, 'llm-fail', 0.2, OPT_IN)
+    const prior = await allowanceOf(s.taskId)
+    const failed = await settleBody(
+      who,
+      partialBody(s.at, p.reservationId, {
+        sent: 'observable_transport_response',
+        httpStatus: 200,
+        n1: { id: { status: 'supported', value: 'resp_F' }, sources: ['created', 'failed'] },
+        providerTerminal: 'failed',
+        rawCounts: { inputTotal: 1000, output: 7 },
+        deliveryUnknownReason: 'none',
+      }),
+    )
+    assert.deepEqual([ev(failed).disposition, failed.state], ['accepted', 'uncertain'])
+    const exposure = await allowanceOf(s.taskId)
+    assert.equal(Number(exposure.spent), Number(prior.spent), 'no USD from raw counts')
+    // A metadata-only report with every raw count known gains the counts and never touches money.
+    const more = await settleBody(
+      who,
+      partialBody(s.at, p.reservationId, {
+        sent: 'observable_transport_response',
+        providerTerminal: 'failed',
+        rawCounts: { inputTotal: 1000, cacheRead: 200, output: 7 },
+        deliveryUnknownReason: 'none',
+      }),
+    )
+    assert.deepEqual([ev(more).disposition, more.state, more.settledUsd], ['extended', 'uncertain', null])
+    assert.deepEqual(await allowanceOf(s.taskId), exposure, 'metadata only: nothing created, repriced or released')
+    const f = await observedTruth(p.reservationId)
+    assert.deepEqual(
+      [f.raw_in, f.raw_cr, f.raw_out, f.noncached_input_class, f.cache_read_class, f.outcome],
+      [1000, 200, 7, 'unknown', 'unknown', 'uncertain'],
+      'R3: inputTotal never makes nonCachedInput known; no subtraction',
+    )
+  })
+
+  it('monotone gains: header-only, then out of order, a duplicate and a provenance union; a stale report never erases', async () => {
+    const { s, r, who } = await optedIn()
+    const header = partialBody(s.at, r.reservationId, {
+      sent: 'observable_transport_response',
+      httpStatus: 200,
+      n2: { id: { status: 'supported', value: 'req_X' }, sources: ['response_header'] },
+      deliveryUnknownReason: 'closed_before_terminal_frame',
+    })
+    assert.equal(ev(await settleBody(who, header)).disposition, 'accepted')
+    // N1 seen on created and completed (sources out of order on the wire), the final frame delivered.
+    const full = partialBody(s.at, r.reservationId, {
+      n1: { id: { status: 'supported', value: 'resp_A' }, sources: ['completed', 'created'] },
+      n2: { id: { status: 'supported', value: 'req_X' }, sources: ['typed_error'] },
+      deliveryUnknownReason: 'none',
+    })
+    assert.equal(ev(await settleBody(who, full)).disposition, 'extended')
+    assert.equal(ev(await settleBody(who, full)).replay, true, 'a duplicate is idempotent')
+    // A stale report (no frame, nothing known) after them: subsumed, nothing erased.
+    const stale = partialBody(s.at, r.reservationId, {
+      n2: { id: { status: 'identity_unsupported', reason: 'over_bound' }, sources: ['response_header'] },
+      deliveryUnknownReason: 'no_frame_delivered',
+    })
+    assert.equal(ev(await settleBody(who, stale)).disposition, 'subsumed')
+    const t = await observedTruth(r.reservationId)
+    assert.deepEqual(
+      [t.delivery, t.sent, t.http_status, t.n1, t.n1_sources, t.header_id, t.header_id_sources, t.provider_terminal],
+      [
+        'none',
+        'observable_transport_response',
+        200,
+        'resp_A',
+        ['created', 'completed'],
+        'req_X',
+        ['response_header', 'typed_error'],
+        'unknown',
+      ],
+      'unioned in the fixed order; supported kept over unsupported; delivery is not a provider terminal',
+    )
+    assert.equal(t.w_n2, null, 'supported -> unsupported is no conflict')
+    // Unsupported -> supported is a gain.
+    const u = await reserve(who, s.at, 'llm-u', 0.2, OPT_IN)
+    assert.equal(ev(await settleBody(who, partialBody(s.at, u.reservationId, n1Only()))).disposition, 'accepted')
+    assert.equal(
+      ev(await settleBody(who, partialBody(s.at, u.reservationId, n1Only('resp_U')))).disposition,
+      'extended',
+    )
+    assert.deepEqual(
+      [(await observedTruth(u.reservationId)).n1_status, (await observedTruth(u.reservationId)).n1],
+      ['supported', 'resp_U'],
+    )
+  })
+
+  it('a different id keeps the first and one sticky witness; a different terminal never merges its counts', async () => {
+    const { w, s, r, who } = await optedIn()
+    const withId = (value: string): Observed => ({
+      ...V04,
+      n1: { id: { status: 'supported', value }, sources: ['completed'] },
+    })
+    const first = await settleBody(who, c1pBody(s.at, r.reservationId, {}, withId('resp_A')))
+    assert.deepEqual([ev(first).disposition, first.state], ['accepted', 'settled'])
+    const money = await allowanceOf(s.taskId)
+    const second = await settleBody(who, c1pBody(s.at, r.reservationId, {}, withId('resp_B')))
+    assert.equal(ev(second).disposition, 'conflict')
+    const witness = '1a9396ba4fbed4ec880b51dc13662e999f4a67606472ef7febcaa9c52cfed79c'
+    assert.equal(witness, sha(`c2b-conflict-v1|n1|s:${sha('resp_B')}`), 'V08: the preimage, recomputed')
+    let t = await observedTruth(r.reservationId)
+    assert.deepEqual(
+      [t.n1, t.w_n1, t.w_cross_c1p, t.first_conflict_reason],
+      ['resp_A', witness, null, 'observed_changed'],
+    )
+    assert.equal(
+      ev(await settleBody(who, c1pBody(s.at, r.reservationId, {}, withId('resp_C')))).disposition,
+      'conflict',
+    )
+    t = await observedTruth(r.reservationId)
+    assert.deepEqual([t.n1, t.w_n1], ['resp_A', witness], 'sticky: the later value changes nothing')
+    assert.deepEqual(await allowanceOf(s.taskId), money, 'known money intact')
+    assert.equal(await restrictionsOf(money.id), 1, 'restricted (account-null: its own allowance)')
+    // V09: the same failed terminal gains its counts; another terminal is a conflict and its counts are not merged.
+    const w2 = await world({ owner: w.OWNER })
+    const s2 = await projectFunded(w2)
+    const p = await reserve(w2.legacy, s2.at, 'llm-term', 0.2, OPT_IN)
+    await settleBody(w2.legacy, partialBody(s2.at, p.reservationId, terminal('failed', { output: 7 })))
+    assert.equal(
+      ev(
+        await settleBody(
+          w2.legacy,
+          partialBody(s2.at, p.reservationId, terminal('failed', { inputTotal: 1000, output: 7 })),
+        ),
+      ).disposition,
+      'extended',
+    )
+    const c = await settleBody(
+      w2.legacy,
+      partialBody(s2.at, p.reservationId, terminal('completed', { inputTotal: 1, output: 1 })),
+    )
+    assert.deepEqual([ev(c).disposition, c.state], ['conflict', 'uncertain'])
+    const f = await observedTruth(p.reservationId)
+    assert.deepEqual(
+      [f.provider_terminal, f.raw_in, f.raw_out, f.w_provider_terminal],
+      ['failed', 1000, 7, 'babe463ef39e1d02efc4be5abf686937852a9476d2276e87b1d920ca2da0ee58'],
+      'no invented failed -> completed; the vector V09 witness',
+    )
+  })
+
+  it('cross_c1p: a first settlement whose observation contradicts its own A57 facts moves no money and restricts (golden)', async () => {
+    const { w, s, r, who } = await optedIn()
+    const prior = await allowanceOf(s.taskId)
+    // Counts: A57 800+200 against an observed inputTotal of 900.
+    const counts = await settleBody(
+      who,
+      c1pBody(s.at, r.reservationId, {}, { ...V04, rawCounts: { inputTotal: 900, cacheRead: 200, output: 50 } }),
+    )
+    assert.deepEqual([ev(counts).disposition, counts.state, counts.settledUsd], ['conflict', 'reserved', null])
+    assert.deepEqual(await allowanceOf(s.taskId), prior, 'classified before the money helper: nothing moved')
+    const preimage = `a57_n1=s:${sha('resp_A')}|observed_n1=s:${sha('resp_A')}|a57_noncached_input=800|a57_cache_read=200|a57_output=50|observed_input_total=900|observed_cache_read=200|observed_output=50`
+    let t = await observedTruth(r.reservationId)
+    assert.deepEqual(
+      [t.w_cross_c1p, t.outcome, t.cost, t.first_conflict_reason],
+      [sha(`c2b-conflict-v1|cross_c1p|${preimage}`), 'reserved', null, 'cross_changed'],
+    )
+    assert.equal(t.w_cross_c1p, '9ce3de671a4befe7586585f7835a4c2732234e52278e5d558f2bd21babed95c9', 'frozen literal')
+    assert.equal(await restrictionsOf(prior.id), 1)
+    // The money is never created from it later: the consistent report is no extension (the scope stays restricted).
+    const later = await settleBody(who, c1pBody(s.at, r.reservationId))
+    assert.equal(later.state, 'reserved', 'no metadata or later report moves money past a contradiction')
+    // N1 only: an A57 responseId and an observed N1 that differ, counts unknown on both sides.
+    const w2 = await world({ owner: w.OWNER })
+    const s2 = await projectFunded(w2)
+    const n = await reserve(w2.legacy, s2.at, 'llm-n1', 0.2, OPT_IN)
+    const n1 = await settleBody(
+      w2.legacy,
+      partialBody(
+        s2.at,
+        n.reservationId,
+        {
+          n1: { id: { status: 'supported', value: 'resp_B' }, sources: ['created'] },
+          deliveryUnknownReason: 'closed_before_terminal_frame',
+        },
+        'resp_A',
+      ),
+    )
+    assert.deepEqual([ev(n1).disposition, n1.state], ['conflict', 'reserved'])
+    t = await observedTruth(n.reservationId)
+    assert.equal(t.w_cross_c1p, '4f570038e82f3cff2e3e908a38bf8c9268a9b58ba9b67c6810a18d36156b1ff1', 'N1-only preimage')
+    assert.equal(
+      t.w_cross_c1p,
+      sha(
+        `c2b-conflict-v1|cross_c1p|a57_n1=s:${sha('resp_A')}|observed_n1=s:${sha('resp_B')}|a57_noncached_input=-|a57_cache_read=-|a57_output=-|observed_input_total=-|observed_cache_read=-|observed_output=-`,
+      ),
+    )
+    // Simultaneous: another N1 and other counts in one report (a fresh allowance: the N1 conflict restricted this one).
+    const w3 = await world({ owner: w.OWNER })
+    const s3 = await projectFunded(w3)
+    const b = await reserve(w3.legacy, s3.at, 'llm-both', 0.2, OPT_IN)
+    const both = await settleBody(
+      w3.legacy,
+      c1pBody(
+        s3.at,
+        b.reservationId,
+        {},
+        {
+          ...V04,
+          n1: { id: { status: 'supported', value: 'resp_B' }, sources: ['completed'] },
+          rawCounts: { inputTotal: 1000, cacheRead: 201, output: 51 },
+        },
+      ),
+    )
+    assert.deepEqual([ev(both).disposition, both.state], ['conflict', 'reserved'])
+    assert.equal(
+      (await observedTruth(b.reservationId)).w_cross_c1p,
+      'fbbd5df6cc67cb3cb066ecd128d43e5af26e59d3325039d49c198e16939b3476',
+      'simultaneous preimage',
+    )
+  })
+
+  it('bounds: at most one witness per dimension (all eight), at most 16 retained inputs, the first overflow kept', async () => {
+    const { s, r, who } = await optedIn()
+    assert.equal(ev(await settleBody(who, partialBody(s.at, r.reservationId, V04, 'resp_A'))).disposition, 'accepted')
+    // A report contradicting every dimension at once; the cross check (A57 resp_A vs observed N1) adds the eighth.
+    const all: Observed = {
+      sent: 'observable_transport_response',
+      httpStatus: 500,
+      n1: { id: { status: 'supported', value: 'resp_Q' }, sources: ['completed'] },
+      n2: { id: { status: 'supported', value: 'req_Q' }, sources: ['typed_error'] },
+      providerTerminal: 'completed',
+      rawCounts: { inputTotal: 1, cacheRead: 2, output: 3 },
+      deliveryUnknownReason: 'none',
+    }
+    assert.equal(ev(await settleBody(who, partialBody(s.at, r.reservationId, all, 'resp_A'))).disposition, 'conflict')
+    const t = await observedTruth(r.reservationId)
+    const witnesses = [
+      t.w_n1,
+      t.w_n2,
+      t.w_http_status,
+      t.w_provider_terminal,
+      t.w_input_total,
+      t.w_cache_read,
+      t.w_output,
+      t.w_cross_c1p,
+    ]
+    assert.deepEqual(witnesses.slice(0, 3), [
+      sha(`c2b-conflict-v1|n1|s:${sha('resp_Q')}`),
+      sha(`c2b-conflict-v1|n2|s:${sha('req_Q')}`),
+      sha('c2b-conflict-v1|http_status|500'),
+    ])
+    // Counts merged under the same terminal: each different count is its own dimension; the terminal is the same.
+    assert.deepEqual(witnesses.slice(3, 7), [
+      null,
+      sha('c2b-conflict-v1|input_total|1'),
+      sha('c2b-conflict-v1|cache_read|2'),
+      sha('c2b-conflict-v1|output|3'),
+    ])
+    // A terminal contradiction and a reported cross_c1p witness: both reach the fixed truth (R1 F01: a producer-only
+    // cross is retained like any dimension; there is no service mismatch on this report to precede it).
+    const other = {
+      ...all,
+      providerTerminal: 'failed' as const,
+      conflicts: [{ dimension: 'cross_c1p' as const, witness: 'f'.repeat(64) }],
+    }
+    assert.equal(ev(await settleBody(who, partialBody(s.at, r.reservationId, other, 'resp_A'))).disposition, 'conflict')
+    const t2 = await observedTruth(r.reservationId)
+    assert.equal(t2.w_provider_terminal, sha('c2b-conflict-v1|provider_terminal|failed'))
+    assert.equal(t2.w_cross_c1p, 'f'.repeat(64), 'R1 F01: the reported cross witness is retained in the fixed truth')
+    assert.deepEqual(t2.w_n1, witnesses[0], 'the first witness is never rewritten')
+    // Up to 16 retained inputs; the 17th distinct one is the first overflow, kept once.
+    for (let k = 4; (await historyRows(r.reservationId)) < 16; k++)
+      await settleBody(who, partialBody(s.at, r.reservationId, { ...all, httpStatus: 500 + k }, 'resp_A'))
+    const overflow = ev(
+      await settleBody(who, partialBody(s.at, r.reservationId, { ...all, httpStatus: 599 }, 'resp_A')),
+    )
+    assert.deepEqual([overflow.disposition, overflow.capped], ['conflict', true])
+    const capped = await truthOf(r.reservationId)
+    assert.deepEqual([Number(capped.history_count), capped.first_overflow_digest], [16, overflow.digest])
+    await settleBody(who, partialBody(s.at, r.reservationId, { ...all, httpStatus: 598 }, 'resp_A'))
+    assert.equal((await truthOf(r.reservationId)).first_overflow_digest, overflow.digest, 'the first overflow stays')
+    assert.equal(
+      (await observedTruth(r.reservationId)).w_http_status,
+      witnesses[2],
+      'one bounded witness for the dimension',
+    )
+  })
+
+  it('a known complete C1P keeps its money when later reports drop the observation or close before the terminal frame', async () => {
+    const { s, r, who } = await optedIn()
+    const done = await settleBody(who, c1pBody(s.at, r.reservationId, {}, V04))
+    assert.deepEqual([ev(done).disposition, done.state], ['accepted', 'settled'])
+    const money = await allowanceOf(s.taskId)
+    const truth = await observedTruth(r.reservationId)
+    assert.equal(ev(await settleBody(who, c1pBody(s.at, r.reservationId))).disposition, 'subsumed', 'no observation')
+    const early = ev(
+      await settleBody(
+        who,
+        c1pBody(
+          s.at,
+          r.reservationId,
+          {},
+          { sent: 'observable_transport_response', deliveryUnknownReason: 'closed_before_terminal_frame' },
+        ),
+      ),
+    )
+    assert.equal(early.disposition, 'subsumed', 'a poorer stage never lowers the delivered one')
+    assert.deepEqual(await allowanceOf(s.taskId), money)
+    assert.deepEqual(await observedTruth(r.reservationId), truth, 'the truth and its digest are unchanged')
+  })
+
+  it('closed observation: every malformed member is refused with one fixed message and no echo; nothing changes', async () => {
+    const { s, r, who } = await optedIn()
+    const canary = 'CANARY-c2b-closed-7f3e'
+    const bad: unknown[] = [
+      null,
+      { ...V04, deliveryUnknownReason: undefined },
+      { ...V04, extra: canary },
+      { ...V04, sent: null },
+      { ...V04, httpStatus: 99 },
+      { ...V04, httpStatus: 600 },
+      { ...V04, httpStatus: 200.5 },
+      { ...V04, n1: { id: { status: 'supported', value: canary }, sources: [] } },
+      { ...V04, n1: { id: { status: 'supported', value: canary }, sources: ['completed', 'completed'] } },
+      {
+        ...V04,
+        n1: {
+          id: { status: 'supported', value: canary },
+          sources: ['created', 'completed', 'incomplete', 'failed', 'created'],
+        },
+      },
+      { ...V04, n1: { id: { status: 'supported', value: canary }, sources: ['response_header'] } },
+      { ...V04, n2: { id: { status: 'supported', value: canary }, sources: ['created'] } },
+      { ...V04, n1: { id: { status: 'supported', value: '' }, sources: ['completed'] } },
+      { ...V04, n1: { id: { status: 'supported', value: canary + 'x'.repeat(8192) }, sources: ['completed'] } },
+      { ...V04, n1: { id: { status: 'supported', value: canary, reason: 'nul' }, sources: ['completed'] } },
+      { ...V04, n1: { id: { status: 'unknown' }, sources: ['completed'] } },
+      { ...V04, n1: { id: { status: 'supported', value: canary }, sources: ['completed'], extra: 1 } },
+      { ...V04, rawCounts: { inputTotal: 9007199254740992 } },
+      { ...V04, rawCounts: { inputTotal: -1 } },
+      { ...V04, rawCounts: { inputTotal: 1.5 } },
+      { ...V04, rawCounts: { inputTotal: '1000' } },
+      { ...V04, rawCounts: { reasoning: 1 } },
+      { ...V04, rawCounts: { cacheWrite: 1 } },
+      { ...V04, providerTerminal: undefined },
+      { ...V04, providerTerminal: 'stream_completed' },
+      { ...V04, conflicts: [{ dimension: 'n1', witness: 'A'.repeat(64) }] },
+      { ...V04, conflicts: [{ dimension: 'n3', witness: 'a'.repeat(64) }] },
+      {
+        ...V04,
+        conflicts: [
+          { dimension: 'n1', witness: 'a'.repeat(64) },
+          { dimension: 'n1', witness: 'b'.repeat(64) },
+        ],
+      },
+      { ...V04, conflicts: Array.from({ length: 9 }, () => ({ dimension: 'n1', witness: 'a'.repeat(64) })) },
+      { ...V04, deliveryUnknownReason: 'consumer_closed' },
+      { ...V04, factsVersion: 2 },
+      { ...V04, c2b: {} },
+    ]
+    const raw = (body: unknown) =>
+      service((c) =>
+        c.query(`SELECT sophia.runtime_research_settle($1,$2,$3,$4) AS reply`, [
+          who.tokenSha256,
+          who.runtimeUnitId,
+          who.bridgeInstanceId,
+          JSON.stringify(body),
+        ]),
+      )
+    for (const observed of bad) {
+      const body = c1pBody(s.at, r.reservationId)
+      const err = await raw({ ...body, evidence: { ...body.evidence, observed } }).then(
+        () => null,
+        (e: unknown) => e,
+      )
+      assert.ok(err, `refused: ${JSON.stringify(observed)?.slice(0, 80) ?? 'undefined'}`)
+      const cause = err instanceof Error && err.cause instanceof Error ? err.cause.message : ''
+      const text = `${err instanceof Error ? err.message : JSON.stringify(err)} ${JSON.stringify(err)} ${cause}`
+      assert.equal(text.includes(canary), false, 'no value is echoed')
+      assert.match(text, /Invalid observed facts|Invalid settlement evidence/)
+    }
+    assert.equal(await historyRows(r.reservationId), 0, 'nothing retained')
+    assert.equal(
+      ev(await settleBody(who, c1pBody(s.at, r.reservationId, {}, V04))).disposition,
+      'accepted',
+      'then accepted',
+    )
+  })
+
+  it('private values: a supported N1 and N2 stay in the private truth only; history, receipt and ledger hold no raw id', async () => {
+    const { s, r, who } = await optedIn()
+    const n1 = `resp_CANARY_${randomUUID()}`
+    const n2 = `req_CANARY_${randomUUID()}`
+    const reply = await settleBody(
+      who,
+      partialBody(s.at, r.reservationId, {
+        sent: 'observable_transport_response',
+        n1: { id: { status: 'supported', value: n1 }, sources: ['created'] },
+        n2: { id: { status: 'supported', value: n2 }, sources: ['response_header'] },
+        deliveryUnknownReason: 'closed_before_terminal_frame',
+      }),
+    )
+    assert.equal(JSON.stringify(reply).includes('CANARY'), false, 'the receipt')
+    const hist = await rows(
+      `SELECT to_jsonb(h)::text AS j FROM sophia.research_call_history h WHERE reservation_id=$1`,
+      [r.reservationId],
+    )
+    assert.equal(JSON.stringify(hist).includes('CANARY'), false, 'the history keeps ids by digest only')
+    const led = await one<{ j: string }>(
+      `SELECT to_jsonb(x)::text AS j FROM sophia.research_reservations x WHERE id=$1`,
+      [r.reservationId],
+    )
+    assert.equal(led.j.includes('CANARY'), false, 'the ledger row (usage, provider request id)')
+    const t = await observedTruth(r.reservationId)
+    assert.deepEqual([t.n1, t.header_id], [n1, n2], 'kept whole only in the private truth')
+    const app = await rows(
+      `SELECT has_table_privilege('sophia_api','sophia.research_call_truth','SELECT') AS a, has_table_privilege('sophia_worker','sophia.research_call_truth','SELECT') AS b`,
+    )
+    assert.deepEqual(app, [{ a: false, b: false }])
+  })
+
+  it('late observed facts after Stop, through a new lease, land once; no new paid work starts', async () => {
+    const w = await world()
+    const s = await started(w)
+    const r = await reserve(w.who, s.at, 'llm-late', 0.2, OPT_IN)
+    const next: RuntimeCaller = { ...w.who, bridgeInstanceId: randomUUID() }
+    await bringUp(next)
+    await control(w, 'stop', s.taskId)
+    await dispatchAll()
+    await answer(next, new Set())
+    const pre = await allowanceOf(s.taskId)
+    const late = await settleBody(next, c1pBody(s.at, r.reservationId, { cost: 0.03 }, V04))
+    assert.deepEqual([ev(late).disposition, late.state], ['accepted', 'settled'])
+    const post = await allowanceOf(s.taskId)
+    assert.deepEqual(
+      [Number(post.spent) - Number(pre.spent), Number(pre.reserved) - Number(post.reserved)],
+      [0.03, 0.2],
+    )
+    assert.equal(ev(await settleBody(next, c1pBody(s.at, r.reservationId, { cost: 0.03 }, V04))).replay, true)
+    assert.deepEqual(await allowanceOf(s.taskId), post, 'once')
+    assert.notEqual(
+      await codeOf(reserve(next, s.at, 'llm-after', 0.2, OPT_IN)),
+      'resolved',
+      'no new paid action after Stop',
+    )
+  })
+
+  it('an observed contradiction on an account-backed call restricts the ORIGINAL account (guard last); an opted-in reserve elsewhere is refused', async () => {
+    const w = await world()
+    const s = await started(w)
+    // Another project of the same account, its task admitted and delivered before the contradiction.
+    const other = await world({ owner: w.OWNER })
+    const s2 = await started(other)
+    const r = await reserve(w.who, s.at, 'llm-acct', 0.2, OPT_IN)
+    assert.equal(r.binding?.facts, 'observed_v1')
+    assert.equal(await guardOf(w.account), false)
+    const c = await settleBody(
+      w.who,
+      c1pBody(s.at, r.reservationId, { cost: 0.01 }, { ...V04, rawCounts: { inputTotal: 999 } }),
+    )
+    assert.deepEqual([ev(c).disposition, c.state], ['conflict', 'reserved'])
+    assert.equal(await guardOf(w.account), true, 'the original account')
+    assert.equal(
+      await codeOf(reserve(other.who, s2.at, 'llm-elsewhere', 0.1, OPT_IN)),
+      'evidence_conflict_unreconciled',
+    )
+    assert.equal(await codeOf(reserve(other.who, s2.at, 'llm-elsewhere-v1', 0.1)), 'evidence_conflict_unreconciled')
+    // Late facts on the restricted call stay available.
+    assert.equal(ev(await settleBody(w.who, c1pBody(s.at, r.reservationId, { cost: 0.01 }, V04))).replay, false)
+  })
+})
+
+// --- C2B R1 (C2B-48B4-REPAIR-R1-001): F01 every reported or service cross witness reaches the fixed truth; F02 the
+// validated numeric count. Real PostgreSQL, the same original ledger.
+/** One reported first witness. */
+const reported = (dimension: 'cross_c1p' | 'n2', witness: string) => [{ dimension, witness }]
+describe('C2B R1 F01: cross_c1p witnesses reach the fixed truth (stored first wins; service before producer in one input)', () => {
+  const crossOf = async (reservationId: string) => (await observedTruth(reservationId)).w_cross_c1p as string | null
+
+  it('a producer-only cross witness is retained on a first settlement: a contradiction, no money, restricted', async () => {
+    const { s, r, who } = await optedIn()
+    const prior = await allowanceOf(s.taskId)
+    const first = await settleBody(
+      who,
+      c1pBody(s.at, r.reservationId, {}, { ...V04, conflicts: reported('cross_c1p', 'e'.repeat(64)) }),
+    )
+    assert.deepEqual([ev(first).disposition, first.state], ['conflict', 'reserved'])
+    assert.equal(await crossOf(r.reservationId), 'e'.repeat(64))
+    assert.deepEqual(await allowanceOf(s.taskId), prior, 'no money')
+    assert.equal(await restrictionsOf(prior.id), 1)
+  })
+
+  it('another dimension and a service cross in ONE input: both kept, the service cross over the producer’s; later ones never rewrite it', async () => {
+    const { s, r, who } = await optedIn()
+    // First: N1 resp_A delivered (status 200), the A57 facts not yet known (ending stream_completed, as the next).
+    const head = partialBody(s.at, r.reservationId, {
+      sent: 'observable_transport_response',
+      httpStatus: 200,
+      n1: { id: { status: 'supported', value: 'resp_A' }, sources: ['completed'] },
+      deliveryUnknownReason: 'closed_before_terminal_frame',
+    })
+    const first = await settleBody(who, { ...head, evidence: { ...head.evidence!, ending: 'stream_completed' } })
+    assert.equal(ev(first).disposition, 'accepted')
+    // Then: the A57 facts name resp_B (a service cross against the kept N1), with another status and a producer cross.
+    const both = await settleBody(
+      who,
+      c1pBody(
+        s.at,
+        r.reservationId,
+        { id: 'resp_B' },
+        {
+          httpStatus: 500,
+          conflicts: reported('cross_c1p', 'e'.repeat(64)),
+          deliveryUnknownReason: 'closed_before_terminal_frame',
+        },
+      ),
+    )
+    assert.deepEqual([ev(both).disposition, both.state], ['conflict', 'uncertain'], 'classified before money')
+    const preimage = `a57_n1=s:${sha('resp_B')}|observed_n1=s:${sha('resp_A')}|a57_noncached_input=800|a57_cache_read=200|a57_output=50|observed_input_total=-|observed_cache_read=-|observed_output=-`
+    const t = await observedTruth(r.reservationId)
+    assert.deepEqual(
+      [t.w_http_status, t.w_cross_c1p],
+      [sha('c2b-conflict-v1|http_status|500'), sha(`c2b-conflict-v1|cross_c1p|${preimage}`)],
+      'the frozen grouped preimage, the service witness first',
+    )
+    // Sticky: a later differing producer cross (and another status) changes neither.
+    await settleBody(
+      who,
+      c1pBody(
+        s.at,
+        r.reservationId,
+        { id: 'resp_B' },
+        {
+          httpStatus: 503,
+          conflicts: reported('cross_c1p', 'd'.repeat(64)),
+          deliveryUnknownReason: 'closed_before_terminal_frame',
+        },
+      ),
+    )
+    const t2 = await observedTruth(r.reservationId)
+    assert.deepEqual([t2.w_http_status, t2.w_cross_c1p], [t.w_http_status, t.w_cross_c1p])
+  })
+
+  it('an input whose A57 facts already conflict (0109) still keeps its reported witnesses; its disposition and reason stay 0109’s', async () => {
+    const { s, r, who } = await optedIn()
+    assert.equal(ev(await settleBody(who, c1pBody(s.at, r.reservationId, {}, V04))).disposition, 'accepted')
+    const money = await allowanceOf(s.taskId)
+    const changed = await settleBody(
+      who,
+      c1pBody(
+        s.at,
+        r.reservationId,
+        { out: 51 },
+        { ...V04, conflicts: [...reported('n2', 'b'.repeat(64)), ...reported('cross_c1p', 'a'.repeat(64))] },
+      ),
+    )
+    assert.equal(ev(changed).disposition, 'conflict')
+    const t = await observedTruth(r.reservationId)
+    assert.deepEqual(
+      [t.first_conflict_reason, t.w_n2, t.w_cross_c1p],
+      ['count_changed', 'b'.repeat(64), 'a'.repeat(64)],
+    )
+    assert.deepEqual(await allowanceOf(s.taskId), money, 'known money intact')
+  })
+
+  it('a cross witness first delivered at the 16-input cap still reaches the fixed truth with the first overflow', async () => {
+    const { s, r, who } = await optedIn()
+    const status = (httpStatus: number, extra: Partial<Observed> = {}) =>
+      settleBody(
+        who,
+        partialBody(s.at, r.reservationId, {
+          sent: 'observable_transport_response',
+          httpStatus,
+          deliveryUnknownReason: 'none',
+          ...extra,
+        }),
+      )
+    assert.equal(ev(await status(200)).disposition, 'accepted')
+    for (let k = 1; (await historyRows(r.reservationId)) < 16; k++) await status(500 + k)
+    assert.equal(await crossOf(r.reservationId), null)
+    const over = ev(await status(590, { conflicts: reported('cross_c1p', 'c'.repeat(64)) }))
+    assert.deepEqual([over.disposition, over.capped], ['conflict', true])
+    const t = await truthOf(r.reservationId)
+    assert.deepEqual(
+      [Number(t.history_count), t.first_overflow_digest, t.w_cross_c1p],
+      [16, over.digest, 'c'.repeat(64)],
+    )
+    await status(591, { conflicts: reported('cross_c1p', '9'.repeat(64)) })
+    assert.equal(await crossOf(r.reservationId), 'c'.repeat(64), 'after the cap the first stays')
+    assert.equal((await truthOf(r.reservationId)).first_overflow_digest, over.digest)
+  })
+})
+
+describe('C2B R1 F02: an integral count or status is canonicalized from its validated numeric value (real SQL)', () => {
+  const count = async (json: string) =>
+    (await one<{ v: string }>(`SELECT sophia.research_call_observed_count($1::jsonb)::text AS v`, [json])).v
+  it('takes 1.0, 200.0, 1e3, 0.0 and 2^53-1 written as decimals; refuses fractions, negatives, past 2^53-1, text and null', async () => {
+    assert.deepEqual(
+      [
+        await count('1.0'),
+        await count('200.0'),
+        await count('1e3'),
+        await count('0.0'),
+        await count('9007199254740991.0'),
+        await count('9007199254740991'),
+      ],
+      ['1', '200', '1000', '0', '9007199254740991', '9007199254740991'],
+    )
+    for (const bad of ['1.5', '-1', '9007199254740992', '1e16', '"1"', 'null', '{}', '[1]']) {
+      const err = await count(bad).then(
+        () => null,
+        (e: unknown) => (e instanceof Error ? e.message : JSON.stringify(e)),
+      )
+      assert.equal(err, 'Invalid observed facts', bad)
+    }
+  })
+  it('one canonical and one digest for the same integers, however a JSONB report spells them', async () => {
+    const canonical = async (json: string) =>
+      (
+        await one<{ c: string }>(
+          `SELECT sophia.research_call_observed_canonical(sophia.research_call_observed($1::jsonb)) AS c`,
+          [json],
+        )
+      ).c
+    const integers = `{"httpStatus":200,"providerTerminal":"completed","rawCounts":{"inputTotal":1000,"cacheRead":200,"output":50},"deliveryUnknownReason":"none"}`
+    const decimals = `{"httpStatus":200.0,"providerTerminal":"completed","rawCounts":{"inputTotal":1000.0,"cacheRead":2e2,"output":5.0E1},"deliveryUnknownReason":"none"}`
+    assert.equal(await canonical(decimals), await canonical(integers))
+    assert.equal(
+      await canonical(integers),
+      'c2b-facts-v2|sent=unknown|status=200|n1=-|n2=-|term=completed|in=1000|cr=200|out=50|cf=-|dr=none',
+    )
+    // Through the real settle wrapper: the decimal spelling is accepted, and the integer spelling is its exact replay.
+    const { s, r, who } = await optedIn()
+    const body = JSON.stringify(c1pBody(s.at, r.reservationId, {}, V04))
+    const raw = (text: string) =>
+      service((c) =>
+        c.query<{ reply: ResearchSettlement }>(`SELECT sophia.runtime_research_settle($1,$2,$3,$4) AS reply`, [
+          who.tokenSha256,
+          who.runtimeUnitId,
+          who.bridgeInstanceId,
+          text,
+        ]),
+      )
+    const decimal = body
+      .replace('"httpStatus":200', '"httpStatus":200.0')
+      .replace('"inputTotal":1000', '"inputTotal":1000.0')
+    assert.notEqual(decimal, body)
+    const first = (await raw(decimal)).rows[0]!.reply
+    assert.equal(first.evidence?.disposition, 'accepted')
+    const again = (await raw(body)).rows[0]!.reply
+    assert.deepEqual([again.evidence?.replay, again.evidence?.digest], [true, first.evidence?.digest])
   })
 })
