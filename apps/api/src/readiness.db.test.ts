@@ -144,6 +144,80 @@ async function atomicCore() {
     if (!applied.has(file)) await migrate(file)
 }
 
+/** An API's answer to a GET: its status and body. */
+async function answers(api: FastifyInstance, url: string): Promise<unknown[]> {
+  const res = await api.inject({ method: 'GET', url })
+  return [res.statusCode, res.json()]
+}
+
+// Codex review 5911393845 (P1, app.ts): every maintained model-call wrapper sends a tracked_v1 reserve and refuses a
+// reply without its binding, which only 0109 adds (research_call_ack, folded into the reply by research_call_reply).
+// The research and runtime routes are served whatever the switches say, so /ready requires 0109 like 0105: on a
+// database migrated through 0108, 0105 included, no switch makes this API ready; with 0109 applied as written, it is.
+// It runs before the 0043 walk: its own database installs 0070, which refuses a second installation in the cluster
+// while another database holds one (0070's Q13 check), so it is made and dropped while the file's database is at 0042.
+describe('readiness across 0109', () => {
+  const TRACKED_CALLS = '0109_research_call_evidence.sql'
+  let trackedDir: string
+  let trackedDb: TestDatabase
+  let trackedPool: pg.Pool
+  /** The API with its switches off (the default), then with each switch whose part this database already has. */
+  let apis: Array<[string, FastifyInstance]>
+
+  before(async () => {
+    // Every migration before 0109, exactly as written: the core through 0108, 0105 and the voice migrations included.
+    trackedDir = mkdtempSync(join(tmpdir(), 'sophia-0108-'))
+    for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql') && f < TRACKED_CALLS))
+      copyFileSync(join(MIGRATIONS, file), join(trackedDir, file))
+    trackedDb = await createTestDatabase(trackedDir)
+    trackedPool = createPool(trackedDb.apiUrl, { max: 2 })
+    const verifyActor = createActorVerifier({
+      issuer: 'https://synthetic.supabase.test/auth/v1',
+      audience: 'authenticated',
+      secret: 'synthetic-test-secret-at-least-32-bytes-long!!',
+    })
+    const base = { pool: trackedPool, verifyActor }
+    apis = [
+      ['switches off', buildApp(base)],
+      ['API contributions on', buildApp({ ...base, apiContributions: true })],
+      ['owner-runner admissions on', buildApp({ ...base, ownerRunnerAdmissions: 'admit' })],
+      ['voice qualification on', buildApp({ ...base, voiceQualification: true })],
+      [
+        'conversations, inputs and a byte store on',
+        buildApp({ ...base, conversations: true, conversationInputs: true, byteStore: memoryByteStore() }),
+      ],
+    ]
+  })
+
+  after(async () => {
+    for (const [, api] of apis) await api.close()
+    await trackedPool.end()
+    await trackedDb.drop()
+    rmSync(trackedDir, { recursive: true, force: true })
+  })
+
+  it('is not ready through 0108 with 0105, whatever the switches; ready once 0109 is applied as written', async () => {
+    assert.ok(readdirSync(trackedDir).includes('0105_contribution_atomic_admission.sql'), 'migrated with 0105')
+    assert.ok(readdirSync(trackedDir).includes('0108_owner_runner_model_reports.sql'), 'migrated through 0108')
+    assert.ok(!readdirSync(trackedDir).includes(TRACKED_CALLS), 'without 0109')
+    for (const [name, api] of apis) {
+      assert.deepEqual(await answers(api, '/ready'), [503, { ready: false, reason: 'schema' }], `${name}, without 0109`)
+      assert.deepEqual(await answers(api, '/health'), [200, { ok: true, commit: null }], `${name}: alive without 0109`)
+    }
+    const owner = new pg.Client({ connectionString: trackedDb.ownerUrl })
+    await owner.connect()
+    try {
+      await owner.query(readFileSync(join(MIGRATIONS, TRACKED_CALLS), 'utf8'))
+    } finally {
+      await owner.end()
+    }
+    for (const [name, api] of apis) {
+      assert.deepEqual(await answers(api, '/ready'), [200, { ready: true }], `${name}, with 0109`)
+      assert.deepEqual(await answers(api, '/health'), [200, { ok: true, commit: null }], `${name}: alive with 0109`)
+    }
+  })
+})
+
 describe('readiness across 0043', () => {
   it('is not ready on a database migrated through 0042, nor short of 0048, 0049, 0050 or 0051; ready with all', async () => {
     assert.ok(readdirSync(dir).includes('0042_source_review_coordination.sql'), 'migrated through 0042')

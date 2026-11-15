@@ -607,6 +607,15 @@ function inputsOn(deps: AppDeps): boolean {
   return true
 }
 
+/**
+ * 0109's tracked model-call boundary (INC04-S03A-R07-C2A): every maintained model-call wrapper sends a tracked_v1
+ * reserve and refuses a reply without its binding, which only 0109 supplies (research_call_ack over
+ * research_call_identities, folded into the reserve reply). 0109 is one transaction, so these two objects of its own
+ * prove it is installed. Each lookup is false, never an error, when missing.
+ */
+const TRACKED_CALL_SCHEMA = `SELECT to_regprocedure('sophia.research_call_ack(uuid,uuid)') IS NOT NULL
+  AND to_regclass('sophia.research_call_identities') IS NOT NULL AS ok`
+
 /** What /health and /ready answer for: the schema parts this API's switches require, its companion and its commit. */
 interface Health {
   stores: boolean
@@ -646,6 +655,10 @@ async function schemaReady(
     // source's readiness without 0105 was true for that source, not for this one, which also refuses those calls
     // before their SQL. Shared with the guards (persistence's contribution-installation), so they cannot drift.
     (await part(true, ATOMIC_ADMISSION_SCHEMA)) &&
+    // 0109's tracked-call boundary, whatever the switches say, for the same reason: the research and runtime routes
+    // are always served, and without 0109 every maintained model call is refused for want of its binding (Codex
+    // review 5911393845). Nothing of 0110 or later is required here.
+    (await part(true, TRACKED_CALL_SCHEMA)) &&
     (await part(stores, STORE_SCHEMA)) &&
     (await part(conversations, CONVERSATION_SCHEMA)) &&
     (await part(conversationInputs, CONVERSATION_INPUTS_SCHEMA)) &&
