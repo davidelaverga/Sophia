@@ -44,7 +44,11 @@ DO $$ DECLARE f record; pickers text[]:=ARRAY['admit_research_task','admit_nativ
   'register_contribution_runtime','retire_contribution_runtime',
   -- 0104 (INC04-S01b): a private boolean fact at an explicit instant, read only for a grant's own contribution runtime
   -- (its project, connection and current credential revision); it chooses no runtime and returns none.
-  'selection_runtime_ready_at'];
+  'selection_runtime_ready_at',
+  -- 0111 (INC04-R07-C3-FENCE-001): the migration-owner-only fence of ONE explicitly named draining contribution resource
+  -- (project, resource and its generation token); it locks and revokes that resource's own runtime rows, chooses no
+  -- runtime for new work and returns none. Its operator-only reach is asserted below.
+  'research_runtime_fence'];
 BEGIN
  FOR f IN SELECT p.proname, p.prosrc FROM pg_proc p WHERE p.pronamespace='sophia'::regnamespace
    -- FROM or JOIN (INC04-S01b): a selector that reads the table through a join is a selector too.
@@ -61,6 +65,20 @@ BEGIN
   RAISE EXCEPTION 'A listed picker is missing'; END IF;
  IF NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgname='runtime_instances_contribution_roles' AND tgrelid='sophia.runtime_instances'::regclass AND tgenabled='O') THEN
   RAISE EXCEPTION 'The contribution role trigger is missing'; END IF;
+ -- The 0111 classification holds only while the fence is the owner's alone: its actual signature, its entry points and
+ -- its tables are out of every ordinary role's reach (the regprocedure casts fail if a signature changes).
+ IF EXISTS(SELECT 1 FROM unnest(ARRAY['sophia_api','sophia_worker','sophia_conversation_assembler']) r
+   JOIN pg_roles ro ON ro.rolname=r,
+   unnest(ARRAY['sophia.research_runtime_fence(uuid,uuid,text,text)'::regprocedure,
+    'sophia.fence_contribution_runtime(uuid,uuid,text)'::regprocedure,
+    'sophia.contribution_runtime_generation(uuid,uuid)'::regprocedure]) fn
+   WHERE has_function_privilege(r,fn,'EXECUTE')) THEN
+  RAISE EXCEPTION 'An ordinary role can execute the 0111 fence'; END IF;
+ IF EXISTS(SELECT 1 FROM unnest(ARRAY['sophia_api','sophia_worker','sophia_conversation_assembler']) r
+   JOIN pg_roles ro ON ro.rolname=r,
+   unnest(ARRAY['sophia.research_runtime_fences'::regclass,'sophia.research_runtime_fence_snapshots'::regclass]) t
+   WHERE has_table_privilege(r,t,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')) THEN
+  RAISE EXCEPTION 'An ordinary role holds a 0111 fence table privilege'; END IF;
 END $$;
 
 -- --- fixtures (as the migration owner) -------------------------------------------------------------------------------
