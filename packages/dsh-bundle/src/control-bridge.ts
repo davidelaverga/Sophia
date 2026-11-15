@@ -50,7 +50,7 @@ import { REVIEW_PROMPT } from './review-prompt.js'
 import { boundedAccounts, reviewAccounts, reviewTools } from './review-tools.js'
 import { DESIGN_ROLES, roleOf } from './role-registry.js'
 import type { DesignRole, RolePreset } from './role-registry.js'
-import { foldLog, Journal, strongestFence } from './session-events.js'
+import { foldLog, foldResource, Journal, strongestFence, UNKNOWN_RESOURCE, type ResourceContext } from './session-events.js'
 import type { CommandEntry, DeliveryTarget, ExecutionIdentity, FenceState, StashedMessage } from './session-events.js'
 import { ServiceTransport, TransportError } from './transport.js'
 import type { HelloReply, Observation, ServiceBinding, UnrecoveredBinding } from './transport.js'
@@ -114,6 +114,11 @@ interface AttemptState {
   role: RolePreset | null
   /** Execution identity recorded at create (or migrated at the first resume); null before either. */
   identity: ExecutionIdentity | null
+  /**
+   * C2A REPAIR-001 (F03): the executor resource its authenticated commands named, journaled with each command and
+   * restored from the journal; only `known` lets a tracked model call reserve, and its ACK must name the same resource.
+   */
+  resource: ResourceContext
   epoch: number
   fence: FenceState
   /** Command id -> the receipt already sent for it. */
@@ -521,11 +526,19 @@ export class ControlBridge {
     }
   }
 
-  /** C01: the reservation the service answered, only if its closed binding is this exact call's; otherwise refused. */
-  private bound(reply: ResearchReservation, sent: ResearchReserveRequest): ResearchReservation {
-    const problem = bindingProblem(reply, sent, { projectId: this.projectId, runtimeUnitId: this.settings.runtimeUnitId })
+  /**
+   * C01: the reservation the service answered, only if its closed binding is this exact call's, including the executor
+   * resource of `attempt`'s authenticated commands (F03); otherwise refused.
+   */
+  private bound(reply: ResearchReservation, sent: ResearchReserveRequest, attempt: AttemptState): ResearchReservation {
+    const problem = bindingProblem(reply, sent, { projectId: this.projectId, runtimeUnitId: this.settings.runtimeUnitId, resource: attempt.resource })
     if (problem !== null) throw new AckRefused(problem)
     return reply
+  }
+
+  /** F03: a tracked model call reserves only for an attempt whose authenticated resource is known; never unknown or ambiguous. */
+  private resourceReady(attempt: AttemptState): void {
+    if (attempt.resource.state !== 'known') throw new ResourceRefused(attempt.resource.state)
   }
 
   /** A named route's output ceiling, or null for the default route (its cap is the default model's). */
@@ -609,7 +622,8 @@ export class ControlBridge {
       ? { reserve: (body: ResearchReserveRequest) => reviewing.reserve(body, options.signal), settle: reviewing.settle, what: 'review' }
       : { reserve: transport.researchReserve.bind(transport), settle: transport.researchSettle.bind(transport), what: 'research' }
     const tracked = this.tracked(route, prices)
-    const bound = (reply: ResearchReservation, sent: ResearchReserveRequest) => this.bound(reply, sent)
+    const bound = (reply: ResearchReservation, sent: ResearchReserveRequest) => this.bound(reply, sent, attempt)
+    const ready = () => this.resourceReady(attempt)
     return (async function* () {
       let reservationId: string
       const amountUsd = estimateCallUsd(options, prices, route.maxTokens)
@@ -618,6 +632,7 @@ export class ControlBridge {
       // tracked, and its answer must bind this exact call (C01) before the call may leave.
       const reserve = async (purpose: 'call' | 'partial_result') => {
         const sent: ResearchReserveRequest = { ...ids, callId: `llm-${randomUUID()}`, kind: 'model', provider: route.provider, amountUsd, purpose, ...tracked }
+        ready()
         return bound(await accounts.reserve(sent), sent)
       }
       try {
@@ -633,7 +648,7 @@ export class ControlBridge {
           }
         }
       } catch (error) {
-        const why = error instanceof AckRefused ? error.message : error instanceof TransportError && error.code ? error.code : (error as Error).message
+        const why = error instanceof AckRefused || error instanceof ResourceRefused ? error.message : error instanceof TransportError && error.code ? error.code : (error as Error).message
         yield* refused(`this ${accounts.what}'s allowance could not reserve the model call (${why})`)
         return
       }
@@ -680,15 +695,17 @@ export class ControlBridge {
       settle: (body, signal) => transport.designSettle(body, signal),
     })
     const tracked = this.tracked(route, prices)
-    const bound = (reply: ResearchReservation, sent: ResearchReserveRequest) => this.bound(reply, sent)
+    const bound = (reply: ResearchReservation, sent: ResearchReserveRequest) => this.bound(reply, sent, attempt)
+    const ready = () => this.resourceReady(attempt)
     return (async function* () {
       const amountUsd = estimateCallUsd(options, prices, route.maxTokens)
       let reservationId: string
       try {
         const body: ResearchReserveRequest = { ...ids, callId: `llm-${randomUUID()}`, kind: 'model', provider: route.provider, amountUsd, purpose: 'call', ...tracked }
+        ready()
         reservationId = bound(await accounts.reserve(body, options.signal), body).reservationId
       } catch (error) {
-        const why = error instanceof AckRefused ? error.message : error instanceof TransportError && error.code ? error.code : (error as Error).message
+        const why = error instanceof AckRefused || error instanceof ResourceRefused ? error.message : error instanceof TransportError && error.code ? error.code : (error as Error).message
         yield* refused(`this design's allowance could not reserve the model call (${why})`)
         return
       }
@@ -961,6 +978,22 @@ export class ControlBridge {
     return `native request/header ${logged.provider}/${logged.model}/${logged.reasoningEffort ?? 'default'}`
   }
 
+  /**
+   * C2A REPAIR-001 (F03): the resource this attempt's own journal restores (a restart, or a create re-executed after a
+   * crash). A journal with no resource (new, or written before the field) is unknown; the hello cannot supply one.
+   * R1 (F04): the resource is restored only when the journal's owner (its first owner-typed record) is this attempt and no
+   * owner-typed record named another. A foreign owner, or a mismatch (a foreign resource followed by a command, fence or
+   * epoch row that merely looks local), makes the whole context ambiguous: provenance never comes from the last row.
+   * R2 (F04 null owner): an invalid (non-string) owner is a sticky mismatch, and a recovered resource requires its owner
+   * to be EXACTLY this attempt; a journal with no valid owner can restore nothing but unknown.
+   */
+  private loggedResource(attemptId: string, sessionId: SessionId): ResourceContext {
+    const logged = foldLog(this.journal.read(sessionId))
+    if (logged.ownerMismatch || (logged.owner !== null && logged.owner !== attemptId)) return { state: 'ambiguous' }
+    if (logged.resource.state === 'unknown') return UNKNOWN_RESOURCE
+    return logged.owner === attemptId ? logged.resource : { state: 'ambiguous' }
+  }
+
   private sessionIdFor(attemptId: string): SessionId {
     // Deterministic per attempt: a duplicate `create` after a crash finds the
     // same session instead of starting a second one.
@@ -968,12 +1001,14 @@ export class ControlBridge {
   }
 
   private newAttempt(attemptId: string, epoch: number): AttemptState {
+    const sessionId = this.sessionIdFor(attemptId)
     const state: AttemptState = {
       attemptId,
-      sessionId: this.sessionIdFor(attemptId),
+      sessionId,
       handle: null,
       role: null,
       identity: null,
+      resource: this.loggedResource(attemptId, sessionId),
       epoch,
       fence: 'active',
       receipts: new Map(),
@@ -1102,6 +1137,9 @@ export class ControlBridge {
    */
   private append(attempt: AttemptState, command: RuntimeCommand, message: { readonly id: string; readonly content: readonly ContentBlock[] } | null, target: DeliveryTarget | null): number {
     attempt.epoch = Math.max(attempt.epoch, command.binding.authorityEpoch)
+    // C2A REPAIR-001 (F03): the command passed execute's unit, attempt and epoch checks; its binding's resource is
+    // recorded with it (log-first) and folded into the attempt's context: the first stays, another is ambiguous.
+    attempt.resource = foldResource(attempt.resource, command.binding.resourceId)
     return this.journal.append(attempt.sessionId, 'sophia/command', {
       commandId: command.commandId,
       kind: command.kind,
@@ -1112,6 +1150,7 @@ export class ControlBridge {
       content: message ? [...message.content] : null,
       nativeSeq: null,
       role: command.kind === 'create' ? attempt.role?.id ?? null : null,
+      resourceId: command.binding.resourceId,
     }).seq
   }
 
@@ -1601,8 +1640,18 @@ type Ending = SettleEvidence['ending']
 
 /** A reservation answer that does not bind this exact call (C01): the call never leaves. Its reason is fixed text. */
 export class AckRefused extends Error {
-  constructor(readonly problem: 'missing' | 'mode' | 'call' | 'scope' | 'reservation') {
+  constructor(readonly problem: 'missing' | 'mode' | 'call' | 'scope' | 'resource' | 'reservation') {
     super(`its answer is not this call's reservation: ${problem}`)
+  }
+}
+
+/**
+ * F03: the attempt has no single authenticated executor resource (none yet, e.g. a journal written before the field and
+ * no command since; or an ambiguous one): no tracked model call reserves, so nothing is committed and nothing leaves.
+ */
+export class ResourceRefused extends Error {
+  constructor(readonly state: 'unknown' | 'ambiguous') {
+    super(`its attempt has no authenticated executor resource: ${state}`)
   }
 }
 
@@ -1614,13 +1663,15 @@ export class AckRefused extends Error {
 export function bindingProblem(
   reply: ResearchReservation,
   sent: ResearchReserveRequest,
-  context: { readonly projectId: string | null; readonly runtimeUnitId: string },
+  context: { readonly projectId: string | null; readonly runtimeUnitId: string; readonly resource: ResourceContext },
 ): AckRefused['problem'] | null {
   const b = reply.binding
   if (b === undefined) return 'missing'
   if (b.mode !== sent.mode || b.contract !== sent.contract) return 'mode'
   if (b.callId !== sent.callId || b.attemptId !== sent.attemptId || b.nativeSessionId !== sent.nativeSessionId) return 'call'
   if (context.projectId === null || b.projectId !== context.projectId || b.runtimeUnitId !== context.runtimeUnitId) return 'scope'
+  // F03: the executor resource the reservation's binding froze must be the one this attempt's authenticated commands named.
+  if (context.resource.state !== 'known' || b.resourceId !== context.resource.resourceId) return 'resource'
   if (reply.state !== 'reserved' || reply.kind !== 'model' || reply.purpose !== (sent.purpose ?? 'call') || reply.amountUsd !== sent.amountUsd) {
     return 'reservation'
   }

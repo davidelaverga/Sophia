@@ -66,6 +66,8 @@ const BINDING = {
   nativeSessionId: 'sophia-att-1',
   projectId: '11111111-1111-4111-8111-111111111111',
   runtimeUnitId: 'sophia-runtime-wbc02-dev',
+  // REPAIR-001 (F03): the executor resource the binding froze; required (the loop below drops each key in turn).
+  resourceId: '22222222-2222-4222-8222-222222222222',
 }
 const known = (value: number) => ({ class: 'known', value })
 const evidence = (responseId: unknown) => ({
@@ -120,6 +122,11 @@ describe('A57: the tracked reserve and its closed call binding', () => {
       'no other field in the binding',
     )
     assert.equal(reservation({ ...LEGACY_REPLY, binding: { ...BINDING, evidenceId: 'not-a-uuid' } }).ok, false)
+    assert.equal(
+      reservation({ ...LEGACY_REPLY, binding: { ...BINDING, resourceId: '../escape' } }).ok,
+      false,
+      'a resource id is closed',
+    )
   })
 })
 

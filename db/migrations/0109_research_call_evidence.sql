@@ -11,8 +11,9 @@
 --   (research-sol-medium-v1/openai-research, source-review-luna-high-v1/openai-review), read from the authoritative
 --   research task, design task or review, or review manifest; anything else is refused, never downgraded silently.
 -- * ACK (C01). A tracked reserve answers a closed `binding` echo: mode, contract, evidence id, call id, attempt, native
---   session, project and runtime unit, each from the authenticated rows, together with the reservation's state, kind,
---   purpose and amount. The bridge compares it with its exact request before any provider effect.
+--   session, project, runtime unit and (REPAIR-001 F03) the executor resource its binding froze, each from the
+--   authenticated rows, together with the reservation's state, kind, purpose and amount. The bridge compares it with its
+--   exact request and its attempt's authenticated command resource before any provider effect.
 -- * Funding (C02). All three reserve wrappers derive the original funding from authoritative rows: the job's own frozen
 --   contribution binding, or (design and review, which share a lineage's allowance) the binding of the allowance's
 --   lineage. An account-backed call reaches the account gate (grant, connection, account FOR UPDATE, the claim, the exact
@@ -23,8 +24,10 @@
 --   response id's own namespace and status. Facts are monotone: unknown -> known extends; a changed known value, id, cost
 --   or outcome is a retained conflict that raises nothing and changes no established money. A retained digest replays
 --   its original disposition. At most 16 history rows, one fixed accepted truth row, a write-once first overflow and a
---   write-once first conflict; after the cap a valid extension still updates the truth and the money once.
--- * Restriction (P05/K01). A conflict sets the account's guard (or, account-null, the allowance's restriction) sticky:
+--   write-once first conflict; after the cap a valid extension still updates the truth and the money once. An input past
+--   the cap, even one equal to the current truth, is never a replay: it answers `capped` (REPAIR-001 F02).
+-- * Restriction (P05/K01). A conflict, or the first input past the 16-row cap even when it is a valid extension
+--   (REPAIR-001 F01), sets the account's guard (or, account-null, the allowance's restriction) sticky:
 --   no reset, timeout, Stop, turn end or revocation releases it (C3 owns reconciliation). New paid work (admission,
 --   reacquisition, model reserve, normal-funded and rebuilt create/resume/steer dispatch) reads the guard FOR SHARE after
 --   every other blocking lock and decides at a fresh instant. The fact writer locks allowance -> reservation -> guard,
@@ -423,11 +426,12 @@ BEGIN
   RAISE EXCEPTION 'Idempotency key reused for another reservation' USING ERRCODE='23505'; END IF;
 END $$;
 
--- The closed call-binding echo of a tracked reservation (C01): no token, credential or provider id.
+-- The closed call-binding echo of a tracked reservation (C01), with the authenticated executor resource its binding froze
+-- (F03): no token, credential or provider id.
 CREATE FUNCTION sophia.research_call_ack(p_project uuid, p_reservation uuid) RETURNS jsonb LANGUAGE sql STABLE
 SET search_path=pg_catalog,sophia AS $$
  SELECT jsonb_build_object('mode',i.mode,'contract',i.contract,'evidenceId',i.evidence_id,'callId',i.call_id,'attemptId',i.attempt_id,
-  'nativeSessionId',i.native_session_id,'projectId',i.project_id,'runtimeUnitId',i.runtime_unit_id)
+  'nativeSessionId',i.native_session_id,'projectId',i.project_id,'runtimeUnitId',i.runtime_unit_id,'resourceId',i.resource_id)
  FROM sophia.research_call_identities i WHERE i.project_id=p_project AND i.reservation_id=p_reservation $$;
 
 -- Link an account-backed design or review reservation to its lineage's payer (research links through 0094's helper).
@@ -702,8 +706,8 @@ BEGIN
  o_disposition:=CASE WHEN ext THEN 'extended' ELSE 'subsumed' END;
 END $$;
 
--- Record a conflict's restriction: the allowance's (account-null, under the held allowance row) at once; the account's
--- guard is written by the caller LAST.
+-- Record a conflict's or an overflow's restriction: the allowance's (account-null, under the held allowance row) at once;
+-- the account's guard is written by the caller LAST.
 CREATE FUNCTION sophia.research_call_restrict_allowance(i sophia.research_call_identities) RETURNS void LANGUAGE sql
 SET search_path=pg_catalog,sophia AS $$
  INSERT INTO sophia.research_allowance_restrictions(project_id,allowance_id,first_reservation_id)
@@ -769,8 +773,8 @@ BEGIN
 END $$;
 
 -- The fact writer of a tracked settlement: allowance -> reservation (end_research_reservation's order) -> truth, then the
--- account guard LAST on a conflict. NULL for a legacy reservation (the caller settles it as before). Never raises on a
--- conflict and never changes established money.
+-- account guard LAST on a conflict or past the cap. NULL for a legacy reservation (the caller settles it as before).
+-- Never raises on a conflict and never changes established money.
 CREATE FUNCTION sophia.research_call_settle(p_project uuid, p_reservation uuid, p_request jsonb) RETURNS jsonb LANGUAGE plpgsql
 SET search_path=pg_catalog,sophia AS $$
 DECLARE i sophia.research_call_identities; r sophia.research_reservations; t sophia.research_call_truth; f sophia.research_call_fact;
@@ -804,7 +808,12 @@ BEGIN
    CASE WHEN disposition='conflict' THEN f.digest END,reason,CASE WHEN disposition='conflict' THEN clock_timestamp() END)
   RETURNING * INTO t;
  ELSIF t.digest=f.digest THEN
-  RETURN jsonb_build_object('disposition','current','replay',true,'capped',false,'digest',f.digest);
+  -- The current truth again: below the cap nothing changes. Once the cap is reached, an input that is the current truth
+  -- but was never retained is an unretained post-cap input (F02): stably capped through the tail below, never a replay.
+  IF t.history_count<16 THEN
+   RETURN jsonb_build_object('disposition','current','replay',true,'capped',false,'digest',f.digest);
+  END IF;
+  disposition:='subsumed';
  ELSE
   SELECT * INTO disposition, reason FROM sophia.research_call_compare(t,f);
   IF disposition='extended' THEN
@@ -819,7 +828,8 @@ BEGIN
   SELECT * INTO t FROM sophia.research_call_truth WHERE project_id=p_project AND reservation_id=p_reservation;
  END IF;
  capped:=sophia.research_call_retain(t,f,disposition);
- IF disposition='conflict' THEN
+ -- A conflict, or an input past the cap (the first overflow, valid or not: F01), restricts its original scope, sticky.
+ IF disposition='conflict' OR capped THEN
   PERFORM sophia.research_call_restrict_allowance(i);
   -- LAST: the account's guard (initialized at reserve under the account row); no lock is taken after it.
   IF i.account_id IS NOT NULL THEN

@@ -11,6 +11,12 @@
 import { createServer } from 'node:http'
 import { createHash, randomUUID } from 'node:crypto'
 
+/**
+ * LABELLED SYNTHETIC executor resource (C2A REPAIR-001 F03): the resource every fixture command's binding names unless a
+ * test names another. Not a real resource id.
+ */
+export const FIXTURE_RESOURCE = 'dsh-native'
+
 /** The receipt of the fixture's review page (WBC-02, Codex on #107): a review cites a source with it. */
 export const REVIEW_RECEIPT = 'fedcba9876543210fedcba9876543210'
 
@@ -32,9 +38,12 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
   // INC04-S03A-R07-C2A (C01): a TRACKED model reservation is answered with its closed call binding, as the service's
   // SQL answers it (0109): derived from this exact request and this fixture's own project and runtime unit. A request
   // without a mode is legacy and keeps the legacy reply exactly.
+  // REPAIR-001 (F03): like the service's execution binding, the fixture binds each attempt to the resource of the FIRST
+  // command it issued for it (SYNTHETIC: no durable binding row), and its tracked answers echo that resource.
+  const boundResources = new Map()
   const bindingOf = (body) => body.mode === 'tracked_v1' && body.kind === 'model'
     ? { binding: { mode: body.mode, contract: body.contract, evidenceId: uuid(9500 + researchSeq), callId: body.callId, attemptId: body.attemptId,
-        nativeSessionId: body.nativeSessionId, projectId: 'proj-fixture', runtimeUnitId } }
+        nativeSessionId: body.nativeSessionId, projectId: 'proj-fixture', runtimeUnitId, resourceId: boundResources.get(body.attemptId) ?? FIXTURE_RESOURCE } }
     : {}
   const researchDefaults = {
     context: (body) => body.sourceId === undefined
@@ -218,6 +227,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
     get polls() { return polls },
     /** Enqueue a command exactly as S1-02's outbox would (same object may be enqueued twice). */
     enqueue(command) {
+      if (command?.binding?.attemptId && !boundResources.has(command.binding.attemptId)) boundResources.set(command.binding.attemptId, command.binding.resourceId)
       seq += 1
       outbox.push({ seq, command })
       notify()
@@ -233,11 +243,11 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
 }
 
 /** Build a well-formed runtime command for the fixture. */
-export function command(kind, { attemptId, runtimeUnitId, epoch = 1, text, role, route, commandId = `cmd-${randomUUID()}`, expectedNativeSessionId = null } = {}) {
+export function command(kind, { attemptId, runtimeUnitId, epoch = 1, text, role, route, commandId = `cmd-${randomUUID()}`, expectedNativeSessionId = null, resourceId = FIXTURE_RESOURCE } = {}) {
   return {
     schema: 'sophia.runtime-command.v1',
     commandId,
-    binding: { projectId: 'proj-fixture', goalId: 'goal-fixture', goalRevision: 1, attemptId, resourceId: 'dsh-native', authorityEpoch: epoch, runtimeUnitId },
+    binding: { projectId: 'proj-fixture', goalId: 'goal-fixture', goalRevision: 1, attemptId, resourceId, authorityEpoch: epoch, runtimeUnitId },
     kind,
     expectedNativeSessionId,
     contextPacketId: null,

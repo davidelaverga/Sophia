@@ -25,7 +25,7 @@ import { parseCordisYaml } from '../../scripts/lib/patch-lint.mjs'
 import { assertRecordedArtifacts, executorClosureDigest, homeLayout, installProfile } from '../../scripts/lib/profile.mjs'
 import { launchRuntime } from '../../scripts/lib/runtime.mjs'
 import { treeDigest } from '../../scripts/lib/tree-digest.mjs'
-import { ControlBridge } from '../../packages/dsh-bundle/dist/control-bridge.js'
+import { ControlBridge, evidenceOf } from '../../packages/dsh-bundle/dist/control-bridge.js'
 import { command, startFixtureService } from '../support/fixture-service.mjs'
 import { sleep, suite, unit } from '../support/harness.mjs'
 import { conversationRouteOverlay, researchRouteOverlay, reviewRouteOverlay, startMockResponses } from '../support/mock-responses.mjs'
@@ -209,12 +209,13 @@ describe('the meter keeps known usage when its consumer stops after it, and noth
     const settles = []
     const bridge = Object.create(ControlBridge.prototype)
     // INC04-S03A-R07-C2A (C01): the reservation is tracked, and the stub answers it with the closed binding of that exact
-    // request in this bridge's own project and runtime unit, as the service does; nothing else about the meter changes.
+    // request in this bridge's own project, runtime unit and attempt resource, as the service does; nothing else about the
+    // meter changes.
     Object.assign(bridge, {
       transport: {
         researchReserve: async (body) => ({ reservationId: 'r-1', state: 'reserved', kind: body.kind, purpose: body.purpose, amountUsd: body.amountUsd, target: null,
           binding: { mode: body.mode, contract: body.contract, evidenceId: '00000000-0000-4000-8000-000000000001', callId: body.callId,
-            attemptId: body.attemptId, nativeSessionId: body.nativeSessionId, projectId: 'proj-w', runtimeUnitId: 'unit-w' } }),
+            attemptId: body.attemptId, nativeSessionId: body.nativeSessionId, projectId: 'proj-w', runtimeUnitId: 'unit-w', resourceId: 'res-w' } }),
         researchSettle: async (body) => { settles.push(body) },
       },
       settings: { log: () => {}, routes: {}, runtimeUnitId: 'unit-w' },
@@ -226,7 +227,8 @@ describe('the meter keeps known usage when its consumer stops after it, and noth
       yield { type: 'usage', usage: { inputTokens: 2, outputTokens: 3 } }
       yield { type: 'finish', reason: { kind: 'stop' } }
     })()
-    const attempt = { attemptId: 'att-w', sessionId: 'sophia-att-w', finalizing: false }
+    // REPAIR-001 (F03): a SYNTHETIC attempt whose authenticated commands named resource res-w, as its answer echoes.
+    const attempt = { attemptId: 'att-w', sessionId: 'sophia-att-w', finalizing: false, resource: { state: 'known', resourceId: 'res-w' } }
     const stream = bridge.metered(attempt, { sessionId: 'sophia-att-w', messages: [] }, { provider: 'p', model: 'm', maxTokens: 100 }, RESEARCH.prices, next)
     await consume(stream).catch(() => {})
     return settles
@@ -422,5 +424,164 @@ describe('conversation reply meter: missing usage versus explicit zeros, on the 
   test('a completed response without usage leaves the reply call uncertain, counted at its reservation', async (t) => {
     const rows = await reply(t, { text: 'The summary.', omitUsage: true })
     assert.deepEqual(rows.map((v) => v.state), ['uncertain'])
+  })
+})
+
+// --- REPAIR-001 C2A-K03-HTTP: the maintained authenticated runtime research route, real API, real PostgreSQL ----------
+//
+// A targeted loopback crossing of the private settlement envelope at the route's actual body limit (2 MiB, routes/
+// runtime.ts RESEARCH_BODY_LIMIT): the real API app and its authenticated runtime routes over a disposable PostgreSQL,
+// the settlement facts built by the SHIPPED bridge classifier (evidenceOf). LABELLED SYNTHETIC: the project, runtime,
+// token and ids; no provider, account or native session is involved. This is not a claim about every provider id.
+
+describe('REPAIR-001 C2A-K03-HTTP: a response id at the private research settle route, real API and PostgreSQL', { skip: enabled ? false : 'needs SOPHIA_DISPOSABLE_DATABASE_URL (a disposable PostgreSQL)' }, () => {
+  let m, db, pool, workerPool, ownerPool, app, base
+  const logged = []
+  const A = crypto.randomUUID()
+  const E = crypto.randomUUID()
+  const MD = { id: 'sophia-research-md-v1', route: 'research-sol-medium-v1', presetDigest: 'sha256:md' }
+
+  before(async () => {
+    const [{ buildApp }, persistence, testSupport] = await Promise.all([
+      import('../../apps/api/src/app.ts'),
+      import('../../packages/persistence/src/index.ts'),
+      import('../../packages/test-support/src/index.ts'),
+    ])
+    m = { buildApp, persistence, testSupport }
+    db = await m.testSupport.createTestDatabase()
+    pool = m.persistence.createPool(db.apiUrl, { max: 6 })
+    workerPool = m.persistence.createPool(db.workerUrl, { max: 2 })
+    ownerPool = m.persistence.createPool(db.ownerUrl, { max: 2 })
+    const verifyActor = async () => { throw new Error('no member route is used here') }
+    app = m.buildApp({ pool, verifyActor, logger: { stream: { write: (line) => logged.push(line) } } })
+    await app.listen({ host: '127.0.0.1', port: 0 })
+    base = `http://127.0.0.1:${app.server.address().port}`
+  })
+  after(async () => {
+    await app?.close()
+    await pool?.end()
+    await workerPool?.end()
+    await ownerPool?.end()
+    await db?.drop()
+  })
+
+  /** One project-funded research attempt delivered to a runtime that speaks only through the authenticated HTTP routes. */
+  async function attempt() {
+    const { projectId } = await m.testSupport.seedProject(db.ownerUrl, { admin: A, editors: [E], viewers: [] })
+    await ownerPool.query(`SELECT sophia.set_research_grant($1, 'enabled', 5, 40, 'web-pilot-v1', 'approval:test')`, [projectId])
+    const rt = await m.testSupport.registerRuntime(db.ownerUrl, { projectId, admin: A })
+    const headers = { authorization: `Bearer ${rt.token}`, 'x-sophia-runtime-unit': rt.runtimeUnitId, 'x-sophia-bridge-instance': `b-${crypto.randomUUID().slice(0, 8)}`, 'x-sophia-bridge-protocol': '1' }
+    const call = async (method, path, body) => {
+      const res = await fetch(`${base}${path}`, { method, headers: { ...headers, ...(body === undefined ? {} : { 'content-type': 'application/json' }) }, ...(body === undefined ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) }) })
+      const text = await res.text()
+      return { status: res.status, text, json: text && res.headers.get('content-type')?.includes('json') ? JSON.parse(text) : null }
+    }
+    assert.equal((await call('POST', '/v1/runtime/hello', { bundle: 'test', protocolVersion: 1, dshVersion: 'x', roles: [MD] })).status, 200)
+    assert.equal((await call('POST', '/v1/runtime/ready', { state: 'ready', reason: null, unrecovered: [] })).status, 204)
+    const admitted = await m.persistence.withActor(pool, E, 'write', (c) => m.persistence.admitResearchTask(c, projectId, {
+      key: crypto.randomUUID(), exchangeId: crypto.randomUUID(),
+      request: { question: 'Which sandboxes do PDF rendering services use?', outputs: ['markdown'] }, specialist: { role: MD.id, route: MD.route },
+    }))
+    assert.ok('admitted' in admitted, JSON.stringify(admitted))
+    for (const row of await m.persistence.claimRuntimeOutbox(workerPool, 'k03-http', 50, 30)) await m.persistence.dispatchRuntimeOutbox(workerPool, row.project_id, row.id, row.lease_token)
+    const polled = await call('GET', '/v1/runtime/commands?after=0&waitMs=0')
+    const create = polled.json.commands.map((q) => q.command).find((c) => c.binding.attemptId === admitted.admitted.attemptId)
+    assert.ok(create, 'the create reached the runtime over HTTP')
+    const at = { attemptId: create.binding.attemptId, nativeSessionId: `sophia-${create.binding.attemptId}` }
+    const receipt = { commandId: create.commandId, attemptId: at.attemptId, stage: 'delivered', nativeSessionId: at.nativeSessionId, nativeSequence: 1, evidenceRefs: [], observedAt: new Date().toISOString(), reason: null }
+    assert.equal((await call('POST', '/v1/runtime/receipts', { receipts: [receipt] })).status, 204)
+    return { projectId, call, at, resourceId: create.binding.resourceId }
+  }
+  const tracked = { mode: 'tracked_v1', contract: 'c1p_complete_report', declared: { routeId: 'research-sol-medium-v1', model: RESEARCH.model, reasoningEffort: RESEARCH.reasoningEffort, prices: RESEARCH.prices } }
+  const usage = { inputTokens: 3, outputTokens: 4 }
+  /** The settle body the bridge sends: its facts classified by the shipped evidenceOf BEFORE serialization. */
+  const settleBody = (at, reservationId, rawId) => ({ ...at, reservationId, outcome: 'settled', costUsd: 0.0001, usage, evidence: evidenceOf('c1p_complete_report', usage, 'stream_completed', rawId) })
+  const owner = async (sql, params) => (await ownerPool.query(sql, params)).rows
+  /** Rows of every sophia table whose text holds `needle` (the private evidence table aside unless named). */
+  async function tablesHolding(needle) {
+    const tables = (await owner(`SELECT table_name AS t FROM information_schema.tables WHERE table_schema='sophia' AND table_type='BASE TABLE'`)).map((r) => r.t)
+    const hits = []
+    for (const t of tables) {
+      const [{ n }] = await owner(`SELECT count(*)::int AS n FROM sophia.${t} x WHERE strpos(x::text, $1)>0`, [needle])
+      if (n > 0) hits.push(t)
+    }
+    return hits.sort()
+  }
+
+  test('a supported escape-heavy 8192-byte id crosses the real route whole, below the actual limit, and is kept only in private evidence', async () => {
+    const w = await attempt()
+    const reserved = await w.call('POST', '/v1/runtime/research/reserve', { ...w.at, callId: 'llm-k03-ok', kind: 'model', provider: 'openai-research', amountUsd: 0.1, ...tracked })
+    assert.equal(reserved.status, 200, reserved.text)
+    assert.equal(reserved.json.binding.resourceId, w.resourceId, 'F03 through the real API: the resource of the authenticated command')
+    // R1 (V01): a unique PRINTABLE sentinel inside the escape-heavy id, the filler sized to exactly 8192 UTF-8 bytes. A
+    // printable token reads the same in a text column and in a JSONB value's text, so one scan sees both representations.
+    const SENTINEL = `K03SUP${crypto.randomUUID().replaceAll('-', '').slice(0, 12)}`
+    const id = `${SENTINEL}${'\u0001'.repeat(8192 - SENTINEL.length)}`
+    assert.equal(Buffer.byteLength(id, 'utf8'), 8192)
+    const body = JSON.stringify(settleBody(w.at, reserved.json.reservationId, id))
+    assert.equal(Buffer.byteLength(JSON.stringify(id), 'utf8'), SENTINEL.length + (8192 - SENTINEL.length) * 6 + 2, 'escape-heavy on the wire')
+    assert.ok(Buffer.byteLength(body, 'utf8') < 2 * 1024 * 1024, 'below RESEARCH_BODY_LIMIT')
+    const settled = await w.call('POST', '/v1/runtime/research/settle', body)
+    assert.equal(settled.status, 200, settled.text.slice(0, 300))
+    assert.deepEqual([settled.json.state, settled.json.evidence.disposition], ['settled', 'accepted'])
+    const [truth] = await owner(`SELECT response_id_status AS s, octet_length(response_id) AS n, response_id=$2 AS whole FROM sophia.research_call_truth WHERE reservation_id=$1`, [reserved.json.reservationId, id])
+    assert.deepEqual([truth.s, truth.n, truth.whole], ['supported', 8192, true])
+    assert.deepEqual(await tablesHolding(SENTINEL), ['research_call_truth'], 'nowhere else: no usage, provider_request_id, history or readout')
+    assert.equal(logged.some((l) => l.includes(SENTINEL)), false, 'not in the API log')
+    assert.equal([reserved.text, settled.text].some((t) => t.includes(SENTINEL)), false, 'not in any returned body')
+    // Scanner sensitivity (LABELLED SYNTHETIC probe in this disposable database): a deliberate JSONB copy of the id IS
+    // found by the sentinel scan, while the old raw control-character scan misses it (the JSONB text holds escapes).
+    await owner(`CREATE TABLE sophia.k03_scan_probe (copy jsonb NOT NULL)`)
+    try {
+      await owner(`INSERT INTO sophia.k03_scan_probe(copy) VALUES (jsonb_build_object('responseId', $1::text))`, [id])
+      assert.deepEqual(await tablesHolding(SENTINEL), ['k03_scan_probe', 'research_call_truth'].sort(), 'the sentinel scan sees a JSONB copy')
+      assert.equal((await tablesHolding('\u0001'.repeat(64))).includes('k03_scan_probe'), false, 'the old raw scan was blind to it (V01)')
+    } finally {
+      await owner(`DROP TABLE sophia.k03_scan_probe`)
+    }
+  })
+
+  test('a multibyte id one byte over is classified before the wire: known usage settles, the raw id never leaves', async () => {
+    const w = await attempt()
+    const reserved = await w.call('POST', '/v1/runtime/research/reserve', { ...w.at, callId: 'llm-k03-over', kind: 'model', provider: 'openai-research', amountUsd: 0.1, ...tracked })
+    assert.equal(reserved.status, 200, reserved.text)
+    const id = `${'é'.repeat(4091)}K03TAIL7` // 8190 UTF-8 bytes; padded to exactly 8193 below
+    const over = `${id}${'x'.repeat(8193 - Buffer.byteLength(id, 'utf8'))}`
+    assert.equal(Buffer.byteLength(over, 'utf8'), 8193, 'one byte over the private bound')
+    const body = settleBody(w.at, reserved.json.reservationId, over)
+    assert.deepEqual(body.evidence.responseId, { status: 'identity_unsupported', reason: 'over_bound' })
+    assert.equal(JSON.stringify(body).includes('K03TAIL7'), false, 'classified BEFORE serialization')
+    const settled = await w.call('POST', '/v1/runtime/research/settle', body)
+    assert.equal(settled.status, 200, settled.text)
+    assert.equal(settled.json.state, 'settled', 'the known usage and money are kept')
+    const [truth] = await owner(`SELECT response_id_status AS s, response_id_reason AS r, output FROM sophia.research_call_truth WHERE reservation_id=$1`, [reserved.json.reservationId])
+    assert.deepEqual([truth.s, truth.r, String(truth.output)], ['identity_unsupported', 'over_bound', '4'])
+    assert.deepEqual(await tablesHolding('K03TAIL7'), [])
+    assert.equal(logged.some((l) => l.includes('K03TAIL7')), false)
+  })
+
+  test('adverse (LABELLED: not the bridge): a raw over-bound id sent as supported, and a body over the limit, are refused without echo', async () => {
+    const w = await attempt()
+    const reserved = await w.call('POST', '/v1/runtime/research/reserve', { ...w.at, callId: 'llm-k03-raw', kind: 'model', provider: 'openai-research', amountUsd: 0.1, ...tracked })
+    const raw = `${'é'.repeat(4092)}K03RAWTAIL` // 4102 characters (within the schema's character maxLength), 8194 bytes
+    assert.ok(raw.length <= 8192 && Buffer.byteLength(raw, 'utf8') > 8192)
+    const forged = { ...settleBody(w.at, reserved.json.reservationId, undefined) }
+    forged.evidence = { ...forged.evidence, responseId: { status: 'supported', value: raw } }
+    const refused = await w.call('POST', '/v1/runtime/research/settle', forged)
+    assert.equal(refused.status, 422, refused.text)
+    assert.deepEqual([refused.json.code, refused.json.message], ['invalid_request', 'Invalid settlement evidence'], 'a fixed bad-input error')
+    assert.equal(refused.text.includes('K03RAWTAIL'), false, 'no raw id echoed')
+    const huge = { ...forged, evidence: { ...forged.evidence, responseId: { status: 'supported', value: `${'y'.repeat(2 * 1024 * 1024)}K03HUGETAIL` } } }
+    const tooLarge = await w.call('POST', '/v1/runtime/research/settle', huge)
+    // Fastify refuses a body over the route's bodyLimit (FST_ERR_CTP_BODY_TOO_LARGE, 413), which app.ts's error handler
+    // answers as its fixed 400 `malformed`, before any parsing, validation or SQL.
+    assert.equal(tooLarge.status, 400, `over the actual limit: ${String(tooLarge.status)}`)
+    assert.equal(tooLarge.json.code, 'malformed')
+    assert.match(tooLarge.json.message, /too large/i)
+    assert.equal(tooLarge.text.includes('K03HUGETAIL'), false, 'no raw id echoed')
+    const [r] = await owner(`SELECT state FROM sophia.research_reservations WHERE id=$1`, [reserved.json.reservationId])
+    assert.equal(r.state, 'reserved', 'the original commitment stays; nothing was released or zeroed')
+    assert.deepEqual(await tablesHolding('K03RAWTAIL'), [])
+    assert.equal(logged.some((l) => l.includes('K03RAWTAIL') || l.includes('K03HUGETAIL')), false, 'not in the API log')
   })
 })

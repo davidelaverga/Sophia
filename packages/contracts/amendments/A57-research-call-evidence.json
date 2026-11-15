@@ -6,6 +6,7 @@
     "SOPHIA-INC-2026-11 INC-04 R07 C2A under root contracts R1 5c5f89ee and R2 c2dde9b6 with mandatory C01/C02 (migration 0109). Assigned to INC04-S03A-R07-C2A-001; the generated output is regenerated with `pnpm --filter @sophia/contracts generate`, never by hand.",
     "C01: a tracked reserve (mode tracked_v1 with its honest contract) is answered with a closed call binding the bridge compares with its exact request before any provider effect; a reply without it, or with another call's, refuses the call. A request without a mode is legacy and its reply is byte-identical.",
     "A tracked settlement carries closed facts: disjoint counts each known, unknown or no separate reported class, the consumer's ending, and the response id in its own namespace (1..8192 UTF-8 bytes of well-formed text, or omitted with a fixed reason). The service answers a bounded disposition and digest only. No header id, partial or provider-terminal carrier (C2B); no raw id in usage, providerRequestId, logs or errors.",
+    "REPAIR-001 (F03): the closed binding also echoes the executor resource the reservation's authenticated execution binding froze; a reply without it, or naming another resource than the attempt's authenticated commands carry, refuses the call before any provider effect. Runtime hello bindings carry no resource and none is invented there.",
     "All four shapes stay closed (additionalProperties false); the new fields are optional, so the three reserve and three settle routes keep their legacy contract. The declared route is metadata only, never a price the service applies."
   ],
   "patch": [
@@ -90,7 +91,7 @@
       "value": {
         "type": "object",
         "additionalProperties": false,
-        "description": "A tracked reservation's closed call binding, from the authenticated rows: the bridge compares it with its exact request before the call leaves. No token, credential or provider id.",
+        "description": "A tracked reservation's closed call binding, from the authenticated rows: the bridge compares it with its exact request, and its resource with its attempt's authenticated command resource, before the call leaves. No token, credential or provider id.",
         "properties": {
           "mode": {
             "type": "string",
@@ -124,6 +125,11 @@
           "runtimeUnitId": {
             "type": "string",
             "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"
+          },
+          "resourceId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "The executor resource the reservation's authenticated execution binding froze (REPAIR-001 F03): the bridge compares it with the resource of its attempt's authenticated commands."
           }
         },
         "required": [
@@ -134,7 +140,8 @@
           "attemptId",
           "nativeSessionId",
           "projectId",
-          "runtimeUnitId"
+          "runtimeUnitId",
+          "resourceId"
         ]
       }
     },

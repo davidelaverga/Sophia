@@ -13,14 +13,16 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
 import { REPO_ROOT } from '../../scripts/lib/common.mjs'
+import { FIXTURE_RESOURCE } from '../support/fixture-service.mjs'
 import { suite, unit } from '../support/harness.mjs'
 
 /**
  * INC04-S03A-R07-C2A (C01): the closed call binding the service answers a tracked model reservation with, derived from
- * that exact request and the fixture's own project and runtime unit (as tests/support/fixture-service.mjs answers it).
+ * that exact request and the fixture's own project, runtime unit and (REPAIR-001 F03) the SYNTHETIC executor resource
+ * its commands name (as tests/support/fixture-service.mjs answers it).
  */
 const trackedBinding = (body) => ({ binding: { mode: body.mode, contract: body.contract, evidenceId: '00000000-0000-4000-8000-000000009998',
-  callId: body.callId, attemptId: body.attemptId, nativeSessionId: body.nativeSessionId, projectId: 'proj-fixture', runtimeUnitId: unit.id } })
+  callId: body.callId, attemptId: body.attemptId, nativeSessionId: body.nativeSessionId, projectId: 'proj-fixture', runtimeUnitId: unit.id, resourceId: FIXTURE_RESOURCE } })
 import { researchRouteOverlay, startMockResponses } from '../support/mock-responses.mjs'
 
 const bundlePatch = readFileSync(join(REPO_ROOT, 'packages', 'dsh-bundle', 'cordis.patch.yml'), 'utf8')

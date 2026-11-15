@@ -28037,7 +28037,7 @@
           "binding": {
             "type": "object",
             "additionalProperties": false,
-            "description": "A tracked reservation's closed call binding, from the authenticated rows: the bridge compares it with its exact request before the call leaves. No token, credential or provider id.",
+            "description": "A tracked reservation's closed call binding, from the authenticated rows: the bridge compares it with its exact request, and its resource with its attempt's authenticated command resource, before the call leaves. No token, credential or provider id.",
             "properties": {
               "mode": {
                 "type": "string",
@@ -28076,6 +28076,11 @@
               "runtimeUnitId": {
                 "type": "string",
                 "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"
+              },
+              "resourceId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+                "description": "The executor resource the reservation's authenticated execution binding froze (REPAIR-001 F03): the bridge compares it with the resource of its attempt's authenticated commands."
               }
             },
             "required": [
@@ -28086,7 +28091,8 @@
               "attemptId",
               "nativeSessionId",
               "projectId",
-              "runtimeUnitId"
+              "runtimeUnitId",
+              "resourceId"
             ]
           }
         },

@@ -11,11 +11,15 @@
  *   with no new key and no settlement; distinct authorized retries keep their own reservations.
  * - K03: a response id is kept whole only when supported; otherwise it is omitted with a fixed reason, the known usage is
  *   kept, and no raw id reaches the journal, the observations or the log.
+ * - REPAIR-001 F03: the answer must also name the executor resource of the attempt's authenticated commands, for all
+ *   three wrappers; that resource is journaled with each command and restored across a restart, a conflicting one is
+ *   ambiguous for good, and a refusal happens before any provider request with the original key kept. The fixture's
+ *   resources and the forged command resource below are LABELLED SYNTHETIC; nothing is an actual server context.
  */
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, test } from 'node:test'
@@ -26,7 +30,7 @@ import { launchRuntime } from '../../scripts/lib/runtime.mjs'
 import { treeDigest } from '../../scripts/lib/tree-digest.mjs'
 import { C1P_API, C1P_ROUTES, C1P_RUNTIMES, BUNDLE_PROVIDER_APIS, effectiveProviderApis, evidenceQualifications } from '../../packages/dsh-bundle/dist/index.js'
 import { classifyResponseId } from '../../packages/dsh-bundle/dist/control-bridge.js'
-import { command, startFixtureService } from '../support/fixture-service.mjs'
+import { FIXTURE_RESOURCE, command, startFixtureService } from '../support/fixture-service.mjs'
 import { suite, unit } from '../support/harness.mjs'
 import { providerOverlayJson, researchRouteOverlay, startMockResponses } from '../support/mock-responses.mjs'
 
@@ -212,7 +216,7 @@ describe('C01: a reservation answer that is not this exact call refuses the call
   const tampered = (tamper) => (body) => {
     const base = { reservationId: '00000000-0000-4000-8000-000000007777', state: 'reserved', kind: body.kind, purpose: body.purpose ?? 'call', amountUsd: body.amountUsd, target: null,
       binding: { mode: body.mode, contract: body.contract, evidenceId: '00000000-0000-4000-8000-000000007778', callId: body.callId, attemptId: body.attemptId,
-        nativeSessionId: body.nativeSessionId, projectId: 'proj-fixture', runtimeUnitId: unit.id } }
+        nativeSessionId: body.nativeSessionId, projectId: 'proj-fixture', runtimeUnitId: unit.id, resourceId: FIXTURE_RESOURCE } }
     return body.kind === 'model' ? tamper(base) : base
   }
   const cases = [
@@ -257,6 +261,108 @@ describe('C01: a reservation answer that is not this exact call refuses the call
     assert.equal(first.evidence.report, 'not_complete')
     assert.equal(second.outcome, 'settled')
     assert.equal(second.evidence.report, 'complete_report')
+  })
+})
+
+describe('REPAIR-001 F03: the answer names the attempt\'s authenticated executor resource, for all three wrappers', () => {
+  /** The service's own answer for `body` with its binding's resource dropped (`undefined`) or replaced. */
+  const withResource = (resourceId) => (body) => {
+    const answer = { reservationId: '00000000-0000-4000-8000-000000007779', state: 'reserved', kind: body.kind, purpose: body.purpose ?? 'call', amountUsd: body.amountUsd, target: null }
+    if (body.kind !== 'model') return answer
+    const binding = { mode: body.mode, contract: body.contract, evidenceId: '00000000-0000-4000-8000-000000007780', callId: body.callId, attemptId: body.attemptId,
+      nativeSessionId: body.nativeSessionId, projectId: 'proj-fixture', runtimeUnitId: unit.id }
+    return { ...answer, binding: resourceId === undefined ? binding : { ...binding, resourceId } }
+  }
+  const wrappers = [
+    { name: 'research', suite: () => research, role: 'sophia-research-md-v1', route: 'research-sol-medium-v1', text: QUESTION,
+      answer: (w, h) => w.service.onResearch('reserve', h), reserves: (w) => modelReserves(w.service.research), settles: (w) => settles(w.service.research) },
+    { name: 'design', suite: () => research, role: 'sophia-html-designer-v1', route: 'research-sol-medium-v1', text: 'Design the HTML report.',
+      answer: (w, h) => w.service.onDesign('design/reserve', h), reserves: (w) => w.service.design.filter((o) => o.op === 'design/reserve'), settles: (w) => w.service.design.filter((o) => o.op === 'design/settle') },
+    { name: 'source review', suite: () => review, role: 'sophia-source-review-v1', route: 'source-review-luna-high-v1', text: 'Source review task. Review the sources below.',
+      answer: (w, h) => w.service.onReview('reserve', h), reserves: (w) => w.service.review.filter((o) => o.op === 'reserve'), settles: (w) => w.service.review.filter((o) => o.op === 'settle') },
+  ]
+  const cases = [
+    // A VALID old-shape answer (no resource): before F03 its call reached the provider.
+    ['an old-shape answer without the resource', undefined, null],
+    ['an answer naming another resource', 'dsh-other', "its answer is not this call's reservation: resource"],
+  ]
+  for (const wr of wrappers) {
+    for (const [what, resourceId, reason] of cases) {
+      test(`${wr.name}: ${what} is refused before any provider request; one reservation, its key kept, nothing settled`, async (t) => {
+        const w = await wr.suite().world(t)
+        await w.start()
+        wr.answer(w, withResource(resourceId))
+        w.llm.script({ text: 'ok' })
+        w.send(w.cmd('create', { text: wr.text, role: wr.role, route: wr.route }))
+        // Ends on the refusal OR on a provider request, so a call that leaves fails on the provider assertion below.
+        await w.service.waitFor(() => w.journal().some((r) => r.type === 'sophia/spend-refused') || w.llm.requests.length > 0, 90_000, 'the refused call')
+        assert.equal(w.llm.requests.length, 0, 'nothing reached the provider')
+        await w.service.waitFor(() => w.turnEnds().length >= 1, 30_000, 'the refused turn')
+        // Design and review re-send an answer that breaks the contract as an unknown outcome, under the SAME callId (a
+        // safe resend); research does not. Either way: one reservation key, never a new one.
+        const keys = new Set(wr.reserves(w).map((o) => o.body.callId))
+        assert.equal(keys.size, 1, `one reservation under its original key, no new key: ${JSON.stringify([...keys])}`)
+        assert.ok(wr.reserves(w).length >= 1)
+        assert.equal(wr.settles(w).length, 0, 'nothing settled, released or zeroed')
+        const refused = w.journal().filter((r) => r.type === 'sophia/spend-refused').map((r) => r.data.reason)
+        if (reason) assert.ok(refused.some((r) => r.includes(reason)), JSON.stringify(refused))
+      })
+    }
+  }
+
+  test('the correct resource is journaled with each command and answered back; the call leaves (positive)', async (t) => {
+    const w = await research.world(t)
+    const { reserve, settle } = await researchCall(w, { text: 'ok' })
+    assert.equal(settle.outcome, 'settled')
+    assert.ok(reserve.callId)
+    const commands = w.journal().filter((r) => r.type === 'sophia/command')
+    assert.ok(commands.length >= 1 && commands.every((r) => r.data.resourceId === FIXTURE_RESOURCE), JSON.stringify(commands.map((r) => r.data.resourceId)))
+    assert.equal(w.llm.requests.length, 1)
+  })
+
+  /** A research attempt whose first call settled, then a restart with the service still binding it (active). */
+  async function restarted(w, rewrite = null) {
+    await w.start()
+    w.llm.script({ text: 'ok' }, { text: 'second' })
+    w.send(create(w))
+    await w.service.waitFor(() => settles(w.service.research).length >= 1, 90_000, 'the first model settlement')
+    await w.service.waitFor(() => w.turnEnds().length >= 1, 30_000, 'the first turn')
+    await w.stop()
+    if (rewrite) rewrite()
+    w.service.setBindings([{ attemptId: w.attemptId, nativeSessionId: `sophia-${w.attemptId}`, authorityEpoch: 1, state: 'active' }])
+    await w.start()
+    return { requests: w.llm.requests.length, reserves: modelReserves(w.service.research).length }
+  }
+
+  test('restart: the restored resource is not replaced by a command naming another; the call is refused as ambiguous, and Stop still works', async (t) => {
+    const w = await research.world(t)
+    const before = await restarted(w)
+    // LABELLED SYNTHETIC: a command for the same attempt naming another resource (a stale or forged context).
+    w.send(w.cmd('input', { text: 'Also compare the costs.', resourceId: 'dsh-other' }))
+    await w.service.waitFor(() => w.journal().some((r) => r.type === 'sophia/spend-refused') || w.llm.requests.length > before.requests, 60_000, 'the refused call after the restart')
+    assert.equal(w.llm.requests.length, before.requests, 'nothing reached the provider')
+    const refused = w.journal().filter((r) => r.type === 'sophia/spend-refused').map((r) => r.data.reason)
+    assert.ok(refused.some((r) => r.includes('its attempt has no authenticated executor resource: ambiguous')), JSON.stringify(refused))
+    assert.equal(w.llm.requests.length, before.requests, 'nothing reached the provider')
+    assert.equal(modelReserves(w.service.research).length, before.reserves, 'refused before reserving: no new reservation or key')
+    const stop = w.send(w.cmd('stop'))
+    const receipt = await w.service.waitForReceipt(stop.commandId, null, 30_000)
+    assert.notEqual(receipt.stage, 'rejected', 'resource ambiguity never blocks a qualified Stop')
+  })
+
+  test('restart over a LABELLED SYNTHETIC legacy journal (no resource): unknown until a legitimate command names it, then the call leaves', async (t) => {
+    const w = await research.world(t)
+    const file = () => join(w.layout.dshHome, 'sophia-bridge', `sophia-${w.attemptId}.jsonl`)
+    const before = await restarted(w, () => {
+      const legacy = readFileSync(file(), 'utf8').trim().split('\n').map((line) => JSON.parse(line))
+        .map((r) => (r.type === 'sophia/command' ? { ...r, data: Object.fromEntries(Object.entries(r.data).filter(([k]) => k !== 'resourceId')) } : r))
+      writeFileSync(file(), `${legacy.map((r) => JSON.stringify(r)).join('\n')}\n`)
+    })
+    assert.equal(w.journal().filter((r) => r.type === 'sophia/command' && 'resourceId' in r.data).length, 0, 'the restarted journal is legacy')
+    w.send(w.cmd('input', { text: 'Also compare the costs.' }))
+    await w.service.waitFor(() => settles(w.service.research).length >= 2, 90_000, 'the second settlement')
+    assert.equal(w.llm.requests.length, before.requests + 1)
+    assert.equal(modelReserves(w.service.research).at(-1).body.mode, 'tracked_v1')
   })
 })
 

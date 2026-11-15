@@ -63,6 +63,12 @@ export interface JournalRecordMap {
     nativeSeq: number | null
     /** Role the attempt was created under (create only). */
     role: string | null
+    /**
+     * C2A REPAIR-001 (F03): the executor resource of the command's authenticated binding, recorded with the command
+     * before any native action. Application identity only: never a provider id, header or credential. Absent in a
+     * record written before it (legacy), which folds as unknown.
+     */
+    resourceId?: string
   }
   /** The attempt's work fence changed. */
   'sophia/fence': { attemptId: string; authorityEpoch: number; state: FenceState; commandId: string }
@@ -201,6 +207,36 @@ export interface CommandEntry {
   readonly settled: boolean
 }
 
+/**
+ * An attempt's authenticated executor resource (C2A REPAIR-001 F03), private to the bridge. `unknown`: no authenticated
+ * command has named one (a new attempt, or a journal written before the field); `known`: the first valid resource an
+ * authenticated command named; `ambiguous`: another resource, an invalid value or another attempt's record was seen for
+ * the same attempt. Ambiguity is sticky: nothing clears it, switches it or adopts the latest value. Only `known`
+ * authorizes a tracked model reservation.
+ */
+export type ResourceContext =
+  | { readonly state: 'unknown' }
+  | { readonly state: 'known'; readonly resourceId: string }
+  | { readonly state: 'ambiguous' }
+
+/** The wire shape of a binding's resource id (RuntimeCommand.binding.resourceId). */
+const RESOURCE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
+
+/** No resource is known yet. */
+export const UNKNOWN_RESOURCE: ResourceContext = { state: 'unknown' }
+
+/**
+ * The context after one more authenticated command's resource (`undefined`: a record without the field, which adds
+ * nothing). A known resource is never erased or replaced: a different one, or a value that is not a resource id, makes
+ * the context ambiguous for good.
+ */
+export function foldResource(prior: ResourceContext, resourceId: unknown): ResourceContext {
+  if (prior.state === 'ambiguous' || resourceId === undefined) return prior
+  if (typeof resourceId !== 'string' || !RESOURCE_ID.test(resourceId)) return { state: 'ambiguous' }
+  if (prior.state === 'unknown') return { state: 'known', resourceId }
+  return prior.resourceId === resourceId ? prior : { state: 'ambiguous' }
+}
+
 /** Reconstructed bridge state for one session. */
 export interface LoggedState {
   readonly attemptId: string | null
@@ -208,6 +244,17 @@ export interface LoggedState {
   readonly role: string | null
   /** The first recorded execution identity, if any; later records never replace it. */
   readonly identity: JournalRecordMap['sophia/identity'] | null
+  /** The attempt's authenticated executor resource from its command records (C2A REPAIR-001 F03). */
+  readonly resource: ResourceContext
+  /**
+   * REPAIR-001 R1 (F04): the attempt that owns this journal (the first owner-typed record's), kept apart from
+   * `attemptId`, which is only the last such record's, and whether any later owner-typed record named another attempt.
+   * A session's journal belongs to one attempt: a mismatch is a corrupt or misplaced context and stays sticky. Audit-only
+   * records (route/spend refusals, overruns, finalize) never own a journal. R2: an owner-typed record whose attemptId is
+   * not a string (explicit null included) is an invalid owner and also sets the sticky mismatch.
+   */
+  readonly owner: string | null
+  readonly ownerMismatch: boolean
   readonly authorityEpoch: number
   readonly fence: FenceState
   /** Command id -> its journal record and the message it produced. */
@@ -226,6 +273,14 @@ export interface LoggedState {
 
 const FENCE_RANK: Readonly<Record<FenceState, number>> = { active: 0, held: 1, stopped: 2 }
 
+/**
+ * R1 (F04): the record types whose `attemptId` is the journal's own attempt by their source semantics (the attempt's
+ * commands, fences, held input, recovered continuation, epoch and identity). Audit-only records are not owners.
+ */
+const OWNER_RECORDS: ReadonlySet<JournalRecord['type']> = new Set<JournalRecord['type']>([
+  'sophia/command', 'sophia/fence', 'sophia/stash', 'sophia/unstash', 'sophia/resume-recovery', 'sophia/epoch', 'sophia/identity',
+])
+
 /** The more restrictive of two fences. */
 export function strongestFence(a: FenceState, b: FenceState): FenceState {
   return FENCE_RANK[a] >= FENCE_RANK[b] ? a : b
@@ -241,6 +296,11 @@ export function foldLog(journal: readonly JournalRecord[], events: readonly Sess
   let attemptId: string | null = null
   let role: string | null = null
   let identity: JournalRecordMap['sophia/identity'] | null = null
+  let resource: ResourceContext = UNKNOWN_RESOURCE
+  /** The attempt whose command first carried a resource; another attempt's record in this session is ambiguous. */
+  let resourceAttempt: string | null = null
+  let owner: string | null = null
+  let ownerMismatch = false
   let authorityEpoch = 0
   let fence: FenceState = 'active'
   const commands = new Map<string, CommandEntry>()
@@ -249,11 +309,24 @@ export function foldLog(journal: readonly JournalRecord[], events: readonly Sess
   let observedSeq = -1
   const incorporationReceipted = new Set<string>()
   for (const record of journal) {
+    // R1 F04: the owner is the first owner-typed record's attempt; any later one naming another is a sticky mismatch.
+    // R2 (F04 null owner): a non-string attemptId (explicit null included; Journal.read only casts parsed JSON) is an
+    // invalid owner, marked sticky BEFORE any adoption, so no later valid-looking row can initialize the owner over it.
+    if (OWNER_RECORDS.has(record.type)) {
+      const named = (record.data as { attemptId?: unknown }).attemptId
+      if (typeof named !== 'string') ownerMismatch = true
+      else if (owner === null) owner = named
+      else if (named !== owner) ownerMismatch = true
+    }
     switch (record.type) {
       case 'sophia/command': {
         const data = record.data
         attemptId = data.attemptId
         role ??= data.role ?? null
+        if (data.resourceId !== undefined) {
+          resourceAttempt ??= data.attemptId
+          resource = resourceAttempt === data.attemptId ? foldResource(resource, data.resourceId) : { state: 'ambiguous' }
+        }
         authorityEpoch = Math.max(authorityEpoch, data.authorityEpoch)
         // A re-execution of an unsettled command replaces its first record.
         if (!commands.get(data.commandId)?.settled) {
@@ -302,5 +375,7 @@ export function foldLog(journal: readonly JournalRecord[], events: readonly Sess
   for (const event of events) {
     if (event.type === 'user/message') incorporated.add((event.data as { id: string }).id)
   }
-  return { attemptId, role, identity, authorityEpoch, fence, commands, stash, unstashed, incorporated, observedSeq, incorporationReceipted }
+  // R1 F04: records of more than one attempt are never one attempt's context; a resource from them is ambiguous for good.
+  if (ownerMismatch) resource = { state: 'ambiguous' }
+  return { attemptId, role, identity, resource, owner, ownerMismatch, authorityEpoch, fence, commands, stash, unstashed, incorporated, observedSeq, incorporationReceipted }
 }
