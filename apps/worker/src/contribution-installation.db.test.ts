@@ -1,6 +1,7 @@
 // INC04-S02a coherent: the worker's new-work installation hold on real PostgreSQL, with the worker's own login. Level:
-// sql-run. The database is the earlier source's installation: every migration of this tree except 0105 (0106
-// included), a set no prefix can express. The rows come from the real producers: a research admission through the old
+// sql-run. The database is the earlier source's installation: this tree's migrations before 0109 except 0105 (0106,
+// 0107 and 0108 included), a set no prefix can express; 0109 and later declare on 0105's objects, so that history never
+// ran them without it. The rows come from the real producers: a research admission through the old
 // same-signature SQL (as an earlier API binary would write it), and Stop commands (control.settle and native.stop,
 // cleanup true). It shows:
 // * a mixed batch: cleanup is dispatched, new work is held, its claimed state and lease kept as committed, with no
@@ -10,10 +11,13 @@
 // * a row that already has a runtime command (written by an earlier worker binary, then left outcome_unknown by a
 //   SYNTHETIC fault the migration owner records) reconciles from that command and is never resent;
 // * the real dispatcher loop over held work runs a bounded number of passes;
-// * once the actual 0105 file is applied, the same held row is dispatched to its runtime.
+// * once the actual 0105 file is applied (its SQL directly, the old-SQL lifecycle; the API installation test owns the
+//   real migrator's all-pending upgrade), the same held row is dispatched to its runtime.
 // Everything is SYNTHETIC: no provider, account or route is qualified, and no real runtime runs.
+// Fixture lifecycle (C15-F02): every pool is owned before its first use, and the database is dropped only after each
+// client those pools connected has actually ended, a bounded wait after Pool.end() (which can resolve first).
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -38,31 +42,87 @@ import { dispatchOnce, RuntimeDispatcher } from './runtime-dispatch.ts'
 
 const MIGRATIONS = fileURLToPath(new URL('../../../db/migrations', import.meta.url))
 const ATOMIC = '0105_contribution_atomic_admission.sql'
+/** The end of the earlier source's history: 0109 is the first migration that declares on 0105's objects. */
+const EARLIER_BOUNDARY = '0109'
 const LEASE_SECONDS = 5 // the smallest lease claim_runtime_outbox accepts
 const MD = { id: 'sophia-research-md-v1', route: 'research-sol-medium-v1', presetDigest: 'sha256:md' }
 const QUESTION = { question: 'Which sandboxes do PDF rendering services use?', outputs: ['markdown'] }
 
-let dir: string
 let db: TestDatabase
 let api: pg.Pool
 let worker: pg.Pool
 let owner: pg.Pool
+// Teardown acts only on what setup actually made. A setup failure (a refused migration, say) is then the error
+// reported, never masked by a teardown reading a handle it never created; every pool that exists is still ended, in
+// order and with its own failure raised, before the database it was opened on is dropped.
+let dir: string | undefined
+let drop: (() => Promise<void>) | undefined
+const opened: pg.Pool[] = []
+const open = (pool: pg.Pool): pg.Pool => {
+  opened.push(own(pool))
+  return pool
+}
+
+/**
+ * C15-F02: each owned pool's clients, by their actual end. At the pinned pg-pool 3.14.0, `Pool.end()` resolves once its
+ * idle clients have left the pool's accounting, while each one's connection may still be closing (pg 8.23.0;
+ * docs/SOURCE_MAP.md §2r); a FORCE drop in that window would terminate an owned backend. So a pool is registered before
+ * its first use, through its public 'connect' event, and each client it connects records the promise of its own 'end'.
+ */
+const clientEnds = new WeakMap<pg.Pool, Promise<void>[]>()
+function own(pool: pg.Pool): pg.Pool {
+  const ends: Promise<void>[] = []
+  pool.on('connect', (client) => {
+    ends.push(new Promise((ended) => client.once('end', () => ended())))
+  })
+  clientEnds.set(pool, ends)
+  return pool
+}
+/**
+ * The fixture's release: end `pools` in order, wait at most `ms` for every client they connected to have actually ended,
+ * then drop the database, then remove the directory. Nothing is caught: the first failure propagates (a client that
+ * never ends fails it, loudly) and no later step runs, so the database is never dropped under a live owned client.
+ */
+async function releaseFixture(
+  pools: pg.Pool[],
+  dropDatabase: (() => Promise<void>) | undefined,
+  linked: string | undefined,
+  ms = 15_000,
+): Promise<void> {
+  for (const pool of pools) await pool.end()
+  const ends = pools.map((pool) => {
+    const recorded = clientEnds.get(pool)
+    assert.ok(recorded, 'every pool released here was owned before its first use')
+    return Promise.all(recorded)
+  })
+  let timer: NodeJS.Timeout | undefined
+  try {
+    await Promise.race([
+      Promise.all(ends),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`the owned clients’ actual end: none within ${String(ms)} ms`)), ms)
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+  if (dropDatabase !== undefined) await dropDatabase()
+  if (linked !== undefined) rmSync(linked, { recursive: true, force: true })
+}
 
 before(async () => {
-  dir = mkdtempSync(join(tmpdir(), 'sophia-without-0105-'))
-  for (const f of readdirSync(MIGRATIONS).filter((n) => n.endsWith('.sql') && n !== ATOMIC))
-    symlinkSync(join(MIGRATIONS, f), join(dir, f))
-  db = await createTestDatabase(dir)
-  api = createPool(db.apiUrl, { max: 4 })
-  worker = createPool(db.workerUrl, { max: 2 })
-  owner = new pg.Pool({ connectionString: db.ownerUrl, max: 2 })
+  const linked = mkdtempSync(join(tmpdir(), `sophia-before-${EARLIER_BOUNDARY}-without-0105-`))
+  dir = linked
+  for (const f of readdirSync(MIGRATIONS).filter((n) => n.endsWith('.sql') && n < EARLIER_BOUNDARY && n !== ATOMIC))
+    symlinkSync(join(MIGRATIONS, f), join(linked, f))
+  db = await createTestDatabase(linked)
+  drop = () => db.drop()
+  api = open(createPool(db.apiUrl, { max: 4 }))
+  worker = open(createPool(db.workerUrl, { max: 2 }))
+  owner = open(new pg.Pool({ connectionString: db.ownerUrl, max: 2 }))
 })
 after(async () => {
-  await api.end()
-  await worker.end()
-  await owner.end()
-  await db.drop()
-  rmSync(dir, { recursive: true, force: true })
+  await releaseFixture(opened, drop, dir)
 })
 
 const one = async <T>(sql: string, params: unknown[] = []): Promise<T> => (await owner.query(sql, params)).rows[0] as T
@@ -270,5 +330,166 @@ describe('the worker’s new-work hold where 0106 is installed without 0105 (coh
     }
     const r = await rowOf(p.projectId, held)
     assert.deepEqual([r.state, r.commands], ['acknowledged', 1], 'one runtime command, queued once')
+  })
+})
+
+/**
+ * C15-R1-F03: a case's `body`, then always its one cleanup lifecycle (memoised by the case, so it never runs twice),
+ * awaited before the case returns. The body's failure stays the reported error; a cleanup failure is never hidden:
+ * alone it is thrown, beside a body failure both are thrown together, the body's failure as the cause.
+ */
+async function bodyThenCleanup(body: () => Promise<void>, cleanup: () => Promise<void>): Promise<void> {
+  let failure: { error: unknown } | undefined
+  try {
+    await body()
+  } catch (error) {
+    failure = { error }
+  }
+  let cleanupFailure: { error: unknown } | undefined
+  try {
+    await cleanup()
+  } catch (error) {
+    cleanupFailure = { error }
+  }
+  if (cleanupFailure !== undefined) {
+    if (failure === undefined || cleanupFailure.error === failure.error) throw cleanupFailure.error
+    throw new AggregateError([failure.error, cleanupFailure.error], 'the case failed, and so did its cleanup', {
+      cause: failure.error,
+    })
+  }
+  if (failure !== undefined) throw failure.error
+}
+/** A pg.Client class whose end() waits for every `gate` (pg-pool's public `Client` option): a held owned client. */
+function heldClient(...gates: Promise<void>[]) {
+  return class HeldClient extends pg.Client {
+    override end(): Promise<void>
+    override end(callback: (err: Error) => void): void
+    override end(callback?: (err: Error) => void): Promise<void> | undefined {
+      const ended = Promise.all(gates).then(() => super.end())
+      if (!callback) return ended
+      void ended.then(() => (callback as () => void)())
+      return undefined
+    }
+  }
+}
+interface CaseView {
+  order: string[]
+  marks: string[]
+  pid: () => number | undefined
+}
+
+/**
+ * A client whose end() is held, on this file's own database; the drop is recorded, not run, because the fixture still
+ * needs it. The case's own release is started while the end is held, kept outside the body and awaited exactly once,
+ * by the body or, after an early failure, by the cleanup after it opens the gate: the case never returns while that
+ * client is alive, so the outer teardown cannot drop the database under it. `control` is for the F03 control only.
+ */
+async function heldEndCase(
+  control: { failEarly?: boolean; hold?: Promise<void>; observe?: (view: CaseView) => void } = {},
+): Promise<void> {
+  const { promise: held, resolve: releaseHeld } = Promise.withResolvers<void>()
+  const gates = control.hold === undefined ? [held] : [held, control.hold]
+  const pool = own(new pg.Pool({ connectionString: db.ownerUrl, max: 1, Client: heldClient(...gates) }))
+  const order: string[] = []
+  const marks: string[] = []
+  let pid: number | undefined
+  control.observe?.({ order, marks, pid: () => pid })
+  const end = pool.end.bind(pool)
+  pool.end = async () => {
+    await end()
+    order.push('pool.end resolved')
+  }
+  const connected = async (backend: number) =>
+    Number((await one<{ n: string }>('SELECT count(*) AS n FROM pg_stat_activity WHERE pid = $1', [backend])).n)
+  let releasing: Promise<void> | undefined
+  const release = () =>
+    (releasing ??= releaseFixture(
+      [pool],
+      async () => {
+        order.push(`drop with ${pid === undefined ? 'no' : String(await connected(pid))} owned backend`)
+      },
+      undefined,
+    ).then(() => {
+      order.push('released')
+    }))
+  await bodyThenCleanup(
+    async () => {
+      const client = await pool.connect()
+      pid = (await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]?.pid
+      client.release()
+      assert.ok(pid)
+      void release()
+      const deadline = Date.now() + 5_000
+      while (!order.includes('pool.end resolved')) {
+        assert.ok(Date.now() < deadline, 'Pool.end resolves while its client’s end is held')
+        await sleep(5)
+      }
+      if (control.failEarly === true) {
+        marks.push('failed')
+        throw new Error('SYNTHETIC early failure: while the release is in flight')
+      }
+      assert.equal(await connected(pid), 1, 'the owned backend is still connected')
+      assert.deepEqual(order, ['pool.end resolved'], 'no drop, and the release has not finished')
+      releaseHeld()
+      await release()
+      assert.deepEqual(order, ['pool.end resolved', 'drop with 0 owned backend', 'released'])
+    },
+    async () => {
+      releaseHeld()
+      await release()
+    },
+  )
+}
+
+describe('C15-F02: the fixture drops its database only after each owned client has actually ended', () => {
+  it('Pool.end() resolves while a held client is still connected; the drop waits for that client’s actual end', async () => {
+    await heldEndCase()
+  })
+
+  it('F03 control (SYNTHETIC): a held-end case failing mid-release does not return before the actual end', async () => {
+    const { promise: hold, resolve: letGo } = Promise.withResolvers<void>()
+    let view: CaseView | undefined
+    let settled = false
+    const running = heldEndCase({ failEarly: true, hold, observe: (v) => (view = v) }).finally(() => {
+      settled = true
+    })
+    try {
+      const deadline = Date.now() + 5_000
+      while (view?.marks.includes('failed') !== true) {
+        assert.ok(Date.now() < deadline, 'the case fails early')
+        await sleep(5)
+      }
+      await sleep(200) // a bounded window in which an unsafe cleanup would have returned
+      const v = view
+      const pid = v.pid()
+      assert.ok(pid)
+      assert.equal(settled, false, 'the case has not returned while its owned client is held')
+      assert.deepEqual(v.order, ['pool.end resolved'], 'no drop recorded yet')
+      assert.equal(
+        Number((await one<{ n: string }>('SELECT count(*) AS n FROM pg_stat_activity WHERE pid = $1', [pid])).n),
+        1,
+        'its owned backend is still connected',
+      )
+      letGo()
+      await assert.rejects(running, /^Error: SYNTHETIC early failure: /, 'the original failure is the one reported')
+      assert.deepEqual(v.order, ['pool.end resolved', 'drop with 0 owned backend', 'released'])
+    } finally {
+      letGo()
+      await Promise.allSettled([running]) // the case's own outcome is asserted above; here it only must have finished
+    }
+  })
+
+  it('a setup that made nothing releases nothing; a failing drop stays visible and no later step runs', async () => {
+    await releaseFixture([], undefined, undefined)
+    const linked = mkdtempSync(join(tmpdir(), 'sophia-c15-f02-drop-'))
+    try {
+      await assert.rejects(
+        releaseFixture([], () => Promise.reject(new Error('SYNTHETIC drop failure')), linked),
+        /^Error: SYNTHETIC drop failure$/,
+      )
+      assert.equal(existsSync(linked), true, 'the directory step after the failed drop did not run')
+    } finally {
+      rmSync(linked, { recursive: true, force: true })
+    }
   })
 })

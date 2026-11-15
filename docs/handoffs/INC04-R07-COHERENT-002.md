@@ -50,3 +50,13 @@ Then an authenticated census, the correct-identity canary first, the wrong-ident
 - **Still open:** GOV introduced-commit coverage, Luis integration and merge, RTA (96b91), the four native owner/account pairs, deployed authorization and the app, and full R07 / C2B–C6.
 - **Product holds:** 8c stays default-off with its verification erratum; 9ed keeps its explicit cancellation.
 - **SEC null** is information only.
+
+## 2. Integration record (finalised with the second merge)
+
+**Merge 1** is `5a7ec56507e083bd663feb58f8cda07b6af94afb`, tree `18f96c584e704693e59f680776ef55a988e782d8`, ordered parents C7 `c7efd878` then 412b `412ba2d8`. It is a normal signed local commit and was accepted on the first attempt. Against C7 it changes 26 paths: 412b's 24 non-Map component paths, taken unchanged by Git, plus `docs/SOURCE_MAP.md` and this handoff.
+
+**The Map conflict.** Both sides insert one section at the same point, after base line 611 (base blob `cfa715c3`, C2A `4270790c`, C7 `06bfeff0`). The resolution keeps the common prefix, then C2A's 13 inserted lines (§2s, the IDs `C2A-PATCH-REPLACE` and `C2A-RESPONSE-ID`), then C7's 20 inserted lines (§2t, the six `F2T-*` IDs), then the common suffix from §3. No line of the base or of either insertion is changed, dropped or reordered. C2A's insertion keeps its own two blank lines at its end, so §2s and §2t are separated by two blank lines. The prose is outside Prettier by `.prettierignore`. The result is 784 lines, 100,737 bytes, SHA-256 `c97b61fd0dc268bfe2a00ab720d40fc5d5f401777d236705ffdf413835283eba`.
+
+**Merge 2** brings in 302a (`302af00b`, merge-base with merge 1: `7998e3a0`) with no conflict. It adds exactly its three fixture paths, with the accepted blobs `4d3f4517` (`apps/api/src/selection-installation.db.test.ts`), `429a3697` (`apps/worker/src/contribution-installation.db.test.ts`) and `ca014bce` (`docs/handoffs/PR519-SELECTION-INSTALLATION-0109-FIXTURE-001.md`), plus this section. Its own commit and tree identities, and every check result, are recorded only in the external packets.
+
+**Runtime unit** after both merges: `sophia-runtime-wbc02-dev`, `config/runtime-unit.json` blob `1214df0e`, equal to 412b's.
