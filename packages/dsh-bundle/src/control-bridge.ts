@@ -50,6 +50,7 @@ import { REVIEW_PROMPT } from './review-prompt.js'
 import { boundedAccounts, reviewAccounts, reviewTools } from './review-tools.js'
 import { DESIGN_ROLES, roleOf } from './role-registry.js'
 import type { DesignRole, RolePreset } from './role-registry.js'
+import { CallObservation, OBSERVATION_SERVICE, OBSERVATION_VERSION, withoutObservations } from './c2b-observation.js'
 import { foldLog, foldResource, Journal, strongestFence, UNKNOWN_RESOURCE, type ResourceContext } from './session-events.js'
 import type { CommandEntry, DeliveryTarget, ExecutionIdentity, FenceState, StashedMessage } from './session-events.js'
 import { ServiceTransport, TransportError } from './transport.js'
@@ -102,6 +103,12 @@ export interface BridgeSettings {
    * (index.ts). A route not named, or absent, is `legacy_report`: its usage is kept, never claimed complete.
    */
   readonly evidenceContracts?: Readonly<Record<string, EvidenceContract>>
+  /**
+   * C2B (INC04-R07-C2B-PRODUCER-001): the priced routes whose calls opt in to observed facts (A58 `facts: observed_v1`),
+   * by route id, from the LOADED producer's qualification (index.ts). Absent or empty: no route opts in and the bridge
+   * provides no observation capability, so the patched adapter emits nothing.
+   */
+  readonly observedRoutes?: ReadonlySet<string>
   readonly log: (line: string) => void
 }
 
@@ -351,17 +358,23 @@ export class ControlBridge {
       const attempt = this.attemptForSession(options.sessionId)
       const route = attempt?.identity?.route
       const problem = route ? offRoute(options, route, this.ceilingFor(route)) : null
-      if (attempt === undefined || route === undefined) return next()
+      // C2B: every branch removes private observation frames; an unbound or unpriced call discards them.
+      if (attempt === undefined || route === undefined) return withoutObservations(next())
       if (problem !== null) return this.refuseCall(attempt, options, problem)
       const named = this.namedRoute(route)
-      if (!named?.prices || !this.transport) return next()
+      if (!named?.prices || !this.transport) return withoutObservations(next())
       return attempt.role && DESIGN_ROLES.has(attempt.role.id)
         ? this.meteredDesign(attempt, options, named, named.prices, next)
         : this.metered(attempt, options, named, named.prices, next)
     }, { global: true, prepend: true })
+    // C2B: the versioned observation capability is provided only AFTER the listener above, which removes every private
+    // frame on every branch, is installed, and only when a route's loaded producer qualified; it is withdrawn FIRST on
+    // stop, so no call can start emitting frames without that listener around it.
+    const offObservation = (this.settings.observedRoutes?.size ?? 0) > 0 ? this.provideObservation() : () => {}
     const offEvent = ctx.on('session/event', (session: Session, event: SessionEvent) => this.observe(session, event))
     void this.connect()
     return async () => {
+      offObservation()
       this.stopping.abort()
       this.replies?.dispose()
       this.replyService?.dispose()
@@ -370,6 +383,16 @@ export class ControlBridge {
       offStream()
       offEvent()
       await Promise.all([this.receiptQueue.flush(), this.observationQueue.flush()])
+    }
+  }
+
+  /** The versioned observation capability, provided now; its disposer withdraws it. Fixed log lines, no values. */
+  private provideObservation(): () => void {
+    const withdraw = this.ctx.provide(OBSERVATION_SERVICE, Object.freeze({ version: OBSERVATION_VERSION }))
+    this.settings.log(`call_observation capability=provided version=${OBSERVATION_VERSION} after=llm/stream`)
+    return () => {
+      withdraw()
+      this.settings.log('call_observation capability=withdrawn')
     }
   }
 
@@ -516,12 +539,15 @@ export class ControlBridge {
    * C2A: what a tracked reservation of one model call on `route` declares: its contract (K04, legacy unless the loaded
    * decoder qualified this route) and the route as metadata only. Never a price the service applies.
    */
-  private tracked(route: RouteConfig, prices: RoutePrices): Pick<ResearchReserveRequest, 'mode' | 'contract' | 'declared'> {
+  private tracked(route: RouteConfig, prices: RoutePrices): Pick<ResearchReserveRequest, 'mode' | 'contract' | 'declared' | 'facts'> {
     const id = this.namedRouteId(route)
     const contract = (id === undefined ? undefined : this.settings.evidenceContracts?.[id]) ?? 'legacy_report'
+    const observed = id !== undefined && this.settings.observedRoutes?.has(id) === true
     return {
       mode: 'tracked_v1',
       contract,
+      // C2B (A58 SI01): opted in only for a route whose loaded producer qualified; omitted, the request is v1 exactly.
+      ...(observed ? { facts: 'observed_v1' as const } : {}),
       declared: { ...(id === undefined ? {} : { routeId: id }), model: route.model, reasoningEffort: route.reasoningEffort ?? null, prices: { ...prices } },
     }
   }
@@ -654,7 +680,7 @@ export class ControlBridge {
       }
       const facts = new CallFacts()
       try {
-        for await (const chunk of next()) {
+        for await (const chunk of facts.delivered(next())) {
           facts.observe(chunk)
           yield chunk
         }
@@ -663,7 +689,7 @@ export class ControlBridge {
         facts.ended('stream_error')
         throw error
       } finally {
-        const body = facts.settlement(ids, reservationId, tracked.contract ?? 'legacy_report', route, prices)
+        const body = facts.settlement(ids, reservationId, tracked, route, prices)
         if (body.costUsd !== undefined && body.costUsd > amountUsd) overrun(reservationId, amountUsd, body.costUsd)
         try {
           await accounts.settle(body)
@@ -711,7 +737,7 @@ export class ControlBridge {
       }
       const facts = new CallFacts()
       try {
-        for await (const chunk of next()) {
+        for await (const chunk of facts.delivered(next())) {
           facts.observe(chunk)
           yield chunk
         }
@@ -721,7 +747,7 @@ export class ControlBridge {
         throw error
       } finally {
         try {
-          await accounts.settle(facts.settlement(ids, reservationId, tracked.contract ?? 'legacy_report', route, prices))
+          await accounts.settle(facts.settlement(ids, reservationId, tracked, route, prices))
         } catch (error) {
           log(`settling design model call ${reservationId} failed: ${(error as Error).message}; the service reconciles it`)
         }
@@ -1640,7 +1666,7 @@ type Ending = SettleEvidence['ending']
 
 /** A reservation answer that does not bind this exact call (C01): the call never leaves. Its reason is fixed text. */
 export class AckRefused extends Error {
-  constructor(readonly problem: 'missing' | 'mode' | 'call' | 'scope' | 'resource' | 'reservation') {
+  constructor(readonly problem: 'missing' | 'mode' | 'facts' | 'call' | 'scope' | 'resource' | 'reservation') {
     super(`its answer is not this call's reservation: ${problem}`)
   }
 }
@@ -1668,6 +1694,9 @@ export function bindingProblem(
   const b = reply.binding
   if (b === undefined) return 'missing'
   if (b.mode !== sent.mode || b.contract !== sent.contract) return 'mode'
+  // C2B (A58 SI01): the answer echoes `facts` exactly when the request opted in, never otherwise; an old or partial
+  // service that does not echo it refuses the call before it leaves (no silent fallback to v1).
+  if (b.facts !== sent.facts) return 'facts'
   if (b.callId !== sent.callId || b.attemptId !== sent.attemptId || b.nativeSessionId !== sent.nativeSessionId) return 'call'
   if (context.projectId === null || b.projectId !== context.projectId || b.runtimeUnitId !== context.runtimeUnitId) return 'scope'
   // F03: the executor resource the reservation's binding froze must be the one this attempt's authenticated commands named.
@@ -1741,11 +1770,20 @@ export function evidenceOf(contract: EvidenceContract, usage: TokenUsage | null,
   return { contract, report: 'legacy_usage', counts, ending, responseId: responseIdEvidence }
 }
 
-/** What one model call's stream showed: its usage chunk, its finish's response id, and how the consumer ended it. */
+/**
+ * What one model call's stream showed: its usage chunk, its finish's response id, how the consumer ended it, and (C2B)
+ * the private observation frames that actually crossed, which never pass on.
+ */
 class CallFacts {
   private usage: TokenUsage | null = null
   private responseId: unknown = undefined
   private ending: Ending | null = null
+  private readonly observation = new CallObservation()
+
+  /** The call's chunks without its observation frames, each frame merged into this call's own observation. */
+  delivered(source: AsyncIterable<StreamChunk>): AsyncIterable<StreamChunk> {
+    return withoutObservations(source, this.observation)
+  }
 
   observe(chunk: StreamChunk): void {
     if (chunk.type === 'usage') this.usage = chunk.usage
@@ -1757,8 +1795,13 @@ class CallFacts {
     this.ending ??= ending
   }
 
-  /** The settlement: priced from known usage only (else uncertain), with its closed evidence. No raw id leaves elsewhere. */
-  settlement(ids: { attemptId: string; nativeSessionId: string }, reservationId: string, contract: EvidenceContract, route: RouteConfig, prices: RoutePrices): ResearchSettleRequest {
+  /**
+   * The settlement: priced from known usage only (else uncertain), with its closed evidence, plus (only for an opted-in
+   * reservation) the observed facts that crossed. They never price anything. No raw id leaves elsewhere.
+   */
+  settlement(ids: { attemptId: string; nativeSessionId: string }, reservationId: string, tracked: Pick<ResearchReserveRequest, 'contract' | 'facts'>,
+    route: RouteConfig, prices: RoutePrices): ResearchSettleRequest {
+    const contract = tracked.contract ?? 'legacy_report'
     const usage = pricedUsage(this.usage, contract)
     const costUsd = usage ? costOfUsage(usage, prices) : undefined
     return {
@@ -1766,7 +1809,10 @@ class CallFacts {
       reservationId,
       outcome: usage ? 'settled' : 'uncertain',
       ...(usage && costUsd !== undefined ? { costUsd, usage: { ...usageOf(usage), provider: route.provider, model: route.model } } : {}),
-      evidence: evidenceOf(contract, usage, this.ending ?? 'consumer_closed', this.responseId),
+      evidence: {
+        ...evidenceOf(contract, usage, this.ending ?? 'consumer_closed', this.responseId),
+        ...(tracked.facts === 'observed_v1' ? { observed: this.observation.observed() } : {}),
+      },
     }
   }
 }

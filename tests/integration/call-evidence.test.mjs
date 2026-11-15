@@ -32,7 +32,7 @@ import { C1P_API, C1P_ROUTES, C1P_RUNTIMES, BUNDLE_PROVIDER_APIS, effectiveProvi
 import { classifyResponseId } from '../../packages/dsh-bundle/dist/control-bridge.js'
 import { FIXTURE_RESOURCE, command, startFixtureService } from '../support/fixture-service.mjs'
 import { suite, unit } from '../support/harness.mjs'
-import { providerOverlayJson, researchRouteOverlay, startMockResponses } from '../support/mock-responses.mjs'
+import { providerOverlayJson, recordedRouteOverlay, researchRouteOverlay, startMockResponses } from '../support/mock-responses.mjs'
 
 const bundlePatch = readFileSync(join(REPO_ROOT, 'packages', 'dsh-bundle', 'cordis.patch.yml'), 'utf8')
 const RESEARCH = unit.model_routes['research-sol-medium-v1']
@@ -51,7 +51,12 @@ const yaml = suite('sophia-call-evidence-yaml', {
 const drift = suite('sophia-call-evidence-drift', {
   model: { start: startMockResponses, overlay: (baseURL) => providerOverlayJson(bundlePatch, baseURL, 'openai-research', { api: 'openai-completions' }), env: RESEARCH_KEY },
 })
+// C2B: the recorded default `openai` route (unpriced, openai-responses) pointed at the double, for the unpriced branch.
+const unpriced = suite('sophia-call-evidence-unpriced', {
+  model: { start: startMockResponses, overlay: (baseURL) => recordedRouteOverlay(bundlePatch, baseURL), env: { OPENAI_API_KEY: 'sk-sophia-call-evidence-unpriced-dummy' } },
+})
 after(() => {
+  unpriced.cleanup()
   research.cleanup()
   review.cleanup()
   yaml.cleanup()
@@ -84,6 +89,7 @@ describe('K04: the loaded decoder qualifies a complete report (deployed C1P runt
     assert.deepEqual(contractLine(w, 'research-sol-medium-v1'), ['c1p_complete_report', 'qualified'])
     assert.equal(reserve.mode, 'tracked_v1')
     assert.equal(reserve.contract, 'c1p_complete_report')
+    assert.equal(reserve.facts, 'observed_v1', 'C2B: the qualified producer opts in')
     assert.deepEqual(reserve.declared, { routeId: 'research-sol-medium-v1', model: RESEARCH.model, reasoningEffort: RESEARCH.reasoningEffort, prices: RESEARCH.prices })
     assert.equal(settle.outcome, 'settled')
     assert.deepEqual(settle.evidence, {
@@ -92,7 +98,13 @@ describe('K04: the loaded decoder qualifies a complete report (deployed C1P runt
       counts: { nonCachedInput: known(3), cacheRead: known(2), cacheWrite: { class: 'no_separate_reported_class' }, output: known(3) },
       ending: 'stream_completed',
       responseId: { status: 'supported', value: 'resp_mock_1' },
+      // C2B: what the patched producer's frames actually delivered, beside (never instead of) the C1P facts.
+      observed: {
+        sent: 'observable_transport_response', httpStatus: 200, n1: { id: { status: 'supported', value: 'resp_mock_1' }, sources: ['created', 'completed'] },
+        providerTerminal: 'completed', rawCounts: { inputTotal: 5, cacheRead: 2, output: 3 }, deliveryUnknownReason: 'none',
+      },
     })
+    assert.match(w.stderr(), /call_observation route=research-sol-medium-v1 observed=on reason=qualified/)
     assert.equal('providerRequestId' in settle, false, 'the legacy truncated id field is never used')
     assert.equal(JSON.stringify(settle.usage).includes('resp_mock_1'), false, 'no raw id in the legacy usage')
   })
@@ -106,12 +118,18 @@ describe('K04: the loaded decoder qualifies a complete report (deployed C1P runt
     assert.equal('costUsd' in none.settle, false)
     assert.deepEqual(none.settle.evidence, { contract: 'c1p_complete_report', report: 'not_complete',
       counts: { nonCachedInput: UNKNOWN, cacheRead: UNKNOWN, cacheWrite: UNKNOWN, output: UNKNOWN }, ending: 'stream_completed',
-      responseId: { status: 'supported', value: 'resp_mock_1' } })
+      responseId: { status: 'supported', value: 'resp_mock_1' },
+      observed: { sent: 'observable_transport_response', httpStatus: 200, n1: { id: { status: 'supported', value: 'resp_mock_1' }, sources: ['created', 'completed'] },
+        providerTerminal: 'completed', deliveryUnknownReason: 'none' } })
     const failed = await researchCall(await research.world(t), { text: 'partial', terminal: 'failed', usage: { input_tokens: 7, output_tokens: 3 } })
     assert.equal(failed.settle.outcome, 'settled')
     assert.equal(failed.settle.evidence.report, 'complete_report')
     assert.deepEqual(failed.settle.evidence.counts.output, known(3))
     assert.deepEqual(failed.settle.evidence.responseId, { status: 'unknown' }, 'the error finish carries no id: unknown, never invented')
+    // C2B: the failed response's OWN id reaches the private observation (source failed); the A57 replay field stays as it was.
+    assert.deepEqual(failed.settle.evidence.observed.n1, { id: { status: 'supported', value: 'resp_mock_1' }, sources: ['created', 'failed'] })
+    // The double reports cached_tokens 0 by default beside the step's own counts: a known zero, kept as one.
+    assert.deepEqual([failed.settle.evidence.observed.providerTerminal, failed.settle.evidence.observed.rawCounts], ['failed', { inputTotal: 7, cacheRead: 0, output: 3 }])
   })
 
   test('a source review call on source-review-luna-high-v1 is qualified the same way', async (t) => {
@@ -189,6 +207,10 @@ describe('K04: an unqualified loaded decoder is an honest legacy_report (tracked
     assert.deepEqual([reserve.mode, reserve.contract], ['tracked_v1', 'legacy_report'])
     assert.equal(settle.evidence.contract, 'legacy_report')
     assert.notEqual(settle.evidence.report, 'complete_report', 'never claimed complete')
+    // C2B: an unqualified runtime opts in to nothing and provides no capability: v1 exactly, no observation.
+    assert.match(runtime.stderr(), /call_observation route=research-sol-medium-v1 observed=off reason=runtime_not_c2b/)
+    assert.equal('facts' in reserve, false)
+    assert.equal('observed' in settle.evidence, false)
   })
 
   test('an API drift of the route provider in the effective overlay: provider_api_unqualified', async (t) => {
@@ -197,6 +219,8 @@ describe('K04: an unqualified loaded decoder is an honest legacy_report (tracked
     w.send(create(w))
     await w.service.waitFor(() => modelReserves(w.service.research).length >= 1, 90_000, 'the first model reservation')
     assert.deepEqual(contractLine(w, 'research-sol-medium-v1'), ['legacy_report', 'provider_api_unqualified'])
+    assert.match(w.stderr(), /call_observation route=research-sol-medium-v1 observed=off reason=provider_api_unqualified/)
+    assert.equal('facts' in modelReserves(w.service.research)[0].body, false)
     assert.deepEqual([modelReserves(w.service.research)[0].body.mode, modelReserves(w.service.research)[0].body.contract], ['tracked_v1', 'legacy_report'])
   })
 
@@ -216,7 +240,9 @@ describe('C01: a reservation answer that is not this exact call refuses the call
   const tampered = (tamper) => (body) => {
     const base = { reservationId: '00000000-0000-4000-8000-000000007777', state: 'reserved', kind: body.kind, purpose: body.purpose ?? 'call', amountUsd: body.amountUsd, target: null,
       binding: { mode: body.mode, contract: body.contract, evidenceId: '00000000-0000-4000-8000-000000007778', callId: body.callId, attemptId: body.attemptId,
-        nativeSessionId: body.nativeSessionId, projectId: 'proj-fixture', runtimeUnitId: unit.id, resourceId: FIXTURE_RESOURCE } }
+        nativeSessionId: body.nativeSessionId, projectId: 'proj-fixture', runtimeUnitId: unit.id, resourceId: FIXTURE_RESOURCE,
+        // C2B: the service's own echo of an opted-in request, so each tamper below changes only its own field.
+        ...(body.facts === undefined ? {} : { facts: body.facts }) } }
     return body.kind === 'model' ? tamper(base) : base
   }
   const cases = [
@@ -227,10 +253,14 @@ describe('C01: a reservation answer that is not this exact call refuses the call
     ['another project', (a) => ({ ...a, binding: { ...a.binding, projectId: 'proj-another' } }), 'scope'],
     ['another runtime unit', (a) => ({ ...a, binding: { ...a.binding, runtimeUnitId: 'another-unit' } }), 'scope'],
     ['another contract', (a) => ({ ...a, binding: { ...a.binding, contract: 'legacy_report' } }), 'mode'],
+    // C2B (A58 SI01): an old or partial service that does not echo the opt-in never silently falls back to v1.
+    ['no facts echo for an opted-in call (an old or partial service)', (a) => { delete a.binding.facts; return a }, 'facts'],
+    // Another version is not even a valid reply: the closed wire refuses it before the binding is compared.
+    ['another facts version', (a) => ({ ...a, binding: { ...a.binding, facts: 'observed_v2' } }), 'facts', '/binding/facts must be equal to one of the allowed values'],
     ['an already ended reservation', (a) => ({ ...a, state: 'settled' }), 'reservation'],
     ['another amount', (a) => ({ ...a, amountUsd: a.amountUsd + 1 }), 'reservation'],
   ]
-  for (const [what, tamper, problem] of cases) {
+  for (const [what, tamper, problem, refusal = `its answer is not this call's reservation: ${problem}`] of cases) {
     test(`${what}: refused (${problem}), no provider request, no new key, nothing settled or released`, async (t) => {
       const w = await research.world(t)
       await w.start()
@@ -242,7 +272,7 @@ describe('C01: a reservation answer that is not this exact call refuses the call
       assert.equal(modelReserves(w.service.research).length, 1, 'one reservation, under its original key: no retry made a new one')
       assert.equal(settles(w.service.research).length, 0, 'nothing settled, released or zeroed')
       const refused = w.journal().filter((r) => r.type === 'sophia/spend-refused')
-      assert.ok(refused.some((r) => r.data.reason.includes(`its answer is not this call's reservation: ${problem}`)), JSON.stringify(refused))
+      assert.ok(refused.some((r) => r.data.reason.includes(refusal)), JSON.stringify(refused))
     })
   }
 
@@ -270,7 +300,7 @@ describe('REPAIR-001 F03: the answer names the attempt\'s authenticated executor
     const answer = { reservationId: '00000000-0000-4000-8000-000000007779', state: 'reserved', kind: body.kind, purpose: body.purpose ?? 'call', amountUsd: body.amountUsd, target: null }
     if (body.kind !== 'model') return answer
     const binding = { mode: body.mode, contract: body.contract, evidenceId: '00000000-0000-4000-8000-000000007780', callId: body.callId, attemptId: body.attemptId,
-      nativeSessionId: body.nativeSessionId, projectId: 'proj-fixture', runtimeUnitId: unit.id }
+      nativeSessionId: body.nativeSessionId, projectId: 'proj-fixture', runtimeUnitId: unit.id, ...(body.facts === undefined ? {} : { facts: body.facts }) }
     return { ...answer, binding: resourceId === undefined ? binding : { ...binding, resourceId } }
   }
   const wrappers = [
@@ -667,5 +697,282 @@ describe('C2B: the closed observed facts at the three maintained wrappers, full 
     assert.deepEqual([v1.status, v1.json.code, v1.json.message], [422, 'invalid_request', 'Invalid settlement evidence'], v1.text.slice(0, 200))
     assert.deepEqual(await tablesHolding(CANARY), [], 'nothing refused was kept')
     assert.equal(logged.some((l) => l.includes(CANARY)), false, 'not in the API log')
+  })
+
+  /**
+   * INC04-R07-C2B-PRODUCER-001: the producer's own serialization end to end. The real pinned runtime (patched SDK,
+   * real bridge) talks to this real API through a recording pass-through, answers its research call from the double
+   * with a worst-escaped 8192-byte N1 (control characters, 6 bytes each on the wire) and a worst-escaped 8192-byte N2
+   * header (backslashes, 2 bytes each), and settles on the ORIGINAL ledger row. The settlement the bridge actually sent
+   * is then replayed byte for byte (an idempotent replay, and again across an API restart), and the same serializer
+   * output, rebound only to their own reservations, crosses the design and source-review wrappers under their real
+   * body limits.
+   */
+  test('C2B producer: the real runtime\'s observed facts reach the original ledger; replay and API restart keep them', async (t) => {
+    const { createServer } = await import('node:http')
+    const settlesSent = []
+    const reservesSent = []
+    const proxy = createServer(async (req, res) => {
+      const chunks = []
+      for await (const c of req) chunks.push(c)
+      const raw = Buffer.concat(chunks)
+      const record = req.method === 'POST' && (req.url.endsWith('/settle') || req.url.endsWith('/reserve')) ? { path: req.url, raw: raw.toString('utf8'), instance: req.headers['x-sophia-bridge-instance'] } : null
+      const headers = Object.fromEntries(Object.entries(req.headers).filter(([k]) => !['host', 'content-length', 'connection'].includes(k)))
+      try {
+        const answer = await fetch(`${base}${req.url}`, { method: req.method, headers, ...(raw.length > 0 ? { body: raw } : {}) })
+        const body = Buffer.from(await answer.arrayBuffer())
+        if (record) (record.path.endsWith('/reserve') ? reservesSent : settlesSent).push({ ...record, status: answer.status, answer: body.toString('utf8') })
+        res.writeHead(answer.status, { 'content-type': answer.headers.get('content-type') ?? 'application/json' })
+        res.end(body)
+      } catch {
+        res.writeHead(502)
+        res.end()
+      }
+    })
+    await new Promise((resolve) => proxy.listen(0, '127.0.0.1', resolve))
+    const scratch = mkdtempSync(join(tmpdir(), 'sophia-c2b-producer-crossing-'))
+    const llm = await startMockResponses()
+    let runtime = null
+    t.after(async () => {
+      await runtime?.stop()
+      await llm.close()
+      await new Promise((resolve) => proxy.close(resolve))
+      rmSync(scratch, { recursive: true, force: true })
+    })
+    const { projectId } = await m.testSupport.seedProject(db.ownerUrl, { admin: A, editors: [E], viewers: [] })
+    await owner(`SELECT sophia.set_research_grant($1, 'enabled', 5, 40, 'web-pilot-v1', 'approval:test')`, [projectId])
+    const rt = await m.testSupport.registerRuntime(db.ownerUrl, { projectId, admin: A, runtimeUnitId: unit.id })
+    const layout = homeLayout(join(scratch, 'home'))
+    installProfile({ unit, runtimeDir: RUNTIME_DIR, layout })
+    const S1 = `C2BPN1${crypto.randomUUID().replaceAll('-', '').slice(0, 10)}`
+    const S2 = `C2BPN2${crypto.randomUUID().replaceAll('-', '').slice(0, 10)}`
+    const n1 = worst(S1, '\u0001')
+    const n2 = worst(S2, '\\')
+    llm.script({ text: 'ok', responseId: n1, requestId: n2, usage: { input_tokens: 1000, output_tokens: 50, input_tokens_details: { cached_tokens: 200 } } })
+    runtime = launchRuntime({ unit, runtimeDir: RUNTIME_DIR, layout, bridge: { url: `http://127.0.0.1:${proxy.address().port}`, token: rt.token },
+      overlays: [providerOverlayJson(bundlePatch, llm.baseURL, 'openai-research')], extraEnv: RESEARCH_KEY })
+    const until = async (predicate, what, ms = 120_000) => {
+      const end = Date.now() + ms
+      for (;;) {
+        const value = await predicate()
+        if (value) return value
+        if (Date.now() > end) throw new Error(`timed out waiting for ${what}\n${runtime.stderr().slice(-2000)}`)
+        await new Promise((r) => setTimeout(r, 200))
+      }
+    }
+    await until(() => /readiness=ready/.test(runtime.stderr()), 'bridge readiness')
+    assert.match(runtime.stderr(), /call_observation capability=provided version=sophia-c2b-observation-v1/)
+    const admitted = await m.persistence.withActor(pool, E, 'write', (c) => m.persistence.admitResearchTask(c, projectId, {
+      key: crypto.randomUUID(), exchangeId: crypto.randomUUID(), request: { question: QUESTION, outputs: ['markdown'] }, specialist: { role: MD.id, route: MD.route },
+    }))
+    assert.ok('admitted' in admitted, JSON.stringify(admitted))
+    await until(async () => {
+      for (const row of await m.persistence.claimRuntimeOutbox(workerPool, 'c2b-producer', 50, 30)) await m.persistence.dispatchRuntimeOutbox(workerPool, row.project_id, row.id, row.lease_token)
+      return settlesSent.some((s) => s.path.endsWith('/research/settle'))
+    }, 'the bridge\'s research settlement')
+    const sent = settlesSent.find((s) => s.path.endsWith('/research/settle'))
+    assert.equal(sent.status, 200, `the API took the bridge's settlement: ${sent.answer.slice(0, 300)}\n${runtime.stderr().slice(-4000)}`)
+    const body = JSON.parse(sent.raw)
+    // The bridge's own reservation over the same real HTTP: opted in, and the real API's ACK echoed the full binding.
+    const reserves = reservesSent.filter((r) => r.path.endsWith('/research/reserve'))
+    assert.equal(reserves.length, 1, 'one reservation for the one call (no retry, no second reserve)')
+    const [reserved] = reserves
+    const ask = JSON.parse(reserved.raw)
+    const ack = JSON.parse(reserved.answer)
+    assert.deepEqual([reserved.status, ask.facts, ack.binding.facts, ack.reservationId], [200, 'observed_v1', 'observed_v1', body.reservationId])
+    assert.deepEqual([body.attemptId, body.nativeSessionId], [ask.attemptId, ask.nativeSessionId], 'the settlement is for the reserved call')
+    // The original ledger row binds the same call, resource, scope and payer the ACK carried; a project payer has no
+    // account, grant, connection or qualification (a contributed account stays the backend's refusal, unchanged here).
+    const [identity] = await owner(`SELECT evidence_id, call_id, attempt_id, native_session_id, project_id, runtime_unit_id, resource_id, operation, provider, payer,
+      account_id, grant_id, connection_id, qualification_id FROM sophia.research_call_identities WHERE project_id=$1 AND reservation_id=$2`, [projectId, body.reservationId])
+    assert.deepEqual(identity, { evidence_id: ack.binding.evidenceId, call_id: ask.callId, attempt_id: ack.binding.attemptId, native_session_id: ack.binding.nativeSessionId,
+      project_id: projectId, runtime_unit_id: ack.binding.runtimeUnitId, resource_id: ack.binding.resourceId, operation: 'research', provider: 'openai-research', payer: 'project',
+      account_id: null, grant_id: null, connection_id: null, qualification_id: null })
+    assert.deepEqual([ack.binding.callId, ack.binding.projectId, ack.binding.runtimeUnitId], [ask.callId, projectId, unit.id])
+    // What the producer's serializer actually sent: the full A57 facts and the observation, worst-escaped.
+    assert.equal(body.evidence.report, 'complete_report')
+    assert.equal(body.outcome, 'settled')
+    assert.deepEqual(body.evidence.observed.n1, { id: { status: 'supported', value: n1 }, sources: ['created', 'completed'] })
+    assert.deepEqual(body.evidence.observed.n2, { id: { status: 'supported', value: n2 }, sources: ['response_header'] })
+    assert.deepEqual(body.evidence.observed.rawCounts, { inputTotal: 1000, cacheRead: 200, output: 50 })
+    assert.ok(sent.raw.split('\\u0001').length - 1 >= 2 * (8192 - S1.length), 'both N1 copies (A57 responseId and observed n1) at 6 bytes per byte')
+    assert.ok(Buffer.byteLength(sent.raw) > 2 * 6 * (8192 - S1.length) + 2 * (8192 - S2.length) && Buffer.byteLength(sent.raw) < 256 * 1024, `${Buffer.byteLength(sent.raw)} bytes`)
+    // On the ORIGINAL ledger row of that very reservation, opted in at reserve (facts_version 2).
+    const [truth] = await owner(`SELECT i.facts_version, t.delivery, t.sent, t.http_status, t.n1_status, t.n1=$2 AS n1_kept, t.n1_sources, t.header_id_status,
+      t.header_id=$3 AS n2_kept, t.header_id_sources, t.provider_terminal, t.raw_input_total, t.raw_cache_read, t.raw_output, t.outcome, t.cost_usd::text AS cost,
+      t.noncached_input, t.cache_read, t.output, t.first_conflict_digest FROM sophia.research_call_truth t
+      JOIN sophia.research_call_identities i ON i.project_id=t.project_id AND i.reservation_id=t.reservation_id WHERE t.project_id=$1 AND t.reservation_id=$4`,
+      [projectId, n1, n2, body.reservationId])
+    assert.deepEqual(truth, { facts_version: 2, delivery: 'none', sent: 'observable_transport_response', http_status: 200, n1_status: 'supported', n1_kept: true,
+      n1_sources: ['created', 'completed'], header_id_status: 'supported', n2_kept: true, header_id_sources: ['response_header'], provider_terminal: 'completed',
+      raw_input_total: '1000', raw_cache_read: '200', raw_output: '50', outcome: 'settled', cost: String(body.costUsd.toFixed(6)), noncached_input: '800', cache_read: '200', output: '50',
+      first_conflict_digest: null })
+    // Replay: the same bytes again, as the same bridge instance (a fresh instance would supersede the live lease), then
+    // across an API restart: the recorded disposition replays, nothing changes.
+    const runtimeHeaders = { authorization: `Bearer ${rt.token}`, 'x-sophia-runtime-unit': unit.id, 'x-sophia-bridge-protocol': '1', 'x-sophia-bridge-instance': sent.instance }
+    const replay = async () => {
+      const res = await fetch(`${base}${sent.path}`, { method: 'POST', headers: { ...runtimeHeaders, 'content-type': 'application/json' }, body: sent.raw })
+      return { status: res.status, json: await res.json() }
+    }
+    const before = await owner(`SELECT digest, history_count FROM sophia.research_call_truth WHERE project_id=$1 AND reservation_id=$2`, [projectId, body.reservationId])
+    // Money: the one reservation settled once at the settlement's cost; replay and restart must leave it and the
+    // project's whole spend exactly so (no double charge).
+    const money = () => owner(`SELECT r.state, r.settled_usd::text AS settled, r.ended_at, (SELECT count(*)::int FROM sophia.research_reservations x WHERE x.project_id=$1) AS reservations,
+      (SELECT sum(x.settled_usd)::text FROM sophia.research_reservations x WHERE x.project_id=$1) AS spent FROM sophia.research_reservations r WHERE r.project_id=$1 AND r.id=$2`, [projectId, body.reservationId])
+    const charged = await money()
+    assert.deepEqual([charged[0].state, Number(charged[0].settled), charged[0].settled], ['settled', body.costUsd, charged[0].spent], 'settled once, the only charge')
+    const again = await replay()
+    assert.equal(again.status, 200, JSON.stringify(again.json))
+    assert.equal(again.json.evidence.replay, true)
+    await app.close()
+    app = m.buildApp({ pool, verifyActor: async () => { throw new Error('no member route is used here') }, logger: { stream: { write: (line) => logged.push(line) } } })
+    await app.listen({ host: '127.0.0.1', port: 0 })
+    base = `http://127.0.0.1:${app.server.address().port}`
+    const restarted = await replay()
+    assert.deepEqual([restarted.status, restarted.json.evidence.replay, restarted.json.evidence.digest], [200, true, again.json.evidence.digest])
+    assert.deepEqual(await owner(`SELECT digest, history_count FROM sophia.research_call_truth WHERE project_id=$1 AND reservation_id=$2`, [projectId, body.reservationId]), before)
+    assert.deepEqual(await money(), charged, 'no double charge across replay and API restart')
+    assert.deepEqual([again.json.settledUsd, restarted.json.settledUsd], [body.costUsd, body.costUsd])
+    // Private: the ids live only on the call ledger's private truth; never in the journal, the log or another table.
+    assert.deepEqual(await tablesHolding(S1), ['research_call_truth'])
+    assert.deepEqual(await tablesHolding(S2), ['research_call_truth'])
+    const journal = readdirSync(join(layout.dshHome, 'sophia-bridge')).map((f) => readFileSync(join(layout.dshHome, 'sophia-bridge', f), 'utf8')).join('\n')
+    for (const [where, text] of [['bridge journal', journal], ['runtime log', runtime.stderr()], ['API log', logged.join('\n')]]) {
+      assert.equal(text.includes(S1) || text.includes(S2), false, `no private id in the ${where}`)
+    }
+    // The same serializer output, rebound only to each wrapper's own opted-in reservation, under its real body limit.
+    const w2 = await attempt()
+    const ats = { research: w2.at, design: await synthetic(w2, 'design', 1000), source_review: await synthetic(w2, 'source_review', 2000) }
+    for (const r of WRAPPERS) {
+      const at = ats[r.kind]
+      const opted = await w2.call(r.reserve, { ...at, callId: `llm-producer-${r.kind}`, kind: 'model', provider: r.provider, amountUsd: 0.1, purpose: 'call', ...tracked, facts: 'observed_v1' })
+      assert.equal(opted.status, 200, opted.text)
+      const rebound = JSON.stringify({ ...body, ...at, reservationId: opted.json.reservationId })
+      assert.ok(Buffer.byteLength(rebound) < r.limit)
+      const res = await w2.call(r.settle, rebound)
+      assert.equal(res.status, 200, `${r.kind}: ${res.text.slice(0, 300)}`)
+      const [row] = await owner(`SELECT delivery, n1_status, header_id_status, provider_terminal FROM sophia.research_call_truth WHERE project_id=$1 AND reservation_id=$2`,
+        [w2.projectId, opted.json.reservationId])
+      assert.deepEqual(row, { delivery: 'none', n1_status: 'supported', header_id_status: 'supported', provider_terminal: 'completed' }, r.kind)
+    }
+  })
+})
+
+/**
+ * INC04-R07-C2B-PRODUCER-001: the patched producer's private frames through the REAL runtime and bridge, against the
+ * double and the LABELLED fixture service. Each case reads what the bridge actually sent, and checks that the private
+ * values (the canary request ids) reach only the settlement: never the journal, the observations or the log.
+ */
+describe('C2B: delivered observations from the real producer, removed before every generic consumer', () => {
+  const nowhereElse = (w, settle, needle) => {
+    for (const [where, text] of [['journal', JSON.stringify(w.journal())], ['observations', JSON.stringify(w.service.observations)], ['log', w.stderr()],
+      ['legacy usage', JSON.stringify(settle?.usage ?? null)]]) assert.equal(text.includes(needle), false, `no ${needle} in the ${where}`)
+  }
+
+  test('a completed call with a request id: N2 from the header, C1P money unchanged, the capability provided after the listener', async (t) => {
+    const w = await research.world(t)
+    const { reserve, settle } = await researchCall(w, { text: 'ok', requestId: 'req-c2b-canary-1', usage: { input_tokens: 5, output_tokens: 3, input_tokens_details: { cached_tokens: 2 } } })
+    assert.equal(reserve.facts, 'observed_v1')
+    assert.deepEqual(settle.evidence.observed.n2, { id: { status: 'supported', value: 'req-c2b-canary-1' }, sources: ['response_header'] })
+    assert.equal(settle.costUsd, Number(((3 * RESEARCH.prices.input + 2 * RESEARCH.prices.cacheRead + 3 * RESEARCH.prices.output) / 1_000_000).toFixed(6)), 'C1P money exactly as before')
+    assert.match(w.stderr(), /call_observation capability=provided version=sophia-c2b-observation-v1 after=llm\/stream/)
+    nowhereElse(w, settle, 'req-c2b-canary-1')
+    // The agent loop completed its turn on the stripped stream (a frame reaching its snapshot would have failed it).
+    await w.service.waitFor(() => w.sessionEvents('assistant/message').length >= 1, 60_000, 'the assistant message')
+    assert.equal(JSON.stringify(w.service.observations).includes('x-sophia-c2b-observation'), false)
+  })
+
+  // Stop is a caller ABORT, not a consumer return: the agent loop reads on until its next chunk, so the adapter's abort
+  // terminal frame (F3, with no provider terminal) does cross. A pure consumer return (no F3) is the SDK-level control in
+  // tests/unit/c2b-sdk-patches.test.mjs, where the consumer's own return is exact.
+  test('Stop (an abort) right after the headers, before created: F1 and the abort F3 crossed; no provider terminal, no N1, no counts', async (t) => {
+    const w = await research.world(t)
+    await w.start()
+    w.llm.script({ text: 'ok', requestId: 'req-c2b-canary-f1', delayBeforeCreatedMs: 8000 })
+    w.send(create(w))
+    await w.service.waitFor(() => w.llm.requests.length >= 1, 90_000, 'the provider request')
+    await new Promise((r) => setTimeout(r, 1500))
+    w.send(w.cmd('stop'))
+    await w.service.waitFor(() => settles(w.service.research).length >= 1, 60_000, 'the settlement after Stop')
+    const settle = settles(w.service.research)[0].body
+    assert.equal(settle.outcome, 'uncertain')
+    assert.equal(settle.evidence.ending, 'consumer_closed')
+    assert.deepEqual(settle.evidence.observed, { sent: 'observable_transport_response', httpStatus: 200, n2: { id: { status: 'supported', value: 'req-c2b-canary-f1' }, sources: ['response_header'] },
+      deliveryUnknownReason: 'none' }, 'what crossed and nothing else: no provider terminal, no N1 (created never came), no counts')
+    await w.service.waitFor(() => w.llm.abandoned >= 1, 30_000, 'the provider stream closed by the client (no drain)')
+    // C2B69-F02 (R1): read the double's WRITTEN-terminal counter only after its delayed handler really finished.
+    await w.llm.whenSettled()
+    assert.equal(w.llm.terminalSent, 0, 'no terminal written to the closed stream')
+    nowhereElse(w, settle, 'req-c2b-canary-f1')
+  })
+
+  test('Stop (an abort) after created and its first event: the created N1 crossed; no provider terminal, no counts', async (t) => {
+    const w = await research.world(t)
+    await w.start()
+    w.llm.script({ text: 'ok', requestId: 'req-c2b-canary-f2', responseId: 'resp-c2b-f2', delayMs: 8000 })
+    w.send(create(w))
+    await w.service.waitFor(() => w.llm.requests.length >= 1, 90_000, 'the provider request')
+    await new Promise((r) => setTimeout(r, 1500))
+    w.send(w.cmd('stop'))
+    await w.service.waitFor(() => settles(w.service.research).length >= 1, 60_000, 'the settlement after Stop')
+    const { observed } = settles(w.service.research)[0].body.evidence
+    assert.deepEqual(observed.n1, { id: { status: 'supported', value: 'resp-c2b-f2' }, sources: ['created'] })
+    assert.equal(observed.providerTerminal, undefined)
+    assert.equal(observed.rawCounts, undefined)
+    assert.equal(observed.deliveryUnknownReason, 'none', 'the abort terminal frame crossed')
+    await w.service.waitFor(() => w.llm.abandoned >= 1, 30_000, 'the provider stream closed by the client (no drain)')
+    // C2B69-F02 (R1): read the double's WRITTEN-terminal counter only after its delayed handler really finished.
+    await w.llm.whenSettled()
+    assert.equal(w.llm.terminalSent, 0, 'no terminal written to the closed stream')
+  })
+
+  test('an HTTP 500 with a request id, then an authorized retry: each call its own reservation and its own facts', async (t) => {
+    const w = await research.world(t)
+    await w.start()
+    w.llm.script({ status: 500, requestId: 'req-c2b-500' }, { text: 'ok', requestId: 'req-c2b-retry' })
+    w.send(create(w))
+    await w.service.waitFor(() => settles(w.service.research).length >= 2, 120_000, 'both settlements')
+    const [first, second] = settles(w.service.research).map((s) => s.body)
+    assert.deepEqual(first.evidence.observed, { sent: 'observable_transport_response', httpStatus: 500,
+      n2: { id: { status: 'supported', value: 'req-c2b-500' }, sources: ['typed_error'] }, deliveryUnknownReason: 'none' })
+    assert.equal(first.outcome, 'uncertain', 'a status is never money')
+    assert.deepEqual(second.evidence.observed.n2.id.value, 'req-c2b-retry')
+    assert.notEqual(first.reservationId, second.reservationId)
+  })
+
+  test('an in-stream error event: the error_event terminal, no counts; the call settles uncertain as before', async (t) => {
+    const w = await research.world(t)
+    const { settle } = await researchCall(w, { text: 'ok', errorEvent: { code: 'server_error' } })
+    assert.equal(settle.evidence.observed.providerTerminal, 'error_event')
+    assert.equal(settle.evidence.observed.rawCounts, undefined)
+    assert.equal(settle.outcome, 'uncertain')
+  })
+
+  test('a designer and a source reviewer opt in and settle their delivered observation through their own operations', async (t) => {
+    for (const [s, role, route, ops] of [[research, 'sophia-html-designer-v1', 'research-sol-medium-v1', 'design'], [review, 'sophia-source-review-v1', 'source-review-luna-high-v1', 'review']]) {
+      const w = await s.world(t)
+      await w.start()
+      w.llm.script({ text: 'ok', requestId: `req-c2b-${ops}` })
+      w.send(w.cmd('create', { text: ops === 'design' ? 'Design the HTML report.' : 'Source review task. Review the sources below.', role, route }))
+      const reserveOp = ops === 'design' ? 'design/reserve' : 'reserve'
+      const settleOp = ops === 'design' ? 'design/settle' : 'settle'
+      await w.service.waitFor(() => w.service[ops].some((o) => o.op === settleOp), 90_000, `the ${ops} settlement`)
+      assert.equal(w.service[ops].find((o) => o.op === reserveOp).body.facts, 'observed_v1')
+      const settle = w.service[ops].find((o) => o.op === settleOp).body
+      assert.deepEqual([settle.evidence.observed.n2.id.value, settle.evidence.observed.deliveryUnknownReason], [`req-c2b-${ops}`, 'none'])
+      nowhereElse(w, settle, `req-c2b-${ops}`)
+    }
+  })
+
+  test('an unpriced bound call on the default route: frames removed, nothing reserved or settled, no private value anywhere', async (t) => {
+    const w = await unpriced.world(t)
+    await w.start()
+    w.llm.script({ text: 'plain answer', requestId: 'req-c2b-unpriced' })
+    w.send(w.cmd('create', { text: 'Say hi.' }))
+    await w.service.waitFor(() => w.sessionEvents('assistant/message').length >= 1, 90_000, 'the assistant message')
+    assert.equal(w.llm.requests.length, 1)
+    assert.equal(modelReserves(w.service.research).length, 0, 'unpriced: not metered')
+    assert.equal(JSON.stringify(w.service.observations).includes('x-sophia-c2b-observation'), false)
+    nowhereElse(w, null, 'req-c2b-unpriced')
   })
 })

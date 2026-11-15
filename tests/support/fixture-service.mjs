@@ -41,9 +41,13 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
   // REPAIR-001 (F03): like the service's execution binding, the fixture binds each attempt to the resource of the FIRST
   // command it issued for it (SYNTHETIC: no durable binding row), and its tracked answers echo that resource.
   const boundResources = new Map()
+  // INC04-R07-C2B-PRODUCER-001 (A58 SI01): an opted-in tracked reservation (`facts: observed_v1`) is echoed `facts`, as
+  // 0110's research_call_ack does, and only then; every other reply is exactly as before. A test answering with its own
+  // handler (onResearch/onDesign/onReview) still controls the echo, so a missing or mismatched one stays testable.
   const bindingOf = (body) => body.mode === 'tracked_v1' && body.kind === 'model'
     ? { binding: { mode: body.mode, contract: body.contract, evidenceId: uuid(9500 + researchSeq), callId: body.callId, attemptId: body.attemptId,
-        nativeSessionId: body.nativeSessionId, projectId: 'proj-fixture', runtimeUnitId, resourceId: boundResources.get(body.attemptId) ?? FIXTURE_RESOURCE } }
+        nativeSessionId: body.nativeSessionId, projectId: 'proj-fixture', runtimeUnitId, resourceId: boundResources.get(body.attemptId) ?? FIXTURE_RESOURCE,
+        ...(body.facts === 'observed_v1' ? { facts: 'observed_v1' } : {}) } }
     : {}
   const researchDefaults = {
     context: (body) => body.sourceId === undefined

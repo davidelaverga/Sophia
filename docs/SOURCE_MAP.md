@@ -642,6 +642,63 @@ Read on 2026-11-14 from the official sources listed. They are fetched for readin
 - Which signals the runner sends on a step timeout is not documented in these passages, and is not relied on.
 - None of this identifies F2's cause.
 
+## 2u. The C2B call-observation producer at INC04-R07-C2B-PRODUCER-001 (two revised patches, one capability)
+
+Read on 2026-11-15 in the frozen install of the abeb lockfile as revised here. The deployed `.artifacts/runtime` holds exactly
+one copy of each patched package, and its patched files are byte-equal to the installed workspace's. These are the upstream
+passages relied on by `packages/dsh-bundle/src/c2b-observation.ts`, the bridge (`control-bridge.ts`: the capability and the
+all-branch stripping) and the qualifier (`index.ts`: `C2B_RUNTIMES`).
+
+The C1P patches of §2q are REVISED in place: no third patch. The two lines below supersede §2q's patch table. Pre/post file
+hashes and the change itself: [patches/README.md](../patches/README.md). Nothing upstream is copied into the tree.
+
+| Applied patch | Lock `patch_hash` = file SHA-256 |
+|---|---|
+| `patches/@earendil-works__pi-ai@0.87.1.patch` | `21b71bedc00318f3558e8fb65413e8d51abf3f5a03f4f3bb09fb82baf97a49a3` (R1; was `81cfd171…`) |
+| `patches/@deepseek-ai__dsh-llm-pi-ai@0.2.0-rc.2.patch` | `96f9dbd5f0be3830450240a204663281159bbf5b90750c25f53138e679667c2c` |
+
+**The capability (unpatched).**
+
+| ID | Upstream file (as installed) | Full-file SHA-256 | Lines | What it shows |
+|---|---|---|---|---|
+| C2B-CORDIS-PROVIDE | cordis `4.0.4` `lib/index.js` | `6a9394c0877ff45218818c6e815edd038f8057e1a1deb390a8d43ec81c57691e` | 800–824, 1169–1183 | `ctx.provide(name, value)` registers the service in the fiber's store and returns the effect's disposer. That disposer runs the first disposable synchronously, and the provide disposable's first statement deletes the store entry, before any notify or await. A second provider of the same name throws. |
+| C2B-CORDIS-GET | same file | (as above) | 763–772 | `ctx.get(name)` reads the store at call time, returning `undefined` when nothing is provided or its fiber is not active. No inject requirement, so a per-call read sees a withdrawal immediately. |
+
+**The stream and its listeners (unpatched).**
+
+| ID | Upstream file (as installed) | Full-file SHA-256 | Lines | What it shows |
+|---|---|---|---|---|
+| C2B-LLM-WATERFALL | dsh-llm `0.2.0-rc.2` `lib/index.js` | `9132c8a8053ee82b9fb1ded4f98c85cf557f288a15a85c552c6b1fb319ead120` | 2365–2372 | Every `llm.stream` (and a prepared call's stream) runs through the `llm/stream` waterfall around the adapter stream. |
+| C2B-LLM-ACCUMULATE | same file | (as above) | 1140–1144, 1157–1228 | The generic consumer snapshots each chunk as lossless JSON and ends its closed switch in `assertNever`. A reserved chunk reaching it would fail the turn, so every Sophia path strips frames first. |
+| C2B-LLM-INVARIANT | dsh-llm `lib/invariant.js` | `8cb78641252b7a41523fef2c571dd42c698de4c9475dd91683191cefa4dced48` | 19–58, 62–66 | The grammar validator's switch has no default: an unknown chunk type passes unchanged. It refuses only a chunk after `finish`, and F3 always precedes `finish`. |
+| C2B-LOOP-CONSUME | dsh-agent-loop `0.2.0-rc.2` `lib/index.js` | `00c4814d63f3d1e2754eb09144832d19b30499d6ea444730473f740b587948c2` | 1072–1079 | The loop pulls each chunk from the stream and pushes it into the accumulator; `signal.throwIfAborted()` runs only between pulls, so after an abort it still pulls one more chunk (the adapter's abort `finish`, preceded by its F3). |
+| C2B-LOOP-INVARIANT | dsh-agent-loop `lib/invariant.js` | `c577dcdde278b761b5810d9a941131d423de40c22ff57f98a3982681ed3bf772` | 15–35 | Checks the request only, then returns `next()` unchanged. |
+| C2B-CHECKPOINT | dsh-session-checkpoint-policy `0.2.0-rc.2` `lib/index.js` | `80a4475de0594399bfdd3203e000cfe0bf1967af163f8747c45b9b80e9549f2a` | 26–31, 61–65 | Flushes the session, then `yield* next()`: chunks pass unread. |
+| C2B-TITLE | dsh-session-title `0.2.0-rc.2` `lib/index.js` | `9701b041939fe0bf153f90e94092940720b735fc96aa85ef4a0f902f9c15ff11` | 262–268 | Notes the request and returns `next()` unchanged. |
+
+No other `llm/stream` listener exists in the deployed runtime. `dsh-repeat-tool-reminder` and `dsh-tmux-context` only bundle
+a copy of the waterfall source above; they register no listener.
+
+**The producer and reader (as patched here).**
+
+| ID | Upstream file (C2B-patched) | Full-file SHA-256 | Lines | What it shows |
+|---|---|---|---|---|
+| C2B-PT-EVENTS | pi-ai `0.87.1` `dist/types.d.ts` | `2af40a9503feca4fa6640d7640fac531a6b516f1e5b27c3bb9c842d1f6f9818b` | 117–123, 482–536 | The opt-in `callObservation` option. The event union: every progress event carries `partial`, `done` carries `message` and `error` carries `error`, all the same output message, so the private record is readable at each event. |
+| C2B-PT-RECORD | pi-ai `dist/api/openai-responses.js` (R1) | `495d187090dd57cbb9aa34b3942f3c21ac253a5492ac80c8c206cf267e6e5f64` (was `130c355e…`) | 106–111, 130–151, 186–200, 212–213 | The record is defined non-enumerable only when asked. R1 (C2B69-F01): the typed HTTP facts are recorded only in a scope around exactly the awaited request, and only from `OpenAI.APIError` with a numeric `status`, read as own data properties (130–146, 186–200). Client and param construction and `onPayload` come before that scope; `onResponse`, the stream and the local ending checks come after it; none of them can add a status or N2. The transport status and `x-request-id` are still recorded after the headers (147–151). `streamSimple` forwards the option only when asked. |
+| C2B-PT-SHARED | pi-ai `dist/api/openai-responses-shared.js` | `2c1df1886262f4e440003516ed2eada6e15185f0406c29dbf38ae32aa850cc1f` | 336–365, 525–534, 691–702 | The own-data reader and the first-terminal recorder (raw `input_tokens`, `cached_tokens`, `output_tokens` only); the `response.created` id; `completed`/`incomplete`, the stream `error` event and `response.failed` recorded at the event itself. |
+| C2B-OAI-ERROR | openai `6.40.0` `core/error.mjs` | `a09e1a668103e90c481330209d49ff8b0ee6849f0bec93206e4c3f3ed1cebc04` | 5–10 | `APIError` holds the typed `status` and `requestID` (the error response's own `x-request-id`). |
+| C2B-OAI-CLIENT | openai `6.40.0` `client.mjs` | `45b54e0c0a779a8b284cc8bcfb41a0a0f1817eac32d9cc585ff71875b62aeb6b` | 693 | R1: `OpenAI.APIError = Errors.APIError`, so the carrier class is reachable through pi-ai's existing default `openai` import (no new import or dependency). Only this line was read. |
+| C2B-PT-RETRY | pi-ai `dist/utils/provider-retry.js` (unpatched) | `f14a8cfb9a99901a7cde6d588fad11aa8030e409d760d76050e580b6dba5c3f5` | 67–93 | R1: `retryProviderRequest` rethrows the SDK request's own rejection, or throws local abort and retry-delay errors that carry no status; no user callback runs inside it. Sophia's adapter passes `maxRetries: 0`. |
+| C2B-DA-FRAMES | dsh-llm-pi-ai `0.2.0-rc.2` `lib/index.js` | `b7f7e5b9ae73cb584bf1ac44860cff068faaacd885827bc932ab3301caed4d27` | 1397–1505, 1595–1600 | The closed frame grammar and `c2bFrames`: F1, F2 (supported created id only), F3, each once, in order, emitted before the event they precede, so only on a pull. |
+| C2B-DA-BASELINE | same file | (as above) | 1688–1700 | Unchanged: `finish.replayState` keeps the baseline N1, the only id in generic replay. |
+| C2B-DA-GATE | same file | (as above) | 1994, 2016–2025, 2716–2718 | Per call, before any request: observe only on `openai-responses` with the exact capability version, read with `ctx.get` as `resolveAttachments` already does. |
+
+**What these passages do not establish.**
+
+- Live provider behavior. Every crossing ran against the local double only.
+- Provider-billed amounts, and any cache-write class.
+- That a consumer return after F1 or F2 is ever seen through the agent loop: Stop is an abort there (C2B-LOOP-CONSUME). The return case is shown at the adapter boundary only.
+
 ## 3. Facts learned at the pin (not in the pack)
 
 These are observed behaviors of the pinned release, recorded so later goals
