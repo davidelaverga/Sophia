@@ -459,3 +459,66 @@ test('a retained receipt delivery that stalls is bounded and sent again', async 
     await rmReplyPoll(scratch, { recursive: true, force: true })
   }
 })
+
+// INC04-R07-C2B-PRODUCER-001: the opt-in, its ACK and the observation capability's lifecycle, on the built bridge.
+test('C2B: the answer echoes facts exactly when the request opted in; a missing, extra or other echo refuses before effect', async () => {
+  const { bindingProblem } = await import('../../packages/dsh-bundle/dist/control-bridge.js')
+  const base = { attemptId: 'known', nativeSessionId: 'sophia-known', callId: 'llm-1', kind: 'model', provider: 'p', amountUsd: 0.1, purpose: 'call', mode: 'tracked_v1', contract: 'c1p_complete_report' }
+  const reply = (facts) => ({ reservationId: 'r', state: 'reserved', kind: 'model', purpose: 'call', amountUsd: 0.1, target: null,
+    binding: { mode: 'tracked_v1', contract: 'c1p_complete_report', evidenceId: '00000000-0000-4000-8000-000000000001', callId: 'llm-1', attemptId: 'known',
+      nativeSessionId: 'sophia-known', projectId: 'p', runtimeUnitId: 'u', resourceId: 'res-1', ...(facts === undefined ? {} : { facts }) } })
+  const context = { projectId: 'p', runtimeUnitId: 'u', resource: { state: 'known', resourceId: 'res-1' } }
+  const opted = { ...base, facts: 'observed_v1' }
+  assert.equal(bindingProblem(reply('observed_v1'), opted, context), null)
+  assert.equal(bindingProblem(reply(undefined), opted, context), 'facts', 'an old or partial service: no silent v1 fallback')
+  assert.equal(bindingProblem(reply('observed_v2'), opted, context), 'facts')
+  assert.equal(bindingProblem(reply(undefined), base, context), null, 'v1 exactly as before')
+  assert.equal(bindingProblem(reply('observed_v1'), base, context), 'facts', 'an echo the request never asked for')
+})
+
+test('C2B: only a qualified route opts in; the capability is provided after the stripping listener and withdrawn first', async () => {
+  const { ControlBridge: Bridge } = await import('../../packages/dsh-bundle/dist/control-bridge.js')
+  const dir = mkdtempSync(join(tmpdir(), 'bridge-c2b-'))
+  const events = []
+  let streamListener
+  const ctx = {
+    on: (name, fn, options) => { events.push(`on:${name}${options?.global ? ':global' : ''}${options?.prepend ? ':prepend' : ''}`); if (name === 'llm/stream') streamListener = fn; return () => events.push(`off:${name}`) },
+    provide: (name, value) => { events.push(`provide:${name}:${value.version}:${Object.isFrozen(value)}`); return () => events.push(`withdraw:${name}`) },
+    tools: { guard: () => () => events.push('off:guard') },
+  }
+  const route = { provider: 'openai-research', model: 'gpt-6.1-sol', reasoningEffort: 'medium', maxTokens: 16000, prices: { input: 2, cacheRead: 0.1, cacheWrite: 2.5, output: 10 } }
+  const settings = (observedRoutes) => ({ protocolVersion: 1, bundle: 'synthetic', dshVersion: 'synthetic', runtimeUnitId: 'u', service: null, workspace: dir, journalDir: dir,
+    pollWaitMs: 1, settleTimeoutMs: 1, routes: { 'research-sol-medium-v1': route }, roleRoutes: {}, research: null, log: () => {}, observedRoutes })
+  try {
+    const bridge = new Bridge(ctx, settings(new Set(['research-sol-medium-v1'])))
+    assert.equal(bridge.tracked(route, route.prices).facts, 'observed_v1')
+    const stop = bridge.start()
+    assert.deepEqual(events.slice(0, 3), ['on:agent/pre-step', 'on:llm/stream:global:prepend', 'provide:sophiaC2bObservation:sophia-c2b-observation-v1:true'])
+    // The listener's unbound branch (no session) removes a frame and passes the rest.
+    const frame = { type: 'x-sophia-c2b-observation' }
+    Object.defineProperty(frame, 'sophiaC2bObservation', { value: { v: 1, frame: 'transport', sent: 'observable_transport_response' }, enumerable: false })
+    async function* next() { yield frame; yield { type: 'text-delta', index: 0, text: 'ok' } }
+    const seen = []
+    for await (const chunk of streamListener({}, next)) seen.push(chunk.type)
+    assert.deepEqual(seen, ['text-delta'])
+    // The bound but unmetered branch (this test bridge has no service transport) removes it too. LABELLED stub: the
+    // session's attempt is given directly, on the route the call names.
+    bridge.attemptForSession = () => ({ identity: { route: { provider: route.provider, model: route.model, reasoningEffort: route.reasoningEffort } } })
+    const unmetered = []
+    for await (const chunk of streamListener({ provider: route.provider, model: route.model, sessionId: 's-unmetered' }, next)) unmetered.push(chunk.type)
+    assert.deepEqual(unmetered, ['text-delta'])
+    events.length = 0
+    await stop()
+    assert.equal(events[0], 'withdraw:sophiaC2bObservation', 'the capability goes before any listener')
+    assert.ok(events.indexOf('off:llm/stream') > 0)
+    // Without a qualified route: no opt-in and no capability at all.
+    events.length = 0
+    const plain = new Bridge(ctx, settings(new Set()))
+    assert.equal('facts' in plain.tracked(route, route.prices), false)
+    const stopPlain = plain.start()
+    assert.equal(events.some((e) => e.startsWith('provide:')), false)
+    await stopPlain()
+  } finally {
+    rmSync(dir, { recursive: true })
+  }
+})

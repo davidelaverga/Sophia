@@ -1,8 +1,8 @@
 diff --git a/lib/index.js b/lib/index.js
-index 0c74b3ab2b556f4b0e656a304e1242ffceb8c288..666b51ee30548f35d9352ab7eb9989f229908104 100644
+index 0c74b3ab2b556f4b0e656a304e1242ffceb8c288..fe5cc1d6e64a54d31c6c52a1eb3afbc25f86d1ed 100644
 --- a/lib/index.js
 +++ b/lib/index.js
-@@ -1377,6 +1377,17 @@ function mapUsage(usage) {
+@@ -1377,6 +1377,132 @@ function mapUsage(usage) {
  		...usage.cacheWrite > 0 ? { cacheWriteTokens: usage.cacheWrite } : {}
  	};
  }
@@ -17,10 +17,140 @@ index 0c74b3ab2b556f4b0e656a304e1242ffceb8c288..666b51ee30548f35d9352ab7eb9989f2
 +	if (message.api === "openai-responses") return message.usageProvenance === "complete" ? mapUsage(message.usage) : void 0;
 +	return mapUsage(message.usage);
 +}
++// Sophia patch (INC04-R07-C2B-PRODUCER-001): private call observation frames. A call emits them only when its route is
++// openai-responses AND the exact versioned capability below is provided (the consumer that removes them is installed
++// first). Each frame is a reserved chunk type whose one payload is a NON-enumerable, frozen own data property: at most
++// F1 (transport headers), F2 (the first supported created response id, on the next delivered event) and F3 (the actual
++// terminal or error facts), in that order, each at most once and only before usage and finish. Nothing is invented:
++// a fact the producer did not record, or a frame that never crossed (an early return), stays unknown.
++const C2B_FRAME_TYPE = "x-sophia-c2b-observation";
++const C2B_KEY = "sophiaC2bObservation";
++const C2B_SERVICE = "sophiaC2bObservation";
++const C2B_VERSION = "sophia-c2b-observation-v1";
++const C2B_ID_MAX_BYTES = 8192;
++/** Whether the provided capability is exactly this producer's version. */
++function c2bActive(service) {
++	try {
++		return service !== null && typeof service === "object" && service.version === C2B_VERSION;
++	} catch {
++		return false;
++	}
++}
++/** The producer's private record on a pi-ai message, read as an own data property only, or undefined. */
++function c2bRecordOf(message) {
++	if (message === null || typeof message !== "object") return void 0;
++	const descriptor = Object.getOwnPropertyDescriptor(message, C2B_KEY);
++	return descriptor !== void 0 && "value" in descriptor && descriptor.value !== null && typeof descriptor.value === "object" ? descriptor.value : void 0;
++}
++/** An id's closed classification: supported (kept whole) or unsupported with a fixed reason, never the raw value. */
++function c2bId(raw) {
++	if (typeof raw !== "string") return { status: "identity_unsupported", reason: "not_string" };
++	if (raw.length === 0) return { status: "identity_unsupported", reason: "empty" };
++	if (raw.includes("\u0000")) return { status: "identity_unsupported", reason: "nul" };
++	if (!raw.isWellFormed()) return { status: "identity_unsupported", reason: "unpaired_surrogate" };
++	if (Buffer.byteLength(raw, "utf8") > C2B_ID_MAX_BYTES) return { status: "identity_unsupported", reason: "over_bound" };
++	return { status: "supported", value: raw };
++}
++const c2bStatus = (value) => Number.isSafeInteger(value) && value >= 100 && value <= 599 ? value : void 0;
++const c2bCount = (value) => Number.isSafeInteger(value) && value >= 0 ? value : void 0;
++function c2bCounts(usage) {
++	const out = {};
++	for (const key of ["inputTotal", "cacheRead", "output"]) {
++		const value = c2bCount(usage?.[key]);
++		if (value !== void 0) out[key] = value;
++	}
++	return out;
++}
++function c2bFreeze(value) {
++	if (value !== null && typeof value === "object") {
++		for (const child of Object.values(value)) c2bFreeze(child);
++		Object.freeze(value);
++	}
++	return value;
++}
++function c2bFrame(payload) {
++	const frame = { type: C2B_FRAME_TYPE };
++	Object.defineProperty(frame, C2B_KEY, { value: c2bFreeze(payload), enumerable: false, writable: false, configurable: false });
++	return frame;
++}
++function c2bTransportPayload(transport) {
++	const status = c2bStatus(transport.status);
++	const requestId = transport.requestId;
++	return {
++		v: 1,
++		frame: "transport",
++		sent: "observable_transport_response",
++		...status === void 0 ? {} : { httpStatus: status },
++		...requestId === null || requestId === void 0 ? {} : { n2: [{ id: c2bId(requestId), source: "response_header" }] }
++	};
++}
++function c2bTerminalPayload(record) {
++	const terminal = record.terminal;
++	const typed = record.typedError;
++	const n1 = [];
++	const n2 = [];
++	if (record.created?.hasId) n1.push({ id: c2bId(record.created.id), source: "created" });
++	if (terminal !== void 0 && terminal.kind !== "error_event" && terminal.hasId) n1.push({ id: c2bId(terminal.id), source: terminal.kind });
++	if (record.transport?.requestId !== null && record.transport?.requestId !== void 0) n2.push({ id: c2bId(record.transport.requestId), source: "response_header" });
++	if (typed?.requestId !== null && typed?.requestId !== void 0) n2.push({ id: c2bId(typed.requestId), source: "typed_error" });
++	const status = c2bStatus(record.transport?.status) ?? c2bStatus(typed?.status);
++	const sent = record.transport !== void 0 || c2bStatus(typed?.status) !== void 0;
++	const counts = terminal === void 0 ? {} : c2bCounts(terminal.usage);
++	return {
++		v: 1,
++		frame: "terminal",
++		...sent ? { sent: "observable_transport_response" } : {},
++		...status === void 0 ? {} : { httpStatus: status },
++		...n1.length > 0 ? { n1 } : {},
++		...n2.length > 0 ? { n2 } : {},
++		...terminal === void 0 ? {} : { providerTerminal: terminal.kind },
++		...terminal !== void 0 && Object.keys(counts).length > 0 ? { rawCounts: counts } : {}
++	};
++}
++/** One call's frame state: F1, F2 and F3 each cross at most once, in order, from what the producer actually recorded. */
++function c2bFrames() {
++	const crossed = { transport: false, created: false, terminal: false };
++	return { *before(event) {
++		const terminal = event.type === "done" || event.type === "error";
++		const record = c2bRecordOf(terminal ? event.type === "done" ? event.message : event.error : event.partial);
++		if (record === void 0 || crossed.terminal) return;
++		if (terminal) {
++			crossed.terminal = true;
++			yield c2bFrame(c2bTerminalPayload(record));
++			return;
++		}
++		if (!crossed.transport && record.transport !== void 0) {
++			crossed.transport = true;
++			yield c2bFrame(c2bTransportPayload(record.transport));
++		}
++		if (!crossed.created && record.created?.hasId) {
++			const id = c2bId(record.created.id);
++			if (id.status === "supported") {
++				crossed.created = true;
++				yield c2bFrame({ v: 1, frame: "created", n1: [{ id, source: "created" }] });
++			}
++		}
++	} };
++}
  function classifyPiAiError(message) {
  	if (/\b(?:401|403)\b/.test(message)) return "AUTH";
  	if (isQuotaExceededError(message)) return QUOTA_EXCEEDED_CODE;
-@@ -1556,10 +1567,11 @@ async function* toStreamChunks(events, contextWindow, callerSignal, requestedMod
+@@ -1466,9 +1592,12 @@ function mapStopReason(message, contextWindow) {
+ * @returns the harness chunks, ending with `usage` then `finish`; throws
+ *   `LlmError` (`STREAM_CLOSED`) if the source ends without a terminal event.
+ */
+-async function* toStreamChunks(events, contextWindow, callerSignal, requestedModel) {
++async function* toStreamChunks(events, contextWindow, callerSignal, requestedModel, observe = false) {
+ 	const toolIds = /* @__PURE__ */ new Map();
+-	for await (const event of events) switch (event.type) {
++	const frames = observe ? c2bFrames() : void 0;
++	for await (const event of events) {
++		if (frames !== void 0) yield* frames.before(event);
++		switch (event.type) {
+ 		case "start": break;
+ 		case "text_start":
+ 			yield {
+@@ -1556,10 +1685,11 @@ async function* toStreamChunks(events, contextWindow, callerSignal, requestedMod
  				}
  			};
  			break;
@@ -35,7 +165,7 @@ index 0c74b3ab2b556f4b0e656a304e1242ffceb8c288..666b51ee30548f35d9352ab7eb9989f2
  			};
  			yield {
  				type: "finish",
-@@ -1567,10 +1579,12 @@ async function* toStreamChunks(events, contextWindow, callerSignal, requestedMod
+@@ -1567,10 +1697,12 @@ async function* toStreamChunks(events, contextWindow, callerSignal, requestedMod
  				replayState: toPiReplayState(event.message, requestedModel)
  			};
  			return;
@@ -51,11 +181,41 @@ index 0c74b3ab2b556f4b0e656a304e1242ffceb8c288..666b51ee30548f35d9352ab7eb9989f2
  			};
  			yield {
  				type: "finish",
-@@ -1580,6 +1594,7 @@ async function* toStreamChunks(events, contextWindow, callerSignal, requestedMod
+@@ -1580,6 +1712,8 @@ async function* toStreamChunks(events, contextWindow, callerSignal, requestedMod
  				} : event.error, contextWindow)
  			};
  			return;
 +		}
++		}
  	}
  	throw new LlmError("pi-ai event stream ended without done/error", "STREAM_CLOSED");
  }
+@@ -1878,14 +2012,17 @@ var PiAiAdapter = class extends LlmAdapter {
+ 						maxBytes: profile.requestImageMaxBytes
+ 					}
+ 				}, onReplayDegrade);
++				// Sophia patch (INC04-R07-C2B-PRODUCER-001): decided per call, before any request leaves.
++				const observe = model.api === "openai-responses" && c2bActive(this.config.resolveCallObservation?.());
+ 				const iterator = toStreamChunks(snapshot.models.streamSimple(model, context, {
+ 					...profileOptions(profile, reasoning, apiKey),
+ 					...options.temperature === void 0 ? {} : { temperature: options.temperature },
+ 					...options.maxTokens === void 0 ? {} : { maxTokens: options.maxTokens },
+ 					...options.sessionId === void 0 ? {} : { sessionId: String(options.sessionId) },
+ 					signal: watchdog.signal,
+-					headers: requestHeaders(profile.headers)
+-				}), model.contextWindow, options.signal, model.id)[Symbol.asyncIterator]();
++					headers: requestHeaders(profile.headers),
++					...observe ? { callObservation: true } : {}
++				}), model.contextWindow, options.signal, model.id, observe)[Symbol.asyncIterator]();
+ 				let exhausted = false;
+ 				try {
+ 					while (true) {
+@@ -2577,6 +2714,8 @@ function apply(ctx, config) {
+ 		resolveApiKey,
+ 		auth,
+ 		resolveAttachments: () => ctx.get("attachments"),
++		// Sophia patch (INC04-R07-C2B-PRODUCER-001): the consumer's versioned observation capability, when provided.
++		resolveCallObservation: () => ctx.get(C2B_SERVICE),
+ 		resolveImageAccess: (attachments, ref) => resolveImageAttachmentAccess(attachments, (hostPath) => ctx.get("fs")?.processPathFromHostPath(hostPath), ref),
+ 		onReplayDegrade: ({ provider, model, reason }) => {
+ 			ctx.logger.warn(`llm-pi-ai: unusable replay state on assistant history for route "${provider}/${model}"; sending that message as provider-neutral content (${reason})`);

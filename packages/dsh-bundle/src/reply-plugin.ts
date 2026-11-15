@@ -15,6 +15,7 @@ import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { Socket } from 'node:net'
 import type { Duplex } from 'node:stream'
 import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
+import { withoutObservations } from './c2b-observation.js'
 import type { RuntimeObservation } from './runtime-wire-types.generated.js'
 import type { ReplyReserveLine, ReplySettleLine } from './reply-child.js'
 
@@ -757,7 +758,8 @@ export class ReplyCallMeter {
     try {
       // A Stop or caller cancellation can arrive while waiting for the reservation's durable answer.
       checkReplyCall(options, this.scope, this.accounts.state === 'running')
-      for await (const chunk of next()) {
+      // C2B: this child provides no observation capability, so no frame should arrive; any that does is removed here.
+      for await (const chunk of withoutObservations(next())) {
         collectReplyUsage(collected, chunk)
         yield chunk
       }

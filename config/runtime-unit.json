@@ -18,10 +18,10 @@
     ],
     "artifact_kind": "pnpm deploy --prod of runtime/dsh (@sophia/dsh-runtime) from pnpm-lock.yaml",
     "artifact_primary_platform": "linux-x64",
-    "artifact_digest": "sophia-tree-v2:sha256:c97621b453d098206d859f2c1307cfff30ecfebf464000ec8245c2bf1d311f14",
+    "artifact_digest": "sophia-tree-v2:sha256:874b64ead9ba60c7c1abfa18a504023bb1ae7ff191ca3fc462ada040a1bd6d30",
     "artifacts_by_platform": {
       "linux-x64": {
-        "digest": "sophia-tree-v2:sha256:c97621b453d098206d859f2c1307cfff30ecfebf464000ec8245c2bf1d311f14",
+        "digest": "sophia-tree-v2:sha256:874b64ead9ba60c7c1abfa18a504023bb1ae7ff191ca3fc462ada040a1bd6d30",
         "entries": 27747
       }
     },
@@ -65,7 +65,7 @@
     "live_verified": false,
     "compat_note": "SMC-M02 R1: pins the request shape of sophia-runtime-s1-03-dev. pi-ai 0.87.1 ships gpt-6-luna with supportsStrictMode true, which adds `strict: false` to every tool; the gate requires this compat value (checkModelRoute) and tests/integration/request-shape.test.mjs holds the whole shape"
   },
-  "workspace_lock_sha256": "7a500c03385a138122ae5e2f5c4c5d05a61058bcb64c4223326c64abe94c9ee2",
+  "workspace_lock_sha256": "ca833c4963327694e0773398db29343cc74931b08811a261950e96abc8878512",
   "google_sdk": {
     "package": "@google/genai",
     "version": "2.24.0",
@@ -93,9 +93,9 @@
     "source_commit": null,
     "source_commit_note": "a commit cannot contain its own id; the release tag records it, and `pnpm artifacts` proves a checkout reproduces the recorded archive bytes",
     "archive": "sophia-dsh-bundle-0.1.0.tgz",
-    "archive_sha256": "8fedcb04905ecab4de5189a48b4c5de5b24a7bce5d190c50492c330fcbdd561e",
-    "archive_integrity": "sha512-QPHGOTULnnHTnwc3rrX4bIetArm9/6qcDCdZVgrUQE96uUsihWykjGUF5Cf+5ywY2x6Gm2FrOSsByynVCo571A==",
-    "artifact_digest": "sha256:8fedcb04905ecab4de5189a48b4c5de5b24a7bce5d190c50492c330fcbdd561e",
+    "archive_sha256": "92778bfdfa091b1ec06e4385d4334804af76decb7a6b2814c658d78f8c945def",
+    "archive_integrity": "sha512-RsI5oMXT3joMAV6VE0INmK282mDCInCzr0cn8mITLWoe3sKSUn+sXaaOpTf/Q+qDvPxNxQYo6J6l3Ekg0qO6iw==",
+    "artifact_digest": "sha256:92778bfdfa091b1ec06e4385d4334804af76decb7a6b2814c658d78f8c945def",
     "bridge_protocol_version": 1,
     "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)"
   },

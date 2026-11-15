@@ -314,9 +314,20 @@ const loadedClosure = (): string => executorClosure(loadedInputs()).digest
  * The qualified C1P SDK runtime: the recorded dsh runtime tree (config/runtime-unit.json dsh.artifacts_by_platform, the
  * pinned dsh with the C1P-patched pi-ai and dsh-llm-pi-ai), by platform. It is the closure's `runtime` component alone,
  * which the Sophia bundle does not change; a runtime under the same unit label with other bytes is not qualified.
+ * INC04-R07-C2B-PRODUCER-001 requalifies it on the tree whose two patches also carry the C2B producer (the C1P usage
+ * rule is unchanged in them).
  */
 export const C1P_RUNTIMES: Readonly<Record<string, string>> = {
-  'linux-x64': 'sophia-tree-v2:sha256:c97621b453d098206d859f2c1307cfff30ecfebf464000ec8245c2bf1d311f14',
+  'linux-x64': 'sophia-tree-v2:sha256:874b64ead9ba60c7c1abfa18a504023bb1ae7ff191ca3fc462ada040a1bd6d30',
+}
+
+/**
+ * C2B (INC04-R07-C2B-PRODUCER-001): the qualified runtime whose patched pi-ai and dsh-llm-pi-ai carry the private call
+ * observation producer, by platform. Only a route on it may opt in to observed facts and only then is the observation
+ * capability provided; any other runtime (the C1P-only tree included) emits and opts in to nothing.
+ */
+export const C2B_RUNTIMES: Readonly<Record<string, string>> = {
+  'linux-x64': 'sophia-tree-v2:sha256:874b64ead9ba60c7c1abfa18a504023bb1ae7ff191ca3fc462ada040a1bd6d30',
 }
 
 /** The routes whose C1P Responses decoder reports usage only when complete (INC04-S03A-R07-C1P), by route id. */
@@ -389,6 +400,43 @@ export function evidenceQualifications(
   return out
 }
 
+/** Why a route's calls do not opt in to observed facts, or `qualified`: fixed words, never a path or a value. */
+export type ObservationQualification = 'qualified' | 'route_unqualified' | 'closure_unverifiable' | 'runtime_not_c2b' | 'provider_api_unqualified'
+
+/**
+ * C2B: each configured route's observed-facts opt-in from what this process LOADED, on the same terms as its C1P
+ * contract: a C1P route with exactly its provider, model and effort, a verifiable loaded closure whose runtime component
+ * is the qualified C2B runtime for this platform, and the effective llm-pi-ai API of its provider openai-responses.
+ * Anything else does not opt in, with its fixed reason; the call stays tracked v1 exactly and nothing blocks startup.
+ */
+export function observationQualifications(
+  routes: Readonly<Record<string, RouteConfig>>,
+  loaded: () => { readonly runtime: string; readonly platform: string; readonly layers: readonly Buffer[] },
+): Record<string, ObservationQualification> {
+  const out: Record<string, ObservationQualification> = {}
+  for (const id of Object.keys(routes)) out[id] = 'route_unqualified'
+  const candidates = Object.keys(routes).filter((id) => {
+    const want = C1P_ROUTES[id]
+    const route = routes[id]
+    return want !== undefined && route !== undefined && route.provider === want.provider && route.model === want.model && route.reasoningEffort === want.reasoningEffort
+  })
+  if (candidates.length === 0) return out
+  let facts: ReturnType<typeof loaded>
+  let apis: Readonly<Record<string, unknown>> | null
+  try {
+    facts = loaded()
+    apis = effectiveProviderApis(facts.layers)
+  } catch {
+    for (const id of candidates) out[id] = 'closure_unverifiable'
+    return out
+  }
+  for (const id of candidates) {
+    const provider = routes[id]?.provider ?? ''
+    out[id] = facts.runtime !== C2B_RUNTIMES[facts.platform] ? 'runtime_not_c2b' : apis?.[provider] !== C1P_API ? 'provider_api_unqualified' : 'qualified'
+  }
+  return out
+}
+
 /** The loaded closure's runtime component, platform and patch layers (profile patch, then overlays), or a throw. */
 const loadedDecoder = () => {
   const inputs = loadedInputs()
@@ -403,6 +451,13 @@ function evidenceContracts(routes: Readonly<Record<string, RouteConfig>>): Recor
   const qualified = evidenceQualifications(routes, loadedDecoder)
   for (const [id, q] of Object.entries(qualified)) log(`call_evidence route=${id} contract=${q.contract} reason=${q.why}`)
   return Object.fromEntries(Object.entries(qualified).map(([id, q]) => [id, q.contract]))
+}
+
+/** The routes whose calls opt in to observed facts, each route's outcome logged once with its fixed reason. */
+function observedRoutes(routes: Readonly<Record<string, RouteConfig>>): ReadonlySet<string> {
+  const qualified = observationQualifications(routes, loadedDecoder)
+  for (const [id, why] of Object.entries(qualified)) log(`call_observation route=${id} observed=${why === 'qualified' ? 'on' : 'off'} reason=${why}`)
+  return new Set(Object.entries(qualified).filter(([, why]) => why === 'qualified').map(([id]) => id))
 }
 
 const log = (line: string): void => {
@@ -444,6 +499,7 @@ export function apply(ctx: Context, config: unknown): void {
     roleRoutes: settings.roleRoutes,
     research: researchSources(settings.sources),
     evidenceContracts: evidenceContracts(settings.routes),
+    observedRoutes: observedRoutes(settings.routes),
     replies: null, // The native child composition is not qualified; only service mode may run, when configured.
     replyService: replyServiceSettings(settings.replies, settings.routes, process.env, log, loadedClosure),
     log,
