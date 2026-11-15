@@ -6,6 +6,8 @@
 // * F02: with contributions on, /ready and the contribution routes' own installation check require everything they
 //   promise (0094, 0100, 0104's protection and qualification, 0105, 0106). Real partial schemas are built from exact
 //   prefixes of this tree's own migrations. A refused write leaves no account change, idempotency row or command.
+//   Every such prefix lacks 0109, which /ready requires whatever the switches say (the readiness repair), so 0106's
+//   optional boundary is shown on a full schema with only 0106's readiness marker dropped (0105 and 0109 installed).
 // * INC04-S02a coherent: 0105's atomic admission is core. A database of the earlier source (this tree's migrations
 //   before 0109 except 0105, 0106, 0107 and 0108 included: no prefix; 0109 and later declare on 0105's objects, so
 //   that history never ran them without it) proves nothing installed: /ready refuses on and off, and the contribution
@@ -470,13 +472,14 @@ async function footprint(owner: pg.Pool, accountId: string) {
   }
 }
 
-// Each prefix's /ready with contributions off (INC04-S02a coherent): this source requires 0105's atomic admission
-// whatever the switch says, so a prefix without 0105 is not ready either way (the earlier source's off 200 there was
-// true for that source); the prefix before 0106 holds 0105 and is ready off, needing nothing of 0106 then.
-for (const [upTo, label, off200] of [
-  ['0101', 'through 0100', false],
-  ['0104', 'through 0102, without 0104', false],
-  ['0106', 'with 0104 and 0105, without 0106', true],
+// Each prefix's /ready with contributions off: this source requires 0105's atomic admission (INC04-S02a coherent) and
+// 0109's tracked-call boundary (the readiness repair) whatever the switch says. Every prefix here lacks 0109, so none is
+// ready on or off: the prefix before 0106 holds 0105 but not 0109 (an earlier source's off 200 there was true for that
+// source). That 0106 itself stays optional with contributions off is shown on a full schema below, where 0109 is present.
+for (const [upTo, label, missing] of [
+  ['0101', 'through 0100', 'without 0105 and 0109, the core atomic admission and tracked-call boundary'],
+  ['0104', 'through 0102, without 0104', 'without 0105 and 0109, the core atomic admission and tracked-call boundary'],
+  ['0106', 'with 0104 and 0105, without 0106', 'without 0109, the core tracked-call boundary'],
 ] as const) {
   describe(`on a database ${label} (F02)`, () => {
     let db: TestDatabase
@@ -533,13 +536,7 @@ for (const [upTo, label, off200] of [
           preview: [preview.status, preview.json?.code],
         }),
       )
-      assert.deepEqual(
-        readiness,
-        { on: 503, off: off200 ? 200 : 503 },
-        off200
-          ? 'not ready with contributions on (no 0106); off (the default): ready, with 0105'
-          : 'not ready on or off: without 0105, the core atomic admission',
-      )
+      assert.deepEqual(readiness, { on: 503, off: 503 }, `not ready on or off: ${missing}`)
       for (const r of [patch, mine, create]) {
         assert.deepEqual(
           [r.status, r.json.code, r.json.message],
@@ -557,6 +554,114 @@ for (const [upTo, label, off200] of [
     })
   })
 }
+
+// 0106 is optional with contributions off, apart from the core (0105 and 0109). The schema is real: this tree's every
+// migration as written, so 0105's atomic admission and 0109's tracked-call boundary are installed, and then ONLY 0106's
+// private readiness marker, sophia.selection_viewer_boundary_0106(), is dropped by the owner. It is exactly what /ready
+// with contributions on and the contribution routes check for 0106 (SELECTION_VIEWER_BOUNDARY). Everything else 0106
+// installed stays, its replaced selection_snapshot included: this is 0106's readiness marker absent, not every 0106 object.
+describe('on a full database with only 0106’s readiness marker removed (0105 and 0109 installed; F02, optional 0106)', () => {
+  let db: TestDatabase
+  let pool: pg.Pool
+  let owner: pg.Pool
+  let on: FastifyInstance
+  let off: FastifyInstance
+  const got = new Acquired()
+
+  before(async () => {
+    db = await createTestDatabase()
+    got.database = db
+    owner = got.ownerPool(new pg.Pool({ connectionString: db.ownerUrl, max: 2 }))
+    await owner.query('DROP FUNCTION sophia.selection_viewer_boundary_0106()')
+    pool = got.pool(createPool(db.apiUrl, { max: 4 }))
+    on = got.app(buildApp({ pool, verifyActor, apiContributions: true }))
+    off = got.app(buildApp({ pool, verifyActor }))
+    await on.ready()
+    await off.ready()
+  })
+  after(async () => {
+    await got.release()
+  })
+
+  it('is ready off and not on; health unchanged; the contribution routes refuse before SQL and write nothing', async (t) => {
+    // The catalog first: the core is installed and only the 0106 marker is gone.
+    const installed = (
+      await owner.query<Record<string, boolean>>(
+        `SELECT to_regprocedure('sophia.research_call_ack(uuid,uuid)') IS NOT NULL AS "ack0109",
+          to_regclass('sophia.research_call_identities') IS NOT NULL AS "identities0109",
+          to_regprocedure('sophia.selection_viewer_boundary_0106()') IS NOT NULL AS "marker0106",
+          to_regprocedure('sophia.selection_snapshot(uuid,uuid[])') IS NOT NULL AS "snapshot"`,
+      )
+    ).rows[0]
+    assert.deepEqual(
+      installed,
+      { ack0109: true, identities0109: true, marker0106: false, snapshot: true },
+      '0109 installed; 0106 marker absent',
+    )
+    assert.equal(await atomicAdmissionInstalled(pool), true, '0105 installed, read by the API login')
+    const OWNER = randomUUID()
+    const acc = await withActor(pool, OWNER, 'write', (c) =>
+      contributionWrite(c, 'account_create', randomUUID(), { label: 'PRIVATE account', totalCapUsd: 10 }),
+    )
+    const accountId = String(acc.accountId)
+    const initial = await footprint(owner, accountId)
+    // Everything is observed before any assertion, so a red records each actual answer.
+    const readiness = { on: await ready(on), off: await ready(off) }
+    const health = await Promise.all(
+      [on, off].map(async (app) => {
+        const res = await app.inject({ method: 'GET', url: '/health' })
+        const body: unknown = res.json()
+        return [res.statusCode, body]
+      }),
+    )
+    const patch = await http(on, OWNER, `PATCH /api/v1/me/api-accounts/${accountId}`, {
+      expectedRevision: 1,
+      patch: { protection: PROTECTION },
+    })
+    const mine = await http(on, OWNER, 'GET /api/v1/me/api-resources')
+    const create = await http(on, OWNER, 'POST /api/v1/me/api-accounts', { label: 'x', totalCapUsd: 1 })
+    const left = await footprint(owner, accountId)
+    const offMine = await http(off, OWNER, 'GET /api/v1/me/api-resources')
+    const preview = await http(off, OWNER, previewUrl(randomUUID()))
+    t.diagnostic(
+      JSON.stringify({
+        installed,
+        readiness,
+        health,
+        patch: [patch.status, patch.json?.code],
+        mine: [mine.status, mine.json?.code],
+        create: [create.status, create.json?.code],
+        initial,
+        left,
+        offMine: offMine.status,
+        preview: [preview.status, preview.json?.code],
+      }),
+    )
+    assert.deepEqual(readiness, { on: 503, off: 200 }, 'off: nothing of 0106 required; on: its marker is')
+    assert.deepEqual(
+      health,
+      [
+        [200, { ok: true, commit: null }],
+        [200, { ok: true, commit: null }],
+      ],
+      'liveness is unchanged',
+    )
+    for (const r of [patch, mine, create]) {
+      assert.deepEqual(
+        [r.status, r.json.code, r.json.message],
+        [503, 'projection_unavailable', 'Member API contributions are not installed on this database'],
+        r.body,
+      )
+    }
+    assert.deepEqual(left, initial, 'no account change, idempotency row or command')
+    assert.equal(offMine.status, 404, 'off: not served')
+    assert.deepEqual(
+      [preview.status, preview.json.code],
+      [503, 'projection_unavailable'],
+      'no viewer-safe preview without the 0106 marker',
+    )
+  })
+})
 
 describe('with 0104 and 0106 installed (F02)', () => {
   let db: TestDatabase

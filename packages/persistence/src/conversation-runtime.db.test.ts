@@ -2360,8 +2360,90 @@ function removeS02aInsertion(body: string, marker: string): string {
   assert.match(body, pattern, `marked ${marker}`)
   return body.replace(pattern, '')
 }
+/**
+ * 0111's FENCE-HELLO (INC04-R07-C3 fence, accepted at d98e01b1; 0111 lines 75-77): runtime_hello re-reads its runtime
+ * instance after the project wait and before any write. Recognized ONLY in runtime_hello, ONLY as these exact reviewed
+ * bytes (their SHA-256 pinned), exactly once and directly after the project wait. A missing, duplicate, moved or altered
+ * block is refused, never stripped: everything outside it must still equal the baseline byte for byte.
+ */
+const FENCE_HELLO_ANCHOR = ' PERFORM 1 FROM sophia.projects WHERE id=rt.project_id FOR UPDATE;\n'
+const FENCE_HELLO_BLOCK =
+  ' -- 0111 FENCE-HELLO: read again after the project wait and before any write; a fenced generation says no hello.\n' +
+  " PERFORM 1 FROM sophia.runtime_instances WHERE id=rt.id AND state='active' AND token_sha256=p_token_sha256 FOR UPDATE;\n" +
+  " IF NOT FOUND THEN RAISE EXCEPTION 'Runtime capability revoked' USING ERRCODE='42501'; END IF;\n"
+const FENCE_HELLO_SHA256 = 'ba2284d72031d4aca7f66ba5ec9e4dd0ab0364df0483dce66857bf9f8852c032'
+function removeFenceHello(definition: string): string {
+  assert.equal(createHash('sha256').update(FENCE_HELLO_BLOCK).digest('hex'), FENCE_HELLO_SHA256, 'the reviewed block')
+  const occurrences = (needle: string) => definition.split(needle).length - 1
+  assert.equal(occurrences('0111 FENCE-HELLO'), 1, 'exactly one 0111 FENCE-HELLO marker')
+  assert.equal(occurrences(FENCE_HELLO_BLOCK), 1, 'exactly one reviewed FENCE-HELLO block, byte for byte')
+  assert.equal(occurrences(FENCE_HELLO_ANCHOR + FENCE_HELLO_BLOCK), 1, 'the block directly after the project wait')
+  return definition.replace(FENCE_HELLO_ANCHOR + FENCE_HELLO_BLOCK, FENCE_HELLO_ANCHOR)
+}
+/** A function's privileges and settings, apart from its body. */
+const functionMetadata = (row: FunctionIdentity) => ({
+  owner: row.owner,
+  secdef: row.secdef,
+  config: row.config,
+  acl: row.acl,
+})
+type CandidateBaseline = Awaited<ReturnType<typeof createConversationCandidateDatabase>>
+/**
+ * C4R1-F01: the outside-block control's fixture, owned for exactly one body. The baseline is acquired first; each owner
+ * client counts as owned before its connect, which runs inside the boundary, so a rejected connect still releases what
+ * was acquired. Cleanup always settles every owned client's end, and only then attempts the baseline drop, whatever an
+ * earlier step did. The body's or setup's own error is rethrown unchanged; a cleanup failure is never swallowed: alone it
+ * is the error, and with others all are raised together in order (any body or setup error first).
+ */
+async function withOwnedBaseline<T>(
+  currentUrl: string,
+  body: (baselineClient: pg.Client, currentClient: pg.Client) => Promise<T>,
+  onAcquired: (baseline: CandidateBaseline, clients: readonly pg.Client[]) => void = () => undefined,
+): Promise<T> {
+  const baseline = await createConversationCandidateDatabase()
+  const clients: pg.Client[] = []
+  const failures: unknown[] = []
+  let result: T | undefined
+  try {
+    const baselineClient = new pg.Client({ connectionString: baseline.ownerUrl })
+    clients.push(baselineClient)
+    const currentClient = new pg.Client({ connectionString: currentUrl })
+    clients.push(currentClient)
+    onAcquired(baseline, clients)
+    await baselineClient.connect()
+    await currentClient.connect()
+    result = await body(baselineClient, currentClient)
+  } catch (error) {
+    failures.push(error)
+  }
+  for (const ended of await Promise.allSettled(clients.map((client) => client.end()))) {
+    if (ended.status === 'rejected') failures.push(ended.reason)
+  }
+  try {
+    await baseline.drop()
+  } catch (error) {
+    failures.push(error)
+  }
+  if (failures.length === 1) throw failures[0]
+  if (failures.length > 1) {
+    throw new AggregateError(failures, `${String(failures.length)} failures; any body or setup error is first`)
+  }
+  return result as T
+}
+/** A client's own end, observed from before its connect; bounded so that a missing end fails instead of hanging. */
+function endOf(client: pg.Client): Promise<void> {
+  return new Promise((ended, failed) => {
+    const timer = setTimeout(() => failed(new Error('no client end within 10 s')), 10_000)
+    timer.unref()
+    client.once('end', () => {
+      clearTimeout(timer)
+      ended()
+    })
+  })
+}
 function restoredShared(identity: FunctionIdentity) {
   let definition = identity.definition
+  if (identity.proname === 'runtime_hello') definition = removeFenceHello(definition)
   const s02a = s02aInsertions[identity.proname]
   if (s02a) definition = removeS02aInsertion(definition, s02a)
   const retirement = retirementInsertions[identity.proname]
@@ -2968,6 +3050,140 @@ describe('CON migration preservation (real PostgreSQL)', () => {
       await c.end()
       await baseline.drop()
     }
+  })
+
+  it('recognizes only the exact reviewed FENCE-HELLO: missing, duplicate, moved or altered blocks are refused', async () => {
+    const [hello] = await functionIdentities(owner, ['runtime_hello'])
+    assert.ok(hello)
+    const real = hello.definition
+    // The installed definition carries the reviewed block once, after the project wait; its removal leaves the anchor.
+    const restored = removeFenceHello(real)
+    assert.equal(restored, real.replace(FENCE_HELLO_BLOCK, ''))
+    const altered = FENCE_HELLO_BLOCK.replace("state='active'", "state<>'retired'")
+    assert.notEqual(altered, FENCE_HELLO_BLOCK)
+    for (const [what, definition] of [
+      ['missing', real.replace(FENCE_HELLO_BLOCK, '')],
+      ['duplicate', real.replace(FENCE_HELLO_BLOCK, FENCE_HELLO_BLOCK + FENCE_HELLO_BLOCK)],
+      ['moved', real.replace(FENCE_HELLO_ANCHOR + FENCE_HELLO_BLOCK, FENCE_HELLO_BLOCK + FENCE_HELLO_ANCHOR)],
+      ['altered', real.replace(FENCE_HELLO_BLOCK, altered)],
+    ] as const) {
+      assert.notEqual(definition, real, what)
+      assert.throws(() => removeFenceHello(definition), assert.AssertionError, what)
+      assert.throws(() => restoredShared({ ...hello, definition }), assert.AssertionError, what)
+    }
+  })
+
+  it('still rejects a runtime_hello change outside the reviewed block, privileges unchanged; rollback restores it', async () => {
+    const names = Object.keys(sharedInsertions)
+    await withOwnedBaseline(db.ownerUrl, async (b, c) => {
+      const prior = (await functionIdentities(b, names)).map((row) => ({ ...row, body: undefined }))
+      const initial = await functionIdentities(owner, names)
+      assert.deepEqual(initial.map(restoredShared), prior, 'the guard holds before the control')
+      const original = initial.find((row) => row.proname === 'runtime_hello')
+      assert.ok(original)
+      // A SYNTHETIC change outside the block: one status text, through the owner's own CREATE OR REPLACE of the
+      // installed definition (same SECURITY DEFINER and SET), in a transaction rolled back below.
+      const outside = "'hello received; waiting for the ready report'"
+      assert.equal(original.definition.split(outside).length - 1, 1)
+      const mutated = original.definition.replace(
+        outside,
+        "'hello received; waiting for the ready report (R1 control)'",
+      )
+      await c.query('BEGIN')
+      try {
+        await c.query(mutated)
+        const during = await functionIdentities(c, names)
+        const hello = during.find((row) => row.proname === 'runtime_hello')
+        assert.ok(hello)
+        assert.equal(hello.definition, mutated, 'the controlled body is installed in this transaction')
+        assert.deepEqual(
+          functionMetadata(hello),
+          functionMetadata(original),
+          'owner, security, config and ACL preserved',
+        )
+        assert.equal(
+          removeFenceHello(hello.definition).includes('(R1 control)'),
+          true,
+          'the reviewed block is still recognized',
+        )
+        assert.throws(
+          () => assert.deepEqual(during.map(restoredShared), prior),
+          assert.AssertionError,
+          'the guard rejects it',
+        )
+      } finally {
+        await c.query('ROLLBACK')
+      }
+      const restoredRows = await functionIdentities(owner, names)
+      assert.deepEqual(restoredRows, initial, 'the rollback restored every identity exactly')
+      assert.deepEqual(restoredRows.map(restoredShared), prior, 'and the guard holds again')
+    })
+  })
+
+  it('C4R1-F01: a rejected second connect still ends the first client and drops the baseline; PostgreSQL’s error surfaces', async () => {
+    const absent = new URL(db.ownerUrl)
+    absent.pathname = `/sophia_absent_${randomUUID().replaceAll('-', '')}`
+    const count = async (sql: string, name: string) => (await owner.query<{ n: number }>(sql, [name])).rows[0]?.n
+    const DATABASES = 'SELECT count(*)::int AS n FROM pg_database WHERE datname=$1'
+    assert.equal(await count(DATABASES, absent.pathname.slice(1)), 0, 'the second database really does not exist')
+    let baselineName = ''
+    let firstEnded: Promise<void> | undefined
+    let ran = false
+    await assert.rejects(
+      withOwnedBaseline(
+        absent.toString(),
+        () => {
+          ran = true
+          return Promise.resolve()
+        },
+        (baseline, clients) => {
+          baselineName = new URL(baseline.ownerUrl).pathname.slice(1)
+          firstEnded = endOf(clients[0] as pg.Client)
+        },
+      ),
+      { code: '3D000' },
+      'the rejected connect is the error',
+    )
+    assert.equal(ran, false, 'the body never ran')
+    assert.ok(firstEnded && baselineName)
+    await firstEnded
+    assert.equal(await count(DATABASES, baselineName), 0, 'the baseline is dropped')
+    assert.equal(
+      await count('SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=$1', baselineName),
+      0,
+      'no backend remains in it',
+    )
+  })
+
+  it('C4R1-F01: a rejected end (SYNTHETIC) still ends the other client and drops the baseline; both errors surface', async () => {
+    const primary = new Error('SYNTHETIC body failure (C4R1-F01 control)')
+    const failedEnd = new Error('SYNTHETIC end failure after a real end (C4R1-F01 control)')
+    let baselineName = ''
+    const ends: Promise<void>[] = []
+    const raised = await withOwnedBaseline(
+      db.ownerUrl,
+      () => Promise.reject(primary),
+      (baseline, clients) => {
+        baselineName = new URL(baseline.ownerUrl).pathname.slice(1)
+        for (const client of clients) ends.push(endOf(client))
+        const first = clients[0] as pg.Client
+        const realEnd = first.end.bind(first)
+        first.end = async () => {
+          await realEnd()
+          throw failedEnd
+        }
+      },
+    ).then(
+      () => undefined,
+      (error: unknown) => error,
+    )
+    assert.ok(raised instanceof AggregateError, 'both failures are raised')
+    assert.deepEqual(raised.errors, [primary, failedEnd], 'the body error first, then the cleanup failure')
+    await Promise.all(ends)
+    const dropped = await owner.query<{ n: number }>('SELECT count(*)::int AS n FROM pg_database WHERE datname=$1', [
+      baselineName,
+    ])
+    assert.equal(dropped.rows[0]?.n, 0, 'the baseline is dropped after the rejected end')
   })
 })
 
