@@ -6078,22 +6078,51 @@ describe('room session: audio that stops the session is recorded as received onl
 
 /** What a local peer saw of one request: when it came, when the bridge closed its socket (or null), and its body. */
 interface Seen {
+  /**
+   * When the bridge began the attempt that sent this request: its call into the media service, made just after the
+   * attempt's bound was armed (attempt.ts). The bound counts from here.
+   */
+  started: number | null
+  /** When this peer saw the request: later than `started` by its dispatch (connection, transit, parsing). */
   at: number
   closedAt: number | null
   body: string
 }
 
 /**
+ * How long after its attempt began the bridge closed a request's socket, or null if it did not. Measured from the
+ * attempt's own start, where its bound starts, not from when the peer saw the request: that comes later by the
+ * request's dispatch, which a busy machine stretches (CI job 132796635549: 178 ms seen for a 200 ms bound). The request
+ * reached the peer before its socket closed.
+ */
+function cutAfter(s: Seen | undefined): number | null {
+  if (s === undefined || s.started === null || s.closedAt === null || s.closedAt < s.at) return null
+  return s.closedAt - s.started
+}
+
+/** Cut at `bound`: its socket closed no earlier, with slack for timers, and not much later. */
+function cutWithin(s: Seen | undefined, bound: number): boolean {
+  const ms = cutAfter(s)
+  return ms !== null && ms >= bound - 20 && ms < bound + 1000
+}
+
+/**
  * A LABELLED local peer for the media routes (item 7): `silent` accepts each connection half-open and never answers
  * (net, allowHalfOpen); `drip` answers 200 with its headers, then a byte every 100 ms, never ending the body; `answer`
- * answers 204, or 200 with `json` when given. Each request is noted, with when its socket closed.
+ * answers 204, or 200 with `json` when given. Each request is noted, with when its socket closed and when the bridge
+ * began the attempt that sent it (one attempt at a time: the n-th request is the n-th call).
  */
 async function peer(shape: 'silent' | 'drip' | 'answer', json?: string) {
   const seen: Seen[] = []
+  const begun: number[] = []
+  const arrived = (entry: Seen) => {
+    entry.started = begun[seen.length] ?? null
+    seen.push(entry)
+  }
   const sockets = new Set<net.Socket>()
   /** The bridge closed the socket: its end (a half-open peer never closes its own side) or the socket's close. */
   const note = (socket: net.Socket) => {
-    const entry: Seen = { at: Date.now(), closedAt: null, body: '' }
+    const entry: Seen = { started: null, at: Date.now(), closedAt: null, body: '' }
     sockets.add(socket)
     const closed = () => (entry.closedAt ??= Date.now())
     socket.on('end', closed)
@@ -6106,7 +6135,7 @@ async function peer(shape: 'silent' | 'drip' | 'answer', json?: string) {
       const entry = note(socket)
       // A request is what arrives: undici may open a connection it then closes with nothing sent on it.
       socket.on('data', (chunk) => {
-        if (entry.body === '') seen.push(entry)
+        if (entry.body === '') arrived(entry)
         entry.body += chunk.toString()
       })
       socket.resume()
@@ -6114,7 +6143,7 @@ async function peer(shape: 'silent' | 'drip' | 'answer', json?: string) {
   } else {
     server = http.createServer((req, res) => {
       const entry = note(req.socket)
-      seen.push(entry)
+      arrived(entry)
       req.on('data', (chunk: Buffer) => (entry.body += chunk.toString()))
       req.on('end', () => {
         if (shape === 'answer' && json !== undefined) {
@@ -6132,7 +6161,22 @@ async function peer(shape: 'silent' | 'drip' | 'answer', json?: string) {
   }
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as net.AddressInfo
-  const media = httpMediaService(`http://127.0.0.1:${String(port)}`, 'synthetic-capability')
+  const real = httpMediaService(`http://127.0.0.1:${String(port)}`, 'synthetic-capability')
+  /** Each bounded call is noted as it begins, then sent as it is: the bridge armed the attempt's bound just before. */
+  const noted =
+    <A extends unknown[], R>(send: (...args: A) => R) =>
+    (...args: A): R => {
+      begun.push(Date.now())
+      return send(...args)
+    }
+  const media: MediaService = {
+    ...real,
+    presence: noted(real.presence),
+    ackQuiesce: noted(real.ackQuiesce),
+    holder: noted(real.holder),
+    announced: noted(real.announced),
+    toolCall: noted(real.toolCall),
+  }
   return {
     media,
     seen,
@@ -6149,9 +6193,8 @@ describe('room session: the quiesce acknowledgement, holder events and announcem
   const BOUND = 200
   /** Real time for the bound to cut an attempt, with timer slack. */
   const cut = () => new Promise((resolve) => setTimeout(resolve, BOUND + 300))
-  /** The first request was cut at its bound: its socket closed within it, with slack. */
-  const cutAtBound = (s: Seen | undefined) =>
-    s !== undefined && s.closedAt !== null && s.closedAt - s.at >= BOUND - 20 && s.closedAt - s.at < BOUND + 1000
+  /** The first request was cut at its bound, counted from its attempt's start: its socket closed within it, with slack. */
+  const cutAtBound = (s: Seen | undefined) => cutWithin(s, BOUND)
 
   for (const shape of ['silent', 'drip'] as const) {
     it(`holder (${shape} peer): the event is cut at its bound, its socket closed, and sent again, the same event, after HOLDER_RETRY_MS`, async () => {
@@ -6288,8 +6331,7 @@ describe('room session: the quiesce acknowledgement, holder events and announcem
       room.join([member(DAVIDE)])
       await until('the left event sent', () => p.seen.length === 1)
       await until('cut at its bound', () => p.seen[0]?.closedAt !== null, 5000)
-      const ms = (p.seen[0]?.closedAt ?? 0) - (p.seen[0]?.at ?? 0)
-      assert.ok(ms >= POST_ATTEMPT_MS - 20 && ms < POST_ATTEMPT_MS + 1000, `cut after ${String(ms)} ms`)
+      assert.ok(cutWithin(p.seen[0], POST_ATTEMPT_MS), `cut after ${String(cutAfter(p.seen[0]))} ms`)
       await session.close()
     } finally {
       await p.close()
@@ -6300,9 +6342,8 @@ describe('room session: the quiesce acknowledgement, holder events and announcem
 describe('room session: a tool call attempt is bounded by its transport ceiling (item 7 B)', () => {
   const BOUND = 200
   const NOTE = { kind: 'observation', epistemic: 'reported', text: 'A note' }
-  /** Each attempt was cut at its bound: its socket closed within it, with slack for timers and the loop. */
-  const cutAtBound = (s: Seen) =>
-    s.closedAt !== null && s.closedAt - s.at >= BOUND - 20 && s.closedAt - s.at < BOUND + 1000
+  /** Each attempt was cut at its bound, counted from its start: its socket closed within it, with slack for timers. */
+  const cutAtBound = (s: Seen) => cutWithin(s, BOUND)
   /** The `tool.failed` lines: each attempt, and why. */
   const failed = () => logs.filter(([event]) => event === 'tool.failed').map(([, d]) => [d.attempt, d.error])
 
@@ -6481,8 +6522,7 @@ describe('room session: a tool call attempt is bounded by its transport ceiling 
       live.events.toolCalls([{ id: 'default-1', name: 'project_status', args: {} }])
       await until('sent', () => p.seen.length === 1)
       await until('cut at its ceiling', () => p.seen[0]?.closedAt !== null, 25_000)
-      const ms = (p.seen[0]?.closedAt ?? 0) - (p.seen[0]?.at ?? 0)
-      assert.ok(ms >= TOOL_ATTEMPT_MS - 20 && ms < TOOL_ATTEMPT_MS + 1000, `cut after ${String(ms)} ms`)
+      assert.ok(cutWithin(p.seen[0], TOOL_ATTEMPT_MS), `cut after ${String(cutAfter(p.seen[0]))} ms`)
       await session.close()
     } finally {
       await p.close()
@@ -6563,8 +6603,7 @@ describe('room session: presence reports are numbered by their process and bound
         assert.equal(p.seen.length, 1, 'one report in flight at a time')
         // Cut: its socket closed by the bridge at the bound (the peer never closes it), its failure handled then.
         await until('the report’s socket closed', () => (p.seen[0]?.closedAt ?? null) !== null, POST_ATTEMPT_MS + 3000)
-        const ms = (p.seen[0]?.closedAt ?? 0) - (p.seen[0]?.at ?? 0)
-        assert.ok(ms >= POST_ATTEMPT_MS - 20 && ms < POST_ATTEMPT_MS + 1000, `cut after ${String(ms)} ms`)
+        assert.ok(cutWithin(p.seen[0], POST_ATTEMPT_MS), `cut after ${String(cutAfter(p.seen[0]))} ms`)
         session.tick()
         await until('a new report', () => p.seen.length === 2)
         const [cutSeq, nextSeq] = seqsOf(p.bodies())
