@@ -13,7 +13,16 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
 import { REPO_ROOT } from '../../scripts/lib/common.mjs'
+import { FIXTURE_RESOURCE } from '../support/fixture-service.mjs'
 import { suite, unit } from '../support/harness.mjs'
+
+/**
+ * INC04-S03A-R07-C2A (C01): the closed call binding the service answers a tracked model reservation with, derived from
+ * that exact request and the fixture's own project, runtime unit and (REPAIR-001 F03) the SYNTHETIC executor resource
+ * its commands name (as tests/support/fixture-service.mjs answers it).
+ */
+const trackedBinding = (body) => ({ binding: { mode: body.mode, contract: body.contract, evidenceId: '00000000-0000-4000-8000-000000009998',
+  callId: body.callId, attemptId: body.attemptId, nativeSessionId: body.nativeSessionId, projectId: 'proj-fixture', runtimeUnitId: unit.id, resourceId: FIXTURE_RESOURCE } })
 import { researchRouteOverlay, startMockResponses } from '../support/mock-responses.mjs'
 
 const bundlePatch = readFileSync(join(REPO_ROOT, 'packages', 'dsh-bundle', 'cordis.patch.yml'), 'utf8')
@@ -109,7 +118,7 @@ test('when ordinary calls no longer fit, the call that writes the partial result
   await w.start()
   w.service.onResearch('reserve', (body) =>
     body.purpose === 'partial_result'
-      ? { reservationId: '00000000-0000-4000-8000-000000009999', state: 'reserved', kind: 'model', purpose: 'partial_result', amountUsd: body.amountUsd, target: null }
+      ? { reservationId: '00000000-0000-4000-8000-000000009999', state: 'reserved', kind: 'model', purpose: 'partial_result', amountUsd: body.amountUsd, target: null, ...trackedBinding(body) }
       : { status: 409, body: { code: 'research_limit_reached', message: 'Research allowance exhausted', requestId: '00000000-0000-4000-8000-000000000000', retry: 'never' } })
   w.llm.script({ text: 'Here is what I have so far.' }, { text: 'That is all I can write up.' })
   w.send(create(w))
@@ -131,7 +140,7 @@ test('a spent allowance enters the finalize step: ordinary research is refused a
   await w.start()
   w.service.onResearch('reserve', (body) =>
     body.purpose === 'partial_result'
-      ? { reservationId: '00000000-0000-4000-8000-000000009999', state: 'reserved', kind: 'model', purpose: 'partial_result', amountUsd: body.amountUsd, target: null }
+      ? { reservationId: '00000000-0000-4000-8000-000000009999', state: 'reserved', kind: 'model', purpose: 'partial_result', amountUsd: body.amountUsd, target: null, ...trackedBinding(body) }
       : { status: 409, body: { code: 'research_limit_reached', message: 'Research allowance exhausted', requestId: '00000000-0000-4000-8000-000000000000', retry: 'never' } })
   // Codex's probe: the first call on the headroom asks for more research; the step must not carry on as before.
   w.llm.script(

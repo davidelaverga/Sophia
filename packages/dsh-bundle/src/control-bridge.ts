@@ -50,11 +50,11 @@ import { REVIEW_PROMPT } from './review-prompt.js'
 import { boundedAccounts, reviewAccounts, reviewTools } from './review-tools.js'
 import { DESIGN_ROLES, roleOf } from './role-registry.js'
 import type { DesignRole, RolePreset } from './role-registry.js'
-import { foldLog, Journal, strongestFence } from './session-events.js'
+import { foldLog, foldResource, Journal, strongestFence, UNKNOWN_RESOURCE, type ResourceContext } from './session-events.js'
 import type { CommandEntry, DeliveryTarget, ExecutionIdentity, FenceState, StashedMessage } from './session-events.js'
 import { ServiceTransport, TransportError } from './transport.js'
 import type { HelloReply, Observation, ServiceBinding, UnrecoveredBinding } from './transport.js'
-import type { ResearchReserveRequest, RuntimeCommandBatch, RuntimeRole } from './runtime-wire-types.generated.js'
+import type { ResearchReservation, ResearchReserveRequest, ResearchSettleRequest, RuntimeCommandBatch, RuntimeRole } from './runtime-wire-types.generated.js'
 
 /** One model route: the provider route, the model and the reasoning effort (null: the model's default). */
 export type RouteSpec = ExecutionIdentity['route']
@@ -97,6 +97,11 @@ export interface BridgeSettings {
   readonly roleRoutes: Readonly<Record<string, string>>
   /** The research providers (SMC-M03 S4); absent, research roles are offered no research tools. */
   readonly research: ResearchSources | null
+  /**
+   * C2A (K04): the report contract of each priced route's calls, by route id, from the loaded decoder's qualification
+   * (index.ts). A route not named, or absent, is `legacy_report`: its usage is kept, never claimed complete.
+   */
+  readonly evidenceContracts?: Readonly<Record<string, EvidenceContract>>
   readonly log: (line: string) => void
 }
 
@@ -109,6 +114,11 @@ interface AttemptState {
   role: RolePreset | null
   /** Execution identity recorded at create (or migrated at the first resume); null before either. */
   identity: ExecutionIdentity | null
+  /**
+   * C2A REPAIR-001 (F03): the executor resource its authenticated commands named, journaled with each command and
+   * restored from the journal; only `known` lets a tracked model call reserve, and its ACK must name the same resource.
+   */
+  resource: ResourceContext
   epoch: number
   fence: FenceState
   /** Command id -> the receipt already sent for it. */
@@ -193,6 +203,8 @@ export class ControlBridge {
   private readonly receiptQueue: RetainedQueue<RuntimeReceipt>
   private readonly observationQueue: RetainedQueue<Observation>
   private cursor = 0
+  /** The project the service bound this runtime to (its hello), for each tracked reservation's ACK check (C01). */
+  private projectId: string | null = null
   /** The research tools, built once; registered in each research agent's own scope. */
   private readonly researchToolset: ToolDefinition[] | null
   /** The source reviewer's tools (WBC-02), built once; registered in each review agent's own scope. */
@@ -375,6 +387,7 @@ export class ControlBridge {
       return
     }
     if (this.stopping.signal.aborted) return
+    this.projectId = hello.projectId
     try {
       const replySettings = this.settings.replies ?? null
       this.replies = new ReplyController({ projectId: hello.projectId, runtimeUnitId: this.settings.runtimeUnitId,
@@ -494,6 +507,40 @@ export class ControlBridge {
     return Object.values(this.settings.routes).find((r) => r.provider === route.provider && r.model === route.model && r.reasoningEffort === route.reasoningEffort)
   }
 
+  /** The id of the named route an identity's route is, or undefined for the default route. */
+  private namedRouteId(route: RouteSpec): string | undefined {
+    return Object.entries(this.settings.routes).find(([, r]) => r.provider === route.provider && r.model === route.model && r.reasoningEffort === route.reasoningEffort)?.[0]
+  }
+
+  /**
+   * C2A: what a tracked reservation of one model call on `route` declares: its contract (K04, legacy unless the loaded
+   * decoder qualified this route) and the route as metadata only. Never a price the service applies.
+   */
+  private tracked(route: RouteConfig, prices: RoutePrices): Pick<ResearchReserveRequest, 'mode' | 'contract' | 'declared'> {
+    const id = this.namedRouteId(route)
+    const contract = (id === undefined ? undefined : this.settings.evidenceContracts?.[id]) ?? 'legacy_report'
+    return {
+      mode: 'tracked_v1',
+      contract,
+      declared: { ...(id === undefined ? {} : { routeId: id }), model: route.model, reasoningEffort: route.reasoningEffort ?? null, prices: { ...prices } },
+    }
+  }
+
+  /**
+   * C01: the reservation the service answered, only if its closed binding is this exact call's, including the executor
+   * resource of `attempt`'s authenticated commands (F03); otherwise refused.
+   */
+  private bound(reply: ResearchReservation, sent: ResearchReserveRequest, attempt: AttemptState): ResearchReservation {
+    const problem = bindingProblem(reply, sent, { projectId: this.projectId, runtimeUnitId: this.settings.runtimeUnitId, resource: attempt.resource })
+    if (problem !== null) throw new AckRefused(problem)
+    return reply
+  }
+
+  /** F03: a tracked model call reserves only for an attempt whose authenticated resource is known; never unknown or ambiguous. */
+  private resourceReady(attempt: AttemptState): void {
+    if (attempt.resource.state !== 'known') throw new ResourceRefused(attempt.resource.state)
+  }
+
   /** A named route's output ceiling, or null for the default route (its cap is the default model's). */
   private ceilingFor(route: RouteSpec): number | null {
     return this.namedRoute(route)?.maxTokens ?? null
@@ -574,13 +621,20 @@ export class ControlBridge {
     const accounts = reviewing
       ? { reserve: (body: ResearchReserveRequest) => reviewing.reserve(body, options.signal), settle: reviewing.settle, what: 'review' }
       : { reserve: transport.researchReserve.bind(transport), settle: transport.researchSettle.bind(transport), what: 'research' }
+    const tracked = this.tracked(route, prices)
+    const bound = (reply: ResearchReservation, sent: ResearchReserveRequest) => this.bound(reply, sent, attempt)
+    const ready = () => this.resourceReady(attempt)
     return (async function* () {
       let reservationId: string
       const amountUsd = estimateCallUsd(options, prices, route.maxTokens)
       // No abort signal: a reservation the service made must come back to be settled, never be orphaned by a cancel.
-      // A review's waits for its deadline only, and is sent again under the same callId.
-      const reserve = (purpose: 'call' | 'partial_result') =>
-        accounts.reserve({ ...ids, callId: `llm-${randomUUID()}`, kind: 'model', provider: route.provider, amountUsd, purpose })
+      // A review's waits for its deadline only, and is sent again under the same callId. C2A: every reservation is
+      // tracked, and its answer must bind this exact call (C01) before the call may leave.
+      const reserve = async (purpose: 'call' | 'partial_result') => {
+        const sent: ResearchReserveRequest = { ...ids, callId: `llm-${randomUUID()}`, kind: 'model', provider: route.provider, amountUsd, purpose, ...tracked }
+        ready()
+        return bound(await accounts.reserve(sent), sent)
+      }
       try {
         if (attempt.finalizing) reservationId = (await reserve('partial_result')).reservationId
         else {
@@ -594,26 +648,25 @@ export class ControlBridge {
           }
         }
       } catch (error) {
-        const why = error instanceof TransportError && error.code ? error.code : (error as Error).message
+        const why = error instanceof AckRefused || error instanceof ResourceRefused ? error.message : error instanceof TransportError && error.code ? error.code : (error as Error).message
         yield* refused(`this ${accounts.what}'s allowance could not reserve the model call (${why})`)
         return
       }
-      let usage: TokenUsage | null = null
+      const facts = new CallFacts()
       try {
         for await (const chunk of next()) {
-          if (chunk.type === 'usage') usage = chunk.usage
+          facts.observe(chunk)
           yield chunk
         }
+        facts.ended('stream_completed')
+      } catch (error) {
+        facts.ended('stream_error')
+        throw error
       } finally {
-        const costUsd = usage ? costOfUsage(usage, prices) : null
-        if (costUsd !== null && costUsd > amountUsd) overrun(reservationId, amountUsd, costUsd)
+        const body = facts.settlement(ids, reservationId, tracked.contract ?? 'legacy_report', route, prices)
+        if (body.costUsd !== undefined && body.costUsd > amountUsd) overrun(reservationId, amountUsd, body.costUsd)
         try {
-          await accounts.settle({
-            ...ids,
-            reservationId,
-            outcome: usage ? 'settled' : 'uncertain',
-            ...(usage && costUsd !== null ? { costUsd, usage: { ...usageOf(usage), provider: route.provider, model: route.model } } : {}),
-          })
+          await accounts.settle(body)
         } catch (error) {
           log(`settling model call ${reservationId} failed: ${(error as Error).message}; the service reconciles it`)
         }
@@ -641,32 +694,34 @@ export class ControlBridge {
       reserve: (body, signal) => transport.designReserve(body, signal),
       settle: (body, signal) => transport.designSettle(body, signal),
     })
+    const tracked = this.tracked(route, prices)
+    const bound = (reply: ResearchReservation, sent: ResearchReserveRequest) => this.bound(reply, sent, attempt)
+    const ready = () => this.resourceReady(attempt)
     return (async function* () {
       const amountUsd = estimateCallUsd(options, prices, route.maxTokens)
       let reservationId: string
       try {
-        const body = { ...ids, callId: `llm-${randomUUID()}`, kind: 'model' as const, provider: route.provider, amountUsd, purpose: 'call' as const }
-        reservationId = (await accounts.reserve(body, options.signal)).reservationId
+        const body: ResearchReserveRequest = { ...ids, callId: `llm-${randomUUID()}`, kind: 'model', provider: route.provider, amountUsd, purpose: 'call', ...tracked }
+        ready()
+        reservationId = bound(await accounts.reserve(body, options.signal), body).reservationId
       } catch (error) {
-        const why = error instanceof TransportError && error.code ? error.code : (error as Error).message
+        const why = error instanceof AckRefused || error instanceof ResourceRefused ? error.message : error instanceof TransportError && error.code ? error.code : (error as Error).message
         yield* refused(`this design's allowance could not reserve the model call (${why})`)
         return
       }
-      let usage: TokenUsage | null = null
+      const facts = new CallFacts()
       try {
         for await (const chunk of next()) {
-          if (chunk.type === 'usage') usage = chunk.usage
+          facts.observe(chunk)
           yield chunk
         }
+        facts.ended('stream_completed')
+      } catch (error) {
+        facts.ended('stream_error')
+        throw error
       } finally {
-        const costUsd = usage ? costOfUsage(usage, prices) : null
         try {
-          await accounts.settle({
-            ...ids,
-            reservationId,
-            outcome: usage ? 'settled' : 'uncertain',
-            ...(usage && costUsd !== null ? { costUsd, usage: { ...usageOf(usage), provider: route.provider, model: route.model } } : {}),
-          })
+          await accounts.settle(facts.settlement(ids, reservationId, tracked.contract ?? 'legacy_report', route, prices))
         } catch (error) {
           log(`settling design model call ${reservationId} failed: ${(error as Error).message}; the service reconciles it`)
         }
@@ -923,6 +978,22 @@ export class ControlBridge {
     return `native request/header ${logged.provider}/${logged.model}/${logged.reasoningEffort ?? 'default'}`
   }
 
+  /**
+   * C2A REPAIR-001 (F03): the resource this attempt's own journal restores (a restart, or a create re-executed after a
+   * crash). A journal with no resource (new, or written before the field) is unknown; the hello cannot supply one.
+   * R1 (F04): the resource is restored only when the journal's owner (its first owner-typed record) is this attempt and no
+   * owner-typed record named another. A foreign owner, or a mismatch (a foreign resource followed by a command, fence or
+   * epoch row that merely looks local), makes the whole context ambiguous: provenance never comes from the last row.
+   * R2 (F04 null owner): an invalid (non-string) owner is a sticky mismatch, and a recovered resource requires its owner
+   * to be EXACTLY this attempt; a journal with no valid owner can restore nothing but unknown.
+   */
+  private loggedResource(attemptId: string, sessionId: SessionId): ResourceContext {
+    const logged = foldLog(this.journal.read(sessionId))
+    if (logged.ownerMismatch || (logged.owner !== null && logged.owner !== attemptId)) return { state: 'ambiguous' }
+    if (logged.resource.state === 'unknown') return UNKNOWN_RESOURCE
+    return logged.owner === attemptId ? logged.resource : { state: 'ambiguous' }
+  }
+
   private sessionIdFor(attemptId: string): SessionId {
     // Deterministic per attempt: a duplicate `create` after a crash finds the
     // same session instead of starting a second one.
@@ -930,12 +1001,14 @@ export class ControlBridge {
   }
 
   private newAttempt(attemptId: string, epoch: number): AttemptState {
+    const sessionId = this.sessionIdFor(attemptId)
     const state: AttemptState = {
       attemptId,
-      sessionId: this.sessionIdFor(attemptId),
+      sessionId,
       handle: null,
       role: null,
       identity: null,
+      resource: this.loggedResource(attemptId, sessionId),
       epoch,
       fence: 'active',
       receipts: new Map(),
@@ -1064,6 +1137,9 @@ export class ControlBridge {
    */
   private append(attempt: AttemptState, command: RuntimeCommand, message: { readonly id: string; readonly content: readonly ContentBlock[] } | null, target: DeliveryTarget | null): number {
     attempt.epoch = Math.max(attempt.epoch, command.binding.authorityEpoch)
+    // C2A REPAIR-001 (F03): the command passed execute's unit, attempt and epoch checks; its binding's resource is
+    // recorded with it (log-first) and folded into the attempt's context: the first stays, another is ambiguous.
+    attempt.resource = foldResource(attempt.resource, command.binding.resourceId)
     return this.journal.append(attempt.sessionId, 'sophia/command', {
       commandId: command.commandId,
       kind: command.kind,
@@ -1074,6 +1150,7 @@ export class ControlBridge {
       content: message ? [...message.content] : null,
       nativeSeq: null,
       role: command.kind === 'create' ? attempt.role?.id ?? null : null,
+      resourceId: command.binding.resourceId,
     }).seq
   }
 
@@ -1552,6 +1629,147 @@ export function offRoute(options: GenerateOptions, route: RouteSpec, ceiling: nu
 
 /** A model call refused before it reaches the provider. */
 export class RouteRefused extends Error {}
+
+// --- C2A: tracked call evidence (root contract R1/R2, mandatory C01) -------------------------------------------------
+
+/** A tracked call's report contract (K04): complete only on a qualified C1P decoder; otherwise its usage is legacy. */
+export type EvidenceContract = 'c1p_complete_report' | 'legacy_report'
+type SettleEvidence = NonNullable<ResearchSettleRequest['evidence']>
+type Count = SettleEvidence['counts']['output']
+type Ending = SettleEvidence['ending']
+
+/** A reservation answer that does not bind this exact call (C01): the call never leaves. Its reason is fixed text. */
+export class AckRefused extends Error {
+  constructor(readonly problem: 'missing' | 'mode' | 'call' | 'scope' | 'resource' | 'reservation') {
+    super(`its answer is not this call's reservation: ${problem}`)
+  }
+}
+
+/**
+ * F03: the attempt has no single authenticated executor resource (none yet, e.g. a journal written before the field and
+ * no command since; or an ambiguous one): no tracked model call reserves, so nothing is committed and nothing leaves.
+ */
+export class ResourceRefused extends Error {
+  constructor(readonly state: 'unknown' | 'ambiguous') {
+    super(`its attempt has no authenticated executor resource: ${state}`)
+  }
+}
+
+/**
+ * C01: why a reserve answer is not the closed binding of the exact request `sent` in this runtime's context, or null.
+ * Mere success, a schema-valid id or the same route never suffices: every bound field is compared, and the reservation
+ * must still be reserved, of this kind, purpose and amount.
+ */
+export function bindingProblem(
+  reply: ResearchReservation,
+  sent: ResearchReserveRequest,
+  context: { readonly projectId: string | null; readonly runtimeUnitId: string; readonly resource: ResourceContext },
+): AckRefused['problem'] | null {
+  const b = reply.binding
+  if (b === undefined) return 'missing'
+  if (b.mode !== sent.mode || b.contract !== sent.contract) return 'mode'
+  if (b.callId !== sent.callId || b.attemptId !== sent.attemptId || b.nativeSessionId !== sent.nativeSessionId) return 'call'
+  if (context.projectId === null || b.projectId !== context.projectId || b.runtimeUnitId !== context.runtimeUnitId) return 'scope'
+  // F03: the executor resource the reservation's binding froze must be the one this attempt's authenticated commands named.
+  if (context.resource.state !== 'known' || b.resourceId !== context.resource.resourceId) return 'resource'
+  if (reply.state !== 'reserved' || reply.kind !== 'model' || reply.purpose !== (sent.purpose ?? 'call') || reply.amountUsd !== sent.amountUsd) {
+    return 'reservation'
+  }
+  return null
+}
+
+/** The private storage bound of a supported response id: 8192 UTF-8 bytes (a policy, not a provider maximum). */
+export const RESPONSE_ID_MAX_BYTES = 8192
+
+/**
+ * K03: a response id's evidence, classified BEFORE any serialization: a supported id is a non-empty, NUL-free,
+ * well-formed string of at most 8192 UTF-8 bytes, kept whole; anything else is omitted with a fixed reason (never
+ * truncated, replaced or hashed into a pretended id). Absent is unknown.
+ */
+export function classifyResponseId(raw: unknown): SettleEvidence['responseId'] {
+  if (raw === undefined) return { status: 'unknown' }
+  if (typeof raw !== 'string') return { status: 'identity_unsupported', reason: 'not_string' }
+  if (raw.length === 0) return { status: 'identity_unsupported', reason: 'empty' }
+  if (raw.includes('\u0000')) return { status: 'identity_unsupported', reason: 'nul' }
+  if (!raw.isWellFormed()) return { status: 'identity_unsupported', reason: 'unpaired_surrogate' }
+  if (Buffer.byteLength(raw, 'utf8') > RESPONSE_ID_MAX_BYTES) return { status: 'identity_unsupported', reason: 'over_bound' }
+  return { status: 'supported', value: raw }
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+const safeCount = (value: unknown): boolean => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+
+/** The provider response id a successful finish carries (pi-ai's replay state), or undefined when it carries none. */
+function responseIdOf(chunk: StreamChunk): unknown {
+  if (chunk.type !== 'finish' || !('replayState' in chunk) || !isRecord(chunk.replayState)) return undefined
+  const response = chunk.replayState.response
+  return isRecord(response) && 'responseId' in response ? response.responseId : undefined
+}
+
+/**
+ * Usage a settlement may price: every count a safe non-negative integer (checked before any cast), and, on a complete
+ * contract, no separate cache-write class (C1P never reports one as complete). Otherwise no usage: the exposure stays.
+ */
+function pricedUsage(usage: TokenUsage | null, contract: EvidenceContract): TokenUsage | null {
+  if (usage === null) return null
+  const counts = [usage.inputTokens, usage.outputTokens, usage.cacheReadTokens ?? 0, usage.cacheWriteTokens ?? 0]
+  if (!counts.every(safeCount)) return null
+  if (contract === 'c1p_complete_report' && (usage.cacheWriteTokens ?? 0) > 0) return null
+  return usage
+}
+
+const known = (value: number): Count => ({ class: 'known', value })
+const UNKNOWN: Count = { class: 'unknown' }
+
+/** A tracked settlement's closed facts: honest knowledge of each disjoint count, the consumer's ending and the id. */
+export function evidenceOf(contract: EvidenceContract, usage: TokenUsage | null, ending: Ending, responseId: unknown): SettleEvidence {
+  const responseIdEvidence = classifyResponseId(responseId)
+  if (usage === null) {
+    return { contract, report: 'not_complete', counts: { nonCachedInput: UNKNOWN, cacheRead: UNKNOWN, cacheWrite: UNKNOWN, output: UNKNOWN }, ending, responseId: responseIdEvidence }
+  }
+  if (contract === 'c1p_complete_report') {
+    // A complete C1P report: an omitted cache read is a known 0; cache writes are no separately reported class.
+    const counts = { nonCachedInput: known(usage.inputTokens), cacheRead: known(usage.cacheReadTokens ?? 0), cacheWrite: { class: 'no_separate_reported_class' } as const, output: known(usage.outputTokens) }
+    return { contract, report: 'complete_report', counts, ending, responseId: responseIdEvidence }
+  }
+  const counts = {
+    nonCachedInput: known(usage.inputTokens),
+    cacheRead: usage.cacheReadTokens === undefined ? UNKNOWN : known(usage.cacheReadTokens),
+    cacheWrite: usage.cacheWriteTokens === undefined ? UNKNOWN : known(usage.cacheWriteTokens),
+    output: known(usage.outputTokens),
+  }
+  return { contract, report: 'legacy_usage', counts, ending, responseId: responseIdEvidence }
+}
+
+/** What one model call's stream showed: its usage chunk, its finish's response id, and how the consumer ended it. */
+class CallFacts {
+  private usage: TokenUsage | null = null
+  private responseId: unknown = undefined
+  private ending: Ending | null = null
+
+  observe(chunk: StreamChunk): void {
+    if (chunk.type === 'usage') this.usage = chunk.usage
+    const id = responseIdOf(chunk)
+    if (id !== undefined && this.responseId === undefined) this.responseId = id
+  }
+
+  ended(ending: Ending): void {
+    this.ending ??= ending
+  }
+
+  /** The settlement: priced from known usage only (else uncertain), with its closed evidence. No raw id leaves elsewhere. */
+  settlement(ids: { attemptId: string; nativeSessionId: string }, reservationId: string, contract: EvidenceContract, route: RouteConfig, prices: RoutePrices): ResearchSettleRequest {
+    const usage = pricedUsage(this.usage, contract)
+    const costUsd = usage ? costOfUsage(usage, prices) : undefined
+    return {
+      ...ids,
+      reservationId,
+      outcome: usage ? 'settled' : 'uncertain',
+      ...(usage && costUsd !== undefined ? { costUsd, usage: { ...usageOf(usage), provider: route.provider, model: route.model } } : {}),
+      evidence: evidenceOf(contract, usage, this.ending ?? 'consumer_closed', this.responseId),
+    }
+  }
+}
 
 /** The part of dsh's model service the bridge uses: whether a route's model declares image input. */
 interface ModelInfoService {

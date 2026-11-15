@@ -15,6 +15,18 @@ import { ServiceTransport } from '../../packages/dsh-bundle/dist/transport.js'
 const ATTEMPT = '99999999-9999-4999-8999-999999999999'
 const RESERVATION = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const RESERVED = { reservationId: RESERVATION, state: 'reserved', kind: 'model', purpose: 'call', amountUsd: 0.01, target: null }
+const PROJECT = 'proj-meter'
+/** REPAIR-001 (F03): the SYNTHETIC executor resource the attempt's authenticated commands named; the answer echoes it. */
+const RESOURCE = 'res-meter'
+/**
+ * INC04-S03A-R07-C2A (C01): a TRACKED reserve is answered as the service answers it: the reservation of that exact
+ * request (its amount) with its closed call binding in this bridge's own project, runtime unit and attempt resource. A request without a
+ * mode keeps the legacy answer RESERVED exactly.
+ */
+const reservedFor = (body) => body.mode === 'tracked_v1'
+  ? { ...RESERVED, amountUsd: body.amountUsd, binding: { mode: body.mode, contract: body.contract, evidenceId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      callId: body.callId, attemptId: body.attemptId, nativeSessionId: body.nativeSessionId, projectId: PROJECT, runtimeUnitId: 'u', resourceId: RESOURCE } }
+  : RESERVED
 const SETTLED = { reservationId: RESERVATION, state: 'settled', settledUsd: 0.000015 }
 
 /**
@@ -37,7 +49,7 @@ const server = createServer((socket) => {
     service.requests.push({ path, body })
     request = ''
     const step = service.script(path, n)
-    const answer = path.endsWith('/reserve') ? RESERVED : SETTLED
+    const answer = path.endsWith('/reserve') ? reservedFor(body) : SETTLED
     const json = JSON.stringify(typeof step === 'object' ? step.body : answer)
     const status = typeof step === 'object' ? step.status : 200
     const head = `HTTP/1.1 ${status} X\r\ncontent-type: application/json\r\ncontent-length: ${Buffer.byteLength(json)}\r\n`
@@ -65,7 +77,7 @@ const transport = () => new ServiceTransport({ baseUrl: `http://127.0.0.1:${serv
 function meter() {
   const bridge = Object.create(ControlBridge.prototype)
   const logs = []
-  Object.assign(bridge, { transport: transport(), settings: { log: (line) => logs.push(line) }, journal: { append: () => {} } })
+  Object.assign(bridge, { transport: transport(), settings: { log: (line) => logs.push(line), routes: {}, runtimeUnitId: 'u' }, projectId: PROJECT, journal: { append: () => {} } })
   let streams = 0
   const run = async (signal, { during } = {}) => {
     const next = () => (async function* () {
@@ -74,7 +86,7 @@ function meter() {
       during?.()
       yield { type: 'usage', usage: { inputTokens: 10, outputTokens: 5 } }
     })()
-    const attempt = { attemptId: ATTEMPT, sessionId: `sophia-${ATTEMPT}` }
+    const attempt = { attemptId: ATTEMPT, sessionId: `sophia-${ATTEMPT}`, resource: { state: 'known', resourceId: RESOURCE } }
     const options = { sessionId: 'session-1', messages: [], signal }
     const route = { provider: 'openai', model: 'gpt-x', maxTokens: 100 }
     const prices = { input: 1, cacheRead: 1, cacheWrite: 1, output: 1 }
