@@ -52,7 +52,7 @@ Luis approved these words on 2026-11-16, exact; nothing else is reworded.
 
 - **A · Plain words for the owner's host** (`status-words.ts`, item 8). As a mapping only:
   «Host recorded» → «Your computer»; «Host bound» → «Linked to your computer»; «Host active» → «Your computer is
-  connected»; «Handshake recorded» → «Connected once»; «Recorded qualification: stale» → «Needs checking again».
+  connected»; «Handshake recorded» → «Connected once»; «Recorded qualification: stale» → «Qualification: needs checking again» (Luis, after review; first «Needs checking again»).
   The sheet's host line keeps its frame («… (recorded) · last seen …»). The tile's host label is set in capitals by
   `.resource-tile-host` (`text-transform: uppercase`, tracked mono), which would make «Your computer» a code again:
   on catalog tiles (`data-catalog`, owner's and teammate's alike, so one grid reads one way) the label is set as

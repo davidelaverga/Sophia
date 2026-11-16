@@ -640,7 +640,7 @@ describe('the catalog’s words', () => {
       'Recorded qualification: current for create, input and stop. Recorded evidence, not a promise that a control works.',
     )
     assert.equal(sw.qualificationSaid(q('expired', ['stop'])), 'Recorded qualification: expired')
-    assert.equal(sw.qualificationSaid(q('stale', ['stop'])), 'Needs checking again')
+    assert.equal(sw.qualificationSaid(q('stale', ['stop'])), 'Qualification: needs checking again')
     assert.equal(sw.qualificationSaid(q('not_applicable', ['stop'])), 'Recorded qualification: doesn’t apply now')
     assert.doesNotMatch(sw.qualificationSaid(q('current', ['stop'])) ?? '', /supported|verified|ready/i)
   })

@@ -131,7 +131,7 @@ test('the owner’s recorded host says what isn’t recorded as such: no time, a
   await expect(sheet(page)).toContainText('No bound or active host recorded')
   // Linked but past its time: expired, never usable.
   await expect(sheet(page)).toContainText('Connection expired')
-  await expect(sheet(page)).toContainText('Needs checking again')
+  await expect(sheet(page)).toContainText('Qualification: needs checking again')
   // What to do about it, under the state, once though both hold: the empty catalog's own line.
   await expect(sheet(page).locator('.resource-catalog-state + .resource-catalog-enrollment')).toHaveText(ENROLLMENT)
   await expect(sheet(page).getByText(ENROLLMENT)).toHaveCount(1)
