@@ -7,13 +7,14 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-paper-2`, branch `api/mute-all-past-a-leaver` from
 `origin/main` `9495c87fc` (through #513; not pushed). **Stacked on `api/stop-screen-sound-first`** (item 3, worktree
-`Sophia-paper-3`), at the coordinator's request: it reuses that branch's `isNotFound` and `muteSources(rooms, …)`.
+`Sophia-paper-3`) at its final `1f699cdff`, at the coordinator's request: it reuses that branch's `isNotFound` (the
+Twirp code alone, the rule this branch's `bad_route` test asks for) and `muteSources(rooms, …)`.
 Writable scope: this worktree only (`apps/api/src/livekit.ts` and tests, `scripts/livekit-test.ts`, `docs/plans`,
 `docs/handoffs`); no SQL, no contract, no copy, nothing of #514–#519.
 Runtime unit: Luis's Windows host (unit tests); CI as the run on record (`pnpm test:db`, `pnpm test:livekit`).
 Existing authority: Luis, the quote above; local only, nothing pushed.
-Ending commit/tree: `615fa94e6`, the last commit that changes code; the next one adds only this record. Files changed
-against `9495c87fc`: `apps/api/src/livekit.ts`, `apps/api/src/livekit.test.ts`, `apps/api/src/host-mute-all.db.test.ts`,
+Ending commit/tree: `2b5aa67ca`, the last commit that changes code; the next one adds only this record. Files changed
+against the base `1f699cdff`: `apps/api/src/livekit.ts`, `apps/api/src/livekit.test.ts`, `apps/api/src/host-mute-all.db.test.ts`,
 `apps/api/src/host-leaver.livekit.test.ts` (new), `scripts/livekit-test.ts`, `docs/plans/mute-all-past-a-leaver.md`,
 and this record.
 
@@ -22,9 +23,6 @@ and this record.
 - **The room server's `not_found` reads as nothing to mute.** One helper, `publishedTracks`, asks for someone's tracks;
   item 3's `isNotFound` (`livekit-server-sdk`'s `ServerError` with Twirp code `not_found`) answers `[]`.
   `muteMicrophone` and `muteSources` use it.
-- **`isNotFound` matches the code alone** (item 3 had `code === 'not_found' || status === 404`). A `bad_route`, or a
-  proxy's error page in front of the server (no JSON, so no code), is a 404 too; read as «gone», every mute and stop
-  would answer 204 having done nothing. Item 3's tests build the error with both, so they still pass.
 - **Mute everyone** carries on past someone who left after the list: the rest are muted and counted, and the whole act
   is recorded. Any other failure stops it as before (`PartialMute` with those muted so far).
 - **A single mute, camera stop or screen stop** of someone who left after the route's check answers 204 and records
