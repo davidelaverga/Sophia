@@ -5,12 +5,13 @@ import type { RoomToken } from '@sophia/contracts'
 import type { RemovalOutcome } from '@sophia/persistence'
 
 /**
- * The room server's «not there»: a participant, room or track gone, which LiveKit answers as Twirp's not_found (HTTP
- * 404). The pinned server answers a mute of a track no longer published with no track and no error; this covers a
- * server that refuses it, and a person who left between the read and the mute.
+ * The room server's «not there»: a participant, room or track gone, which LiveKit answers with Twirp's code not_found.
+ * The code alone: Twirp's bad_route and a proxy's error page in front of the server are HTTP 404 too, and read as gone,
+ * every mute would answer done having done nothing. The pinned server answers a mute of a track no longer published with
+ * no track and no error (muteIfThere); this covers a server that refuses it, and a person who left in between.
  */
 function isNotFound(err: unknown): boolean {
-  return err instanceof ServerError && (err.code === 'not_found' || err.status === 404)
+  return err instanceof ServerError && err.code === 'not_found'
 }
 
 export interface LiveKitConfig {
