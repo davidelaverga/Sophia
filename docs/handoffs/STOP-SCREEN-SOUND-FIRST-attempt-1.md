@@ -10,7 +10,7 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-paper-3`, branch `api/st
 Writable scope: `apps/api/src/livekit.ts` and its test, `docs/plans`, `docs/handoffs`; no route, contract, SQL or copy.
 Runtime unit: Luis's Windows host (unit tests only; no Playwright needed); CI as the run on record.
 Existing authority: Luis, as above; local only, nothing pushed.
-Ending commit/tree: `11585e8a3`, the last commit that changes code; the next one adds only this record. Files changed
+Ending commit/tree: see «Review round» below for the last commit that changes code; the next one adds only this record. Files changed
 against `9495c87fc`: `apps/api/src/livekit.ts`, `apps/api/src/livekit.test.ts`, `docs/plans/stop-screen-sound-first.md`,
 and this record.
 
@@ -19,8 +19,9 @@ and this record.
 - **The sound before the share.** `muteSources` orders tracks by the sources it is given; `SCREEN_SOURCES` is
   `[SCREEN_SHARE_AUDIO, SCREEN_SHARE]`. The Studio stops sharing (and unpublishes the sound) when its share is muted
   (`apps/studio/src/features/voice/livekit-room.ts:252`), and ignores a muted sound alone.
-- **A track already gone is done.** `isNotFound` (a `ServerError` with code `not_found` or status 404; a small helper
-  near the top of `livekit.ts`) makes `muteUnmuted` skip that track: not counted, not a failure. Other errors unchanged.
+- **A track already gone is done.** `isNotFound` (a `ServerError` with the code `not_found`, never a bare 404: Twirp's
+  `bad_route` and a proxy's error page are 404 too; a small helper near the top of `livekit.ts`) and a mute answered
+  with no track make `muteIfThere` / `muteUnmuted` skip that track: not counted, not a failure. Other errors unchanged.
   Microphone and camera mutes share it.
 - **Seam.** `muteSources` takes the room client and is exported; `stopCamera` / `stopScreen` keep their signatures.
 
@@ -35,6 +36,16 @@ and this record.
   on the sound → `PartialMute` (muted 1) instead of the error itself, since the share went first.
 - **Fix `11585e8a3`**: `livekit.test.ts` + `routes/host-acts.test.ts` 18/18; whole-repo oxlint exit 0; `tsc` api and
   studio exit 0; Prettier clean.
+
+## Review round (independent review: no P1/P2; its points)
+
+- **No track is nothing muted** (`76262365a` failing: `muteUnmuted` with a fake answering no track for `mic` gave
+  `actual: 1, expected: 0`, «a microphone unpublished before its mute»; fix `c31483134`).
+- **Only the code `not_found` is gone** (coordinator's decision, from the sibling branch): `7cbf9e428` failing: a 404 with
+  no code, and a 404 with `bad_route`, gave «Missing expected rejection»; fix `6e81d913e`, the last commit that changes
+  code.
+- **Green**: `livekit.test.ts` + `routes/host-acts.test.ts` 22/22; whole-repo oxlint exit 0; `tsc` api and studio exit 0;
+  Prettier clean.
 
 ## Remaining
 

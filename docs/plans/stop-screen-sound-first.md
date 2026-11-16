@@ -29,9 +29,11 @@
 
 1. **The sound before the share.** `muteSources` orders the tracks by the sources it is given (stable within one
    source), and `stopScreen` gives `[SCREEN_SHARE_AUDIO, SCREEN_SHARE]`. `stopCamera` gives one source: unchanged.
-2. **A track already gone is done.** In `muteUnmuted`, a mute refused as not found (`isNotFound`: a `ServerError` with
-   code `not_found` or status 404, a small helper near the top of the file) is skipped: not counted, not a failure. Any
-   other error fails as before: `PartialMute` after some were muted, the error itself before any. The same tolerance
+2. **A track already gone is done.** In `muteUnmuted` (through `muteIfThere`), a mute refused as not found
+   (`isNotFound`: a `ServerError` with the code `not_found`, a small helper near the top of the file), or answered with
+   no track, is skipped: not counted, not a failure. The code alone, never a bare 404: Twirp's `bad_route` and a proxy's
+   error page are 404 too, and read as gone, every mute would answer done having done nothing (review round, accepted
+   from the sibling branch). Any other error fails as before: `PartialMute` after some were muted, the error itself before any. The same tolerance
    reaches `muteMicrophone` and `stopCamera` (they share `muteUnmuted`): a microphone or camera gone before its mute is
    now «nothing muted», not an error. Nothing else of theirs changes.
 3. **Testable without a server.** `muteSources` takes the room client (as `muteUnmuted` already does) and is exported
@@ -45,3 +47,5 @@ change touches only `isNotFound`, `muteUnmuted`, `muteSources` and the stop func
 - The sound is muted before the share, whichever order the participant's list has.
 - The sound gone after the share's mute (`not_found` on its mute): the stop succeeds, counting the one it muted.
 - Any other error on that second mute is still a `PartialMute` of 1; on the first, the error itself.
+- The code `not_found` alone is gone; a 404 with no code, or with `bad_route`, still fails; a mute answered with no
+  track counts as nothing muted.
