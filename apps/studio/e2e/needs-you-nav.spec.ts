@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import { contrastOf } from './contrast.ts'
 
 // What waits on you, counted on the project's views (docs/plans/needs-you-in-project.md; informe-pasada-3 §5 item 8):
@@ -63,29 +63,84 @@ test('needs you · at phone width the number stands inside its link, and the pag
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375)
 })
 
-/** The number's ink and the grounds up its tree, for contrastOf. */
+/** A view's link in sight and clear of the fades (18 % of the row at each end that hides more: ViewNav's FADE). */
+const clear = (link: Locator) =>
+  link.evaluate((el) => {
+    const box = el.parentElement?.getBoundingClientRect()
+    const r = el.getBoundingClientRect()
+    if (!box) return false
+    const fade = box.width * 0.18
+    const moreStart = el.parentElement?.hasAttribute('data-more-start') ?? false
+    const moreEnd = el.parentElement?.hasAttribute('data-more-end') ?? false
+    return r.left >= box.left + (moreStart ? fade : 0) - 1 && r.right <= box.right - (moreEnd ? fade : 0) + 1
+  })
+
+test('needs you · on a phone, a count on a view out of sight is scrolled into it, the current view kept', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 })
+  await page.goto('/work.html?viewer=davide&toolsWaiting=1')
+  const row = nav(page)
+  const current = row.getByRole('link', { name: TASKS })
+  const resources = row.getByRole('link', { name: 'Resources, 1 waiting on you' })
+  await expect(current).toHaveAttribute('aria-current', 'page')
+  await expect.poll(() => clear(resources)).toBe(true)
+  expect(await clear(current)).toBe(true)
+})
+
+test('needs you · at 1280 with both counts, the row stands whole and the project’s name reads whole', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto('/work.html?viewer=davide&toolsWaiting=1')
+  await expect(nav(page).locator('.view-count')).toHaveCount(2)
+  const seen = await page.evaluate(() => {
+    const row = document.querySelector('.view-nav')
+    const name = document.querySelector('.project-name')
+    return {
+      page: document.documentElement.scrollWidth,
+      row: row ? row.scrollWidth - row.clientWidth : -1,
+      name: name ? { shown: name.clientWidth, whole: name.scrollWidth } : null,
+    }
+  })
+  console.log(`1280 · row overflow ${String(seen.row)} px; name ${JSON.stringify(seen.name)}`)
+  expect(seen.page).toBeLessThanOrEqual(1280)
+  expect(seen.row).toBe(0)
+  expect(seen.name).not.toBeNull()
+  expect(seen.name?.shown).toBeGreaterThanOrEqual(seen.name?.whole ?? Infinity)
+})
+
+/**
+ * Each number's ink and its grounds up to the bar, then the darkest content that can scroll under the translucent bar
+ * (black): what it reads at whatever is under the bar.
+ */
 const seenOf = (page: Page) =>
   nav(page)
     .locator('.view-count')
-    .evaluate((el) => {
-      const grounds: string[] = []
-      let opacity = 1
-      for (let up: Element | null = el; up; up = up.parentElement) {
-        opacity *= parseFloat(getComputedStyle(up).opacity)
-        grounds.push(getComputedStyle(up).backgroundColor)
-      }
-      const s = getComputedStyle(el)
-      return { words: el.textContent, ink: s.color, opacity, grounds, size: parseFloat(s.fontSize) }
-    })
+    .evaluateAll((els) =>
+      els.map((el) => {
+        const grounds: string[] = []
+        let opacity = 1
+        for (let up: Element | null = el; up; up = up.parentElement) {
+          opacity *= parseFloat(getComputedStyle(up).opacity)
+          grounds.push(getComputedStyle(up).backgroundColor)
+          if (up.classList.contains('topbar')) break
+        }
+        grounds.push('rgb(0, 0, 0)')
+        const s = getComputedStyle(el)
+        return { words: el.textContent, ink: s.color, opacity, grounds, size: parseFloat(s.fontSize) }
+      }),
+    )
 
 for (const theme of ['dark', 'light'] as const) {
-  test(`needs you · the number reads at 4.5:1 or more on ${theme === 'light' ? 'paper' : 'the dark room'}`, async ({
+  test(`needs you · every number reads at 4.5:1 or more on ${theme === 'light' ? 'paper' : 'the dark room'}, dark content under the bar`, async ({
     page,
   }) => {
-    await page.goto(`/work.html?viewer=davide&theme=${theme}`)
-    await expect(nav(page).getByRole('link', { name: TASKS })).toBeVisible()
-    const ratio = contrastOf(await seenOf(page))
-    test.info().annotations.push({ type: 'contrast', description: `${theme}: ${ratio.toFixed(2)}:1` })
-    expect(ratio).toBeGreaterThanOrEqual(4.5)
+    await page.goto(`/work.html?viewer=davide&toolsWaiting=1&theme=${theme}`)
+    await expect(nav(page).locator('.view-count')).toHaveCount(2)
+    const ratios = (await seenOf(page)).map((seen) => contrastOf(seen))
+    console.log(`contrast · ${theme}: ${ratios.map((r) => r.toFixed(2)).join(', ')}`)
+    expect(ratios).toHaveLength(2)
+    for (const ratio of ratios) expect(ratio).toBeGreaterThanOrEqual(4.5)
   })
 }
