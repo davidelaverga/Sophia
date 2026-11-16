@@ -9,8 +9,26 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-paper-4`, branch `persis
 Writable scope: `packages/persistence/src/design-progress.ts` and its new unit test, `apps/api/src/design.db.test.ts`,
 `docs/plans`, `docs/handoffs`. No migration, no contract, no Studio change, no copy.
 Runtime unit: Luis's Windows host for unit tests and lint; PostgreSQL tests in CI (`pnpm test:db`) as the run on record.
-Ending commit: `579080d49` (the fix); the next one adds only this record. Plan:
+Ending commit: `2eb7452bf` (the review's fix); the next one updates only this record. Plan:
 [docs/plans/design-retry-read.md](../plans/design-retry-read.md).
+
+## After the independent review (no P1/P2; its P3s)
+
+- **Written first and failing** (`00eea29cb`): `design-progress.test.ts` 6/7, the new case failing with
+  `the read's gate lacks pkg.stateISDISTINCTFROM'ready'ORpkg.sha256ISDISTINCTFROMt.package_sha256ORbodyISNULLORencode(sha256(convert_to(body,'UTF8')),'hex')<>t.package_sha256`.
+  The test now reads the last `CREATE [OR REPLACE] FUNCTION sophia.retry_failed_design` across the migrations (0081
+  uses plain `CREATE FUNCTION`), failing if none. Probe: a temporary `9999_probe.sql` redefining it with one changed
+  condition made it fail (`…lacks …x.candidate_idISNOTNULLANDx.review_stateISNOTNULL`); removed.
+- **Fix `2eb7452bf`**: the frozen-package refusal (0081:91–95) is in the read, with 0081's predicates over
+  `source_objects pkg` and `source_texts`, in a nested CASE (hashed only for a design that passed the rest). The reader
+  sees the package: `put_text_source` (0012) writes it as a ready, eligible project source (`eligible_sources_read`),
+  and `readable_source` shows its text. One that stopped being so is hidden from all but its owner and reads as
+  missing, which 0081 refuses too. The withdrawn-source line reference is now `:89–90`. Unit 7/7.
+- **PostgreSQL case reworked** (CI): the newer version is a real version n+1 of the same report, inserted with every
+  key and check in force (no replica mode), stable pointing at it and n superseded; the package case changes its text by
+  one character; around each refused press the counts are unchanged.
+- The unit test pins the text, not the meaning (accepted; the PostgreSQL case pins the meaning).
+- Whole-repo lint exit 0; `tsc` for studio, api, persistence exit 0; Prettier clean.
 
 ## Outcome
 
