@@ -389,6 +389,16 @@ const CATALOG_STATE: Record<CatalogFacts['state'], string | null> = {
 /** The catalog's state of a resource, when it is not simply enrolled: "Needs a connection", "Revoked". */
 export const catalogState = (facts: CatalogFacts): string | null => CATALOG_STATE[facts.state]
 
+/**
+ * What to do about a connection the resource needs, or the owner's that expired (UX04): how a tool comes to be enrolled,
+ * the empty catalog's own line; null for every other state.
+ */
+export function catalogEnrollment(facts: CatalogFacts): string | null {
+  const connection = facts.mine?.connection
+  const lapsed = connection?.state === 'expired' || (connection?.state === 'linked' && connection.expired)
+  return facts.state === 'needs_connection' || lapsed ? CATALOG_ENROLLMENT : null
+}
+
 const CONNECTION: Record<NonNullable<CatalogMine['connection']>['state'], string> = {
   pending: 'Connection pending',
   linked: 'Connection linked',

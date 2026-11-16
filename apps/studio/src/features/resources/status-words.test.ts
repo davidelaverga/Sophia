@@ -575,6 +575,23 @@ const q = (state: sw.CatalogQualification['state'], operations: sw.CatalogQualif
   expiresAt: null,
 })
 
+/** The owner's facts with this connection, no host and no qualification. */
+const noQualification = { state: 'none' as const, operations: [], qualifiedAt: null, expiresAt: null }
+const ownFacts = (connection: Parameters<typeof sw.connectionSaid>[0]) => ({
+  connection,
+  host: null,
+  qualification: noQualification,
+})
+/** A catalog resource's facts, in a state, with the owner's connection (linked by default). */
+const inState = (
+  state: 'active' | 'needs_connection' | 'revoked',
+  connection = ownFacts({ state: 'linked', expired: false }),
+) => ({
+  state,
+  observedAt: '2026-11-12T14:00:00Z',
+  mine: connection,
+})
+
 describe('the catalog’s words', () => {
   it('offers no control where controls aren’t reported, and says none is unsupported', () => {
     assert.deepEqual(controlGroups(null), [])
@@ -645,30 +662,23 @@ describe('the catalog’s words', () => {
   })
 
   it('says how a tool is enrolled under a connection it needs or that expired, and nowhere else', () => {
-    const qualification = { state: 'none' as const, operations: [], qualifiedAt: null, expiresAt: null }
-    const mine = (connection: Parameters<typeof sw.connectionSaid>[0]) => ({ connection, host: null, qualification })
-    const facts = (
-      state: 'active' | 'needs_connection' | 'revoked',
-      connection = mine({ state: 'linked', expired: false }),
-    ) => ({
-      state,
-      observedAt: '2026-11-12T14:00:00Z',
-      mine: connection,
-    })
-    assert.equal(sw.catalogEnrollment(facts('needs_connection')), sw.CATALOG_ENROLLMENT)
-    assert.equal(sw.catalogEnrollment({ ...facts('needs_connection'), mine: null }), sw.CATALOG_ENROLLMENT)
-    assert.equal(sw.catalogEnrollment(facts('active', mine({ state: 'linked', expired: true }))), sw.CATALOG_ENROLLMENT)
+    assert.equal(sw.catalogEnrollment(inState('needs_connection')), sw.CATALOG_ENROLLMENT)
+    assert.equal(sw.catalogEnrollment({ ...inState('needs_connection'), mine: null }), sw.CATALOG_ENROLLMENT)
     assert.equal(
-      sw.catalogEnrollment(facts('active', mine({ state: 'expired', expired: false }))),
+      sw.catalogEnrollment(inState('active', ownFacts({ state: 'linked', expired: true }))),
       sw.CATALOG_ENROLLMENT,
     )
     assert.equal(
-      sw.catalogEnrollment(facts('needs_connection', mine({ state: 'linked', expired: true }))),
+      sw.catalogEnrollment(inState('active', ownFacts({ state: 'expired', expired: false }))),
       sw.CATALOG_ENROLLMENT,
     )
-    assert.equal(sw.catalogEnrollment(facts('active')), null)
-    assert.equal(sw.catalogEnrollment(facts('active', mine(null))), null)
-    assert.equal(sw.catalogEnrollment(facts('revoked', mine({ state: 'revoked', expired: false }))), null)
+    assert.equal(
+      sw.catalogEnrollment(inState('needs_connection', ownFacts({ state: 'linked', expired: true }))),
+      sw.CATALOG_ENROLLMENT,
+    )
+    assert.equal(sw.catalogEnrollment(inState('active')), null)
+    assert.equal(sw.catalogEnrollment(inState('active', ownFacts(null))), null)
+    assert.equal(sw.catalogEnrollment(inState('revoked', ownFacts({ state: 'revoked', expired: false }))), null)
   })
 
   it('says the catalog’s limits as limits (UX iteration 001): never ready, online, signed in, none or zero', () => {
