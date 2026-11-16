@@ -406,8 +406,8 @@ export function connectionSaid(connection: CatalogMine['connection']): string {
 }
 
 const HOST_RECORDED: Record<NonNullable<CatalogMine['host']>['state'], string> = {
-  bound: 'Host bound',
-  active: 'Host active',
+  bound: 'Linked to your computer',
+  active: 'Your computer is connected',
 }
 
 /**
@@ -425,7 +425,7 @@ export function seenBefore(seconds: number | null): string | null {
  */
 export function catalogHostShort(facts: CatalogFacts): string {
   if (facts.mine === null) return 'Host private'
-  return facts.mine.host === null ? 'No host' : 'Host recorded'
+  return facts.mine.host === null ? 'No host' : 'Your computer'
 }
 
 /** The owner's host in the sheet, in one line, and what else is recorded of it. */
@@ -434,7 +434,7 @@ export function catalogHostLines(host: CatalogMine['host']): string[] {
   const seen = seenBefore(host.secondsSinceSeen)
   return [
     `${HOST_RECORDED[host.state]} (recorded) · ${seen ? `last seen ${seen}` : 'last seen time not recorded in a usable form'}`,
-    host.helloOk ? 'Handshake recorded' : 'No handshake recorded',
+    host.helloOk ? 'Connected once' : 'No handshake recorded',
     ...(host.helloConflict ? ['A conflict is recorded'] : []),
   ]
 }
@@ -448,7 +448,7 @@ const OPERATIONS_SAID: Record<CatalogMine['qualification']['operations'][number]
 const QUALIFICATION: Record<Exclude<CatalogMine['qualification']['state'], 'none' | 'current'>, string> = {
   expired: 'Recorded qualification: expired',
   revoked: 'Recorded qualification: revoked',
-  stale: 'Recorded qualification: stale',
+  stale: 'Needs checking again',
   not_applicable: 'Recorded qualification: doesn’t apply now',
 }
 
