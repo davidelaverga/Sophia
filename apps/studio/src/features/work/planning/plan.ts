@@ -103,6 +103,13 @@ const UNASSIGNED: Doer = {
 const personOf = (id: string | null, people: Record<string, Person>, name?: string): Person | null =>
   id ? (people[id] ?? (name ? { id, name } : null)) : null
 
+/**
+ * The session an assignment names on its resource; null when none does, or the resource's sessions aren't reported (A51's
+ * catalog, sessions null: INC01-DES-002).
+ */
+const sessionOn = (resource: Resource | null, sessionId: string | null) =>
+  resource?.sessions?.find((s) => s.id === sessionId) ?? null
+
 /** Who does an item: its admitted assignment, exactly; else the person the plan names; else unassigned. */
 export function whoDoes(
   item: PlanItem,
@@ -120,7 +127,7 @@ export function whoDoes(
       kind: executor.kind,
       resource,
       person: executor.kind === 'sophia_native' ? null : personOf(executor.owner_id, people, executor.display_name),
-      session: resource?.sessions.find((s) => s.id === assignment.native_session_id) ?? null,
+      session: sessionOn(resource, assignment.native_session_id),
       assignment,
     }
   }

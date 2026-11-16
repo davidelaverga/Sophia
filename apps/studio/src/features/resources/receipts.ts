@@ -284,8 +284,13 @@ const REFUSED: Readonly<Record<NonNullable<Receipt['rejection']>, string>> = {
   expired: 'Too late for this now. Nothing was sent.',
 }
 
+/**
+ * What a settled control says: only the effect its receipt's evidence proves (INC01-DES-001 r2). A held receipt proves
+ * the native session is held; it carries no observation of the account's allowance, a charge or the work, so its words
+ * claim none of them. Stop's restates what its confirmation already says of completed work (SessionActs STOP_WARNING).
+ */
 const CONTROL: Readonly<Record<Exclude<CommandKind, 'guidance'>, { name: string; settled: string }>> = {
-  hold: { name: 'Hold', settled: 'Held. Work and remaining allowance are retained.' },
+  hold: { name: 'Hold', settled: 'Held. Its runtime confirmed the hold.' },
   resume: { name: 'Resume', settled: 'Resumed.' },
   stop: { name: 'Stop', settled: 'Stopped. Completed work is kept.' },
 }

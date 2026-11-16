@@ -30,7 +30,8 @@ export function glance(
         host: r.host.state,
         requests: actions.filter((a) => a.resourceId === r.id && a.state === 'open').map((a) => a.id),
         work: Object.fromEntries(
-          r.sessions.flatMap((s) =>
+          // Sessions not reported (null) give no work to compare, never "none".
+          (r.sessions ?? []).flatMap((s) =>
             s.assignment ? [[s.id, `${s.assignment.workId}|${s.assignment.state}|${s.assignment.title}`]] : [],
           ),
         ),

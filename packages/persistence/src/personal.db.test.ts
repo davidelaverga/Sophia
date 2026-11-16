@@ -42,6 +42,7 @@ import {
   takeBackPersonalRelease,
   withActor,
 } from './index.ts'
+import { PERSONAL_AUTOMATIC_V1, sendPersonalInput } from './personal-inputs.ts'
 
 const ANA = randomUUID() // the person whose space this is; an editor of the shared project
 const ADMIN = randomUUID() // admin of the shared project
@@ -79,9 +80,111 @@ before(async () => {
   elsewhere = (await seedProject(db.ownerUrl, { title: 'Not hers', admin: ADMIN })).projectId
 })
 after(async () => {
-  await pool.end()
-  await db.drop()
+  await endWithin([pool], () => db.drop())
 })
+
+/** How long any one step of a causal race may take: an announcement, an observation, a commit, the drain. */
+const RACE_BOUND_MS = 8000
+
+/** `promise`, or an AssertionError naming `what` once the bound passes: every wait in a race is an asserted bound. */
+async function within<T>(what: string, promise: Promise<T>, ms = RACE_BOUND_MS): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  const bound = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new assert.AssertionError({ message: `${what}: not within ${String(ms)} ms` })), ms)
+  })
+  try {
+    return await Promise.race([promise, bound])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * The announcement a transaction makes once it holds what the race needs (it wrote, it erased, its backend), or an
+ * AssertionError naming `what` as soon as the transaction ends without making it (a setup failure), or at the bound.
+ */
+async function announced<T>(what: string, announcement: Promise<T>, op: Promise<unknown>): Promise<T> {
+  const ended = op.then(
+    () => {
+      throw new assert.AssertionError({ message: `${what}: ended without announcing` })
+    },
+    (cause: unknown) => {
+      throw new assert.AssertionError({ message: `${what}: failed before announcing: ${String(cause)}` })
+    },
+  )
+  ended.catch(() => undefined)
+  return within(what, Promise.race([announcement, ended]))
+}
+
+/** One observation of the race (a lock-wait read): bounded, and a failure of it is an assertion naming what failed. */
+async function observed<T>(what: string, query: Promise<T>): Promise<T> {
+  try {
+    return await within(what, query)
+  } catch (cause) {
+    if (cause instanceof assert.AssertionError) throw cause
+    throw new assert.AssertionError({ message: `${what} failed: ${String(cause)}` })
+  }
+}
+
+/** What a causal race's body is given: release gates for its held transactions, and the operations to drain. */
+interface Race {
+  /** A gate a held transaction waits on: `open()` releases it; it opens anyway when the race ends. */
+  gate(): { wait: Promise<void>; open: () => void }
+  /** An operation of the race: drained before the race ends, whatever happened; its rejection stays the body's. */
+  track<T>(op: Promise<T>): Promise<T>
+}
+
+/**
+ * A causal race with a bounded, clean end (PERS-P2-F01): whatever the body does or fails at (an observer that times
+ * out or rejects, a setup failure before it), every gate is opened and every operation drained within the bound, so no
+ * transaction keeps the space and the pools can end. The body's own failure is the one reported; a drain that could
+ * not finish is reported only when the body passed.
+ */
+async function race(body: (r: Race) => Promise<void>): Promise<void> {
+  const gates: Array<() => void> = []
+  const ops: Array<Promise<unknown>> = []
+  let passed = false
+  try {
+    await body({
+      gate: () => {
+        const g = Promise.withResolvers<void>()
+        const open = () => g.resolve()
+        gates.push(open)
+        return { wait: g.promise, open }
+      },
+      track: (op) => {
+        op.catch(() => undefined)
+        ops.push(op)
+        return op
+      },
+    })
+    passed = true
+  } finally {
+    for (const open of gates) open()
+    const drained = await within('the race drained after its release', Promise.allSettled(ops)).then(
+      () => true,
+      () => false,
+    )
+    if (!drained && passed) assert.fail('a race operation did not end within its bound after its release')
+  }
+}
+
+/**
+ * The pools end within the bound, then the database is dropped. Should a pool not end (a transaction no test could
+ * release), the database is dropped all the same (its drop ends every backend, and its logins go) and the run fails
+ * with an assertion saying so: it always ends and leaves no database or login behind. (A pool with a client never
+ * released does not end even once its backend is gone, so this does not wait for it.)
+ */
+async function endWithin(pools: readonly pg.Pool[], drop: () => Promise<void>): Promise<void> {
+  const ended = Promise.all(pools.map((p) => p.end()))
+  ended.catch(() => undefined)
+  const closed = await within('the pools ended', ended).then(
+    () => true,
+    () => false,
+  )
+  await drop()
+  if (!closed) assert.fail('a pool did not end within its bound: a transaction was never released (database dropped)')
+}
 
 /** How many rows of `table` this transaction has read so far, by any scan. */
 async function rowsRead(c: pg.PoolClient, table: string): Promise<number> {
@@ -121,13 +224,16 @@ const key = () => randomUUID()
 /** Until some statement in the database waits on a lock another transaction holds. */
 async function untilSomeoneWaits(): Promise<void> {
   for (let i = 0; i < 100; i += 1) {
-    const rows = await owner<{ n: string }>(
-      `SELECT count(*) AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`,
+    const rows = await observed(
+      'the lock observation of the database',
+      owner<{ n: string }>(
+        `SELECT count(*) AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`,
+      ),
     )
     if (rows[0]?.n !== '0') return
     await new Promise((r) => setTimeout(r, 30))
   }
-  throw new Error('nothing waited on the held space')
+  assert.fail('nothing waited on the held space')
 }
 
 /** What the API does for a pending turn: claim it, then write the reply under that claim. */
@@ -279,15 +385,20 @@ describe('personal space: one conversation, owner-only', () => {
     const first = (await write(ASKED_AGAIN, (c) => sendPersonalTurn(c, key(), 'Lost'))).turnId ?? ''
     await owner(`UPDATE sophia.personal_turns SET asked_at = now() - interval '3 minutes' WHERE id = $1`, [first])
     const second = (await write(ASKED_AGAIN, (c) => sendPersonalTurn(c, key(), 'Next'))).turnId ?? ''
-    const retried = Promise.withResolvers<void>()
-    const retrying = write(ASKED_AGAIN, async (c) => {
-      await retryPersonalTurn(c, key(), first) // holds the space until it commits
-      retried.resolve()
-      await new Promise((resolve) => setTimeout(resolve, 300))
+    let claimed: string | null = 'not claimed yet'
+    await race(async (r) => {
+      const retried = Promise.withResolvers<void>()
+      const retrying = r.track(
+        write(ASKED_AGAIN, async (c) => {
+          await retryPersonalTurn(c, key(), first) // holds the space until it commits
+          retried.resolve()
+          await new Promise((resolve) => setTimeout(resolve, 300))
+        }),
+      )
+      await announced('the retry holds the space', retried.promise, retrying)
+      claimed = await within('the claim', r.track(write(ASKED_AGAIN, (c) => claimPersonalReply(c, second))))
+      await within('the retry committed', retrying)
     })
-    await retried.promise
-    const claimed = await write(ASKED_AGAIN, (c) => claimPersonalReply(c, second))
-    await retrying
     assert.equal(claimed, null, 'the claim waited, then found the turn asked again first')
     assert.equal(await read(ASKED_AGAIN, (c) => nextPersonalReply(c)), first)
   })
@@ -390,24 +501,31 @@ describe('personal space: one conversation, owner-only', () => {
 
   it('takes a retry that races its first attempt in turn: the same receipt, and one turn', async () => {
     const k = key()
-    const held = Promise.withResolvers<void>()
-    const written = Promise.withResolvers<void>()
-    // The first attempt writes and keeps its transaction open (its reply was lost on the way back).
-    const first = write(ANA, async (c) => {
-      const receipt = await sendPersonalTurn(c, k, 'Racing myself')
-      written.resolve()
-      await held.promise
-      return receipt
+    let pair: PersonalReceipt[] = []
+    await race(async (r) => {
+      const held = r.gate()
+      const written = Promise.withResolvers<void>()
+      // The first attempt writes and keeps its transaction open (its reply was lost on the way back).
+      const first = r.track(
+        write(ANA, async (c) => {
+          const receipt = await sendPersonalTurn(c, k, 'Racing myself')
+          written.resolve()
+          await held.wait
+          return receipt
+        }),
+      )
+      await announced('the first attempt wrote', written.promise, first)
+      const second = r.track(write(ANA, (c) => sendPersonalTurn(c, k, 'Racing myself')))
+      await untilSomeoneWaits()
+      held.open()
+      pair = await within('both attempts ended', Promise.all([first, second]))
     })
-    await written.promise
-    const second = write(ANA, (c) => sendPersonalTurn(c, k, 'Racing myself'))
-    await untilSomeoneWaits()
-    held.resolve()
-    const [a, b] = await Promise.all([first, second])
+    const [a, b] = pair
+    assert.ok(a && b)
     assert.deepEqual(b, a)
     const turns = (await read(ANA, (c) => readPersonalSpace(c))).turns.filter((t) => t.text === 'Racing myself')
     assert.equal(turns.length, 1)
-    await answerTurn(ANA, a.turnId ?? '', 'Only once.', null)
+    await answerTurn(ANA, a?.turnId ?? '', 'Only once.', null)
   })
 
   it('reads a wait that outlasted any answer as failed, and lets her ask again from then', async () => {
@@ -1059,5 +1177,325 @@ describe('personal space: who may write it, and how much it keeps', () => {
       await codeOf(write(OTHER, (c) => keepPersonalNote(c, k, { text: 'A line to forget' }))),
       'stale_revision',
     )
+  })
+})
+
+/** A companion context's history, as `author:text` lines. */
+const texts = (history: ReadonlyArray<{ author: string; text: string }> | undefined) =>
+  (history ?? []).map((h) => `${h.author}:${h.text}`)
+
+/** The backend a transaction runs in: the one a lock wait is read for. */
+const pidOf = async (c: pg.PoolClient) =>
+  (await c.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]?.pid ?? 0
+
+// INC03-CC-002 P2 (0099): held words (a person turn kept as an automatic_v1 input, reply `recorded`, 0098) are visible
+// to their owner but are neither context nor activity: a later legacy answer and a welcome back are written without
+// them, and a welcome is decided, in SQL (begin and record) and here alike, as if they were not there.
+describe('personal space: held words are not context (0099)', () => {
+  const hold = (actor: string, text: string, epoch = 0) =>
+    write(actor, (c) => sendPersonalInput(c, key(), { contract: PERSONAL_AUTOMATIC_V1, epoch, text }))
+  const legacy = async (actor: string, text: string) => {
+    const sent = await write(actor, (c) => sendPersonalTurn(c, key(), text))
+    assert.ok(sent.turnId)
+    return sent.turnId ?? ''
+  }
+  const quiet = (actor: string, interval = '3 hours') =>
+    owner(`UPDATE sophia.personal_turns SET created_at = now() - $2::interval WHERE owner_id = $1`, [actor, interval])
+  /** Whether backend `pid` waits on a lock within 8 s (pg_stat_activity): the order is observed, not assumed. */
+  async function waitsOnLock(pid: number): Promise<void> {
+    const deadline = Date.now() + 8000
+    while (Date.now() < deadline) {
+      const [row] = await observed(
+        `the lock observation of backend ${String(pid)}`,
+        owner<{ w: string | null }>('SELECT wait_event_type AS w FROM pg_stat_activity WHERE pid = $1', [pid]),
+      )
+      if (row?.w === 'Lock') return
+      await new Promise((resolve) => setImmediate(resolve))
+    }
+    assert.fail(`backend ${String(pid)} never waited on a lock`)
+  }
+
+  it('a later legacy answer reads the legacy turns and answers, never held words, which take none of its depth', async () => {
+    const actor = randomUUID()
+    const first = await legacy(actor, 'First legacy words.')
+    await answerTurn(actor, first, 'A legacy answer.', null)
+    for (const n of [1, 2, 3, 4]) await hold(actor, `Held words ${String(n)}.`)
+    const asked = await legacy(actor, 'Now answer me.')
+    const claim = await write(actor, (c) => claimPersonalReply(c, asked))
+    assert.ok(claim)
+    const shallow = await write(actor, (c) => readCompanionContext(c, asked, claim ?? '', 3))
+    assert.deepEqual(texts(shallow?.history), [
+      'person:First legacy words.',
+      'sophia:A legacy answer.',
+      'person:Now answer me.',
+    ])
+    const deep = await write(actor, (c) => readCompanionContext(c, asked, claim ?? ''))
+    assert.equal(JSON.stringify(deep).includes('Held words'), false)
+    await write(actor, (c) => recordPersonalReply(c, asked, claim ?? '', 'Answered.', null))
+    // Still shown to their owner, as kept.
+    const space = await read(actor, (c) => readPersonalSpace(c))
+    assert.deepEqual(
+      space.turns.filter((t) => t.reply === 'recorded').map((t) => t.text),
+      ['Held words 1.', 'Held words 2.', 'Held words 3.', 'Held words 4.'],
+    )
+  })
+
+  it('a failed legacy message asked again is answered from the legacy conversation only', async () => {
+    const actor = randomUUID()
+    const lost = await legacy(actor, 'Lost wait.')
+    await owner(`UPDATE sophia.personal_turns SET asked_at = now() - interval '121 seconds' WHERE id = $1`, [lost])
+    await hold(actor, 'Held beside the lost one.')
+    await write(actor, (c) => retryPersonalTurn(c, key(), lost))
+    const claim = await write(actor, (c) => claimPersonalReply(c, lost))
+    const context = await write(actor, (c) => readCompanionContext(c, lost, claim ?? ''))
+    assert.deepEqual(texts(context?.history), ['person:Lost wait.'])
+    await write(actor, (c) => recordPersonalReply(c, lost, claim ?? '', 'Here now.', null))
+    const turns = (await read(actor, (c) => readPersonalSpace(c))).turns
+    assert.deepEqual(
+      turns.map((t) => [t.author, t.reply]),
+      [
+        ['person', 'answered'],
+        ['person', 'recorded'],
+        ['sophia', null],
+      ],
+    )
+  })
+
+  it('no welcome over an empty space or held words alone, in begin and in record', async () => {
+    const actor = randomUUID()
+    assert.equal(receiptOf(await write(actor, (c) => beginPersonalGreeting(c, key(), null))).turnId, null)
+    await hold(actor, 'Only held words.')
+    await quiet(actor)
+    const k = key()
+    assert.equal(receiptOf(await write(actor, (c) => beginPersonalGreeting(c, k, null))).turnId, null)
+    const forged = receiptOf(await write(actor, (c) => recordPersonalGreeting(c, key(), randomUUID(), null, 'Hi.')))
+    assert.equal(forged.turnId, null)
+    const space = await read(actor, (c) => readPersonalSpace(c))
+    assert.deepEqual(
+      space.turns.map((t) => [t.author, t.reply]),
+      [['person', 'recorded']],
+    )
+  })
+
+  it('a quiet legacy conversation with held words since: due, written without them, depth unspent on them', async () => {
+    const actor = randomUUID()
+    const first = await legacy(actor, 'Before the quiet.')
+    await answerTurn(actor, first, 'Noted.', null)
+    await quiet(actor)
+    for (const n of [1, 2, 3]) await hold(actor, `Held after the quiet ${String(n)}.`)
+    const k = key()
+    const claim = claimOf(await write(actor, (c) => beginPersonalGreeting(c, k, null)))
+    const context = await write(actor, (c) => readWelcomeContext(c, claim, 2))
+    assert.deepEqual(texts(context?.history), ['person:Before the quiet.', 'sophia:Noted.'])
+    const welcome = receiptOf(await write(actor, (c) => recordPersonalGreeting(c, k, claim, null, 'Welcome back.')))
+    assert.ok(welcome.turnId)
+    // Her welcome is the last activity: held words after it, however old, make no second one due.
+    await hold(actor, 'Held after her welcome.')
+    await quiet(actor, '2 hours')
+    assert.equal(receiptOf(await write(actor, (c) => beginPersonalGreeting(c, key(), null))).turnId, null)
+    // The legacy rule is unchanged: a legacy message after the welcome, then quiet: due again.
+    await legacy(actor, 'Back again.')
+    await quiet(actor, '2 hours')
+    claimOf(await write(actor, (c) => beginPersonalGreeting(c, key(), null)))
+  })
+
+  it('held words written while a welcome is claimed: the welcome waits on the space, then is written without them', async () => {
+    const actor = randomUUID()
+    const first = await legacy(actor, 'Quiet since.')
+    await answerTurn(actor, first, 'Rest well.', null)
+    await quiet(actor)
+    const k = key()
+    const claim = claimOf(await write(actor, (c) => beginPersonalGreeting(c, k, null)))
+    // A held write holds the space; the welcome's record, on its own backend, waits on that lock.
+    let recorded: Begun | undefined
+    await race(async (r) => {
+      const release = r.gate()
+      const wrote = Promise.withResolvers<void>()
+      const holding = r.track(
+        write(actor, async (c) => {
+          await sendPersonalInput(c, key(), {
+            contract: PERSONAL_AUTOMATIC_V1,
+            epoch: 0,
+            text: 'Held during the welcome.',
+          })
+          wrote.resolve()
+          await release.wait
+        }),
+      )
+      await announced('the held write wrote', wrote.promise, holding)
+      const recordPid = Promise.withResolvers<number>()
+      const recording = r.track(
+        write(actor, async (c) => {
+          recordPid.resolve(await pidOf(c))
+          return recordPersonalGreeting(c, k, claim, null, 'Welcome back.')
+        }),
+      )
+      await waitsOnLock(await announced('the welcome record named its backend', recordPid.promise, recording))
+      release.open()
+      await within('the held write committed', holding)
+      recorded = await within('the welcome record ended', recording)
+    })
+    assert.ok(recorded)
+    const welcome = receiptOf(recorded)
+    assert.ok(welcome.turnId, 'held words neither stop a due welcome nor are needed for one')
+    // Its context, read under the claim after the held words landed, never had them.
+    const context = await write(actor, (c) => readWelcomeContext(c, claim))
+    assert.equal(context, null, 'the claim is spent once written')
+    const turns = (await read(actor, (c) => readPersonalSpace(c))).turns
+    assert.deepEqual(
+      turns.map((t) => [t.author, t.reply, t.text]),
+      [
+        ['person', 'answered', 'Quiet since.'],
+        ['sophia', null, 'Rest well.'],
+        ['person', 'recorded', 'Held during the welcome.'],
+        ['sophia', null, 'Welcome back.'],
+      ],
+    )
+  })
+
+  it('a race whose observation fails releases its held transaction and reports that failure (PERS-P2-F01)', async () => {
+    const actor = randomUUID()
+    await hold(actor, 'Before the race.')
+    const failed = race(async (r) => {
+      const release = r.gate()
+      const wrote = Promise.withResolvers<void>()
+      const holding = r.track(
+        write(actor, async (c) => {
+          await sendPersonalInput(c, key(), { contract: PERSONAL_AUTOMATIC_V1, epoch: 0, text: 'Held open.' })
+          wrote.resolve()
+          await release.wait
+        }),
+      )
+      await announced('the held write wrote', wrote.promise, holding)
+      throw new assert.AssertionError({ message: 'observer failed' })
+    })
+    await assert.rejects(
+      failed,
+      (err: unknown) => err instanceof assert.AssertionError && err.message === 'observer failed',
+    )
+    assert.equal(pool.totalCount - pool.idleCount, 0, 'no client is held after the race')
+    await within('a write after the race', hold(actor, 'After the race.'))
+    const held = (await read(actor, (c) => readPersonalSpace(c))).turns.map((t) => t.text)
+    assert.deepEqual(held, ['Before the race.', 'Held open.', 'After the race.'])
+  })
+
+  it('a pool a transaction keeps open still lets the run end: its database goes, and the end fails saying so', async () => {
+    const extra = new pg.Pool({ connectionString: db.apiUrl, max: 1 })
+    const c = await extra.connect()
+    c.on('error', () => undefined)
+    await c.query('BEGIN')
+    const pid = await pidOf(c)
+    // The client is never released: only the bounded end can finish. Its "drop" here ends that one backend.
+    const outcome = await Promise.race([
+      endWithin([extra], async () => {
+        await owner('SELECT pg_terminate_backend($1)', [pid])
+      }).then(
+        () => 'ended',
+        (err: unknown) => err,
+      ),
+      new Promise<string>((resolve) => setTimeout(() => resolve('still waiting'), RACE_BOUND_MS + 4000)),
+    ])
+    assert.ok(outcome instanceof assert.AssertionError, String(outcome))
+    assert.match(outcome.message, /^a pool did not end within its bound/)
+    const [left] = await owner<{ n: number }>('SELECT count(*)::int AS n FROM pg_stat_activity WHERE pid = $1', [pid])
+    assert.equal(left?.n, 0, 'its backend is gone')
+  })
+
+  it('a setup failure before an announcement is an assertion naming it, at once', async () => {
+    const actor = randomUUID()
+    const started = Date.now()
+    await assert.rejects(
+      race(async (r) => {
+        const wrote = Promise.withResolvers<void>()
+        const writing = r.track(
+          write(actor, async (c) => {
+            await sendPersonalInput(c, key(), { contract: PERSONAL_AUTOMATIC_V1, epoch: 7, text: 'Never.' })
+            wrote.resolve()
+          }),
+        )
+        await announced('the held write wrote', wrote.promise, writing)
+      }),
+      (err: unknown) =>
+        err instanceof assert.AssertionError &&
+        err.message.startsWith('the held write wrote: failed before announcing'),
+    )
+    assert.ok(Date.now() - started < RACE_BOUND_MS, 'reported at once, not at the bound')
+  })
+
+  it('a failed observation is an assertion naming it, its cause kept in the message', async () => {
+    await assert.rejects(
+      observed('the lock observation of backend 1', Promise.reject(new Error('observer down'))),
+      (err: unknown) =>
+        err instanceof assert.AssertionError &&
+        err.message === 'the lock observation of backend 1 failed: Error: observer down',
+    )
+  })
+
+  it('within rejects at its bound, checked against a timer of its own', async () => {
+    const outcome = await Promise.race([
+      within('a wait that never ends', new Promise(() => undefined), 50).then(
+        () => 'resolved',
+        (err: unknown) => err,
+      ),
+      new Promise<string>((resolve) => setTimeout(() => resolve('no rejection'), 2000)),
+    ])
+    assert.ok(outcome instanceof assert.AssertionError, String(outcome))
+    assert.equal(outcome.message, 'a wait that never ends: not within 50 ms')
+  })
+
+  it('held words, then the welcome context read under a live claim: they are not in it', async () => {
+    const actor = randomUUID()
+    const first = await legacy(actor, 'Quiet words.')
+    await answerTurn(actor, first, 'Quiet answer.', null)
+    await quiet(actor)
+    const k = key()
+    const claim = claimOf(await write(actor, (c) => beginPersonalGreeting(c, k, null)))
+    await hold(actor, 'Held while claimed.')
+    const context = await write(actor, (c) => readWelcomeContext(c, claim))
+    assert.deepEqual(texts(context?.history), ['person:Quiet words.', 'sophia:Quiet answer.'])
+  })
+
+  it('an erasure while a welcome is claimed: no welcome, no held words, and nothing brought back', async () => {
+    const actor = randomUUID()
+    const first = await legacy(actor, 'Before erasing.')
+    await answerTurn(actor, first, 'Answer before erasing.', null)
+    await quiet(actor)
+    await hold(actor, 'Held before erasing.')
+    const k = key()
+    const claim = claimOf(await write(actor, (c) => beginPersonalGreeting(c, k, null)))
+    // The erasure holds the space; the welcome's record waits on it, then finds nothing to welcome back from.
+    let recorded: Begun | undefined
+    await race(async (r) => {
+      const release = r.gate()
+      const erased = Promise.withResolvers<void>()
+      const erasing = r.track(
+        write(actor, async (c) => {
+          await erasePersonalSpace(c, key(), 'delete')
+          erased.resolve()
+          await release.wait
+        }),
+      )
+      await announced('the erasure erased', erased.promise, erasing)
+      const recordPid = Promise.withResolvers<number>()
+      const recording = r.track(
+        write(actor, async (c) => {
+          recordPid.resolve(await pidOf(c))
+          return recordPersonalGreeting(c, k, claim, null, 'Welcome back.')
+        }),
+      )
+      await waitsOnLock(await announced('the welcome record named its backend', recordPid.promise, recording))
+      release.open()
+      await within('the erasure committed', erasing)
+      recorded = await within('the welcome record ended', recording)
+    })
+    assert.ok(recorded)
+    // The erasure let the claim go: the record writes nothing and keeps that answer under its key.
+    assert.equal(receiptOf(recorded).turnId, null)
+    assert.equal(await write(actor, (c) => readWelcomeContext(c, claim)), null)
+    const left = await owner<{ n: number }>(
+      'SELECT count(*)::int AS n FROM sophia.personal_turns WHERE owner_id = $1',
+      [actor],
+    )
+    assert.equal(left[0]?.n, 0, 'nothing written, nothing kept')
   })
 })

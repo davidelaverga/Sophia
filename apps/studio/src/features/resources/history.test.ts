@@ -71,4 +71,87 @@ describe('a window’s history', () => {
     )
     assert.equal(spanOf([{ at: 0, value: 1 }]), '')
   })
+
+  // r3 repair 6 (UI85C4-F09): a reading time that isn't an instant gives no point, and no span is made from one.
+  it('makes no point from a reading whose time isn’t an instant, latest or earlier; the rest stay as read', () => {
+    const latest = window({ value: 60 })
+    const timed = (observed_at: string, value: number) =>
+      ({ observed_at, windows: [window({ value })] }) as unknown as QuotaObservation
+    for (const bad of ['not-an-instant', '', 'NaN', '2026-13-45T99:99:99Z']) {
+      const badLatest = windowHistory(latest, [
+        reading(-60, [window({ value: 30 })]),
+        reading(-30, [window({ value: 45 })]),
+        timed(bad, 60),
+      ])
+      assert.deepEqual(
+        badLatest.map((p) => p.value),
+        [30, 45],
+        `latest ${JSON.stringify(bad)}`,
+      )
+      const badEarlier = windowHistory(latest, [
+        timed(bad, 10),
+        reading(-60, [window({ value: 30 })]),
+        reading(0, [latest]),
+      ])
+      assert.deepEqual(
+        badEarlier.map((p) => p.value),
+        [30, 60],
+        `earlier ${JSON.stringify(bad)}`,
+      )
+      for (const p of [...badLatest, ...badEarlier]) assert.ok(Number.isFinite(p.at), JSON.stringify(p))
+      assert.deepEqual(windowHistory(latest, [timed(bad, 60)]), [], `only ${JSON.stringify(bad)}`)
+    }
+    // The valid control: every reading kept, oldest first.
+    const valid = windowHistory(latest, [reading(-60, [window({ value: 30 })]), reading(0, [latest])])
+    assert.deepEqual(
+      valid.map((p) => p.value),
+      [30, 60],
+    )
+    assert.equal(spanOf(valid), '1 h')
+  })
+
+  it('says no span from a time that isn’t finite, nor from one that runs backwards', () => {
+    assert.equal(
+      spanOf([
+        { at: Number.NaN, value: 1 },
+        { at: 3_600_000, value: 2 },
+      ]),
+      '',
+    )
+    assert.equal(
+      spanOf([
+        { at: 0, value: 1 },
+        { at: Number.NaN, value: 2 },
+      ]),
+      '',
+    )
+    assert.equal(
+      spanOf([
+        { at: 0, value: 1 },
+        { at: Number.POSITIVE_INFINITY, value: 2 },
+      ]),
+      '',
+    )
+    assert.equal(
+      spanOf([
+        { at: Number.NEGATIVE_INFINITY, value: 1 },
+        { at: 0, value: 2 },
+      ]),
+      '',
+    )
+    assert.equal(
+      spanOf([
+        { at: 3_600_000, value: 1 },
+        { at: 0, value: 2 },
+      ]),
+      '',
+    )
+    assert.equal(
+      spanOf([
+        { at: 0, value: 1 },
+        { at: 2 * 86_400_000, value: 2 },
+      ]),
+      '2 days',
+    )
+  })
 })

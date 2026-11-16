@@ -62,21 +62,25 @@ test('LFE-06.1 · the three enrollments as tiles; a sheet holds the owner, host,
 }) => {
   await page.goto(PAGE)
   await expect(grid(page).getByRole('button')).toHaveCount(3)
-  await expect(tile(page, 'Davide · Codex')).toContainText('Online')
+  await expect(tile(page, 'Davide · Codex')).toContainText('Host online') // the host, never the tool, is online
   await expect(tile(page, 'Davide · Codex')).toContainText('Review the report pane') // what it does, on the tile
   const codex = await open(page, 'Davide · Codex')
   await expect(codex.getByText('Host online')).toBeVisible()
+  await expect(codex.getByText('Sign-in and readiness not reported')).toBeVisible() // an online host isn't a ready tool
   await expect(codex.locator('.model-chip')).toHaveText('GPT-6.1 Sol')
   const session = codex.getByRole('listitem').filter({ hasText: 'Review the report pane' })
   await expect(session.getByText('Working', { exact: true })).toBeVisible()
-  const controls = codex.getByRole('list', { name: 'Controls' }).getByRole('listitem')
-  // Each says its state to a screen reader, and what it does in a tip.
-  await expect(controls).toHaveText([
-    /^✓Stop: supportedEnds its work/,
-    /^✓Hold: supportedPauses its work/,
-    /^–Guidance: not qualified yetSends it guidance/,
-    /^–Requests: not qualified yetAnswers its tool/,
-  ])
+  // Each control under its route's support, in words anyone reads, and a control sent is a request, not its effect.
+  await expect(
+    codex.getByRole('list', { name: 'Verified for this connection', exact: true }).getByRole('listitem'),
+  ).toHaveText(['Stop', 'Hold'])
+  await expect(
+    codex.getByRole('list', { name: 'Not verified for this connection yet' }).getByRole('listitem'),
+  ).toHaveText(['Guidance', 'Permissions'])
+  await expect(codex.locator('.resource-controls-note')).toHaveText(
+    'Each is a request until its runtime confirms it. Only Davide can send them.', // Luis looks: only its owner acts
+  )
+  await expect(codex).not.toContainText(/at once|whatever else is waiting/) // Stop promises no instant effect
   await expect(codex.getByRole('button', { name: /^(Stop|Hold|Steer|Guidance)$/ })).toHaveCount(0) // said, not offered
   await page.keyboard.press('Escape')
   await expect(tile(page, 'Davide · Codex')).toBeFocused() // back where it was opened
@@ -87,7 +91,7 @@ test('LFE-06.1 · the three enrollments as tiles; a sheet holds the owner, host,
   await expect(worker.getByRole('meter', { name: 'Effort' })).toHaveAttribute('aria-valuetext', 'Ultracode')
   await page.getByRole('button', { name: 'Close' }).click()
   const luis = await open(page, 'Luis · Claude Code')
-  await expect(luis.getByText('Host unknown')).toBeVisible()
+  await expect(luis.getByText('Host state unknown')).toBeVisible()
   await expect(luis.getByText('Model not reported')).toBeVisible() // nothing reported, nothing made up
   const age = luis.locator('time')
   await expect(age).toHaveText('3 h ago') // the host's age, and the exact time on hover
@@ -188,10 +192,10 @@ test('what waits on an owner is one line on top, and it opens that resource', as
   await expect(tile(page, 'Davide · Claude Code').getByText('1 waiting')).toBeVisible()
   // A screen reader hears the tile's lines, not only whose it is.
   await expect(tile(page, 'Davide · Claude Code')).toHaveAccessibleDescription(
-    /^Online 1 waiting Opus 5\.5 Implement the PDF retry · 2 sessions Asked to run pnpm --filter @sophia\/report test \d+ s ago 5-hour window: 63% used, resets in 55 min$/,
+    /^Host online 1 waiting Opus 5\.5 Implement the PDF retry · 2 sessions Asked to run pnpm --filter @sophia\/report test \d+ s ago 5-hour window: 63% used, resets in 55 min$/,
   )
   await expect(tile(page, 'Luis · Claude Code')).toHaveAccessibleDescription(
-    'Unknown You No assignment Capacity unknown',
+    'Host unknown You No assignment Capacity unknown',
   )
   await expect(tile(page, 'Davide · Codex').getByText(/waiting/)).toHaveCount(0) // none waiting
   await line.click()
@@ -337,7 +341,7 @@ test('by attention, what needs someone comes first; a waiting tile stands out, a
     'Davide · Grok', // offline
   ])
   const grok = tile(page, 'Davide · Grok')
-  await expect(grok).toContainText('Offline · 1 day')
+  await expect(grok).toContainText('Host offline · 1 day')
   await expect(grok.locator('.tool-logo')).toHaveCSS('filter', 'grayscale(1)')
   await expect(tile(page, 'Davide · Codex').locator('.tool-logo')).toHaveCSS('filter', 'none')
   const edge = (name: string) => tile(page, name).evaluate((t) => getComputedStyle(t).borderTopColor)

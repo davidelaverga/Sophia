@@ -113,7 +113,7 @@ const castOwner = (owner: Resource['owner']): Resource['owner'] => (owner.id ===
 const renamed = (id: string) => id.replace(/^davide-/, 'marco-')
 
 /** A session with its assignment's title in the pilot's words. */
-const toldSession = (session: Resource['sessions'][number]): Resource['sessions'][number] =>
+const toldSession = (session: NonNullable<Resource['sessions']>[number]): NonNullable<Resource['sessions']>[number] =>
   session.assignment
     ? { ...session, assignment: { ...session.assignment, title: told(session.assignment.title, 0) } }
     : session
@@ -129,7 +129,7 @@ export function demoResources(data: { resources: readonly Resource[]; actions: r
       ...r,
       id: renamed(r.id),
       owner: castOwner(r.owner),
-      sessions: r.sessions.map(toldSession),
+      sessions: r.sessions?.map(toldSession) ?? null,
     })),
     actions: data.actions.map((a) => ({
       ...a,

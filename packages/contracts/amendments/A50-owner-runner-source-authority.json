@@ -1,0 +1,215 @@
+{
+  "id": "A50",
+  "goal": "INC01-S1",
+  "title": "Owner-runner source authority: a native create or input freezes its owner-private instruction, its selected project sources, base, write scope and settings, and is rechecked before every effect and disclosure",
+  "why": [
+    "SOPHIA-INC-2026-11 INC01-CC-005, shared contract C02: the A47 runner operations carried their instruction inline and no source manifest, repository base, settings or withdrawal. Assigned with migration 0096 (docs/plans/owner-runner-source-authority.md); generated output is regenerated with `pnpm --filter @sophia/contracts generate`, never by hand.",
+    "A create now names its project sources, a 40-hex base, write scope read_only and settings inside the route's operator-declared source policy; an input names a subset of its create's sources and inherits the rest. A Stop names none and is unchanged. A create or input without these facts, or with facts the route's policy does not declare, is refused before any write (invalid_request, runner_unqualified).",
+    "The owner's view says whether an operation's instruction is inline (A47 rows), available (read again under its source authority now) or withdrawn, and shows the frozen requested facts. Requested settings are a request: nothing in the view claims what an adapter accepted or what a run used, and a base is not proof of a checkout.",
+    "Additive to A47: new optional request properties and new view properties. No route, status or error code is added or changed; real admission stays off and no live route is qualified."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerSettings",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Requested runner settings (A50), the T3 pin ade473018d32003658b7d38693e083ee2e314bd8 ModelSelection shape: a provider instance, a model and every option the route's operator-declared source policy names for it (Codex reasoningEffort, Claude effort), sorted by id. Only what that policy declares is admitted; there is no default and no fallback. A request, never what an adapter accepted or what a run used: those stay unknown.",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$"
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "options": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                }
+              },
+              "required": ["id", "value"]
+            }
+          }
+        },
+        "required": ["instanceId", "model", "options"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerOperationRequest/properties/sourceIds",
+      "value": {
+        "type": "array",
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "create and input (A50): the project sources it may read, each project-scoped, eligible, ready and withdrawn from nothing it drew on. An input names a subset of its create's. Frozen with their hashes and revisions; empty is allowed."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerOperationRequest/properties/baseCommit",
+      "value": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{40}$",
+        "description": "create only (A50): the requested repository base, a full commit. Recorded and sent as T3's worktree baseRef; never proof of a checkout. An input inherits its create's."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerOperationRequest/properties/writeScope",
+      "value": {
+        "type": "string",
+        "enum": ["read_only"],
+        "description": "create only (A50): read_only, the one scope this slice admits. A request the qualified profile must enforce, not enforcement."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerOperationRequest/properties/settings",
+      "value": {
+        "$ref": "#/components/schemas/OwnerRunnerSettings",
+        "description": "create only (A50). An input inherits its create's."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerOperation/properties/envelopeVersion",
+      "value": {
+        "type": "integer",
+        "enum": [1, 2],
+        "description": "1: admitted before source authority (A47), its text inline. 2: its instruction is an owner-private source."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerOperation/properties/content",
+      "value": {
+        "type": "string",
+        "enum": ["inline", "available", "withdrawn"],
+        "description": "inline: a version-1 row's text. available: a version-2 instruction, read again under its source authority now. withdrawn: it, its context or a source it drew on was withdrawn, so its title and message are null; its state, identities, Stop and reconciliation are unchanged. A native copy already delivered is not recalled."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerOperation/properties/sourceIds",
+      "value": {
+        "anyOf": [
+          {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerOperation/properties/baseCommit",
+      "value": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerOperation/properties/writeScope",
+      "value": {
+        "anyOf": [
+          {
+            "type": "string",
+            "enum": ["read_only"]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerOperation/properties/settings",
+      "value": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/OwnerRunnerSettings"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerOperation/required/-",
+      "value": "envelopeVersion"
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerOperation/required/-",
+      "value": "content"
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerOperation/required/-",
+      "value": "sourceIds"
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerOperation/required/-",
+      "value": "baseCommit"
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerOperation/required/-",
+      "value": "writeScope"
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerOperation/required/-",
+      "value": "settings"
+    }
+  ]
+}

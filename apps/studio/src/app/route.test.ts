@@ -13,6 +13,7 @@ import {
   VIEWS,
   viewsShown,
 } from './route.ts'
+import { NATIVE_RESOURCES } from './native-resources.ts'
 
 const P = '6f1f3a52-4b8e-4c62-9d7e-0a1b2c3d4e5f'
 const project = (view: string) => ({ projectId: P, view, place: 'work' })
@@ -66,6 +67,37 @@ describe('the project on screen', () => {
     assert.equal(projectOnScreen('p1', 'p1'), 'p1')
     assert.equal(projectOnScreen('p2', 'p1'), 'p1', 'its controls stay in sight; the other opens after')
     assert.equal(projectOnScreen(null, 'p1'), null, 'in the places, the call goes on out of sight')
+  })
+})
+
+describe('the native resources read flag (INC01-DES-002)', () => {
+  it('is off unless the build sets it, so Resources stays hidden by default', () => {
+    assert.equal(NATIVE_RESOURCES, false)
+    assert.ok(!viewsShown(false).includes('resources'))
+    assert.ok(!viewsShown(false, true, true).includes('resources'))
+    assert.equal(shownView('resources', false), 'studio')
+    assert.equal(shownView('resources', false, true, true), 'studio')
+  })
+
+  it('shows Resources, and only Resources, where the build reads the catalog', () => {
+    assert.deepEqual(viewsShown(false, false, false, true), ['studio', 'goals', 'work', 'knowledge', 'resources'])
+    assert.equal(shownView('resources', false, false, false, true), 'resources')
+    assert.equal(shownView('updates', false, false, false, true), 'studio')
+    assert.equal(shownView('conversations', false, false, false, true), 'studio')
+    assert.deepEqual(viewsShown(false, true, true, true), [
+      'studio',
+      'conversations',
+      'goals',
+      'work',
+      'knowledge',
+      'updates',
+      'resources',
+    ])
+  })
+
+  it('never comes with the vision flag, nor turns it on: under vision every view shows as before', () => {
+    assert.deepEqual(viewsShown(true, true, false, false), VIEWS)
+    assert.deepEqual(viewsShown(true), VIEWS)
   })
 })
 

@@ -53,6 +53,29 @@ describe('a window’s pace', () => {
     assert.equal(pace(window({ resets_at: null }), read(0), now), null)
     assert.equal(pace(window({ value: null, state: 'unknown' }), read(0), now), null)
   })
+
+  // r3 repair 5 (UI85C4-F09): a time that isn't an instant gives no pace, never NaN; every valid pace stays as it was.
+  it('is made up from no time that isn’t one: a reset or a reading time that isn’t an instant gives none', () => {
+    const MALFORMED = ['not-an-instant', '', 'NaN', '2026-13-45T99:99:99Z']
+    for (const bad of MALFORMED) {
+      assert.equal(pace(window({ resets_at: bad }), read(0), now), null, `reset ${JSON.stringify(bad)}`)
+      assert.equal(pace(window({ value: 92, resets_at: bad }), read(0), now), null, `reset ${JSON.stringify(bad)}`)
+      const reading = { observed_at: bad, source_channel: 'claude-code-statusline' }
+      assert.equal(pace(window({}), reading, now), null, `reading time ${JSON.stringify(bad)}`)
+      assert.equal(pace(window({ value: 92, resets_at: at(40) }), reading, now), null, `reading ${JSON.stringify(bad)}`)
+      // The siblings that never had a pace still have none.
+      assert.equal(pace(window({ resets_at: bad }), read(0, 'codex-app-server'), now), null)
+      assert.equal(pace(window({ resets_at: bad, unit: 'credits_remaining' }), read(0), now), null)
+      assert.equal(pace(window({ resets_at: bad, applicability: 'partial' }), read(0), now), null)
+    }
+    assert.equal(pace(window({}), read(0), new Date(Number.NaN)), null) // a clock that isn't one
+    assert.equal(pace(window({ value: Number.NaN }), read(0), now), null)
+    // Valid, null and due are as before: a pace, none, none.
+    assert.equal(pace(window({}), read(0), now)?.passed, 0.6)
+    assert.equal(pace(window({ value: 92, resets_at: at(40) }), read(0), now)?.runsOut, '~23 min')
+    assert.equal(pace(window({ resets_at: null }), read(0), now), null)
+    assert.equal(pace(window({ resets_at: at(-5) }), read(0), now), null)
+  })
 })
 
 const resource = (id: string, owner: string, tool: Resource['tool'], host: Resource['host']['state']) =>

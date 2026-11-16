@@ -55,6 +55,14 @@ export interface SupervisorOptions {
   readonly bridge: { readonly url: string; readonly token: string }
   /** Credential variable NAMES to pass through when set (e.g. the model route's key reference). */
   readonly credentials?: readonly string[]
+  /**
+   * Credential VALUES by variable name, from an explicit custodian (INC01-CC-004 S5c). Undefined: `credentials` names
+   * are looked up in this process's environment, exactly as before. A map, an empty one included, REPLACES that
+   * lookup completely: only its entries pass, a missing entry never falls back to the environment, and neither the
+   * map nor `extraEnv` may set a reserved name (the bridge binding, the homes, PATH, the unit, replies, Node's
+   * code-loading modifiers) or, for `extraEnv`, one of the map's names. A violation is refused before spawn.
+   */
+  readonly credentialValues?: Readonly<Record<string, string>>
   /** Extra launcher arguments (e.g. `--patch` overlays in tests). */
   readonly extraArgs?: readonly string[]
   /** Extra child environment (tests only). */
@@ -88,6 +96,34 @@ export class LeaseHeldError extends Error {
 }
 
 const READY_LINE = '[sophia-control-bridge] readiness=ready'
+
+/** Names the supervisor sets itself, and Node's code-loading modifiers: never from an explicit map or its extraEnv. */
+const RESERVED_ENV = new Set([
+  'HOME', 'TMPDIR', 'DSH_HOME', 'DSH_TELEMETRY_DISABLED', 'LANG', 'PATH', 'SOPHIA_RUNTIME_UNIT', 'SOPHIA_WORKSPACE',
+  'SOPHIA_BRIDGE_URL', 'SOPHIA_BRIDGE_TOKEN', 'NODE_OPTIONS', 'NODE_PATH', 'NODE_PRESERVE_SYMLINKS',
+  'NODE_PRESERVE_SYMLINKS_MAIN',
+])
+const reservedName = (name: string) => RESERVED_ENV.has(name) || name.startsWith('SOPHIA_REPLY_')
+
+/**
+ * The explicit credential map's entries, checked (S5c): names are environment names outside the reserved set, values
+ * are non-empty single-line text, credential names are not also given, and extraEnv sets no reserved or map name.
+ * The errors name the variable, never its value.
+ */
+function explicitCredentials(options: SupervisorOptions): Record<string, string> {
+  const values = options.credentialValues!
+  if ((options.credentials?.length ?? 0) > 0) throw new Error('credential names and credential values are exclusive')
+  const out: Record<string, string> = {}
+  for (const [name, value] of Object.entries(values)) {
+    if (!/^[A-Z][A-Z0-9_]*$/.test(name) || reservedName(name)) throw new Error(`credential ${name} is not a credential variable`)
+    if (typeof value !== 'string' || value.length === 0 || /[\0\r\n]/.test(value)) throw new Error(`credential ${name} has no usable value`)
+    out[name] = value
+  }
+  for (const name of Object.keys(options.extraEnv ?? {})) {
+    if (reservedName(name) || name in out) throw new Error(`extraEnv may not set ${name} beside explicit credentials`)
+  }
+  return out
+}
 
 /** Leases held by supervisors in THIS process (a pid check cannot tell them apart). */
 const heldInProcess = new Set<string>()
@@ -200,11 +236,13 @@ export class RuntimeSupervisor {
     const home = join(root, 'home')
     const tmp = join(home, 'tmp')
     for (const dir of [home, tmp, join(root, 'work'), join(root, 'workspace')]) mkdirSync(dir, { recursive: true, mode: 0o700 })
-    const passed: Record<string, string> = {}
-    for (const name of this.options.credentials ?? []) {
-      const value = process.env[name]
-      if (value) passed[name] = value
-    }
+    let passed: Record<string, string> = {}
+    if (this.options.credentialValues !== undefined) passed = explicitCredentials(this.options)
+    else
+      for (const name of this.options.credentials ?? []) {
+        const value = process.env[name]
+        if (value) passed[name] = value
+      }
     const environment: Record<string, string> = {
       ...passed,
       HOME: home,

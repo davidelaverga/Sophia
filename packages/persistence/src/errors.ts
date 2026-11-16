@@ -69,6 +69,22 @@ const RULES: readonly Rule[] = [
     code: 'forbidden',
   },
   { sqlstate: '55000', when: (m) => m.startsWith('No native runtime'), code: 'native_capability_unavailable' },
+  // Member API contributions (0094): a typed refusal names its reason about the caller's own pin or contribution, so
+  // the words are kept. Not permitted stays forbidden; the owned 0A000 refusals are invalid requests, and no other
+  // 0A000 is caught here.
+  {
+    sqlstate: '55000',
+    when: (m) => /^Contribution unavailable: [a-z_]+$/.test(m),
+    code: 'contribution_unavailable',
+  },
+  { sqlstate: '42501', when: (m) => /^Contribution not permitted: [a-z_]+$/.test(m), code: 'forbidden' },
+  {
+    sqlstate: '0A000',
+    when: (m) =>
+      /^Unsupported (active-settlement policy|funding policy|unknown-usage policy) /.test(m) ||
+      m.startsWith('Only Markdown research on research-sol-medium-v1 '),
+    code: 'invalid_request',
+  },
   // Research (0024, 0025): the gate, a ready runtime that carries the specialist, and the allowance's limits. The
   // messages name only which limit stopped the call, so they are kept.
   { sqlstate: '55000', when: (m) => m.startsWith('No research runtime'), code: 'native_capability_unavailable' },
@@ -86,6 +102,13 @@ const RULES: readonly Rule[] = [
     code: 'conversations_closed',
   },
   { sqlstate: '55000', when: (m) => LIMITS.some((p) => m.startsWith(p)), code: 'research_limit_reached' },
+  // Owner-runner operations (0092, A47): the route's qualification says which check failed, about the caller's own resource.
+  { sqlstate: '55000', when: (m) => m.startsWith('Owner runner route is not qualified'), code: 'runner_unqualified' },
+  {
+    sqlstate: '0A000',
+    when: (m) => m.startsWith('Owner runner operation unsupported'),
+    code: 'runner_operation_unsupported',
+  },
   // The mission ledger (0018): the note policy's refusals say what would allow the write, so their words are kept.
   {
     sqlstate: '42501',

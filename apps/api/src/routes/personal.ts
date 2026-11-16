@@ -242,7 +242,9 @@ function conversationRoutes(app: FastifyInstance, { pool, companion }: Deps): vo
       if (!companion?.serves(req.actorId))
         return reply.status(202).send(await replayed(pool, req, (c) => replayPersonalTurn(c, key, req.body.text)))
       const receipt = await fenced(pool, req.actorId, req.headers, (c) => sendPersonalTurn(c, key, req.body.text))
-      if (receipt.turnId) void companion.answer(req.actorId, receipt.turnId)
+      // Committed (a replay too): the person's oldest waiting turn is resumed, this one or one before it (A2 R2). A write
+      // that failed, or whose outcome is unknown, threw above and wakes nothing.
+      void companion.resume(req.actorId)
       return reply.status(202).send(receipt)
     },
   )
@@ -274,7 +276,8 @@ function conversationRoutes(app: FastifyInstance, { pool, companion }: Deps): vo
       if (!companion?.serves(req.actorId))
         return reply.status(202).send(await replayed(pool, req, (c) => replayPersonalRetry(c, key, turnId)))
       const receipt = await fenced(pool, req.actorId, req.headers, (c) => retryPersonalTurn(c, key, turnId))
-      void companion.answer(req.actorId, turnId)
+      // As the send: resumed after the commit, a replay included; an automatic turn asked again passes 0102's guard.
+      void companion.resume(req.actorId)
       return reply.status(202).send(receipt)
     },
   )

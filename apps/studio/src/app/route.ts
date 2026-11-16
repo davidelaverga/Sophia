@@ -1,6 +1,7 @@
 // The address bar holds where a person is: one of the three places outside a project (home, their personal space,
 // their work space) or an open project and view (/p/<project>/<view>), so links can be shared and Back works. Only
 // navigation lives here: the lens, drafts and panels are per-viewer (viewer-state.ts).
+import { NATIVE_RESOURCES } from './native-resources.ts'
 
 /** Project views (architecture 04 §1). Studio is the shared room; the others inspect the same records. */
 export const VIEWS = ['studio', 'conversations', 'goals', 'work', 'knowledge', 'updates', 'resources'] as const
@@ -16,18 +17,34 @@ const UNSERVED: readonly View[] = ['conversations', 'updates', 'resources']
 
 /**
  * The views a project's nav shows: only the served ones, every one under the vision flag (docs/plans/served-views.md);
- * saved conversations where they are served, Updates under the attention flag.
+ * saved conversations where they are served, Updates under the attention flag, and Resources where the build reads the
+ * native resource catalog (app/native-resources.ts, off by default). Its callers pass the first three; the fourth
+ * defaults to the build's flag, so the nav, the shell and the address agree without each naming it.
  */
-export const viewsShown = (vision: boolean, conversations: boolean = vision, attention = false): readonly View[] =>
+export const viewsShown = (
+  vision: boolean,
+  conversations: boolean = vision,
+  attention = false,
+  resources = NATIVE_RESOURCES,
+): readonly View[] =>
   vision
     ? VIEWS
     : VIEWS.filter(
-        (v) => !UNSERVED.includes(v) || (v === 'conversations' && conversations) || (v === 'updates' && attention),
+        (v) =>
+          !UNSERVED.includes(v) ||
+          (v === 'conversations' && conversations) ||
+          (v === 'updates' && attention) ||
+          (v === 'resources' && resources),
       )
 
 /** The view an address opens: itself when shown, else the project's Studio, never a «Coming» page. */
-export const shownView = (view: View, vision: boolean, conversations: boolean = vision, attention = false): View =>
-  viewsShown(vision, conversations, attention).includes(view) ? view : 'studio'
+export const shownView = (
+  view: View,
+  vision: boolean,
+  conversations: boolean = vision,
+  attention = false,
+  resources = NATIVE_RESOURCES,
+): View => (viewsShown(vision, conversations, attention, resources).includes(view) ? view : 'studio')
 
 /** Outside a project: the two doors (home), the personal space and the work space (A10, direction C). */
 export const PLACES = ['home', 'personal', 'work'] as const
