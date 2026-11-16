@@ -1,6 +1,6 @@
 // Room-scoped LiveKit access tokens (architecture 06 §1, 13 §4). The grant names exactly one room, so a
 // token issued for one project's room cannot join another; it is short-lived and carries no Google key.
-import { AccessToken, RoomServiceClient, ServerError, TrackSource } from 'livekit-server-sdk'
+import { AccessToken, RoomServiceClient, ServerError, TrackSource, type TrackInfo } from 'livekit-server-sdk'
 import type { RoomToken } from '@sophia/contracts'
 import type { RemovalOutcome } from '@sophia/persistence'
 
@@ -207,7 +207,11 @@ export class PartialMute extends Error {
   }
 }
 
-/** Mute one published track; false when it is already gone (isNotFound), which is done, not a failure. */
+/**
+ * Mute one published track; false when it is already gone, which is done, not a failure: refused as not found
+ * (isNotFound), or answered with no track, as the pinned server answers a sid no longer published (its type says a track
+ * always comes back; the response's `track` is optional).
+ */
 async function muteIfThere(
   rooms: Pick<RoomServiceClient, 'mutePublishedTrack'>,
   roomId: string,
@@ -215,8 +219,8 @@ async function muteIfThere(
   sid: string,
 ): Promise<boolean> {
   try {
-    await rooms.mutePublishedTrack(roomId, identity, sid, true)
-    return true
+    const track = (await rooms.mutePublishedTrack(roomId, identity, sid, true)) as TrackInfo | undefined
+    return track !== undefined
   } catch (err: unknown) {
     if (isNotFound(err)) return false
     throw err
