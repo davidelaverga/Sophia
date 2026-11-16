@@ -4090,6 +4090,27 @@ button.contribution-quote:hover {
 .shell:has(.lobby) .arrival-band {
   display: none;
 }
+/* The keys' tip (keys-tip.md): one line in the bottom-left corner, where the views keep no control, until dismissed. */
+.keys-tip {
+  position: fixed;
+  left: var(--gutter);
+  bottom: 16px;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 2 * var(--gutter));
+  padding: 5px 5px 5px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-4);
+  background: var(--plane-2);
+  box-shadow: var(--elev-welcome);
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.keys-tip p {
+  margin: 0;
+}
 .wait-note {
   position: fixed;
   top: calc(var(--topbar) + 24px);
