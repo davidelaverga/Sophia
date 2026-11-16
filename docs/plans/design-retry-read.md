@@ -25,7 +25,8 @@
   FROM v.id`; a rendition `html` with a `candidate_id`; a design of the version `designing` or `reviewing`; the count of
   the report's designs `>=16`. The later-design check is rewritten the same way (`x.base_version_id=v.id`). Each is the
   text of 0081's condition with the failed task `f` read as `t` and `p_project` as `t.project_id`; a comment names
-  0081's lines. When any holds, `retry` is null and the API leaves it out.
+  0081's lines. When any holds, `retry` is null and the API leaves it out. The retry's expression moves to a module
+  constant (`RETRY`), interpolated into the query, so `readDesignProgress` stays under the function-size limit.
 - **A unit test pins the text**: it takes each of those conditions out of 0081 and finds it in the read's gate,
   whitespace aside. A change to either side fails it.
 
