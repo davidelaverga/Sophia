@@ -1454,16 +1454,17 @@ button.mark:hover {
   color: var(--text);
 }
 /* What waits on you there (needs-you-in-project.md): a small number, amber on its tint as .chip.amber and the board's
-   «for you». */
+   «for you». The tint is laid on the void as a solid: over the bar's see-through ground, content scrolled under it took
+   the number on paper to 3:1. Narrow enough for both counts at 1280 with the project's name whole. */
 .view-count {
   display: grid;
   place-items: center;
-  min-width: 16px;
+  min-width: 14px;
   height: 16px;
-  margin-left: 6px;
-  padding: 0 4px;
+  margin-left: 4px;
+  padding: 0 3px;
   border-radius: var(--r-1);
-  background: rgb(var(--amber-rgb) / 0.1);
+  background: color-mix(in srgb, var(--amber) 10%, var(--void));
   color: var(--amber);
   font: 500 var(--type-label) / 1 var(--mono);
   font-variant-numeric: tabular-nums;

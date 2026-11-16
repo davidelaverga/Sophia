@@ -39,9 +39,10 @@ const FADE = 0.18
 /**
  * A row that scrolls keeps its current item in sight and clear of the fades, and marks the ends that hide more items
  * (data-more-start, data-more-end) for the CSS fade. Both run again when the row or the current item changes size, as
- * when the font arrives after the first layout.
+ * when the font arrives after the first layout. A view with a count (`counted`, their names) is brought into sight
+ * too, as long as the current one stays clear: a phone on Tasks still sees what waits on Resources.
  */
-function useScrollRow(ref: RefObject<HTMLElement | null>, current: string) {
+function useScrollRow(ref: RefObject<HTMLElement | null>, current: string, counted: string) {
   useEffect(() => {
     const row = ref.current
     if (!row) return undefined
@@ -66,7 +67,9 @@ function useScrollRow(ref: RefObject<HTMLElement | null>, current: string) {
       if (moreEnd && overEnd > 0) row.scrollLeft += overEnd
       else if (row.scrollLeft > 0 && overStart > 0) row.scrollLeft -= overStart
     }
+    const count = row.querySelector('a:has(.view-count):not([aria-current="page"])')
     const settle = () => {
+      if (count) clear(count)
       if (item) clear(item)
       mark()
     }
@@ -86,7 +89,7 @@ function useScrollRow(ref: RefObject<HTMLElement | null>, current: string) {
       row.removeEventListener('focusin', onFocus)
       observer.disconnect()
     }
-  }, [ref, current])
+  }, [ref, current, counted])
 }
 
 /** A view's name, and what waits there on this person: «Tasks, 1 waiting on you». */
@@ -94,7 +97,7 @@ const nameOf = (v: View, n: number) => (n > 0 ? `${VIEW_LABEL[v]}, ${waitingOnYo
 
 export function ViewNav({ projectId, view, onShow, waiting = {} }: Props) {
   const thumb = useSlidingThumb<HTMLElement>(view)
-  useScrollRow(thumb, view)
+  useScrollRow(thumb, view, SHOWN.filter((v) => (waiting[v] ?? 0) > 0).join(' '))
   const follow = (event: React.MouseEvent, next: View) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
     event.preventDefault()
