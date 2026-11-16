@@ -51,7 +51,7 @@ import { RUNTIME_ROUTES, conversationRuntimeRoutes, researchRoutes, runtimeRoute
 import { OWNER_RUNNER_SCHEMA, runnerOperationRoutes, type OwnerRunnerAdmissions } from './routes/runner-operations.ts'
 import { API_CONTRIBUTIONS_SCHEMA, apiContributionRoutes } from './routes/api-contributions.ts'
 import { projectResourceRoutes } from './routes/project-resources.ts'
-import { selectionPreviewRoutes } from './routes/selection-preview.ts'
+import { CAPACITY_EXPOSURE_SCHEMA, selectionPreviewRoutes } from './routes/selection-preview.ts'
 import { sourceRoutes } from './routes/sources.ts'
 import type { LiveKitConfig } from './livekit.ts'
 import { NotificationHub } from './notification-hub.ts'
@@ -158,6 +158,14 @@ export interface AppDeps {
    * research admission and the runtime's paid reservation, which /ready and their own guard require 0105 for anyway.
    */
   apiContributions?: boolean
+  /**
+   * C4/C5 W1 capacity exposure (INC04-R07, migration 0114): off unless set; server.ts does not set it. Off, nothing of
+   * 0114 is asked for, read or required: the preview, its route guard and /ready are exactly as before. On, the preview
+   * reads each API candidate's exposure custody and may only restrict its capacity (the kernel's existing
+   * capacity_unproven or capacity_exhausted; no new code, number or field on the wire), and both the preview's guard
+   * and /ready require 0114 (CAPACITY_EXPOSURE_SCHEMA). It is never a core requirement.
+   */
+  capacityExposure?: boolean
 }
 
 /**
@@ -418,8 +426,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 function registerNativeRunner(app: FastifyInstance, deps: AppDeps): void {
   runnerOperationRoutes(app, { pool: deps.pool, admissions: deps.ownerRunnerAdmissions ?? 'off' })
   projectResourceRoutes(app, { pool: deps.pool })
-  // INC04-S01b (A56): the read-only selection preview; installation (0104) is its boundary, no flag.
-  selectionPreviewRoutes(app, { pool: deps.pool })
+  // INC04-S01b (A56): the read-only selection preview; installation (0104) is its boundary, no flag. INC04-R07 C4/C5
+  // W1: the default-off capacityExposure switch adds 0114's restrictive exposure (and its installation) to it.
+  selectionPreviewRoutes(app, { pool: deps.pool, capacityExposure: deps.capacityExposure === true })
 }
 
 /**
@@ -636,6 +645,7 @@ interface Health {
   voice: boolean
   ownerRunners: boolean
   apiContributions: boolean
+  capacityExposure: boolean
   commit: string | null
 }
 
@@ -648,13 +658,23 @@ const healthOf = (deps: AppDeps): Health => ({
   voice: deps.voiceQualification === true,
   ownerRunners: deps.ownerRunnerAdmissions === 'admit',
   apiContributions: deps.apiContributions === true,
+  capacityExposure: deps.capacityExposure === true,
   commit: deps.commit ?? null,
 })
 
 /** Whether the database has every function and column this API's switches call (each part only when it is on). */
 async function schemaReady(
   pool: pg.Pool,
-  { stores, conversations, conversationInputs, personalAnswers, voice, ownerRunners, apiContributions }: Health,
+  {
+    stores,
+    conversations,
+    conversationInputs,
+    personalAnswers,
+    voice,
+    ownerRunners,
+    apiContributions,
+    capacityExposure,
+  }: Health,
 ): Promise<boolean> {
   const part = async (on: boolean, sql: string) => !on || (await pool.query<{ ok: boolean }>(sql)).rows[0]?.ok === true
   return (
@@ -681,7 +701,10 @@ async function schemaReady(
     // Member API contributions on (A48, A56): the routes' own installation predicate (0094, 0100's rebuild funding
     // guard, 0104's owner protection and account qualification, 0105, 0106's viewer boundary; R2, F02). Off, the
     // default: nothing more of them is required, so a database with 0105 and without 0106 is ready with them off.
-    (await part(apiContributions, API_CONTRIBUTIONS_SCHEMA))
+    (await part(apiContributions, API_CONTRIBUTIONS_SCHEMA)) &&
+    // C4/C5 W1 capacity exposure on (INC04-R07): 0114's custody, which the preview then reads. Off, the default: nothing
+    // of 0114 is required, so a database without it stays ready (never a core requirement).
+    (await part(capacityExposure, CAPACITY_EXPOSURE_SCHEMA))
   )
 }
 

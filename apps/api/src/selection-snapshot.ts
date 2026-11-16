@@ -4,6 +4,9 @@
 // Only a FULL snapshot (an evaluator's, 0106) is ever assembled; a restricted one has nothing to assemble (R2).
 // INC04-S03a (0107; docs/plans/capacity-observations.md): an API candidate's operator-recorded reading for its exact
 // scope maps to the kernel's existing capacity fields (apiCapacity). Advisory only: admission does not read it.
+// INC04-R07 C4/C5 W1 (0114; docs/plans/capacity-exposure-wiring.md): with the capacityExposure switch on, the snapshot
+// carries each API candidate's exposure facts, and selection-exposure.ts may only restrict that capacity further (the
+// kernel's own capacity_unproven or capacity_exhausted). Without the facts (the switch off), nothing here changes.
 //
 // Guarantees: the actor, project and every fact come from the authenticated snapshot, never from a client field;
 // missing proof stays unknown or absent and is never mapped to clear, current or not_applicable; no Prefer, route
@@ -36,6 +39,7 @@ import type {
   SelectionObservationWindow,
   SelectionSnapshot,
 } from '@sophia/persistence'
+import { exposureEffect, restrictCapacity } from './selection-exposure.ts'
 
 /** The one closed profile of this slice (root D1/D2): fresh standalone research, explore family, explorer role. */
 export const RESEARCH_PROFILE = {
@@ -181,7 +185,7 @@ function apiCandidate(s: FullSelectionSnapshot, f: SelectionApiFacts): Candidate
     sourceDisclosure: apiDisclosure(s, f),
     qualification: apiQualification(f),
     settings: { declared: grantDeclaration(f), defaultSeed: grantSeed(f) },
-    capacity: apiCapacity(s, f),
+    capacity: restrictCapacity(apiCapacity(s, f), exposureEffect(f.exposure)),
     protection: apiProtection(f),
     commitments: {
       unsettledEffects: f.uncertainEffects ? 'present' : 'none',

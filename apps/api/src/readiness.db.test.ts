@@ -8,7 +8,8 @@
 // without it. The atomic contributed admission (0105) is core whatever the switches say (INC04-S02a coherent): short
 // of it, no API is ready, so the optional voice contrast (0085, 0087) is shown with every other migration installed.
 // The tracked model-call boundary (0109) and its observed-facts opt-in (0110) are core too: through 0109 only, no API is
-// ready; with 0110, it is.
+// ready; with 0110, it is. The C4/C5 W1 capacity exposure (0114) is NOT core: only an API built with its default-off
+// capacityExposure switch requires it; off, a database without 0114 stays ready.
 import { randomUUID } from 'node:crypto'
 import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -257,6 +258,92 @@ describe('readiness across 0109 and 0110', () => {
     await expectEvery('schema', 'without research_call_facts_version')
     await asTrackedOwner(`${fn}_removed(jsonb) RENAME TO research_call_facts_version`)
     await expectEvery('ready', 'with the function restored')
+  })
+})
+
+// C4/C5 W1 (INC04-R07, 0114): an API built with the default-off capacityExposure switch serves the preview's restrictive
+// exposure, which reads 0114's custody; so /ready requires 0114's own objects only with the switch on. Off, the default,
+// a database short of 0114 stays ready (never a core requirement). Each of 0114's two markers, removed in this block's
+// own database only, makes the switched API not ready and leaves the default one ready; the core 0110 check still holds
+// with 0114 installed. Like the block above, its database (it installs 0070) is made and dropped before the 0043 walk.
+describe('readiness across 0114 (the capacityExposure switch)', () => {
+  const EXPOSURE = '0114_capacity_exposure_custody.sql'
+  let exposureDir: string
+  let exposureDb: TestDatabase
+  let exposurePool: pg.Pool
+  let off: FastifyInstance
+  let on: FastifyInstance
+
+  before(async () => {
+    // Every migration before 0114, exactly as written: 0105, 0109, 0110, 0111 and 0112 included.
+    exposureDir = mkdtempSync(join(tmpdir(), 'sophia-0113-'))
+    for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql') && f < EXPOSURE))
+      copyFileSync(join(MIGRATIONS, file), join(exposureDir, file))
+    exposureDb = await createTestDatabase(exposureDir)
+    exposurePool = createPool(exposureDb.apiUrl, { max: 2 })
+    const verifyActor = createActorVerifier({
+      issuer: 'https://synthetic.supabase.test/auth/v1',
+      audience: 'authenticated',
+      secret: 'synthetic-test-secret-at-least-32-bytes-long!!',
+    })
+    off = buildApp({ pool: exposurePool, verifyActor })
+    on = buildApp({ pool: exposurePool, verifyActor, capacityExposure: true })
+  })
+
+  after(async () => {
+    await off.close()
+    await on.close()
+    await exposurePool.end()
+    await exposureDb.drop()
+    rmSync(exposureDir, { recursive: true, force: true })
+  })
+
+  async function asExposureOwner(sql: string): Promise<void> {
+    const owner = new pg.Client({ connectionString: exposureDb.ownerUrl })
+    await owner.connect()
+    try {
+      await owner.query(sql)
+    } finally {
+      await owner.end()
+    }
+  }
+
+  const READY = [200, { ready: true }]
+  const SCHEMA = [503, { ready: false, reason: 'schema' }]
+  async function expect(offWant: unknown[], onWant: unknown[], label: string): Promise<void> {
+    assert.deepEqual(await answers(off, '/ready'), offWant, `switch off, ${label}`)
+    assert.deepEqual(await answers(on, '/ready'), onWant, `switch on, ${label}`)
+    for (const api of [off, on]) assert.deepEqual(await answers(api, '/health'), [200, { ok: true, commit: null }])
+  }
+
+  it('off is ready without 0114 and on is not; both are ready once 0114 is applied; each marker is required on', async () => {
+    assert.ok(readdirSync(exposureDir).includes('0112_research_runtime_reconciliation.sql'), 'migrated through 0112')
+    assert.ok(!readdirSync(exposureDir).includes(EXPOSURE), 'without 0114')
+    await expect(READY, SCHEMA, 'without 0114')
+    await asExposureOwner(readFileSync(join(MIGRATIONS, EXPOSURE), 'utf8'))
+    await expect(READY, READY, 'with 0114')
+    const fn = 'ALTER FUNCTION sophia.selection_capacity_exposure_0114'
+    await asExposureOwner(`${fn}() RENAME TO selection_capacity_exposure_0114_removed`)
+    await expect(READY, SCHEMA, 'without the 0114 marker')
+    await asExposureOwner(`${fn}_removed() RENAME TO selection_capacity_exposure_0114`)
+    await expect(READY, READY, 'with the marker restored')
+    const table = 'ALTER TABLE sophia.capacity_window_registrations'
+    await asExposureOwner(`${table} RENAME TO capacity_window_registrations_removed`)
+    await expect(READY, SCHEMA, 'without the window registrations')
+    await asExposureOwner(
+      `ALTER TABLE sophia.capacity_window_registrations_removed RENAME TO capacity_window_registrations`,
+    )
+    await expect(READY, READY, 'with the table restored')
+  })
+
+  it('keeps the core 0110 requirement for both, with 0114 installed', async () => {
+    const fn = 'ALTER FUNCTION sophia.research_call_facts_version'
+    await asExposureOwner(`${fn}(jsonb) RENAME TO research_call_facts_version_removed`)
+    try {
+      await expect(SCHEMA, SCHEMA, 'without research_call_facts_version')
+    } finally {
+      await asExposureOwner(`${fn}_removed(jsonb) RENAME TO research_call_facts_version`)
+    }
   })
 })
 
