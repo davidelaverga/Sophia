@@ -91,7 +91,7 @@ const LONG_REPLY =
 const BEFORE = Math.max(1, Number(query.get('away')) || 1) * DAY
 // `formatted=1`: her answer holds bold, code, a quote and an address (personal-replies-formatted.md).
 const FORMATTED_REPLY =
-  'Start with **the one figure** you trust, then run `sum Q3` once.\n> The rest can lean on it.\n' +
+  'Start with **the one figure** you trust, then run `sum Q3` once.\n> Everything else can rest on that.\n' +
   'The deck is at https://example.com/deck'
 /** Her answer to a message sent here. */
 const REPLY = query.has('formatted')

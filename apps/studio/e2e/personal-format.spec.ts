@@ -7,7 +7,7 @@ import { lowContrast } from './contrast.ts'
 const PAGE = '/personal.html?formatted=1'
 const URL = 'https://example.com/deck'
 /** Her answer (`formatted=1`) as it reads: no marks. */
-const SHOWN = `Start with the one figure you trust, then run sum Q3 once.\nThe rest can lean on it.\nThe deck is at ${URL}`
+const SHOWN = `Start with the one figure you trust, then run sum Q3 once.\nEverything else can rest on that.\nThe deck is at ${URL}`
 
 test.beforeEach(async ({ page }) => {
   await page.route(
@@ -21,7 +21,7 @@ async function answered(page: Page, words = 'Where do I start?') {
   await page.locator('#c-input').fill(words)
   await page.keyboard.press('Enter')
   const hers = page.locator('.msg.sophia:not(.typing)').last()
-  await expect(hers.locator('.body')).toContainText('The rest can lean on it.')
+  await expect(hers.locator('.body')).toContainText('Everything else can rest on that.')
   return hers
 }
 
@@ -38,7 +38,7 @@ test('format · in Personal, her reply’s **bold**, `code`, quote and address r
   const body = (await answered(page)).locator('.body')
   await expect(body.locator('strong')).toHaveText('the one figure')
   await expect(body.locator('code.msg-code')).toHaveText('sum Q3')
-  await expect(body.locator('.msg-quote')).toHaveText('The rest can lean on it.')
+  await expect(body.locator('.msg-quote')).toHaveText('Everything else can rest on that.')
   await expect(body.getByRole('link', { name: URL })).toHaveAttribute('href', URL)
   expect(await body.innerText()).toBe(SHOWN)
 })
@@ -67,8 +67,8 @@ test('format · in Personal, Find marks inside bold, and a match across its edge
   // Inside code, and in a quote.
   await find(page, 'Q3')
   await expect(body.locator('code.msg-code mark.current')).toHaveText('Q3')
-  await find(page, 'lean')
-  await expect(body.locator('.msg-quote mark.current')).toHaveText('lean')
+  await find(page, 'everything else')
+  await expect(body.locator('.msg-quote mark.current')).toHaveText('Everything else')
   // The marks never show as words.
   await find(page, '**')
   await expect(page.locator('.c3-find-count')).toHaveText('No match')
@@ -81,7 +81,9 @@ test('format · in Personal, Copy on her reply writes what it says, not its mark
   await hers.hover()
   await hers.getByRole('button', { name: 'Copy' }).click()
   await expect(hers.getByRole('button', { name: 'Copied' })).toBeVisible()
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(SHOWN)
+  // Windows' clipboard hands lines back with CR LF: the words are what is compared.
+  const copied = await page.evaluate(() => navigator.clipboard.readText())
+  expect(copied.replaceAll('\r\n', '\n')).toBe(SHOWN)
 })
 
 for (const scheme of ['dark', 'light'] as const) {
