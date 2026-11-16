@@ -156,13 +156,21 @@ const answering = (answers: Record<string, () => Promise<unknown>>) => ({
 const track = () => Promise.resolve({ sid: 'muted' })
 
 describe('a mute of a track already gone changes nothing and is not counted', () => {
+  it('a refusal with the code not_found is gone, not a failure, whatever its status', async () => {
+    const err = new ServerError('Gone', 'participant does not exist', 400, 'not_found')
+    const rooms = answering({ gone: () => Promise.reject(err), live: track })
+    assert.equal(await muteUnmuted(rooms, 'r', 'p', unmutedTracks('gone', 'live')), 1)
+  })
+
+  // A 404 is not enough: Twirp's bad_route and a proxy's error page in front of the server are 404 too, and read as
+  // gone, every mute and stop would answer done having done nothing.
   for (const [how, err] of [
-    ['only HTTP 404 (a body that is not JSON, so no code)', new ServerError('Not Found', 'not found', 404)],
-    ['only the code not_found', new ServerError('Gone', 'participant does not exist', 400, 'not_found')],
+    ['only HTTP 404 (a body that is not JSON, so no code)', new ServerError('Not Found', '<html>', 404)],
+    ['HTTP 404 and the code bad_route', new ServerError('Not Found', 'no such method', 404, 'bad_route')],
   ] as const) {
-    it(`a refusal with ${how} is gone, not a failure`, async () => {
+    it(`a refusal with ${how} still fails`, async () => {
       const rooms = answering({ gone: () => Promise.reject(err), live: track })
-      assert.equal(await muteUnmuted(rooms, 'r', 'p', unmutedTracks('gone', 'live')), 1)
+      await assert.rejects(muteUnmuted(rooms, 'r', 'p', unmutedTracks('gone', 'live')), (e: unknown) => e === err)
     })
   }
 
