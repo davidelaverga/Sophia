@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   INTAKE_OBSERVATION_POLICY,
+  INTAKE_LIMITS,
   INTAKE_OBSERVATION_POLICY_VERSION,
   LEXICON,
   ZERO_EFFECTS,
@@ -10,6 +11,7 @@ import {
   policyDigest,
   renderAddressee,
   renderTarget,
+  tokenHead,
   type IntakeObservation,
   type ObservationLedger,
 } from './intake-observation.ts'
@@ -3419,5 +3421,59 @@ describe('v25: a leading filler or "also" ends where an acknowledgement does, an
     assert.equal(INTAKE_OBSERVATION_POLICY_VERSION, 'sophia.intake-observation.policy.v25')
     assert.match(INTAKE_OBSERVATION_POLICY.text.prefixes, /hyphen, an en dash or an em dash/)
     assert.match(INTAKE_OBSERVATION_POLICY.text.prefixes, /compounds are never commands/)
+  })
+})
+
+// The head as r17 read it: an unanchored regex on everything before the occurrence. Kept here as the oracle.
+const regexHead = (text: string, at: number): string =>
+  /[^\s\u2013\u2014\u2015\u2e3a\u2e3b]*$/u.exec(text.slice(0, at))?.[0] ?? ''
+
+describe('the token head of an import (revision-513 P2)', () => {
+  const sameAtEveryOffset = (text: string): void => {
+    for (let at = 0; at <= text.length; at += 1)
+      assert.equal(tokenHead(text, at), regexHead(text, at), `${JSON.stringify(text)} at ${at}`)
+  }
+
+  it('is the regex’s head at every offset of tricky inputs', () => {
+    for (const text of [
+      '',
+      ' ',
+      ' \t\n\u00a0\u2013\u2014\u2015\u2e3a\u2e3b\u3000\ufeff\u2028\u2029\u202f\u205f\u1680\u2000\u200a',
+      'word',
+      'non-stop "ping"',
+      'one\u2014two\u2013three\u2015four\u2e3afive\u2e3bsix',
+      '\u{1d400}\u{1d401} \u{1f600}x\u{1f600}',
+      '\ud83d \ude00x\ud83d\ude00\ude00\ud83d',
+      'zero\u200bwidth\u180emongolian\u200dzwj',
+      '(\u00ab\u201cquoted\u201d\u00bb)\u3000\u{10100}end',
+    ])
+      sameAtEveryOffset(text)
+  })
+
+  it('is the regex’s head at every offset of 300 pseudo-random strings', () => {
+    const alphabet = ['a', 'x', '-', '"', '.', ' ', '\t', '\n', '\u00a0', '\u3000', '\ufeff', '\u200b', '\u2013']
+    alphabet.push('\u2014', '\u2015', '\u2e3a', '\u2e3b', '\u{1f600}', '\u{1d400}', '\ud83d', '\ude00', '\u{10100}')
+    let seed = 0x5133
+    const next = (n: number): number => {
+      seed = (Math.imul(seed, 1103515245) + 12345) >>> 0
+      return (seed >>> 8) % n
+    }
+    for (let i = 0; i < 300; i += 1)
+      sameAtEveryOffset(Array.from({ length: next(24) }, () => alphabet[next(alphabet.length)]).join(''))
+  })
+
+  it('finds every occurrence of an import in a long text within a small bound', () => {
+    const budgetMs = 200
+    const context = { ...project, quotedText: 'a' }
+    const run = 'x'.repeat(INTAKE_LIMITS.textChars - 1000)
+    observe(`${'x'.repeat(100)}${' a'.repeat(10)}`, context) // warm-up: compiling the module isn't in the budget
+    for (const text of [run + ' a'.repeat(500), 'a '.repeat(500) + run]) {
+      assert.equal(text.length, INTAKE_LIMITS.textChars)
+      const started = performance.now()
+      const observation = observe(text, context)
+      const ms = performance.now() - started
+      assert.equal(observation.fenced.quotedSpans, 500)
+      assert.ok(ms < budgetMs, `observed ${text.length} characters with 500 imports in ${ms.toFixed(0)} ms`)
+    }
   })
 })
