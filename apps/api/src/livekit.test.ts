@@ -1,9 +1,22 @@
 // Verify actual API-issued RTC grants: members and bridge can send typed data; guests remain media-only.
 import assert from 'node:assert/strict'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { describe, it } from 'node:test'
 import { jwtVerify } from 'jose'
 import { ServerError, TrackSource } from 'livekit-server-sdk'
-import { issueRoomToken, issueBridgeToken, muteSources, muteUnmuted, PartialMute, SCREEN_SOURCES } from './livekit.ts'
+import {
+  issueBridgeToken,
+  issueRoomToken,
+  muteEveryone,
+  muteMicrophone,
+  muteSources,
+  muteUnmuted,
+  PartialMute,
+  SCREEN_SOURCES,
+  stopCamera,
+  stopScreen,
+} from './livekit.ts'
 
 const cfg = {
   url: 'wss://synthetic.livekit.test',
@@ -188,3 +201,97 @@ describe('a mute of a track already gone changes nothing and is not counted', ()
 function unmutedTracks(...sids: string[]) {
   return sids.map((sid) => ({ sid, muted: false }))
 }
+
+/** One published track of theirs, on. */
+const published = (identity: string, source: string) => ({ sid: `${source}_${identity}`, source, muted: false })
+
+/**
+ * A room server over HTTP whose answers the test sets (as host-mute-all.db.test.ts's), so what the code sees is the
+ * SDK's own error. `people` are listed; `left` are listed but gone by their turn (LiveKit's not_found); `fail` answer
+ * their read with this status and Twirp code.
+ */
+async function roomServer(people: string[], left: string[] = [], fail: Record<string, [number, string]> = {}) {
+  const asked: string[] = []
+  const muted: string[] = []
+  const participant = (identity: string) => ({
+    identity,
+    name: identity,
+    metadata: JSON.stringify({ role: 'editor' }),
+    tracks: ['MICROPHONE', 'CAMERA', 'SCREEN_SHARE', 'SCREEN_SHARE_AUDIO'].map((s) => published(identity, s)),
+  })
+  const answer = (method: string, body: { identity?: string; trackSid?: string }): [number, unknown] => {
+    if (method === 'ListParticipants') return [200, { participants: people.map(participant) }]
+    const who = body.identity ?? ''
+    if (method === 'GetParticipant') asked.push(who)
+    const failure = fail[who]
+    if (failure) return [failure[0], { code: failure[1], msg: 'the room server failed' }]
+    if (left.includes(who) || !people.includes(who)) return [404, { code: 'not_found', msg: 'participant not found' }]
+    if (method === 'GetParticipant') return [200, participant(who)]
+    if (method === 'MutePublishedTrack') {
+      muted.push(body.trackSid ?? '')
+      return [200, { track: { sid: body.trackSid, muted: true } }]
+    }
+    return [404, { code: 'bad_route', msg: method }]
+  }
+  const server = createServer((req, res) => {
+    let raw = ''
+    req.on('data', (chunk: Buffer) => (raw += chunk.toString('utf8')))
+    req.on('end', () => {
+      const [status, body] = answer(req.url?.split('/').at(-1) ?? '', raw ? (JSON.parse(raw) as object) : {})
+      res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(body))
+    })
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const lk = { ...cfg, url: `ws://127.0.0.1:${String((server.address() as AddressInfo).port)}` }
+  const close = () => new Promise<void>((resolve) => server.close(() => resolve()))
+  return { lk, asked, muted, close }
+}
+
+describe('a host act on someone who left after the room was listed (Codex P2 on #369)', () => {
+  it('mute everyone carries on past them: the third is muted, two are counted, no partial failure', async () => {
+    const room = await roomServer(['host', 'b', 'c', 'd'], ['c'])
+    try {
+      assert.equal(await muteEveryone(room.lk, 'r', 'host'), 2)
+      assert.deepEqual(room.asked, ['b', 'c', 'd'], 'the host is never asked; c, gone, does not stop d')
+      assert.deepEqual(room.muted, ['MICROPHONE_b', 'MICROPHONE_d'])
+    } finally {
+      await room.close()
+    }
+  })
+
+  it('any other failure still stops it: a partial failure naming only those muted before it', async () => {
+    const room = await roomServer(['host', 'b', 'c', 'd'], [], { c: [500, 'internal'] })
+    try {
+      const err = await muteEveryone(room.lk, 'r', 'host').catch((e: unknown) => e)
+      assert.ok(err instanceof PartialMute)
+      assert.equal(err.muted, 1)
+      assert.deepEqual(err.participants, [{ identity: 'b', standing: 'editor' }])
+      assert.deepEqual(room.asked, ['b', 'c'], 'd is never asked')
+    } finally {
+      await room.close()
+    }
+  })
+
+  it('a 404 that is not «not found» (a wrong route) is a failure, not someone gone', async () => {
+    const room = await roomServer(['host', 'b'], [], { b: [404, 'bad_route'] })
+    try {
+      const err = await muteEveryone(room.lk, 'r', 'host').catch((e: unknown) => e)
+      assert.ok(err instanceof Error && !(err instanceof PartialMute))
+      await assert.rejects(muteMicrophone(room.lk, 'r', 'b'))
+    } finally {
+      await room.close()
+    }
+  })
+
+  it('a single mute, camera stop or screen stop of someone gone did nothing: false, not an error', async () => {
+    const room = await roomServer(['host', 'b'], ['b'])
+    try {
+      assert.equal(await muteMicrophone(room.lk, 'r', 'b'), false)
+      assert.equal(await stopCamera(room.lk, 'r', 'b'), false)
+      assert.equal(await stopScreen(room.lk, 'r', 'b'), false)
+      assert.deepEqual(room.muted, [])
+    } finally {
+      await room.close()
+    }
+  })
+})
