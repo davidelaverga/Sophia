@@ -9,7 +9,7 @@
 // placeholder, with a key cap «Tab»: Tab puts it in the field with «Ask Sophia» on, Esc puts it away, and the quick
 // asks drop what was just asked (docs/plans/next-ask.md).
 import { useQueryClient } from '@tanstack/react-query'
-import { type KeyboardEvent, type ReactNode, type RefObject, useLayoutEffect, useRef } from 'react'
+import { type KeyboardEvent, type ReactNode, type RefObject, useId, useLayoutEffect, useRef } from 'react'
 import { isQuestion, NextAskHint, nextAskKey, questionKey } from '@sophia/ui'
 import type { ApiError } from '../../api/client.ts'
 import { sendConversationMessage, type MessageAsk, type MessageSent } from '../../api/conversations.ts'
@@ -47,6 +47,8 @@ interface Props {
    * which says why it went unanswered; the field says so before, and offers no quick ask that could only end so.
    */
   answers: boolean
+  /** Why she doesn't, where she doesn't (the list's `capability.askReason`, askUnansweredWords). */
+  unanswered: string
   /** The saved-text notice, said above the field before the reader's first message in the project. */
   notice: string | null
   /** Clears the draft if it still holds these words, as the view holds it now (not as this field last saw it). */
@@ -178,12 +180,19 @@ function lineOf(
   return { words: write.refused, polite: false }
 }
 
-/** Under the field: who the message goes to (Sophia only where she answers here), and how Enter sends. */
-function Hint({ asks, answers }: { asks: boolean; answers: boolean }) {
-  const to = asks ? (answers ? 'Sophia will answer' : 'Sophia doesn’t answer here yet') : 'To the team only'
+/**
+ * Under the field: who the message goes to (Sophia only where she answers here), and how Enter sends. Where she won't,
+ * the reason is `why`'s, which describes «Ask Sophia»; a phone shows it alone, without the keys.
+ */
+function Hint(props: { asks: boolean; answers: boolean; unanswered: string; why: string }) {
+  const { asks, answers } = props
+  const why = asks && !answers
+  const to = asks ? (answers ? 'Sophia will answer' : props.unanswered) : 'To the team only'
   return (
-    <p className="conv-compose-hint">
-      <span data-asked={asks || undefined}>{to}</span>
+    <p className="conv-compose-hint" data-unanswered={why || undefined}>
+      <span id={why ? props.why : undefined} data-asked={asks || undefined}>
+        {to}
+      </span>
       <span>Enter sends · Shift+Enter, a new line</span>
     </p>
   )
@@ -270,6 +279,7 @@ export function ConversationComposer(props: Props) {
   const next = useComposerNext(props, props.held !== null || busy || !props.answers, go)
   const slow = useSlow(busy)
   const form = useRef<HTMLFormElement>(null)
+  const why = useId()
   const grows = useGrowing(draft)
   const ask = async (said: string) => {
     if ((await quick(said)) !== false) return
@@ -294,7 +304,12 @@ export function ConversationComposer(props: Props) {
     >
       {props.notice && <p className="conv-note conv-notice">{props.notice}</p>}
       <FieldBox draft={draft} onDraft={onDraft} grows={grows} next={next}>
-        <AskSophia on={asks} held={held !== null} onChange={props.onAskSophia} />
+        <AskSophia
+          on={asks}
+          held={held !== null}
+          describedBy={asks && !props.answers ? why : undefined}
+          onChange={props.onAskSophia}
+        />
         <SendButton ready={ready} busy={busy} />
       </FieldBox>
       {props.canSend && props.answers && (
@@ -306,7 +321,7 @@ export function ConversationComposer(props: Props) {
           onAsk={(w) => void ask(w)}
         />
       )}
-      <Hint asks={asks} answers={props.answers} />
+      <Hint asks={asks} answers={props.answers} unanswered={props.unanswered} why={why} />
       <Note words={words} slow={slow} polite={polite} />
     </form>
   )
@@ -362,13 +377,20 @@ function QuickAsks(props: { asks: readonly string[]; away: boolean; busy: boolea
 }
 
 /** «Ask Sophia» in the field: her mark, lit when on; a checkbox under it, named so; still while a message waits. */
-function AskSophia(props: { on: boolean; held: boolean; onChange: (on: boolean) => void }) {
+function AskSophia(props: {
+  on: boolean
+  held: boolean
+  /** The hint's reason, where she won't answer here. */
+  describedBy: string | undefined
+  onChange: (on: boolean) => void
+}) {
   return (
     <label className="conv-ask" title="Ask Sophia">
       <input
         type="checkbox"
         checked={props.on}
         disabled={props.held}
+        aria-describedby={props.describedBy}
         onChange={(e) => props.onChange(e.target.checked)}
       />
       <span className="conv-ask-box" aria-hidden />

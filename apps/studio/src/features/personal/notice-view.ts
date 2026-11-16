@@ -2,6 +2,8 @@
 // padlock that shut, a note carried away, a room left from elsewhere or by opening another project. A result whose
 // place stays on screen is said there instead. Pure, so the words are tested.
 
+import { ErasureWaits } from './copy.ts'
+
 export const NOTICE = {
   locked: 'Your personal space is locked. Opening it asks you to confirm it’s you.',
   kept: 'Kept',
@@ -15,14 +17,24 @@ export const NOTICE = {
   copyUnconfirmed: 'Your browser hasn’t confirmed the copy. It may still reach your clipboard.',
   /** A press while that write is still unanswered: no second write starts. */
   copyStillWriting: 'Your browser is still on the last copy. Try again once it answers.',
-  /** An erasure pressed while that write is unanswered: nothing is erased until it settles (copy.ts's stillWriting). */
-  eraseAfterCopy: 'Nothing is deleted yet: your browser hasn’t answered the last copy. Delete once it has.',
+  /**
+   * An erasure pressed while that write is unanswered: nothing is erased until it settles (copy.ts's stillWriting). A
+   * browser may never answer; a reload empties the page's count, so it is named.
+   */
+  eraseAfterCopy:
+    'Nothing is deleted yet: your browser hasn’t answered the last copy. Delete again in a moment, or reload the page.',
+  /** That write answered at last, after an erasure was refused for it: said once (copy.ts's eraseAfterWrites). */
+  copyAnswered: 'Your browser answered the copy. You can delete now.',
   erased: 'Deleted. Sophia starts fresh.',
   /** Another tab's message is on its way (oneAtATime): this one waits, in the field or to be pressed again. */
   waits: 'Another message is on its way: send this one after it',
   /** Back from a provider, the check couldn't be read in time (reauth.ts): nothing opened. */
   unchecked: 'Couldn’t confirm it’s you. Your personal space stays locked.',
 } as const
+
+/** What Your data says for an erasure refused while a copy is unanswered (eraseAfterWrites), or null for any other. */
+export const erasureRefused = (err: unknown): string | null =>
+  err instanceof ErasureWaits ? NOTICE.eraseAfterCopy : null
 
 export interface CallEnd {
   title: string

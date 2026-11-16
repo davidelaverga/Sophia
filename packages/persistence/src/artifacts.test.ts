@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { searchQuery } from './artifacts.ts'
+import { searchWords as shared } from '@sophia/contracts/search-words'
+import { searchQuery, searchWords } from './artifacts.ts'
 
 describe('report search', () => {
+  it('reads the words with the function the Studio reads them with (search-words-like-the-api.md)', () => {
+    assert.equal(searchWords, shared)
+  })
+
   it('turns typed words into required prefixes, and nothing typed into query syntax', () => {
     assert.equal(searchQuery('Managed  hosts'), 'managed:* & hosts:*')
     assert.equal(searchQuery('Città, perché?'), 'città:* & perché:*')

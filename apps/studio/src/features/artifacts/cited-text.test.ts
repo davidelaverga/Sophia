@@ -9,8 +9,10 @@ import {
   checkedCitedText,
   citedTextFailure,
   citedTextKey,
+  citedTextPress,
   citedTextRegion,
   citedTextToggle,
+  opensAsText,
   retryCitedText,
 } from './cited-text.ts'
 
@@ -67,6 +69,22 @@ describe('a cited text is shown only once it is what its record says', () => {
   })
 })
 
+describe('a row offers its text only where the read can open it', () => {
+  // The read's own rule (0090, `split_part(lower(mime), ';', 1)`): case aside, the type before any parameter, untrimmed.
+  it('plain text and Markdown, whatever their case or parameters', () => {
+    for (const mime of ['text/plain', 'text/markdown', 'text/plain; charset=utf-8', 'TEXT/markdown;charset=utf-8']) {
+      assert.equal(opensAsText(mime), true, mime)
+    }
+  })
+
+  it('no other type: a PDF, HTML, JSON, CSV, nothing at all, or a type the read would not match as written', () => {
+    const others = ['application/pdf', 'text/html', 'application/json', 'text/csv', 'text/plainx', '']
+    for (const mime of [...others, 'Text/Markdown ; charset=UTF-8', ' text/plain']) {
+      assert.equal(opensAsText(mime), false, mime)
+    }
+  })
+})
+
 describe('how a cited text that is not shown is said', () => {
   it('a refusal of any kind is one answer that names nothing; a mismatch and a failure are their own', () => {
     for (const status of [401, 403, 409, 422]) {
@@ -93,6 +111,19 @@ describe('how a cited text that is not shown is said', () => {
     assert.deepEqual([citedTextToggle(false), citedTextToggle(true)], ['Show text', 'Hide text'])
     assert.equal(citedTextRegion(1), 'Text of citation 1')
     assert.equal(citedTextRegion(null), 'Text of a source not cited in the text')
+  })
+
+  it('names each press for its citation, starting with the words it shows (WCAG 2.5.3)', () => {
+    assert.equal(citedTextPress(false, 2, 'x'), 'Show text of citation 2')
+    assert.equal(citedTextPress(true, 2, 'x'), 'Hide text of citation 2')
+    assert.equal(citedTextPress(false, 2, 'Call notes'), 'Show text of citation 2', 'a citation needs no title')
+    // Not cited, a source is told by its title: two of them never read alike.
+    assert.equal(citedTextPress(false, null, 'Call notes'), 'Show text of Call notes')
+    assert.equal(citedTextPress(true, null, 'Call notes'), 'Hide text of Call notes')
+    for (const open of [false, true]) {
+      assert.ok(citedTextPress(open, 3, 'x').startsWith(citedTextToggle(open)))
+      assert.ok(citedTextPress(open, null, 'x').startsWith(citedTextToggle(open)))
+    }
   })
 
   it('keeps each open text under its account, report, version and source', () => {

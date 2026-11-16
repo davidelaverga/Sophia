@@ -1,7 +1,8 @@
 // A project input the fixture report cites, and its text as getCitedReportText answers it (A11, 0090), on the fixture
 // page only (`cites=input`). Labelled synthetic data: markup and a remote address inside the text, so a check can tell
-// that it is shown as text, runs nothing and loads nothing. `cited=refused` answers the one refusal (not_found);
-// `cited=tamper` answers bytes its record does not name; `hold=cited` holds each read until the page lets it through.
+// that it is shown as text, runs nothing and loads nothing. `cites=inputs` lists a second, titled input, also uncited.
+// `cited=refused` answers the one refusal (not_found); `cited=tamper` answers bytes its record does not name;
+// `hold=cited` holds each read until the page lets it through.
 import type { ReportSourceList, SourceContent } from '@sophia/contracts'
 
 export const CITED_INPUT = '00000000-0000-4000-8000-0000000000ce'
@@ -19,9 +20,13 @@ const kept = (): URLSearchParams => new URLSearchParams(sessionStorage.getItem(C
 const asked = (name: string, value: string) => (params().get(name) ?? kept().get(name)) === value
 const held = (): boolean => asked('hold', 'cited')
 
-/** The version's sources, with the project input after the fixture's own when the page cites one. */
+/** A second project text the fixture report lists and never cites (`cites=inputs`): two uncited rows to tell apart. */
+export const SECOND_INPUT_TITLE = 'Supplier call notes · labelled fixture'
+
+/** The version's sources, with the project input after the fixture's own when the page cites one, and a second one. */
 export function withCitedInput(list: ReportSourceList): ReportSourceList {
-  if (!asked('cites', 'input')) return list
+  const two = asked('cites', 'inputs')
+  if (!asked('cites', 'input') && !two) return list
   const input = {
     sourceId: CITED_INPUT,
     kind: 'input' as const,
@@ -34,7 +39,8 @@ export function withCitedInput(list: ReportSourceList): ReportSourceList {
     mime: 'text/plain; charset=utf-8',
     retrievedAt: null,
   }
-  return { sources: [...list.sources, input] }
+  const second = { ...input, sourceId: '00000000-0000-4000-8000-0000000000cf', title: SECOND_INPUT_TITLE }
+  return { sources: [...list.sources, input, ...(two ? [second] : [])] }
 }
 
 const reads: (() => void)[] = []

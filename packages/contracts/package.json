@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./sse": "./src/sse.ts",
     "./validate": "./src/validate.ts",
-    "./room-chat": "./src/room-chat.ts"
+    "./room-chat": "./src/room-chat.ts",
+    "./search-words": "./src/search-words.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p .",

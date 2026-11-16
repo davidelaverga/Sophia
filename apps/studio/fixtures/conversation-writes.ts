@@ -30,6 +30,16 @@ export interface TalkWrites {
   /** `answer=unknown`: no answer comes; the request ends `outcome_unknown` instead (an uncertain run: nothing published). */
   answerUnknown?: boolean
   /**
+   * Why Sophia doesn't answer here, as the list's `askReason` (`ask=off` is `replies_not_enabled`; `ask=<reason>`, that
+   * reason): the list then says `ask: unavailable`. Null or absent, she answers.
+   */
+  askReason?: string | null
+  /**
+   * `allowance=runsOut`: the allowance is spent between list reads, which moves no feed. The next ask is recorded
+   * `blocked` (`calls_exhausted`) as it is sent, nothing answers it, and the list says so from its next read.
+   */
+  runsOut?: boolean
+  /**
    * A withdrawal's reply and the feed: both 1.5 s on (`withdraw=slow`), the feed first (`feedFirst`), at once, or at
    * once and then every read of the conversation and the list failing (`thenFail`).
    */
@@ -190,7 +200,7 @@ function messageSent(talk: TalkWrites, id: string, key: string, body: Record<str
     name: VIEWER_NAME,
     text: String(body.text),
     at,
-    ask: body.askSophia ? askOf(mid, at) : null,
+    ask: body.askSophia ? askedNow(talk, mid, at) : null,
   }
   all.push(message)
   conversation.lastAt = at
@@ -232,6 +242,14 @@ function replied(talk: TalkWrites, id: string, receipt: unknown, ctx: Context) {
   return json(receipt, 201)
 }
 
+/** A message's request as it is sent: pending, or blocked at once where the allowance ran out (`allowance=runsOut`). */
+function askedNow(talk: TalkWrites, messageId: string, at: string): ConversationReply {
+  const request = askOf(messageId, at)
+  if (!talk.runsOut) return request
+  talk.askReason = 'calls_exhausted'
+  return { ...request, state: 'blocked', reason: 'calls_exhausted', settledAt: at }
+}
+
 /** A reply request, recorded with the message that asks, pending until her answer names it. */
 const askOf = (messageId: string, at: string): ConversationReply => ({
   id: freshId(),
@@ -249,7 +267,8 @@ const askOf = (messageId: string, at: string): ConversationReply => ({
  */
 function answerLater(talk: TalkWrites, id: string, asking: FixtureMessage, ctx: Context) {
   const request = asking.ask
-  if (!request) return
+  // Blocked as it was sent (`allowance=runsOut`): nothing answers it.
+  if (request?.state !== 'pending') return
   setTimeout(() => {
     const conversation = talk.list.find((c) => c.id === id)
     const all = talk.messages[id]
