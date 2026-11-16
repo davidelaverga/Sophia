@@ -11,7 +11,7 @@ Writable scope: this worktree only (`apps/studio/src/app`, `apps/studio/src/feat
 contract or product-copy change.
 Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1` guard); CI as the run on record.
 Existing authority: Luis, the quote above; local only, nothing pushed.
-Ending commit/tree: the fix commit after `dc9ce7a7c`. Files changed against `9495c87fc`: `RichText.tsx`,
+Ending commit/tree: `75fb39b8f` (the fix). Files changed against `9495c87fc`: `RichText.tsx`,
 `rich-text.ts`, `rich-text.test.ts`, `LinkedText.tsx` (`Run` exported), `personal/Find.tsx`, `personal/find-view.ts`,
 `personal/Conversation.tsx`, `fixtures/personal.tsx` (`formatted=1`), `e2e/personal-format.spec.ts`,
 `docs/plans/personal-replies-formatted.md`, and this record.
