@@ -24,13 +24,11 @@
 
 ## What changes
 
-1. **No Try again after a final 403 or 404.** The notice says its words and offers no press; the view's own navigation
-   (the project's tabs, the sidebar) is the way on. Try again stays for every failure that can end otherwise: failed,
-   unavailable, partial, incomplete, and a 401 where the app gives no sign-in (the fixture page). The 401 with the
-   app's way keeps Sign in again. No new words.
-   *Deviation from the plan:* `inc01-resources-service-adapter.md` (UX04) says «403 and 404 keep their
-   privacy-preserving words and Try again». The review finds that press can only end the same way; the words stay,
-   the press goes. The plan names no other way back for this state, so none is added.
+1. **Withdrawn: Try again stays after a final 403 or 404.** Luis, 2026-11-16, after review: follow the plan's UX04
+   (`inc01-resources-service-adapter.md`, «403 and 404 keep their privacy-preserving words and Try again»). The
+   refusal is final for the read that got it, not for the project: a person added to it meanwhile, or a project A51
+   hadn't synced yet, turns the 404 into rows on a later read, and `useCatalog` doesn't read again by itself on a new
+   token. The change and its test were reverted (`git revert` of `cd650a0ae` and of `001c0ef28`'s test).
 2. **The catalog sorts by Owner or Tool.** `SortMenu` takes the orders to offer; the catalog passes Owner and Tool and
    starts on Owner (the order Attention gave it, so the tiles come in the same order as before). Its tiles can't be
    arranged: no drag, and Alt with an arrow moves the focus as an arrow does, nothing more. The project's known-data
@@ -41,8 +39,7 @@
 
 ## Checks
 
-- `native-resources.spec.ts`: a final 403 and 404 show their words and no button in the notice (and the 401 page by
-  itself still offers Try again); the catalog's Sort offers exactly Owner and Tool, starts on Owner, and a tile neither
+- `native-resources.spec.ts`: the catalog's Sort offers exactly Owner and Tool, starts on Owner, and a tile neither
   drags nor moves with Alt and an arrow (the order stays). `resources.spec.ts` keeps its four-order and arranging
   cases for the project's own view.
 - `status-words.test.ts`, `resource.test.ts`: the fallback name capitalised; `resource-control-status.spec.ts`'s
