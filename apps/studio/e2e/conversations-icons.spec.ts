@@ -68,3 +68,29 @@ test('icons @phone · on touch, New conversation, back and Close draw the kit’
   const KIT_40 = expect.objectContaining({ pictures: 1, kit: true, hidden: true, box: [40, 40] })
   expect(seen).toEqual({ start: KIT_40, back: KIT_40, close: KIT_40 })
 })
+
+const send = (page: Page) => open(page).getByRole('button', { name: 'Send', exact: true })
+const field = (page: Page) => open(page).getByRole('textbox', { name: 'Continue this question with the team' })
+
+test('icons · under 1180 px, «Context» and Send draw the kit’s icons at their boxes, their rings on the keyboard', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1000, height: 800 })
+  await page.goto(PAGE)
+  await field(page).fill('Ready to go.')
+  await toggle(page).focus()
+  const opener = await look(toggle(page))
+  await send(page).focus()
+  expect({ context: opener, send: await look(send(page)) }).toEqual({
+    context: { ...KIT_32, ring: 'solid' },
+    send: { ...KIT_32, box: [36, 36], ring: 'solid' },
+  })
+})
+
+test('icons @phone · on touch, «Context» and Send draw the kit’s icons at 40 px', async ({ page }) => {
+  await page.goto(PAGE)
+  await rows(page).first().click()
+  await field(page).fill('Reach')
+  const KIT_40 = expect.objectContaining({ pictures: 1, kit: true, hidden: true, box: [40, 40] })
+  expect({ context: await look(toggle(page)), send: await look(send(page)) }).toEqual({ context: KIT_40, send: KIT_40 })
+})
