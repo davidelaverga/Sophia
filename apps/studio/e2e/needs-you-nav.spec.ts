@@ -75,7 +75,7 @@ const seenOf = (page: Page) =>
         grounds.push(getComputedStyle(up).backgroundColor)
       }
       const s = getComputedStyle(el)
-      return { words: el.textContent ?? '', ink: s.color, opacity, grounds, size: parseFloat(s.fontSize) }
+      return { words: el.textContent, ink: s.color, opacity, grounds, size: parseFloat(s.fontSize) }
     })
 
 for (const theme of ['dark', 'light'] as const) {

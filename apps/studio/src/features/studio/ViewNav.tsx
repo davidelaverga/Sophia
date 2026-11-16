@@ -1,11 +1,13 @@
 // Project views as real links: they can be opened in a new tab, and a plain click navigates in place.
 // A thin line slides under the current view. On a narrow screen the row scrolls: the current view stays in
-// sight, and an edge fades only where more views hide.
+// sight, and an edge fades only where more views hide. What waits on you is counted beside the view where it is
+// answered (needs-you-in-project.md).
 import { useEffect, type RefObject } from 'react'
 import { useSlidingThumb } from '@sophia/ui'
 import { routePath, viewsShown, type View } from '../../app/route.ts'
 import { ATTENTION } from '../../app/attention.ts'
 import { CONVERSATIONS, VISION } from '../../app/vision.ts'
+import { waitingOnYou } from '../work/goals-glance.ts'
 
 export const VIEW_LABEL: Record<View, string> = {
   studio: 'Studio',
@@ -27,6 +29,8 @@ interface Props {
   projectId: string
   view: View
   onShow: (view: View) => void
+  /** What waits on this person, by the view where it is answered: the numbers the tab's title sums. */
+  waiting?: Partial<Record<View, number>>
 }
 
 /** The share of the row an end's fade covers (theme.css: the mask's 18 % and 82 %). */
@@ -85,7 +89,10 @@ function useScrollRow(ref: RefObject<HTMLElement | null>, current: string) {
   }, [ref, current])
 }
 
-export function ViewNav({ projectId, view, onShow }: Props) {
+/** A view's name, and what waits there on this person: «Tasks, 1 waiting on you». */
+const nameOf = (v: View, n: number) => (n > 0 ? `${VIEW_LABEL[v]}, ${waitingOnYou(n)}` : undefined)
+
+export function ViewNav({ projectId, view, onShow, waiting = {} }: Props) {
   const thumb = useSlidingThumb<HTMLElement>(view)
   useScrollRow(thumb, view)
   const follow = (event: React.MouseEvent, next: View) => {
@@ -95,17 +102,22 @@ export function ViewNav({ projectId, view, onShow }: Props) {
   }
   return (
     <nav ref={thumb} className="view-nav" aria-label="Project views">
-      {SHOWN.map((v) => (
-        <a
-          key={v}
-          href={routePath({ projectId, view: v })}
-          data-thumb={v}
-          aria-current={v === view ? 'page' : undefined}
-          onClick={(e) => follow(e, v)}
-        >
-          {VIEW_LABEL[v]}
-        </a>
-      ))}
+      {SHOWN.map((v) => {
+        const n = waiting[v] ?? 0
+        return (
+          <a
+            key={v}
+            href={routePath({ projectId, view: v })}
+            data-thumb={v}
+            aria-current={v === view ? 'page' : undefined}
+            aria-label={nameOf(v, n)}
+            onClick={(e) => follow(e, v)}
+          >
+            {VIEW_LABEL[v]}
+            {n > 0 && <span className="view-count">{n}</span>}
+          </a>
+        )
+      })}
     </nav>
   )
 }
