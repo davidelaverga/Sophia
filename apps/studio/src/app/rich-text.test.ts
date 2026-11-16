@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { marksIn, richLines, shownText } from './rich-text.ts'
+import { marksIn, richLines, SHOWN_KEPT, shownKept, shownOf, shownText } from './rich-text.ts'
 
 // Bold, code and quotes in messages (docs/plans/message-format.md).
 describe('a message’s marks', () => {
@@ -58,5 +58,20 @@ describe('a message as shown', () => {
       { text: 'one ', n: 0 },
     ])
     assert.deepEqual(marksIn(marks, 13, 16), [{ text: 'ure', n: null }])
+  })
+})
+
+// Find reads every turn on each key, Marked on each render: the words as shown are kept per text, a bounded few.
+describe('the words as shown, kept', () => {
+  it('gives what a fresh read gives, and keeps no more than its bound', () => {
+    const texts = ['Run `sum` **now**\n> as I said', '', '**a** and **b**', '> \n> quoted', 'plain']
+    for (const text of texts) {
+      assert.equal(shownText(text), shownOf(text))
+      assert.equal(shownText(text), shownOf(text))
+    }
+    for (let i = 0; i < SHOWN_KEPT + 50; i += 1) assert.equal(shownText(`**turn ${String(i)}**`), `turn ${String(i)}`)
+    assert.ok(shownKept() <= SHOWN_KEPT)
+    // The oldest went first: a text read again is read afresh, the same.
+    assert.equal(shownText(texts[0] ?? ''), 'Run sum now\nas I said')
   })
 })
