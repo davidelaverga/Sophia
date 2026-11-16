@@ -329,7 +329,7 @@ describe('a used-up count waits like a used-up window, whatever window is beside
     more: 'Code changes: not verified for this connection yet',
   }
   const CREDITS_OUT = { tone: 'wait', line: 'Waiting for capacity: Daily requests window', more: 'resets in 9 h' }
-  const TOKENS_OUT = { tone: 'wait', line: 'Waiting for capacity: daily tokens window', more: null }
+  const TOKENS_OUT = { tone: 'wait', line: 'Waiting for capacity: Daily tokens window', more: null }
 
   it('waits for credits or tokens at zero, alone, with the window’s own name and reset', () => {
     assert.deepEqual(summary([credits(0)]), CREDITS_OUT)
@@ -409,7 +409,7 @@ describe('a reset that isn’t an instant is an unknown reset, never a made-up t
     ['percent', (resets_at) => percentAt(100, { resets_at }), 'Waiting for capacity: 5-hour window'],
     ['spend percent', (resets_at) => spend(120, { resets_at }), 'Waiting for capacity: Spend limit window'],
     ['credits', (resets_at) => credits(0, { resets_at }), 'Waiting for capacity: Daily requests window'],
-    ['tokens', (resets_at) => tokens(0, { resets_at }), 'Waiting for capacity: daily tokens window'],
+    ['tokens', (resets_at) => tokens(0, { resets_at }), 'Waiting for capacity: Daily tokens window'],
   ]
 
   it('keeps a used-up window waiting, its reset unsaid, for every unit and every malformed time', () => {
@@ -461,7 +461,7 @@ describe('a reset that isn’t an instant is an unknown reset, never a made-up t
     assert.deepEqual(summary([unknownCredits, percentAt(100)]).line, 'Waiting for capacity: Daily requests window')
     // Two unknown resets, one malformed and one null: neither is later; the reading's order decides.
     assert.equal(summary([unknownCredits, tokens(0)]).line, 'Waiting for capacity: Daily requests window')
-    assert.equal(summary([tokens(0), unknownCredits]).line, 'Waiting for capacity: daily tokens window')
+    assert.equal(summary([tokens(0), unknownCredits]).line, 'Waiting for capacity: Daily tokens window')
     // A valid later reset still outranks a valid earlier one.
     assert.equal(summary([percentAt(100), credits(0)]).more, 'resets in 9 h')
   })
