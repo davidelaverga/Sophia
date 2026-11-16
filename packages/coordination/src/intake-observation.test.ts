@@ -3466,6 +3466,7 @@ describe('the token head of an import (revision-513 P2)', () => {
     const budgetMs = 200
     const context = { ...project, quotedText: 'a' }
     const run = 'x'.repeat(INTAKE_LIMITS.textChars - 1000)
+    observe(`${'x'.repeat(100)}${' a'.repeat(10)}`, context) // warm-up: compiling the module isn't in the budget
     for (const text of [run + ' a'.repeat(500), 'a '.repeat(500) + run]) {
       assert.equal(text.length, INTAKE_LIMITS.textChars)
       const started = performance.now()

@@ -31,6 +31,14 @@
 - **Nothing else moves:** `TOKEN_TAIL`, `SPAN_EDGE`, the outcome of every observation, the policy, its version
   (`sophia.intake-observation.policy.v25`) and its digest, and the CLI report schema.
 
+## Limits
+
+- **Still per-token work per occurrence.** `importOccurrences` stays O(token length) for each occurrence: the
+  `tokenHead` walk, `TOKEN_TAIL` on `text.slice(end)` and `SPAN_EDGE`. One 4 000-character token with an occurrence at
+  every offset costs about 57–81 ms per declared import (about 160 ms at worst with both `quotedText` and
+  `attachmentInstruction`), bounded by `INTAKE_LIMITS.textChars`. Making it linear means remembering the previous
+  token's start between occurrences: later, if the API needs it.
+
 ## Tests (written first)
 
 - **Equivalence:** the new `tokenHead` equals the old regex at every `at` of a table of tricky inputs (empty, all
