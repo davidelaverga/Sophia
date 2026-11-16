@@ -44,6 +44,14 @@ Unchanged: `packages/persistence/src/runner-operations.ts` (#519), every migrati
   Stop land with `target_operation_id` = the create), and in `personal-answers.db.test.ts` the stranger's send and
   their retry of the owner's waiting input both assert `[503, 'unavailable', 'never']`.
 
+- Review round (independent review: no P1/P2; four P3s). The runner unit test now also asserts one semantic digest
+  across the four spellings; with the pre-fix route and the fake made to accept every spelling, that check alone fails
+  («every spelling is digested as the lowercase one»). The Answer unit test now asserts the owner's send is answered
+  202 with its receipt, and that the owner whose live settings make no profile gets `[503, 'unavailable',
+  'safe_read']` and asks nothing of the database. The three local `canonicalId` copies stay: #519 changes
+  `api-contributions.ts` (checked with `git diff --name-only origin/main...pr/519`; #514–#518 touch none of the
+  three), so `schemas.ts` says so instead. The header comment of `personal-answers.ts` is rewrapped to 120.
+
 ## Deviations
 
 - The review says the runner route answers «404»; the code answers 422 `not_found` (0096's 22023 «… not found» →
@@ -52,7 +60,7 @@ Unchanged: `packages/persistence/src/runner-operations.ts` (#519), every migrati
 - Item 7 keeps 503, not 403: A53 lists 403 for these routes only as «Not permitted: a guest», while its 503 names this
   case («Sophia does not answer this person live (nothing was kept)»). No contract change was needed.
 - The three existing local `canonicalId` copies (`api-contributions.ts`, `project-resources.ts`,
-  `personal-answers.ts`) were left as they are: one concern per commit.
+  `personal-answers.ts`) are left until #519, which changes `api-contributions.ts`, has landed.
 
 ## Remaining limits
 

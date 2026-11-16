@@ -9,7 +9,9 @@ export const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0
 
 /**
  * The one spelling of an id a `format: 'uuid'` schema has accepted (any case, optionally `urn:uuid:`): its last 36
- * characters, lowercase, the spelling the database reads. As the A48, A51 and A53 routes read their path ids.
+ * characters, lowercase, the spelling the database reads. The A48, A51 and A53 routes still keep local copies of this
+ * one-liner (api-contributions.ts `pathId`, project-resources.ts and personal-answers.ts `canonicalId`), left until
+ * #519, which changes api-contributions.ts, has landed.
  */
 export const canonicalId = (id: string): string => id.slice(-36).toLowerCase()
 

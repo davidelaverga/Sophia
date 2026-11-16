@@ -7,9 +7,9 @@
 // The owner is the verified token's subject, never a field. The trusted answer profile is the live companion's own,
 // built from its live settings for each write (CompanionRunner.answerProfile); no request names a profile, payer,
 // route or model, and the schemas are closed. Send and retry need the companion to answer this person live; anyone
-// else gets 503 with retry never (asking again won't make them its person) and nothing is kept. After a send or retry commits, the owner's oldest waiting turn is resumed (R2): its
-// answer is paid for only through 0102's effect guard. Cancel wakes nothing; the decision read is effect-free and
-// leaves out the frozen profile.
+// else gets 503 with retry never (asking again won't make them its person) and nothing is kept. After a send or retry
+// commits, the owner's oldest waiting turn is resumed (R2): its answer is paid for only through 0102's effect guard.
+// Cancel wakes nothing; the decision read is effect-free and leaves out the frozen profile.
 //
 // A52's record-only POST /api/v1/personal/inputs and the legacy Personal routes are untouched. Mounted only when the API
 // is built with personalAnswers (off by default; server.ts never sets it); a database without 0101's writers or 0102's
