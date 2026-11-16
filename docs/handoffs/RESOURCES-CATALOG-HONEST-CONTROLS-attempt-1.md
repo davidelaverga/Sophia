@@ -14,18 +14,19 @@ Writable scope: this worktree only (`apps/studio/src/features/resources`, `apps/
 Runtime unit: Luis's Windows host (Playwright through the session's guard, `pw-gentle.ps1`: free RAM sat at 8–9 GB);
 CI as the run on record.
 Existing authority: Luis, the quote above; local only, nothing pushed.
-Ending commit/tree: `8ae4b704a`; the next commit adds only this record. Files changed against `9495c87fc`:
-`ProjectResources.tsx`, `ResourcePanel.tsx`, `ResourceSheet.tsx`, `SortMenu.tsx`, `TileGrid.tsx`, `resource.ts`,
+Ending commit/tree: `2671b6471` (after the review round below); the next commit changes only this record. Files
+changed against `9495c87fc`: `ResourcePanel.tsx`, `ResourceSheet.tsx`, `SortMenu.tsx`, `TileGrid.tsx`, `resource.ts`,
 `resources.css`, `status-words.ts`, `resource.test.ts`, `status-words.test.ts`, `e2e/native-resources.spec.ts`,
 `e2e/app-native-resources.spec.ts`, `e2e/resource-control-status.spec.ts`,
 `docs/plans/resources-catalog-honest-controls.md`, and this record.
 
 ## Outcome
 
-- **10 · No Try again after a final 403 or 404.** The catalog's notice keeps «This project’s resources can’t be read
-  with your access.» and offers no press: the client raises these from the status with `retry: 'never'`
-  (`memberRead`), so a new read with the same access could only end the same way. Try again stays for failed,
-  unavailable, partial, incomplete, and a 401 without the app's sign-in; the 401 with it keeps Sign in again.
+- **10 · Withdrawn.** Luis, after review (2026-11-16): follow the plan's UX04, Try again stays after a final 403 or
+  404. The refusal is final for that read, not for the project: someone added to it meanwhile, or a project A51
+  hadn't synced yet, turns the 404 into rows on a later read, and `useCatalog` doesn't read again by itself on a new
+  token. `cd650a0ae` and `001c0ef28`'s test are reverted (`3e4c56d32`, `0c76bd2b6`); `ProjectResources.tsx` is as on
+  main. The note stays, saying why.
 - **11 · The catalog sorts by Owner or Tool.** `SortMenu` takes the orders to offer; the catalog passes Owner and
   Tool and starts on Owner (with no requests and every host `unknown`, Attention ordered exactly as Owner, so the
   tiles come in the same order as before). Its tiles don't drag (`draggable="false"`), and Alt with an arrow moves the
@@ -34,7 +35,8 @@ Ending commit/tree: `8ae4b704a`; the next commit adds only this record. Files ch
   letter upper: «Daily tokens window», «Credits: 42 credits left».
 - **A (item 8) · The owner's host in plain words**, Luis's copy as a mapping only: «Host recorded» → «Your computer»
   (tile), «Host bound» → «Linked to your computer», «Host active» → «Your computer is connected», «Handshake recorded»
-  → «Connected once», «Recorded qualification: stale» → «Needs checking again». The tile's host label was set in
+  → «Connected once», «Recorded qualification: stale» → «Qualification: needs checking again» (Luis's words after
+  review; first «Needs checking again»). The tile's host label was set in
   capitals and tracked (`.resource-tile-host`); on catalog tiles (`data-catalog`, owner's and teammate's, so the grid
   reads one way: «Host private» and «No host» are now set as written too) it is `text-transform: none`,
   `letter-spacing: normal`. Project tiles keep their capitals.
@@ -45,7 +47,7 @@ Ending commit/tree: `8ae4b704a`; the next commit adds only this record. Files ch
 
 ## Evidence
 
-- **10 red** (`pw-logs/p3-10-red.txt`, at `001c0ef28`): `toHaveText` on `.resources-read`, `Expected: "This
+- **10 red** (withdrawn and reverted since) (`pw-logs/p3-10-red.txt`, at `001c0ef28`): `toHaveText` on `.resources-read`, `Expected: "This
   project’s resources can’t be read with your access."`, `Received: "…with your access.Try again"`.
 - **11 red** (`pw-logs/p3-11-red.txt`, at `7b4876474`): desktop, `Expected: "SortOwner"`, `Received:
   "SortAttention"`; phone, the menu's items `Expected - 0 / Received + 2` (four items, two expected). The 10 test
@@ -76,16 +78,26 @@ Ending commit/tree: `8ae4b704a`; the next commit adds only this record. Files ch
   low contrast, page width 390.
 - Whole-repo `oxlint --type-aware` (exit 0), `tsc --noEmit -p apps/studio` (exit 0), Prettier on every touched file.
 
+## Review round (independent review: no P1/P2; Luis 2026-11-16)
+
+- **Item 10 withdrawn**, reverted with `git revert`: `3e4c56d32` (the fix), `0c76bd2b6` (the test; the note kept and
+  amended to say why).
+- **Copy:** `5566e4b19` test (unit red: `actual: 'Needs checking again'`, `expected: 'Qualification: needs checking
+  again'`), `61ada114f` fix.
+- **P3 4, Alt at the edge:** `useKeys` returned before `preventDefault` where there was nowhere to move, so Alt+Left
+  on the first catalog tile went Back. `3fd4e8eda` test: a window `keydown` listener reads `defaultPrevented` after
+  the grid; red (`pw-logs/p3-edge-red.txt`): `Alt+ArrowLeft`, `Expected: "true"`, `Received: "false"`. `2671b6471`
+  fix: in the catalog (no arranging), Alt with an arrow is kept even at the edge (`keptAtEdge`); the project view,
+  where tiles are arranged, is unchanged.
+- Green after the round, on `2671b6471`: `native-resources.spec.ts` in full, 34/34 in one run (`pw-logs/p3-r2-native.txt`);
+  `resources.spec.ts` sort, order, arranging, attention and keys cases, 14/14 (`p3-r2-res.txt`); unit 191/191.
+
 ## Decisions and changes
 
-- **Deviation from the plan.** `inc01-resources-service-adapter.md` (UX04) says «403 and 404 keep their
-  privacy-preserving words and Try again». The review finds that press can only end the same way; the words stay and
-  the press goes. The plan names no other way back for this state, so none is added (no new copy).
-- **401 untouched.** Without the app's sign-in (the fixture page), a final 401 keeps Try again as the plan decides.
 - **Owner, not Attention, is the catalog's start**, because Attention ranked nothing there; the visible order is the
   same.
-- **Alt and an arrow move the focus in the catalog**, rather than doing nothing, so the browser's own Alt+Left (back)
-  isn't let through from a tile.
+- **Alt and an arrow move the focus in the catalog**, rather than doing nothing, and are kept from the browser even
+  at the grid's edge, so its own Alt+Left (Back) never fires from a tile.
 
 - **Teammate tiles too.** The sentence-case rule is on every catalog tile, not only the owner's, so «Host private»
   beside «Your computer» doesn't mix capitals in one grid.
@@ -102,8 +114,11 @@ Ending commit/tree: `8ae4b704a`; the next commit adds only this record. Files ch
   rotation unknown», «No handshake recorded», «Recorded host and capability evidence», «Each is a request until its
   runtime confirms it.», `receipts.ts:293` «Held. Its runtime confirmed the hold.», `resource.ts:425` (421 on main) «Saved
   coding-resource records. Live activity, usage and controls aren’t reported here.» Also the sheet's other
-  «Recorded qualification: …» states (current, expired, revoked, doesn’t apply now) keep their frame beside «Needs
-  checking again».
+  «Recorded qualification: …» states (current, expired, revoked, doesn’t apply now) keep their frame beside
+  «Qualification: needs checking again».
+- **Review P3s left for Luis:** the tense of «Your computer is connected» (it is a recorded state with a last-seen
+  time, not live); «No handshake recorded», which kept its old words beside «Connected once»; and whether the
+  enrollment line fits an expired connection (renewing one may not mean enrolling again).
 
 ## Next bounded action
 
