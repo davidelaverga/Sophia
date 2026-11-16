@@ -17,9 +17,14 @@ const titles = async (l: Locator) => {
 }
 /** Opens Complete when it is folded beside Blocked (board-fold-complete.md), for a check that reaches or counts its tiles. */
 const unfolded = async (page: Page) => {
-  await board(page).locator('.task-tile').first().waitFor()
-  const folded = board(page).locator('.lane-fold[aria-expanded="false"]')
-  if ((await folded.count()) > 0) await folded.click()
+  const lanes = board(page).locator('.board-lanes[data-lanes]')
+  await lanes.waitFor()
+  // Read until the lanes stand open: a Blocked lane coming with a later read would fold Complete after a single look.
+  await expect(async () => {
+    if ((await lanes.getAttribute('data-folded')) !== null) await board(page).locator('.lane-fold').click()
+    expect(await lanes.getAttribute('data-folded')).toBeNull()
+    await expect(board(page).locator('.task-tile').first()).toBeVisible()
+  }).toPass()
 }
 /** Waits for every arriving animation on the board to end, so what is measured is at rest. */
 const settled = (page: Page) =>

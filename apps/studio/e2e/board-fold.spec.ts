@@ -5,7 +5,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 const PAGE = '/work.html'
 const board = (page: Page) => page.locator('.board').first()
 const lane = (page: Page, name: string) => board(page).getByRole('region', { name, exact: true })
-const fold = (page: Page) => lane(page, 'Complete').getByRole('button', { name: /^Complete\s*1$/ })
+const fold = (page: Page) => lane(page, 'Complete').getByRole('button', { name: 'Complete 1', exact: true })
 
 /** How many lines a title takes: its words' line boxes, counted by their tops. */
 const lines = (title: Locator) =>
@@ -67,6 +67,16 @@ test('fold · Enter opens Complete and Space folds it again, the focus on its pr
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.locator('[data-task="work-4"]')).toBeFocused()
+})
+
+test('fold · a folded task’s sheet opened from the address gives the focus back to its fold', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto(`${PAGE}#task-work-0a`)
+  await expect(page.getByRole('dialog', { name: 'Reproduce the failed render' })).toBeVisible()
+  await expect(fold(page)).toHaveAttribute('aria-expanded', 'false')
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(fold(page)).toBeFocused()
 })
 
 test('fold · at 1600 the board is no wider (the page stops at 1280), so Complete folds there too', async ({ page }) => {
