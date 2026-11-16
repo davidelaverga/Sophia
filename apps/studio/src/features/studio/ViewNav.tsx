@@ -39,8 +39,8 @@ const FADE = 0.18
 /**
  * A row that scrolls keeps its current item in sight and clear of the fades, and marks the ends that hide more items
  * (data-more-start, data-more-end) for the CSS fade. Both run again when the row or the current item changes size, as
- * when the font arrives after the first layout. A view with a count (`counted`, their names) is brought into sight
- * too, as long as the current one stays clear: a phone on Tasks still sees what waits on Resources.
+ * when the font arrives after the first layout. A view with a count (`counted`, their names) is brought clear of the
+ * fades too, the current one kept whole in the row: a phone on Tasks still sees what waits on Resources.
  */
 function useScrollRow(ref: RefObject<HTMLElement | null>, current: string, counted: string) {
   useEffect(() => {
@@ -67,10 +67,18 @@ function useScrollRow(ref: RefObject<HTMLElement | null>, current: string, count
       if (moreEnd && overEnd > 0) row.scrollLeft += overEnd
       else if (row.scrollLeft > 0 && overStart > 0) row.scrollLeft -= overStart
     }
+    // Whole in the row, fades or not: where the current view and a count can't both stand clear, the count does.
+    const inside = (el: Element) => {
+      const box = row.getBoundingClientRect()
+      const r = el.getBoundingClientRect()
+      if (r.left < box.left) row.scrollLeft -= box.left - r.left
+      else if (r.right > box.right) row.scrollLeft += r.right - box.right
+    }
     const count = row.querySelector('a:has(.view-count):not([aria-current="page"])')
     const settle = () => {
-      if (count) clear(count)
       if (item) clear(item)
+      if (count) clear(count)
+      if (item) inside(item)
       mark()
     }
     // Only a focus the keyboard brought: a mouse press focuses its link too, and scrolling then would move the link from

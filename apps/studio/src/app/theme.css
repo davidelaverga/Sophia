@@ -1455,14 +1455,14 @@ button.mark:hover {
 }
 /* What waits on you there (needs-you-in-project.md): a small number, amber on its tint as .chip.amber and the board's
    «for you». The tint is laid on the void as a solid: over the bar's see-through ground, content scrolled under it took
-   the number on paper to 3:1. Narrow enough for both counts at 1280 with the project's name whole. */
+   the number on paper to 3:1. */
 .view-count {
   display: grid;
   place-items: center;
-  min-width: 14px;
+  min-width: 16px;
   height: 16px;
-  margin-left: 4px;
-  padding: 0 3px;
+  margin-left: 6px;
+  padding: 0 4px;
   border-radius: var(--r-1);
   background: color-mix(in srgb, var(--amber) 10%, var(--void));
   color: var(--amber);
