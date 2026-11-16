@@ -7,7 +7,7 @@
 // The owner is the verified token's subject, never a field. The trusted answer profile is the live companion's own,
 // built from its live settings for each write (CompanionRunner.answerProfile); no request names a profile, payer,
 // route or model, and the schemas are closed. Send and retry need the companion to answer this person live; anyone
-// else gets 503 and nothing is kept. After a send or retry commits, the owner's oldest waiting turn is resumed (R2): its
+// else gets 503 with retry never (asking again won't make them its person) and nothing is kept. After a send or retry commits, the owner's oldest waiting turn is resumed (R2): its
 // answer is paid for only through 0102's effect guard. Cancel wakes nothing; the decision read is effect-free and
 // leaves out the frozen profile.
 //
@@ -139,9 +139,16 @@ export function personalAnswerRoutes(
   readRoute(app, deps)
 }
 
-/** The companion's trusted profile for this person, now; refused before anything is kept for anyone it does not serve. */
-function profileFor(companion: CompanionRunner, actorId: string): PersonalAnswerProfile {
-  const profile = companion.serves(actorId) ? companion.answerProfile() : null
+/**
+ * Someone the live companion does not serve: it answers one person, so asking again never helps (review of #513, P3 7).
+ * A53's 503 names this case; its 403 is a guest's. The code stays `unavailable` and its disposition (safe_read, right
+ * for an outage) stays; this refusal alone says never, written here as needs.ts and project-resources.ts write theirs.
+ */
+const notServed = (requestId: string) => ({ code: 'unavailable', message: NO_ANSWER, retry: 'never', requestId })
+
+/** The companion's trusted profile now, for whom it serves; none (its live settings make none) is an outage's 503. */
+function profileFor(companion: CompanionRunner): PersonalAnswerProfile {
+  const profile = companion.answerProfile()
   if (!profile) throw new DomainError('unavailable', NO_ANSWER)
   return profile
 }
@@ -155,7 +162,8 @@ function decidingRoutes(app: FastifyInstance, { pool, companion, installed }: De
     },
     async (req, reply) => {
       await installed()
-      const profile = profileFor(companion, req.actorId)
+      if (!companion.serves(req.actorId)) return reply.status(503).send(notServed(req.id))
+      const profile = profileFor(companion)
       const receipt: PersonalAnswerReceipt = await withActor(pool, req.actorId, 'write', (c) =>
         sendPersonalAnswerInput(c, req.headers['idempotency-key'], {
           contract: PERSONAL_ANSWER_V1,
@@ -183,7 +191,8 @@ function decidingRoutes(app: FastifyInstance, { pool, companion, installed }: De
     },
     async (req, reply) => {
       await installed()
-      const profile = profileFor(companion, req.actorId)
+      if (!companion.serves(req.actorId)) return reply.status(503).send(notServed(req.id))
+      const profile = profileFor(companion)
       const receipt: PersonalAnswerReceipt = await decided(() =>
         withActor(pool, req.actorId, 'write', (c) =>
           retryPersonalAnswerInput(c, req.headers['idempotency-key'], {
