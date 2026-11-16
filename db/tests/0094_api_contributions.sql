@@ -53,7 +53,11 @@ DO $$ DECLARE f record; pickers text[]:=ARRAY['admit_research_task','admit_nativ
   -- call's immutable ORIGINAL runtime (its frozen id, project and resource), FOR SHARE, as proof that the original
   -- generation is revoked. It is not a picker: it chooses no runtime for new work, returns none and reactivates none. Its
   -- bound selector and operator-only reach are asserted below.
-  'record_research_late_facts'];
+  'record_research_late_facts',
+  -- 0113 (INC04-COHERENT-008 C2): a boolean emitter-identity fact for ONE runtime row named explicitly by the caller
+  -- (p_runtime): whether its role for the route has a service executor bound to that route and emitter digest. It
+  -- chooses no runtime for new work and returns none.
+  'research_bound_emitter_consistent'];
 BEGIN
  FOR f IN SELECT p.proname, p.prosrc FROM pg_proc p WHERE p.pronamespace='sophia'::regnamespace
    -- FROM or JOIN (INC04-S01b): a selector that reads the table through a join is a selector too.
