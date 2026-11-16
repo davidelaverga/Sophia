@@ -24,6 +24,40 @@ interface DesignRow {
   retry: NonNullable<DesignProgress['retry']> | null
 }
 
+// A42: whether an editor may try a failed design (`t`, its version `v`, its report `a`) again (0081), and under which
+// of the owner's approvals; null when not. Not where 0081 refuses from the records, each condition written as 0081
+// writes it (design-progress.test.ts): a newer version (0081:84), a designed page (:86–87), a frozen package that is
+// not intact (:93–95), a design under way (:96) or a later one (:98), sixteen designs of the report (:100). The
+// package is read under the reader's policies: a ready, eligible project source (as the package is written, 0012
+// put_text_source) is any member's; one that no longer is is hidden from all but its owner and reads as missing,
+// which 0081 refuses too (here, or as withdrawn). Its text is hashed only for a design that passed the rest. A
+// withdrawn source (:89–90) stays out: sophia_api may not run source_withdrawn (0033).
+const RETRY = `CASE WHEN t.mode = 'create' AND t.state = 'failed' AND t.package_source_id IS NOT NULL AND sophia.can_edit(t.project_id)
+          AND NOT (a.stable_version_id IS DISTINCT FROM v.id)
+          AND NOT EXISTS(SELECT 1 FROM sophia.artifact_renditions x WHERE x.project_id=t.project_id AND x.artifact_version_id=v.id
+            AND x.format='html' AND x.candidate_id IS NOT NULL)
+          AND NOT EXISTS(SELECT 1 FROM sophia.design_tasks x WHERE x.project_id=t.project_id AND x.base_version_id=v.id
+            AND x.state IN ('designing','reviewing'))
+          AND NOT EXISTS(SELECT 1 FROM sophia.design_tasks x WHERE x.project_id=t.project_id AND x.base_version_id=v.id
+            AND x.created_at>t.created_at)
+          AND NOT ((SELECT count(*) FROM sophia.design_tasks x WHERE x.project_id=t.project_id AND x.artifact_id=a.id)>=16)
+     THEN CASE WHEN NOT EXISTS(SELECT 1 FROM (SELECT 1) one
+            LEFT JOIN sophia.source_objects pkg ON pkg.project_id = t.project_id AND pkg.id = t.package_source_id
+            LEFT JOIN sophia.source_texts pt ON pt.project_id = t.project_id AND pt.source_id = t.package_source_id
+           WHERE pkg.state IS DISTINCT FROM 'ready' OR pkg.sha256 IS DISTINCT FROM t.package_sha256 OR body IS NULL
+            OR encode(sha256(convert_to(body,'UTF8')),'hex')<>t.package_sha256)
+     THEN (SELECT jsonb_strip_nulls(jsonb_build_object(
+             'approval', CASE WHEN g.state IS DISTINCT FROM 'enabled' THEN 'closed'
+               WHEN g.updated_at <= (SELECT max(x.created_at) FROM sophia.design_tasks x WHERE x.project_id = t.project_id
+                 AND x.base_version_id = t.base_version_id) THEN 'stale'
+               -- Used already by a retry in the project, of any report (0081: one approval, one retry).
+               WHEN EXISTS (SELECT 1 FROM sophia.design_tasks x WHERE x.project_id = t.project_id AND x.mode = 'create'
+                 AND x.request_key IS NOT NULL AND x.created_at >= g.updated_at) THEN 'stale'
+               ELSE 'fresh' END,
+             'grantRevision', CASE WHEN g.state = 'enabled' THEN g.revision END,
+             'approvalRef', CASE WHEN g.state = 'enabled' THEN g.approval_ref END))
+           FROM (SELECT 1) one LEFT JOIN sophia.research_grants g ON g.project_id = t.project_id) END END`
+
 /** A design task's progress; null when the task is not a design. */
 export async function readDesignProgress(
   c: pg.PoolClient,
@@ -42,23 +76,10 @@ export async function readDesignProgress(
             (SELECT jsonb_agg(s->>'id' ORDER BY n) FROM sophia.design_sources d, jsonb_array_elements(d.sections) WITH ORDINALITY q(s, n)
               WHERE d.project_id = t.project_id AND d.design_job_id = t.job_id
                 AND d.seq = (SELECT max(seq) FROM sophia.design_sources d2 WHERE d2.project_id = t.project_id AND d2.design_job_id = t.job_id)) AS sections,
-            -- A42: whether an editor may try this failed design again (0081), and under which of the owner's approvals.
-            CASE WHEN t.mode = 'create' AND t.state = 'failed' AND t.package_source_id IS NOT NULL AND sophia.can_edit(t.project_id)
-                  AND NOT EXISTS (SELECT 1 FROM sophia.design_tasks x WHERE x.project_id = t.project_id AND x.base_version_id = t.base_version_id
-                    AND x.created_at > t.created_at)
-             THEN (SELECT jsonb_strip_nulls(jsonb_build_object(
-                     'approval', CASE WHEN g.state IS DISTINCT FROM 'enabled' THEN 'closed'
-                       WHEN g.updated_at <= (SELECT max(x.created_at) FROM sophia.design_tasks x WHERE x.project_id = t.project_id
-                         AND x.base_version_id = t.base_version_id) THEN 'stale'
-                       -- Used already by a retry in the project, of any report (0081: one approval, one retry).
-                       WHEN EXISTS (SELECT 1 FROM sophia.design_tasks x WHERE x.project_id = t.project_id AND x.mode = 'create'
-                         AND x.request_key IS NOT NULL AND x.created_at >= g.updated_at) THEN 'stale'
-                       ELSE 'fresh' END,
-                     'grantRevision', CASE WHEN g.state = 'enabled' THEN g.revision END,
-                     'approvalRef', CASE WHEN g.state = 'enabled' THEN g.approval_ref END))
-                   FROM (SELECT 1) one LEFT JOIN sophia.research_grants g ON g.project_id = t.project_id) END AS retry
+            ${RETRY} AS retry
        FROM sophia.design_tasks t
        LEFT JOIN sophia.artifact_versions v ON v.project_id = t.project_id AND v.id = t.base_version_id
+       LEFT JOIN sophia.artifacts a ON a.project_id = v.project_id AND a.id = v.artifact_id
       WHERE t.project_id = $1 AND t.job_id = $2`,
     [projectId, taskId],
   )
