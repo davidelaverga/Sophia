@@ -20,7 +20,7 @@
 
 ## What changes
 
-- **The read's gate holds four of those refusals, written as 0081 writes them.** The read joins the report
+- **The read's gate holds four of those refusals (five after the review, below), written as 0081 writes them.** The read joins the report
   (`sophia.artifacts a`, through the version, as 0081 reaches it) and its CASE adds: `a.stable_version_id IS DISTINCT
   FROM v.id`; a rendition `html` with a `candidate_id`; a design of the version `designing` or `reviewing`; the count of
   the report's designs `>=16`. The later-design check is rewritten the same way (`x.base_version_id=v.id`). Each is the
@@ -49,12 +49,29 @@
 - The Studio: `RetryDesign` returns nothing when `design.retry` is absent (`if (!retry) return null`), so nothing there
   changes.
 
+## After the independent review (no P1/P2; its P3s)
+
+- **The frozen package is checked too** (0081:91–95: not `ready`, another hash, no text, or text that hashes otherwise),
+  with 0081's predicates over `source_objects pkg` and `source_texts` (its `body`). The reader may see them: the
+  package is written by `put_text_source` (0012) as a ready, eligible project source, which `eligible_sources_read`
+  shows any member, and `readable_source` shows its text with it. A package that stopped being one is hidden from all
+  but its owner and reads as missing: 0081 refuses that too (as not intact, or as withdrawn). The check sits in a
+  nested CASE, so a text (at most 256 KiB) is hashed only for a design that passed the rest.
+- **The unit test reads the routine as the migrations leave it**: the last `CREATE [OR REPLACE] FUNCTION
+  sophia.retry_failed_design` across `db/migrations` (0081 creates it with plain `CREATE FUNCTION`), failing when none
+  is found. A probe migration redefining it with one changed condition made the test fail; removed.
+- **It pins the text, not the meaning** (accepted): the PostgreSQL case pins the meaning.
+- **The newer-version case is a real later version of the same report**: version n+1 inserted with every key and
+  check in force (no replica mode), the report's stable version pointed at it and n superseded, as an amendment leaves
+  them; undone afterwards. The case also covers the package (its text changed by one character) and checks around each
+  refused press that nothing was admitted.
+
 ## Checks
 
-- `packages/persistence/src/design-progress.test.ts` (unit): each of 0081's five record refusals (newer version,
-  designed page, under way, later design, sixteen) is in the read's gate; `source_withdrawn` granted to no role.
+- `packages/persistence/src/design-progress.test.ts` (unit): each of 0081's six record refusals (newer version,
+  designed page, package not intact, under way, later design, sixteen) is in the read's gate; `source_withdrawn` granted to no role.
 - `apps/api/src/design.db.test.ts` (PostgreSQL, CI): on two failed reports under a fresh approval, report B is offered
-  `fresh`; then, each made and undone in turn: a newer stable version, a designed page, a design under way (older than
+  `fresh`; then, each made and undone in turn: a newer stable version, a designed page, a package not intact, a design under way (older than
   the failed one, so not «later»), and sixteen designs (fifteen still offered): the read offers nothing and 0081
   refuses with its own message; nothing is admitted.
 - Prettier, type-aware lint, typecheck; CI as the run on record.
