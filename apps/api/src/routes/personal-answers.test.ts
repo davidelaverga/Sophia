@@ -28,15 +28,46 @@ const PROFILE: PersonalAnswerProfile = {
   prices: { input: 0.1, cacheRead: 0.01, cacheWrite: 0.125, output: 0.5 },
 }
 
-const companion: Companion = {
+/** A live companion for OWNER whose live settings make `profile()` now (null: none 0101 would accept). */
+const companionWith = (profile: () => PersonalAnswerProfile | null): Companion => ({
   mode: 'live',
   owner: OWNER,
   answer: () => Promise.reject(new Error('never asked here')),
   greet: () => Promise.reject(new Error('never asked here')),
-  answerProfile: () => PROFILE,
+  answerProfile: profile,
+})
+
+/** The receipt 0101 would remember for a send left waiting (its payer not admitted): synthetic, as 0101 shapes it. */
+const WAITING = {
+  operation: 'send_answer_input',
+  revision: 1,
+  turnId: randomUUID(),
+  seq: 1,
+  inputId: randomUUID(),
+  answerContract: 'personal_answer_v1',
+  interactionContract: 'automatic_v1',
+  contractVersion: 1,
+  decision: {
+    seq: 1,
+    operation: 'send',
+    outcome: 'waiting',
+    reason: 'payer_unavailable',
+    late: false,
+    epoch: 0,
+    admittedAt: null,
+    policy: 'personal-default-answer',
+    policyVersion: 1,
+    family: 'answer',
+    basis: 'personal_default_addressee',
+  },
+  suggestionId: null,
+  noteId: null,
+  releaseId: null,
+  projectId: null,
+  erased: null,
 }
 
-/** A pool whose installation check passes and which records each Answer writer it is asked for. */
+/** A pool whose installation check passes and which records each Answer writer asked for; a send is left waiting. */
 function recordingPool() {
   const writes: string[] = []
   const query = (sql: string) => {
@@ -44,6 +75,7 @@ function recordingPool() {
       return Promise.resolve({ rows: [{ ok: true }] })
     const writer = /sophia\.(send|retry)_personal_answer_input\(/.exec(sql)
     if (writer?.[1]) writes.push(writer[1])
+    if (writer?.[1] === 'send') return Promise.resolve({ rows: [{ receipt: WAITING }], rowCount: 1 })
     return Promise.resolve({ rows: [], rowCount: 0 })
   }
   const pool = { query, connect: () => Promise.resolve({ query, release: () => undefined }) } as unknown as pg.Pool
@@ -56,32 +88,39 @@ const verifyActor = (authorization: string | undefined) =>
 describe('an Answer from someone the live companion does not serve', () => {
   it('is refused 503 unavailable with retry never, send and retry alike, and writes nothing', async () => {
     const { pool, writes } = recordingPool()
-    const app = buildApp({ pool, verifyActor, companion, personalAnswers: true })
-    const post = (who: string, url: string, payload: object) =>
-      app.inject({
+    // A profile when the app is built (buildApp requires one); gone later only where a case says so.
+    let profile: PersonalAnswerProfile | null = PROFILE
+    const app = buildApp({ pool, verifyActor, companion: companionWith(() => profile), personalAnswers: true })
+    const post = async (who: string, url: string, payload: object) => {
+      const res = await app.inject({
         method: 'POST',
         url,
-        headers: {
-          authorization: `Bearer ${who}`,
-          'idempotency-key': randomUUID(),
-          'x-sophia-personal-epoch': '0',
-        },
+        headers: { authorization: `Bearer ${who}`, 'idempotency-key': randomUUID(), 'x-sophia-personal-epoch': '0' },
         payload,
       })
+      const body = JSON.parse(res.body) as { code?: string; retry?: string }
+      return { status: res.statusCode, refusal: [res.statusCode, body.code, body.retry], body: res.body }
+    }
     try {
       for (const [url, payload] of [
         ['/api/v1/personal/answers', { answerContract: 'personal_answer_v1', text: 'Hi' }],
         [`/api/v1/personal/answers/${randomUUID()}/retry`, { expectedSeq: 1 }],
       ] as const) {
         const res = await post(STRANGER, url, payload)
-        const body = JSON.parse(res.body) as { code?: string; retry?: string }
-        assert.deepEqual([res.statusCode, body.code, body.retry], [503, 'unavailable', 'never'], url)
+        assert.deepEqual(res.refusal, [503, 'unavailable', 'never'], url)
         assert.ok(!res.body.includes(OWNER), 'nothing of the owner is said')
       }
       assert.deepEqual(writes, [], 'nothing was asked of the database')
-      // The owner's own send still reaches its writer (the fake keeps nothing, so its answer is not this test's).
-      await post(OWNER, '/api/v1/personal/answers', { answerContract: 'personal_answer_v1', text: 'Hi' })
+      // The owner's own send is taken: its writer is asked, and its receipt answered.
+      const send = { answerContract: 'personal_answer_v1', text: 'Hi' }
+      const own = await post(OWNER, '/api/v1/personal/answers', send)
+      assert.equal(own.status, 202, own.body)
+      assert.deepEqual(JSON.parse(own.body), WAITING)
       assert.deepEqual(writes, ['send'])
+      // The owner, while the live settings make no profile: an operator's change can end that, so safe_read stays.
+      profile = null
+      assert.deepEqual((await post(OWNER, '/api/v1/personal/answers', send)).refusal, [503, 'unavailable', 'safe_read'])
+      assert.deepEqual(writes, ['send'], 'nothing more was asked of the database')
     } finally {
       await app.close()
     }
