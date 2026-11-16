@@ -10,7 +10,7 @@ Writable scope: this worktree only (Studio code, its checks, `docs/plans`, `docs
 no remote touched.
 Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1`).
 Existing authority: Luis 2026-11-16, «es imposible que no se pueda avanzar mucho»; no new copy in this batch.
-Ending commit: the branch's last commit; code last changed at `0c8c2af05`. Against `9495c87fc`:
+Ending commit: the branch's last commit; code last changed at `8cbe38bf4`. Against `9495c87fc`:
 `apps/studio/src/features/studio/ViewNav.tsx`, `apps/studio/src/features/studio/ProjectShell.tsx`,
 `apps/studio/src/features/work/goals-glance.ts`, `apps/studio/src/app/theme.css`,
 `apps/studio/e2e/needs-you-nav.spec.ts` (new), `apps/studio/e2e/work.spec.ts`, `apps/studio/fixtures/work.tsx`;
@@ -24,9 +24,9 @@ Ending commit: the branch's last commit; code last changed at `0c8c2af05`. Again
 - The number is Geist Mono at the label size, amber on its 10 % tint (as `.chip.amber` and the board's «for you»),
   4 px radius, 16 px tall. After review the tint is laid on the void as a solid (`color-mix`), so on paper it holds
   whatever scrolls under the see-through bar.
-- After review, on a narrow row a view with a count is brought clear of the fades while the current view stays whole in
-  the row; where both can't stand clear (375 px, Tasks current, Resources counted), the count does and the current view
-  may sit under the start's fade.
+- After review, on a narrow row a view with a count is brought clear of the fades where it fits beside the current
+  view. Luis 2026-11-16: #233 wins: the current view always stands clear of the fades; where both can't (375 px, Tasks
+  current, Resources counted), the count may sit under the end's fade, still counted in the tab's title.
 - The link's accessible name joins two phrases the app already says: «Tasks, 1 waiting on you» (Goals'
   «N waiting on you», now the exported `waitingOnYou` both use). No new words.
 - Not counted on the row, from the title's other two sources: the room's messages (they count only while the tab is
@@ -68,9 +68,18 @@ Ending commit: the branch's last commit; code last changed at `0c8c2af05`. Again
     contrast dark 10.55, 10.55 and paper 4.88, 4.88 for both numbers with black under the bar; at 1280 with both
     counts the row overflows 0 px and the name's text is whole (87 of 87 px). work.spec's affected tests,
     decision-alert, views-goals and dock-header 56/56 (`needs-nav-review-neighbours-2`). Lint, tsc, Prettier clean.
-  - Not rerun at `0c8c2af05`: resources.spec and commands.spec. Three tries (`needs-nav-review-neighbours`,
-    `-resources`, `-resources-2`) were stopped by the guard when free RAM fell under 6 GB (other builders). Both passed
-    whole at `b65e20e24`; one RES-01 tile check failed once inside the first stopped run, under that memory pressure.
+  - resources.spec and commands.spec couldn't run at `0c8c2af05` (the guard stopped three tries for memory); they pass
+    at `8cbe38bf4`, below. One RES-01 tile check had failed once inside a run the guard stopped under memory pressure.
+
+- **Luis's decision** (2026-11-16, #233 wins on a narrow row), on top of `0c8c2af05` (which had let the count win):
+  - Written first `5474ab3d8` (`needs-nav-233-red`): 1 failed, 1 passed. At 375 px on Tasks with a Resources count,
+    «await expect.poll(() => clear(current)).toBe(true) … Received: false»; at 480 px, where both fit, both clear
+    (passing, pinning that the count is still brought clear).
+  - Fixed `8cbe38bf4`: the count brought clear first, then the current view, so the current one wins.
+  - Green at `8cbe38bf4`: needs-you-nav and widths 24/24 (`needs-nav-233-green`; contrast dark 10.55, 10.55, paper
+    4.88, 4.88; 1280 row overflow 0 px, name 87 of 87 px). resources.spec and commands.spec 110/110
+    (`needs-nav-233-neighbours`, third try: the guard stopped the first two when free RAM fell to 5 and 5.8 GB).
+    Lint, tsc, Prettier clean.
 
 ## Remaining
 

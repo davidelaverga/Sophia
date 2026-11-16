@@ -25,15 +25,17 @@
 - **A small number beside the view's name**, in the kit: Geist Mono at the label size, amber on its own tint, as the
   board's «for you», with a 4 px radius. Zero shows nothing. The tint is a solid over the void (review): the bar is
   see-through, and dark content under it took the number on paper to 3:1.
-- **On a narrow row** a counted view is brought clear of the fades, the current view kept whole in the row (review).
+- **On a narrow row** a counted view is brought clear of the fades where it fits beside the current view (review). Luis
+  2026-11-16: #233 wins; the current view always stands clear of the fades, and a counted one that can't also fit may sit
+  under a fade, still counted in the tab's title.
 - **Its accessible name** joins two phrases the app already says: the view's name and Goals' «1 waiting on you»
   (`goals-glance.ts`, now one exported helper both use): «Tasks, 1 waiting on you». No new words.
 
 ## Limits
 
 - The decisions are the board's last read (decision-alert.md's limits): read on Goals, Tasks and search only.
-- At 375 px Tasks current and Resources counted can't both stand clear of the fades: the count does, the current view
-  stays whole in the row.
+- At 375 px Tasks current and Resources counted can't both stand clear of the fades: Tasks does, and Resources' count
+  may sit under the end's fade (Luis 2026-11-16).
 - `U` («Needs you» from any view) waits on a plan that defines it.
 
 ## Checks (written first)
@@ -44,5 +46,5 @@
 - `resources.html?viewer=davide`: the Resources link counts the request waiting on him, and a second one makes it 2;
 - at 375 px the number stands inside its link and the page doesn't scroll sideways;
 - the number's contrast, measured on paper and on the dark room: 4.5:1 or more, every number, black under the bar;
-- (review) at 375 px on Tasks with a Resources count, Resources clear of the fades and Tasks whole in the row; at 1280
-  with both counts, the row whole and the name's text not cut.
+- (review) at 375 px on Tasks with a Resources count, Tasks clear of both fades; at 480 px, where both fit, Resources
+  clear too; at 1280 with both counts, the row whole and the name's text not cut.
