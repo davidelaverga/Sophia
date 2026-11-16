@@ -253,6 +253,8 @@ describe('with 0092 installed', () => {
       resourceId: upper(p.resourceId),
       targetOperationId: upper(target),
       message: 'And the outbox?',
+      expectedGoalRevision: 1,
+      expectedAuthorityEpoch: 1,
       sourceIds: [],
     })
     assert.equal(input.status, 202, JSON.stringify(input.json))
