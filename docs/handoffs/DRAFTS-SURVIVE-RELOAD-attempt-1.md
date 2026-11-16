@@ -10,12 +10,34 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-paper-2`, branch `studio
 Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`); no API, no new copy.
 Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1` guard); CI as the run on record.
 Existing authority: Luis, the quote above; local only, nothing pushed.
-Ending commit/tree: `df73da260`, the last commit that changes code; the next one adds only this record. Files changed
-against `9495c87fc`: `apps/studio/src/app/held-in-tab.ts` and its test, `apps/studio/src/app/App.tsx`,
+Ending commit/tree: `117e0f238`, the last commit that changes code (the review's P3s); the next one adds only this
+record's update. Files changed against `9495c87fc`: `apps/studio/src/app/held-in-tab.ts` and its test,
+`apps/studio/src/app/App.tsx`, `apps/studio/src/features/studio/viewer-state.test.ts`,
 `apps/studio/src/features/conversations/talk-store.ts` and its test, `apps/studio/src/features/studio/useViewerState.ts`,
 `apps/studio/src/features/studio/viewer-state.ts` (comments), `apps/studio/e2e/project-conversation-writes.spec.ts`,
 `apps/studio/e2e/room-discussion.spec.ts`, `apps/studio/e2e/app-auth.spec.ts`, `docs/plans/drafts-survive-reload.md`,
 and this record.
+
+## After the independent review (no P1/P2; its P3s)
+
+- **Written first and failing** (`e0a7093bb`): `viewer-state.test.ts` `SyntaxError: … no export named 'ownedBy'`;
+  `held-in-tab.test.ts` `… no export named 'putTabDraftsBack'`; `talk-store.test.ts` `goneFrom` `actual: [], expected:
+  [ 'c1' ]`; app-auth «drafts · a sign-out that fails leaves the person in with the room chat’s words»
+  (`pw-logs/drafts-p3-red-3.txt`): the bar still showed the words, but `draftsInTab` `Expected length: 1, Received
+  length: 0`. Its first two versions passed before the fix: the storage patch borrowed from the #410 check binds
+  `removeItem` to `localStorage`, so the tab's removals never reached `sessionStorage` (that check keeps its patch;
+  this one patches per this-storage), and with a conversation's draft the words were back in the tab after the failed
+  sign-out even before the fix (not traced further), so the room's bar is the surface checked.
+- **Fix `117e0f238`**: `ownedBy` (`viewer-state.ts`) gates both saves in `useViewerState` until the state rendered is the
+  one loaded for the key; `takeTabDrafts` / `putTabDraftsBack` (`held-in-tab.ts`), taken by `forgetAllDrafts` at both
+  of `signOutForgetting`'s forgets (the later take wins) and put back in `leaving`'s catch; `goneFrom` counts a draft
+  with words; the plan says a duplicated tab copies them (same account only).
+- **Green**: units held-in-tab 11/11, talk-store 35/35, viewer-state 16/16, ended-notice 11/11, sign-out 8/8; oxlint 0,
+  tsc 0, Prettier clean; through the guard on `117e0f238`: `room-discussion` whole 20/20
+  (`pw-logs/drafts-final-room-4.txt`), app-auth's drafts, sign-out, seam, legal and reliability checks 16/16
+  (`drafts-last-auth-9.txt`). `project-conversation-writes` and `conversations-removal` (the `goneFrom` change's
+  neighbours) were stopped or refused for memory on every try (`drafts-final-conv-1.txt`: 14 of 90 ran, none failed):
+  still to run.
 
 ## Outcome
 
