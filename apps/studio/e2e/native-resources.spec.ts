@@ -541,6 +541,24 @@ test('the partial cue comes before the toolbar and tiles, once, and the 401 offe
   }
 })
 
+test('a final 403 or 404 offers no Try again: a new read could only end the same way', async ({ page }) => {
+  for (const status of [403, 404]) {
+    for (const signin of ['', '&signin=app']) {
+      await page.goto(`${PAGE}?case=refused&status=${String(status)}${signin}`)
+      // The words first, so the absence below can't pass for a notice not drawn yet.
+      await expect(page.locator('.resources-read')).toHaveText(
+        'This project’s resources can’t be read with your access.',
+      )
+      await expect(view(page).getByRole('button')).toHaveCount(0)
+    }
+  }
+  // A failure that can end otherwise keeps it: failed, unavailable, and a 401 where the app gives no sign-in.
+  for (const q of ['case=failed', 'case=unavailable', 'case=refused&status=401']) {
+    await page.goto(`${PAGE}?${q}`)
+    await expect(page.locator('.resources-read').getByRole('button')).toHaveText('Try again')
+  }
+})
+
 test('stepping from an opened owner’s evidence: the next resource’s starts closed, a teammate’s has none', async ({
   page,
 }) => {
