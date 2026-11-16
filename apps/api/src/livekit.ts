@@ -252,18 +252,33 @@ export async function muteUnmuted(
 }
 
 /**
+ * Someone's published tracks, as the room server reports them now. Someone who left since they were seen in the call
+ * publishes nothing: the server's not_found (isNotFound) means there is nothing to mute, not a failure (Codex P2 on
+ * #369). Any other error is the server's failure, thrown.
+ */
+async function publishedTracks(rooms: Pick<RoomServiceClient, 'getParticipant'>, roomId: string, identity: string) {
+  try {
+    return (await rooms.getParticipant(roomId, identity)).tracks
+  } catch (err: unknown) {
+    if (isNotFound(err)) return []
+    throw err
+  }
+}
+
+/**
  * Mute someone's microphone (A24), as the room server does it: their published microphone track, muted; only they
- * can turn it on again. True when it muted it; false when it already was muted or they publish no microphone.
+ * can turn it on again. True when it muted it; false when it already was muted, they publish no microphone, or they
+ * left.
  */
 export async function muteMicrophone(cfg: LiveKitConfig, roomId: string, identity: string): Promise<boolean> {
   const rooms = new RoomServiceClient(apiUrl(cfg), cfg.apiKey, cfg.apiSecret)
-  const mic = (await rooms.getParticipant(roomId, identity)).tracks.find((t) => t.source === TrackSource.MICROPHONE)
+  const mic = (await publishedTracks(rooms, roomId, identity)).find((t) => t.source === TrackSource.MICROPHONE)
   return (await muteUnmuted(rooms, roomId, identity, mic ? [mic] : [])) > 0
 }
 
 /**
  * Mute every published track of these sources of theirs (A31), in the order of `sources`; only they turn them on again.
- * How many it muted: none when they publish none, or every one was already muted or gone.
+ * How many it muted: none when they publish none, every one was already muted or gone, or they left.
  */
 export async function muteSources(
   rooms: Pick<RoomServiceClient, 'getParticipant' | 'mutePublishedTrack'>,
@@ -271,7 +286,7 @@ export async function muteSources(
   identity: string,
   sources: readonly TrackSource[],
 ): Promise<number> {
-  const tracks = (await rooms.getParticipant(roomId, identity)).tracks
+  const tracks = (await publishedTracks(rooms, roomId, identity))
     .filter((t) => sources.includes(t.source))
     .toSorted((a, b) => sources.indexOf(a.source) - sources.indexOf(b.source))
   return muteUnmuted(rooms, roomId, identity, tracks)
@@ -294,7 +309,10 @@ export const stopCamera = (cfg: LiveKitConfig, roomId: string, identity: string)
 export const stopScreen = (cfg: LiveKitConfig, roomId: string, identity: string) =>
   stopSources(cfg, roomId, identity, SCREEN_SOURCES)
 
-/** Mute everyone else's microphone (A31): members and guests, never Sophia's participant. Says how many. */
+/**
+ * Mute everyone else's microphone (A31): members and guests, never Sophia's participant. Says how many. Someone who
+ * left after the list has nothing to mute, and the rest are still muted (Codex P2 on #369).
+ */
 export async function muteEveryone(cfg: LiveKitConfig, roomId: string, except: string): Promise<number> {
   const people = await roomParticipants(cfg, roomId)
   const muted: MutedParticipant[] = []
