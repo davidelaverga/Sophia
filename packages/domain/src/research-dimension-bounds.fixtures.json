@@ -1,0 +1,1160 @@
+{
+  "id": "INC04-R07-C2-DIMENSION-BOUNDS-CORE-001 codec fixtures (synthetic)",
+  "framing": "d<len>:<domain> k<len>:<n> then s<len>:<utf8> | n; sha256 lowercase hex",
+  "positive": [
+    {
+      "name": "profile-output",
+      "domain": "sophia.c2.bound.profile.register.v1",
+      "payload": {
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "revision": "1",
+        "dimension": "openai.output_tokens",
+        "unit": "tokens",
+        "enforcement_kind": "output_parameter",
+        "param_name": "max_output_tokens",
+        "max_ceiling": "16000",
+        "provider": "openai-research",
+        "route_id": "research-sol-medium-v1",
+        "endpoint": "responses",
+        "model": "gpt-6.1-sol",
+        "settings_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emitter_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "semantics_evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "isolation_evidence_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "scope_kind": "project",
+        "scope_ref": "00000000-0000-4000-8000-000000000002",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "bytes": 740,
+      "digest": "9bb80d50910dd5f5f216b65990c78fb06b6215aafdea10c96879e23c0464eeb6"
+    },
+    {
+      "name": "profile-requests",
+      "domain": "sophia.c2.bound.profile.register.v1",
+      "payload": {
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "revision": "1",
+        "dimension": "openai.model_requests",
+        "unit": "requests",
+        "enforcement_kind": "dispatch_count",
+        "param_name": null,
+        "max_ceiling": "1",
+        "provider": "openai-research",
+        "route_id": "research-sol-medium-v1",
+        "endpoint": "responses",
+        "model": "gpt-6.1-sol",
+        "settings_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emitter_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "semantics_evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "isolation_evidence_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "scope_kind": "project",
+        "scope_ref": "00000000-0000-4000-8000-000000000002",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "bytes": 717,
+      "digest": "a1642654b99fb91bb3d842485bb8a0473676802d40a38c8eaca8d18728d06dc1"
+    },
+    {
+      "name": "event-activate",
+      "domain": "sophia.c2.bound.profile.event.v1",
+      "payload": {
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "revision": "1",
+        "dimension": "openai.output_tokens",
+        "event_key": "activate-1",
+        "event_kind": "activate",
+        "target_event_digest": null,
+        "reason_code": "qualified",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "cause_ref_digest": null,
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "bytes": 324,
+      "digest": "664e387ce25528b3d3451171818acea56e3c7a69228b136a1e4cbbe08fe5b9e5"
+    },
+    {
+      "name": "event-unhold",
+      "domain": "sophia.c2.bound.profile.event.v1",
+      "payload": {
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "revision": "1",
+        "dimension": "openai.output_tokens",
+        "event_key": "unhold-1",
+        "event_kind": "unhold",
+        "target_event_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "reason_code": "qualified",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "cause_ref_digest": null,
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "bytes": 386,
+      "digest": "f28249183ba483a13bd303d9579e2ac0069dbff3443a511709e9c954425b0ce7"
+    },
+    {
+      "name": "event-auto-hold",
+      "domain": "sophia.c2.bound.profile.event.v1",
+      "payload": {
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "revision": "1",
+        "dimension": "openai.output_tokens",
+        "event_key": "k4:2222222222222222222222222222222222222222222222222222222222222222",
+        "event_kind": "auto_hold",
+        "target_event_digest": null,
+        "reason_code": "bound_contradicted",
+        "authority_id": null,
+        "approval_ref_digest": null,
+        "cause_ref_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+        "evidence_digest": "2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "bytes": 353,
+      "digest": "de450fc0ca44d536a3ede65a1eb42686fe73e26170018840cd1cae7e62f3f2c2"
+    },
+    {
+      "name": "policy",
+      "domain": "sophia.c2.bound.policy.register.v1",
+      "payload": {
+        "policy_id": "00000000-0000-4000-8000-000000000004",
+        "revision": "1",
+        "scope_kind": "allowance",
+        "scope_ref": "00000000-0000-4000-8000-000000000005",
+        "dimension": "openai.output_tokens",
+        "unit": "tokens",
+        "cap": "8000",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "bytes": 355,
+      "digest": "0f9f16314606748b10c920118e876ce04a6fa0b0f814c19f6da533dfefbf39e3"
+    },
+    {
+      "name": "policy-event",
+      "domain": "sophia.c2.bound.policy.event.v1",
+      "payload": {
+        "policy_id": "00000000-0000-4000-8000-000000000004",
+        "revision": "1",
+        "event_key": "activate-1",
+        "event_kind": "activate",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "bytes": 284,
+      "digest": "ed444684f9e70707624d395a392d0712fe7fb3ef04dd5b42112d96f0d2e54244"
+    },
+    {
+      "name": "authorize-authorized",
+      "domain": "sophia.c2.bound.authorize.v1",
+      "payload": {
+        "project_id": "00000000-0000-4000-8000-000000000006",
+        "reservation_id": "00000000-0000-4000-8000-000000000007",
+        "dispatch_id": "00000000-0000-4000-8000-000000000008",
+        "dimension": "openai.output_tokens",
+        "unit": "tokens",
+        "bound_kind": "authorized",
+        "bound": "8000",
+        "enforcement_kind": "output_parameter",
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "profile_revision": "1",
+        "policy_set_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "unsupported_reason": null,
+        "original_runtime_id": "00000000-0000-4000-8000-000000000009",
+        "original_generation": "4444444444444444444444444444444444444444444444444444444444444444",
+        "route_id": "research-sol-medium-v1",
+        "model": "gpt-6.1-sol",
+        "settings_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "bytes": 561,
+      "digest": "649cf9939aebcabc23f02bc2833f38633b3ce79bbf8960b12888200c3b288aa5"
+    },
+    {
+      "name": "authorize-unsupported",
+      "domain": "sophia.c2.bound.authorize.v1",
+      "payload": {
+        "project_id": "00000000-0000-4000-8000-000000000006",
+        "reservation_id": "00000000-0000-4000-8000-000000000007",
+        "dispatch_id": "00000000-0000-4000-8000-000000000008",
+        "dimension": "openai.input_tokens",
+        "unit": "tokens",
+        "bound_kind": "unsupported",
+        "bound": null,
+        "enforcement_kind": null,
+        "profile_id": null,
+        "profile_revision": null,
+        "policy_set_digest": null,
+        "unsupported_reason": "input_estimate_only",
+        "original_runtime_id": "00000000-0000-4000-8000-000000000009",
+        "original_generation": null,
+        "route_id": "research-sol-medium-v1",
+        "model": "gpt-6.1-sol",
+        "settings_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "bytes": 382,
+      "digest": "3423e2c48d03f858cd78acbed190add04a239683b6eb0a6596a1765a36fce8a4"
+    },
+    {
+      "name": "apply",
+      "domain": "sophia.c2.dispatch.apply.v1",
+      "payload": {
+        "project_id": "00000000-0000-4000-8000-000000000006",
+        "reservation_id": "00000000-0000-4000-8000-000000000007",
+        "dispatch_id": "00000000-0000-4000-8000-000000000008",
+        "attempt_id": "00000000-0000-4000-8000-000000000010",
+        "call_id": "call-1",
+        "runtime_id": "00000000-0000-4000-8000-000000000009",
+        "original_generation": "4444444444444444444444444444444444444444444444444444444444444444",
+        "emitter_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "outbound_params_digest": "5555555555555555555555555555555555555555555555555555555555555555",
+        "authorize_set_digest": "6666666666666666666666666666666666666666666666666666666666666666"
+      },
+      "bytes": 517,
+      "digest": "64047420bf625157dae0a1cab46203f0725c09397843119bf6fa0bcf785c80bb"
+    },
+    {
+      "name": "claim-null-generation",
+      "domain": "sophia.c2.dispatch.claim.v1",
+      "payload": {
+        "project_id": "00000000-0000-4000-8000-000000000006",
+        "reservation_id": "00000000-0000-4000-8000-000000000007",
+        "dispatch_id": "00000000-0000-4000-8000-000000000008",
+        "runtime_id": "00000000-0000-4000-8000-000000000009",
+        "original_generation": null,
+        "apply_receipt_digest": "7777777777777777777777777777777777777777777777777777777777777777"
+      },
+      "bytes": 264,
+      "digest": "70731092e8f72bf3c7043f439dafa24593507f15767db3561ddb749335bb45db"
+    },
+    {
+      "name": "outcome",
+      "domain": "sophia.c2.dispatch.outcome.v1",
+      "payload": {
+        "project_id": "00000000-0000-4000-8000-000000000006",
+        "reservation_id": "00000000-0000-4000-8000-000000000007",
+        "dispatch_id": "00000000-0000-4000-8000-000000000008",
+        "outcome_kind": "sent",
+        "evidence_digest": "8888888888888888888888888888888888888888888888888888888888888888",
+        "observed_at": "2026-11-16T06:00:00.000000Z"
+      },
+      "bytes": 263,
+      "digest": "dc427258ac1678225191dd70d0d6547315f505ee3e1c95f80116c0694ce492ff"
+    }
+  ],
+  "helpers": [
+    {
+      "name": "outbound-n1",
+      "kind": "outbound",
+      "input": {
+        "provider": "openai-research",
+        "endpoint": "responses",
+        "model": "gpt-6.1-sol",
+        "settingsDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emitterIdentityDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "items": [["openai.output_tokens", "max_output_tokens", "8000"]]
+      },
+      "digest": "77368abaec4e8bab9e6e60ac59b6f5ecc536337d4c7d4394bbf2563b1864dbea"
+    },
+    {
+      "name": "outbound-n0",
+      "kind": "outbound",
+      "input": {
+        "provider": "openai-research",
+        "endpoint": "responses",
+        "model": "gpt-6.1-sol",
+        "settingsDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emitterIdentityDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "items": []
+      },
+      "digest": "e15e4d95de78fa2562a35cf73dae656d3fb1b7921f856fd99a92e6f174c56093"
+    },
+    {
+      "name": "authorize-set",
+      "kind": "authorize_set",
+      "input": {
+        "dispatchId": "00000000-0000-4000-8000-000000000008",
+        "digests": [
+          "9999999999999999999999999999999999999999999999999999999999999999",
+          "1111111111111111111111111111111111111111111111111111111111111111",
+          "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "3333333333333333333333333333333333333333333333333333333333333333"
+        ]
+      },
+      "digest": "96ce3e88041572303c2119229f2f21852e3a4af8c366056dab9673194a5cd5e9"
+    },
+    {
+      "name": "policy-item",
+      "kind": "policy_item",
+      "input": {
+        "registerDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "activateDigest": "4444444444444444444444444444444444444444444444444444444444444444"
+      },
+      "digest": "501c2a126b122546aff49ba52cb413dc910011ae028687d1b565273e7d9b3464"
+    },
+    {
+      "name": "policy-set-n2",
+      "kind": "policy_set",
+      "input": {
+        "dimension": "openai.output_tokens",
+        "items": [
+          "6666666666666666666666666666666666666666666666666666666666666666",
+          "5555555555555555555555555555555555555555555555555555555555555555"
+        ]
+      },
+      "digest": "398526edcc80dc029557f59d4711d5c19142ccde28aa475a808d07e17e1d5e3d"
+    },
+    {
+      "name": "policy-set-n0",
+      "kind": "policy_set",
+      "input": {
+        "dimension": "openai.output_tokens",
+        "items": []
+      },
+      "digest": null
+    }
+  ],
+  "refusals": [
+    {
+      "name": "missing-key",
+      "domain": "sophia.c2.bound.profile.register.v1",
+      "payload": {
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "revision": "1",
+        "dimension": "openai.output_tokens",
+        "unit": "tokens",
+        "enforcement_kind": "output_parameter",
+        "param_name": "max_output_tokens",
+        "max_ceiling": "16000",
+        "provider": "openai-research",
+        "route_id": "research-sol-medium-v1",
+        "endpoint": "responses",
+        "settings_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emitter_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "semantics_evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "isolation_evidence_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "scope_kind": "project",
+        "scope_ref": "00000000-0000-4000-8000-000000000002",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "code": "payload_incomplete",
+      "stage": "key-set"
+    },
+    {
+      "name": "missing-key-before-grammar",
+      "domain": "sophia.c2.bound.profile.register.v1",
+      "payload": {
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "revision": "x",
+        "dimension": "openai.output_tokens",
+        "unit": "tokens",
+        "enforcement_kind": "output_parameter",
+        "param_name": "max_output_tokens",
+        "max_ceiling": "16000",
+        "provider": "openai-research",
+        "route_id": "research-sol-medium-v1",
+        "endpoint": "responses",
+        "settings_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emitter_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "semantics_evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "isolation_evidence_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "scope_kind": "project",
+        "scope_ref": "00000000-0000-4000-8000-000000000002",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "code": "payload_incomplete",
+      "stage": "key-set"
+    },
+    {
+      "name": "extra-key",
+      "domain": "sophia.c2.dispatch.apply.v1",
+      "payload": {
+        "project_id": "00000000-0000-4000-8000-000000000006",
+        "reservation_id": "00000000-0000-4000-8000-000000000007",
+        "dispatch_id": "00000000-0000-4000-8000-000000000008",
+        "attempt_id": "00000000-0000-4000-8000-000000000010",
+        "call_id": "call-1",
+        "runtime_id": "00000000-0000-4000-8000-000000000009",
+        "original_generation": "4444444444444444444444444444444444444444444444444444444444444444",
+        "emitter_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "outbound_params_digest": "5555555555555555555555555555555555555555555555555555555555555555",
+        "authorize_set_digest": "6666666666666666666666666666666666666666666666666666666666666666",
+        "sdk_retries": "0"
+      },
+      "code": "payload_invalid",
+      "stage": "key-set"
+    },
+    {
+      "name": "supplied-single-send-flag",
+      "domain": "sophia.c2.dispatch.apply.v1",
+      "payload": {
+        "project_id": "00000000-0000-4000-8000-000000000006",
+        "reservation_id": "00000000-0000-4000-8000-000000000007",
+        "dispatch_id": "00000000-0000-4000-8000-000000000008",
+        "attempt_id": "00000000-0000-4000-8000-000000000010",
+        "call_id": "call-1",
+        "runtime_id": "00000000-0000-4000-8000-000000000009",
+        "original_generation": "4444444444444444444444444444444444444444444444444444444444444444",
+        "emitter_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "outbound_params_digest": "5555555555555555555555555555555555555555555555555555555555555555",
+        "authorize_set_digest": "6666666666666666666666666666666666666666666666666666666666666666",
+        "single_send": "true"
+      },
+      "code": "payload_invalid",
+      "stage": "key-set"
+    },
+    {
+      "name": "null-not-nullable",
+      "domain": "sophia.c2.bound.profile.register.v1",
+      "payload": {
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "revision": "1",
+        "dimension": "openai.output_tokens",
+        "unit": "tokens",
+        "enforcement_kind": "output_parameter",
+        "param_name": "max_output_tokens",
+        "max_ceiling": "16000",
+        "provider": "openai-research",
+        "route_id": "research-sol-medium-v1",
+        "endpoint": "responses",
+        "model": null,
+        "settings_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emitter_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "semantics_evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "isolation_evidence_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "scope_kind": "project",
+        "scope_ref": "00000000-0000-4000-8000-000000000002",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "code": "payload_invalid",
+      "stage": "grammar"
+    },
+    {
+      "name": "json-number-int",
+      "domain": "sophia.c2.bound.policy.register.v1",
+      "payload": {
+        "policy_id": "00000000-0000-4000-8000-000000000004",
+        "revision": "1",
+        "scope_kind": "allowance",
+        "scope_ref": "00000000-0000-4000-8000-000000000005",
+        "dimension": "openai.output_tokens",
+        "unit": "tokens",
+        "cap": 8000,
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "code": "payload_invalid",
+      "stage": "grammar"
+    },
+    {
+      "name": "uppercase-uuid",
+      "domain": "sophia.c2.dispatch.claim.v1",
+      "payload": {
+        "project_id": "00000000-0000-4000-8000-000000000006",
+        "reservation_id": "00000000-0000-4000-8000-000000000007",
+        "dispatch_id": "00000000-0000-4000-8000-000000000008",
+        "runtime_id": "ABCDEF00-0000-4000-8000-000000000009",
+        "original_generation": null,
+        "apply_receipt_digest": "7777777777777777777777777777777777777777777777777777777777777777"
+      },
+      "code": "payload_invalid",
+      "stage": "grammar"
+    },
+    {
+      "name": "int-over-2147483647",
+      "domain": "sophia.c2.bound.policy.register.v1",
+      "payload": {
+        "policy_id": "00000000-0000-4000-8000-000000000004",
+        "revision": "1",
+        "scope_kind": "allowance",
+        "scope_ref": "00000000-0000-4000-8000-000000000005",
+        "dimension": "openai.output_tokens",
+        "unit": "tokens",
+        "cap": "2147483648",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "code": "payload_invalid",
+      "stage": "grammar"
+    },
+    {
+      "name": "calendar-feb-30",
+      "domain": "sophia.c2.dispatch.outcome.v1",
+      "payload": {
+        "project_id": "00000000-0000-4000-8000-000000000006",
+        "reservation_id": "00000000-0000-4000-8000-000000000007",
+        "dispatch_id": "00000000-0000-4000-8000-000000000008",
+        "outcome_kind": "sent",
+        "evidence_digest": "8888888888888888888888888888888888888888888888888888888888888888",
+        "observed_at": "2026-02-30T00:00:00.000000Z"
+      },
+      "code": "payload_invalid",
+      "stage": "grammar"
+    },
+    {
+      "name": "calendar-hour-24",
+      "domain": "sophia.c2.dispatch.outcome.v1",
+      "payload": {
+        "project_id": "00000000-0000-4000-8000-000000000006",
+        "reservation_id": "00000000-0000-4000-8000-000000000007",
+        "dispatch_id": "00000000-0000-4000-8000-000000000008",
+        "outcome_kind": "sent",
+        "evidence_digest": "8888888888888888888888888888888888888888888888888888888888888888",
+        "observed_at": "2026-11-16T24:00:00.000000Z"
+      },
+      "code": "payload_invalid",
+      "stage": "grammar"
+    },
+    {
+      "name": "calendar-month-13",
+      "domain": "sophia.c2.dispatch.outcome.v1",
+      "payload": {
+        "project_id": "00000000-0000-4000-8000-000000000006",
+        "reservation_id": "00000000-0000-4000-8000-000000000007",
+        "dispatch_id": "00000000-0000-4000-8000-000000000008",
+        "outcome_kind": "sent",
+        "evidence_digest": "8888888888888888888888888888888888888888888888888888888888888888",
+        "observed_at": "2026-13-01T00:00:00.000000Z"
+      },
+      "code": "payload_invalid",
+      "stage": "grammar"
+    },
+    {
+      "name": "grammar-before-cross",
+      "domain": "sophia.c2.bound.policy.register.v1",
+      "payload": {
+        "policy_id": "00000000-0000-4000-8000-000000000004",
+        "revision": "1",
+        "scope_kind": "allowance",
+        "scope_ref": "00000000-0000-4000-8000-000000000005",
+        "dimension": "openai.output_tokens",
+        "unit": "usd",
+        "cap": "08000",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "code": "payload_invalid",
+      "stage": "grammar"
+    },
+    {
+      "name": "policy-usd",
+      "domain": "sophia.c2.bound.policy.register.v1",
+      "payload": {
+        "policy_id": "00000000-0000-4000-8000-000000000004",
+        "revision": "1",
+        "scope_kind": "allowance",
+        "scope_ref": "00000000-0000-4000-8000-000000000005",
+        "dimension": "openai.output_tokens",
+        "unit": "usd",
+        "cap": "8000",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "code": "bound_policy_unit_mismatch",
+      "stage": "cross-field"
+    },
+    {
+      "name": "policy-cap-zero",
+      "domain": "sophia.c2.bound.policy.register.v1",
+      "payload": {
+        "policy_id": "00000000-0000-4000-8000-000000000004",
+        "revision": "1",
+        "scope_kind": "allowance",
+        "scope_ref": "00000000-0000-4000-8000-000000000005",
+        "dimension": "openai.output_tokens",
+        "unit": "tokens",
+        "cap": "0",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "code": "bound_invalid",
+      "stage": "cross-field"
+    },
+    {
+      "name": "policy-input-dimension",
+      "domain": "sophia.c2.bound.policy.register.v1",
+      "payload": {
+        "policy_id": "00000000-0000-4000-8000-000000000004",
+        "revision": "1",
+        "scope_kind": "allowance",
+        "scope_ref": "00000000-0000-4000-8000-000000000005",
+        "dimension": "openai.input_tokens",
+        "unit": "tokens",
+        "cap": "8000",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "code": "bound_dimension_unsupported",
+      "stage": "cross-field"
+    },
+    {
+      "name": "profile-ceiling-zero",
+      "domain": "sophia.c2.bound.profile.register.v1",
+      "payload": {
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "revision": "1",
+        "dimension": "openai.output_tokens",
+        "unit": "tokens",
+        "enforcement_kind": "output_parameter",
+        "param_name": "max_output_tokens",
+        "max_ceiling": "0",
+        "provider": "openai-research",
+        "route_id": "research-sol-medium-v1",
+        "endpoint": "responses",
+        "model": "gpt-6.1-sol",
+        "settings_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emitter_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "semantics_evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "isolation_evidence_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "scope_kind": "project",
+        "scope_ref": "00000000-0000-4000-8000-000000000002",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "code": "bound_invalid",
+      "stage": "cross-field"
+    },
+    {
+      "name": "profile-input-dimension",
+      "domain": "sophia.c2.bound.profile.register.v1",
+      "payload": {
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "revision": "1",
+        "dimension": "openai.input_cached_tokens",
+        "unit": "tokens",
+        "enforcement_kind": "output_parameter",
+        "param_name": "max_output_tokens",
+        "max_ceiling": "16000",
+        "provider": "openai-research",
+        "route_id": "research-sol-medium-v1",
+        "endpoint": "responses",
+        "model": "gpt-6.1-sol",
+        "settings_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emitter_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "semantics_evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "isolation_evidence_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "scope_kind": "project",
+        "scope_ref": "00000000-0000-4000-8000-000000000002",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "code": "bound_dimension_unsupported",
+      "stage": "cross-field"
+    },
+    {
+      "name": "output-parameter-null-param",
+      "domain": "sophia.c2.bound.profile.register.v1",
+      "payload": {
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "revision": "1",
+        "dimension": "openai.output_tokens",
+        "unit": "tokens",
+        "enforcement_kind": "output_parameter",
+        "param_name": null,
+        "max_ceiling": "16000",
+        "provider": "openai-research",
+        "route_id": "research-sol-medium-v1",
+        "endpoint": "responses",
+        "model": "gpt-6.1-sol",
+        "settings_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emitter_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "semantics_evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "isolation_evidence_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "scope_kind": "project",
+        "scope_ref": "00000000-0000-4000-8000-000000000002",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "code": "payload_invalid",
+      "stage": "cross-field"
+    },
+    {
+      "name": "dispatch-count-with-param",
+      "domain": "sophia.c2.bound.profile.register.v1",
+      "payload": {
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "revision": "1",
+        "dimension": "openai.model_requests",
+        "unit": "requests",
+        "enforcement_kind": "dispatch_count",
+        "param_name": "n",
+        "max_ceiling": "1",
+        "provider": "openai-research",
+        "route_id": "research-sol-medium-v1",
+        "endpoint": "responses",
+        "model": "gpt-6.1-sol",
+        "settings_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emitter_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "semantics_evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "isolation_evidence_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "scope_kind": "project",
+        "scope_ref": "00000000-0000-4000-8000-000000000002",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "code": "payload_invalid",
+      "stage": "cross-field"
+    },
+    {
+      "name": "dispatch-count-ceiling-2",
+      "domain": "sophia.c2.bound.profile.register.v1",
+      "payload": {
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "revision": "1",
+        "dimension": "openai.model_requests",
+        "unit": "requests",
+        "enforcement_kind": "dispatch_count",
+        "param_name": null,
+        "max_ceiling": "2",
+        "provider": "openai-research",
+        "route_id": "research-sol-medium-v1",
+        "endpoint": "responses",
+        "model": "gpt-6.1-sol",
+        "settings_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emitter_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "semantics_evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "isolation_evidence_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "scope_kind": "project",
+        "scope_ref": "00000000-0000-4000-8000-000000000002",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "code": "payload_invalid",
+      "stage": "cross-field"
+    },
+    {
+      "name": "unit-mismatch",
+      "domain": "sophia.c2.bound.profile.register.v1",
+      "payload": {
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "revision": "1",
+        "dimension": "openai.output_tokens",
+        "unit": "requests",
+        "enforcement_kind": "output_parameter",
+        "param_name": "max_output_tokens",
+        "max_ceiling": "16000",
+        "provider": "openai-research",
+        "route_id": "research-sol-medium-v1",
+        "endpoint": "responses",
+        "model": "gpt-6.1-sol",
+        "settings_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emitter_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "semantics_evidence_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "isolation_evidence_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "scope_kind": "project",
+        "scope_ref": "00000000-0000-4000-8000-000000000002",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "code": "payload_invalid",
+      "stage": "cross-field"
+    },
+    {
+      "name": "unsupported-with-bound",
+      "domain": "sophia.c2.bound.authorize.v1",
+      "payload": {
+        "project_id": "00000000-0000-4000-8000-000000000006",
+        "reservation_id": "00000000-0000-4000-8000-000000000007",
+        "dispatch_id": "00000000-0000-4000-8000-000000000008",
+        "dimension": "openai.input_tokens",
+        "unit": "tokens",
+        "bound_kind": "unsupported",
+        "bound": "1",
+        "enforcement_kind": null,
+        "profile_id": null,
+        "profile_revision": null,
+        "policy_set_digest": null,
+        "unsupported_reason": "input_estimate_only",
+        "original_runtime_id": "00000000-0000-4000-8000-000000000009",
+        "original_generation": null,
+        "route_id": "research-sol-medium-v1",
+        "model": "gpt-6.1-sol",
+        "settings_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "code": "payload_invalid",
+      "stage": "cross-field"
+    },
+    {
+      "name": "authorized-input-dimension",
+      "domain": "sophia.c2.bound.authorize.v1",
+      "payload": {
+        "project_id": "00000000-0000-4000-8000-000000000006",
+        "reservation_id": "00000000-0000-4000-8000-000000000007",
+        "dispatch_id": "00000000-0000-4000-8000-000000000008",
+        "dimension": "openai.input_tokens",
+        "unit": "tokens",
+        "bound_kind": "authorized",
+        "bound": "8000",
+        "enforcement_kind": "output_parameter",
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "profile_revision": "1",
+        "policy_set_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "unsupported_reason": null,
+        "original_runtime_id": "00000000-0000-4000-8000-000000000009",
+        "original_generation": "4444444444444444444444444444444444444444444444444444444444444444",
+        "route_id": "research-sol-medium-v1",
+        "model": "gpt-6.1-sol",
+        "settings_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "code": "payload_invalid",
+      "stage": "cross-field"
+    },
+    {
+      "name": "authorized-input-as-dispatch-count",
+      "domain": "sophia.c2.bound.authorize.v1",
+      "payload": {
+        "project_id": "00000000-0000-4000-8000-000000000006",
+        "reservation_id": "00000000-0000-4000-8000-000000000007",
+        "dispatch_id": "00000000-0000-4000-8000-000000000008",
+        "dimension": "openai.input_tokens",
+        "unit": "tokens",
+        "bound_kind": "authorized",
+        "bound": "1",
+        "enforcement_kind": "dispatch_count",
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "profile_revision": "1",
+        "policy_set_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "unsupported_reason": null,
+        "original_runtime_id": "00000000-0000-4000-8000-000000000009",
+        "original_generation": "4444444444444444444444444444444444444444444444444444444444444444",
+        "route_id": "research-sol-medium-v1",
+        "model": "gpt-6.1-sol",
+        "settings_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "code": "payload_invalid",
+      "stage": "cross-field"
+    },
+    {
+      "name": "dispatch-count-bound-2",
+      "domain": "sophia.c2.bound.authorize.v1",
+      "payload": {
+        "project_id": "00000000-0000-4000-8000-000000000006",
+        "reservation_id": "00000000-0000-4000-8000-000000000007",
+        "dispatch_id": "00000000-0000-4000-8000-000000000008",
+        "dimension": "openai.model_requests",
+        "unit": "requests",
+        "bound_kind": "authorized",
+        "bound": "2",
+        "enforcement_kind": "dispatch_count",
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "profile_revision": "1",
+        "policy_set_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "unsupported_reason": null,
+        "original_runtime_id": "00000000-0000-4000-8000-000000000009",
+        "original_generation": "4444444444444444444444444444444444444444444444444444444444444444",
+        "route_id": "research-sol-medium-v1",
+        "model": "gpt-6.1-sol",
+        "settings_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "code": "payload_invalid",
+      "stage": "cross-field"
+    },
+    {
+      "name": "unhold-without-target",
+      "domain": "sophia.c2.bound.profile.event.v1",
+      "payload": {
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "revision": "1",
+        "dimension": "openai.output_tokens",
+        "event_key": "unhold-1",
+        "event_kind": "unhold",
+        "target_event_digest": null,
+        "reason_code": "qualified",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "cause_ref_digest": null,
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "code": "payload_invalid",
+      "stage": "cross-field"
+    },
+    {
+      "name": "auto-hold-with-authority",
+      "domain": "sophia.c2.bound.profile.event.v1",
+      "payload": {
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "revision": "1",
+        "dimension": "openai.output_tokens",
+        "event_key": "k4:2222222222222222222222222222222222222222222222222222222222222222",
+        "event_kind": "auto_hold",
+        "target_event_digest": null,
+        "reason_code": "bound_contradicted",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": null,
+        "cause_ref_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+        "evidence_digest": "2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "code": "payload_invalid",
+      "stage": "cross-field"
+    },
+    {
+      "name": "activate-with-cause",
+      "domain": "sophia.c2.bound.profile.event.v1",
+      "payload": {
+        "profile_id": "00000000-0000-4000-8000-000000000001",
+        "revision": "1",
+        "dimension": "openai.output_tokens",
+        "event_key": "activate-1",
+        "event_kind": "activate",
+        "target_event_digest": null,
+        "reason_code": "qualified",
+        "authority_id": "00000000-0000-4000-8000-000000000003",
+        "approval_ref_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "cause_ref_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+        "evidence_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "code": "payload_invalid",
+      "stage": "cross-field"
+    }
+  ],
+  "knowledge": [
+    {
+      "name": "S1",
+      "q": 3000,
+      "input": {
+        "soFar": 4000,
+        "q": 3000,
+        "bound": {
+          "b": 16000,
+          "status": "qualified"
+        }
+      },
+      "v": 50000,
+      "knowledge": {
+        "cLo": 4000,
+        "cHi": 16000,
+        "contradicted": false,
+        "countFinalityInconsistent": false,
+        "restrictive": false
+      },
+      "effective": {
+        "x": [1000, 13000],
+        "effective": [37000, 49000]
+      }
+    },
+    {
+      "name": "S2",
+      "q": 3000,
+      "input": {
+        "soFar": 4000,
+        "q": 3000,
+        "bound": {
+          "b": 16000,
+          "status": "applied_unqualified"
+        }
+      },
+      "v": 50000,
+      "knowledge": {
+        "cLo": 4000,
+        "cHi": null,
+        "contradicted": false,
+        "countFinalityInconsistent": false,
+        "restrictive": false
+      },
+      "effective": {
+        "x": [1000, null],
+        "effective": [null, 49000]
+      }
+    },
+    {
+      "name": "S3/F01-B",
+      "q": 3000,
+      "input": {
+        "soFar": 17000,
+        "q": 3000,
+        "bound": {
+          "b": 16000,
+          "status": "qualified"
+        }
+      },
+      "v": 50000,
+      "knowledge": {
+        "cLo": 17000,
+        "cHi": null,
+        "contradicted": true,
+        "countFinalityInconsistent": false,
+        "restrictive": false
+      },
+      "effective": {
+        "x": [14000, null],
+        "effective": [null, 36000]
+      }
+    },
+    {
+      "name": "S4",
+      "q": 3000,
+      "input": {
+        "finalTotal": {
+          "value": 4000,
+          "qualifiedFinality": true
+        },
+        "q": 3000,
+        "bound": {
+          "b": 16000,
+          "status": "qualified"
+        }
+      },
+      "v": 50000,
+      "knowledge": {
+        "cLo": 4000,
+        "cHi": 4000,
+        "contradicted": false,
+        "countFinalityInconsistent": false,
+        "restrictive": false
+      },
+      "effective": {
+        "x": [1000, 1000],
+        "effective": [49000, 49000]
+      }
+    },
+    {
+      "name": "F01-A/K2",
+      "q": 3000,
+      "input": {
+        "finalTotal": {
+          "value": 17000,
+          "qualifiedFinality": true
+        },
+        "q": 3000,
+        "bound": {
+          "b": 16000,
+          "status": "qualified"
+        }
+      },
+      "v": 50000,
+      "knowledge": {
+        "cLo": 17000,
+        "cHi": 17000,
+        "contradicted": true,
+        "countFinalityInconsistent": false,
+        "restrictive": false
+      },
+      "effective": {
+        "x": [14000, 14000],
+        "effective": [36000, 36000]
+      }
+    },
+    {
+      "name": "F01-C",
+      "q": 3000,
+      "input": {
+        "finalTotal": {
+          "value": 17000,
+          "qualifiedFinality": false
+        },
+        "q": 3000,
+        "bound": {
+          "b": 16000,
+          "status": "qualified"
+        }
+      },
+      "v": 50000,
+      "knowledge": {
+        "cLo": 17000,
+        "cHi": null,
+        "contradicted": true,
+        "countFinalityInconsistent": true,
+        "restrictive": false
+      },
+      "effective": {
+        "x": [14000, null],
+        "effective": [null, 36000]
+      }
+    },
+    {
+      "name": "F01-D",
+      "q": 3000,
+      "input": {
+        "finalTotal": {
+          "value": 17000,
+          "qualifiedFinality": true
+        },
+        "conflictingFinals": true,
+        "q": 3000,
+        "bound": {
+          "b": 16000,
+          "status": "qualified"
+        }
+      },
+      "v": 50000,
+      "knowledge": {
+        "cLo": 3000,
+        "cHi": null,
+        "contradicted": false,
+        "countFinalityInconsistent": false,
+        "restrictive": true
+      },
+      "effective": {
+        "x": [0, null],
+        "effective": [null, 50000]
+      }
+    },
+    {
+      "name": "S6",
+      "q": 0,
+      "input": {
+        "soFar": 0,
+        "q": 0,
+        "bound": {
+          "b": 1,
+          "status": "qualified"
+        }
+      },
+      "v": 50000,
+      "knowledge": {
+        "cLo": 0,
+        "cHi": 1,
+        "contradicted": false,
+        "countFinalityInconsistent": false,
+        "restrictive": false
+      },
+      "effective": {
+        "x": [0, 1],
+        "effective": [49999, 50000]
+      }
+    },
+    {
+      "name": "V05-final-zero",
+      "q": 0,
+      "input": {
+        "finalTotal": {
+          "value": 0,
+          "qualifiedFinality": true
+        }
+      },
+      "v": 50000,
+      "knowledge": {
+        "cLo": 0,
+        "cHi": 0,
+        "contradicted": false,
+        "countFinalityInconsistent": false,
+        "restrictive": false
+      },
+      "effective": {
+        "x": [0, 0],
+        "effective": [50000, 50000]
+      }
+    }
+  ]
+}
