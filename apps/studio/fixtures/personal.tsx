@@ -158,8 +158,17 @@ class QuietRecognition extends EventTarget {
   processLocally = true
   static available = () => Promise.resolve('available')
   static install = () => Promise.resolve(true)
+  static starts = 0
+  // `speechError=code`: the first attempt fails as a browser's does, with that code, then the `aborted` an abort brings,
+  // then its end; the next attempts listen.
   start() {
-    return undefined
+    QuietRecognition.starts += 1
+    const code = query.get('speechError')
+    if (!code || QuietRecognition.starts > 1) return
+    window.setTimeout(() => {
+      for (const error of [code, 'aborted']) this.dispatchEvent(Object.assign(new Event('error'), { error }))
+      this.dispatchEvent(new Event('end'))
+    })
   }
   // `heard=words`: what it heard, said as it stops.
   stop() {
