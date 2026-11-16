@@ -26,6 +26,12 @@ function moveTo(key: string, from: number, count: number, columns: number): numb
   return to >= 0 && to < count ? to : null
 }
 
+/**
+ * Where tiles can't be arranged (the catalog), Alt with an arrow is the grid's own even where there is nowhere to move:
+ * let through at an edge, Alt+Left would be the browser's Back.
+ */
+const keptAtEdge = (e: React.KeyboardEvent, arrangeable: boolean) => !arrangeable && e.altKey && e.key in STEP
+
 const openOn = (actions: RequiredAction[], id: string) =>
   actions.filter((a) => a.resourceId === id && a.state === 'open').length
 const openIds = (actions: RequiredAction[], id: string) =>
@@ -68,6 +74,7 @@ function useKeys(shown: Resource[], onArrange: ((id: string, target: string) => 
     const to = moveTo(e.key, at, shown.length, columns)
     const from = shown[at]
     const target = to === null ? undefined : shown[to]
+    if (keptAtEdge(e, onArrange !== undefined)) e.preventDefault()
     if (to === null || !from || !target || to === at) return
     e.preventDefault()
     if (e.altKey && onArrange) {
