@@ -7,18 +7,27 @@ import { expect, test, type Page } from '@playwright/test'
 declare global {
   interface Window {
     alerts?: { chimes: number; notified: { title: string; body: string }[]; asked: number }
+    /** Blocks notifications from the site's settings while the page stays open. */
+    blockNotifications?: () => void
   }
 }
 
 const door = (page: Page) => page.getByRole('complementary', { name: 'Waiting to come in' })
 
-/** Stand-ins for the chime's AudioContext and for Notification, with `permission` and `hidden` as asked. */
-async function standIns(
-  page: Page,
-  { permission, hidden, dismiss = false }: { permission: string; hidden: boolean; dismiss?: boolean },
-) {
+interface Stand {
+  permission: string
+  hidden: boolean
+  dismiss?: boolean
+  answer?: string
+}
+
+/**
+ * Stand-ins for the chime's AudioContext and for Notification, with `permission` and `hidden` as asked; the prompt
+ * grants, leaves the choice unmade (`dismiss`), or gives `answer`.
+ */
+async function standIns(page: Page, { permission, hidden, dismiss = false, answer = '' }: Stand) {
   await page.addInitScript(
-    ({ permission: given, hidden: away, dismiss: closes }) => {
+    ({ permission: given, hidden: away, dismiss: closes, answer: says }) => {
       const alerts = { chimes: 0, notified: [] as { title: string; body: string }[], asked: 0 }
       window.alerts = alerts
       class FakeContext {
@@ -52,8 +61,11 @@ async function standIns(
         }
         static requestPermission() {
           alerts.asked += 1
+          // Blocked already, the browser answers at once with no prompt.
+          if (allowed === 'denied') return Promise.resolve(allowed)
           // Dismissed, the browser's prompt leaves the choice unmade: still «default».
-          if (!closes) allowed = 'granted'
+          if (says) allowed = says
+          else if (!closes) allowed = 'granted'
           return Promise.resolve(allowed)
         }
         addEventListener() {}
@@ -63,12 +75,13 @@ async function standIns(
         close() {}
       }
       Object.defineProperty(window, 'Notification', { value: FakeNotification })
+      window.blockNotifications = () => (allowed = 'denied')
       if (away) {
         Object.defineProperty(document, 'hidden', { get: () => true })
         Object.defineProperty(document, 'visibilityState', { get: () => 'hidden' })
       }
     },
-    { permission, hidden, dismiss },
+    { permission, hidden, dismiss, answer },
   )
 }
 
@@ -80,6 +93,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 const alerts = (page: Page) => page.evaluate(() => window.alerts)
+const BLOCKED = 'Notifications are blocked in this browser, so knocks show only here.'
 
 test('knock · someone starts waiting: an admin hears it; with the tab shown, no notification', async ({ page }) => {
   await standIns(page, { permission: 'granted', hidden: false })
@@ -121,6 +135,9 @@ test('knock · the door offers notifications once; the browser asks, and the off
   await offer.click()
   await expect(offer).toHaveCount(0)
   expect((await alerts(page))?.asked).toBe(1)
+  // Granted: nothing to say.
+  await page.waitForTimeout(300)
+  await expect(door(page).getByText(BLOCKED)).toHaveCount(0)
 })
 
 test('knock · a knock while the role is still being read is heard once it is known (Codex P2 on #362)', async ({
@@ -140,7 +157,30 @@ test('knock · a prompt dismissed is not offered again, here or after a reload (
   const offer = door(page).getByRole('button', { name: 'Notify me when someone knocks' })
   await offer.click()
   await expect(offer).toHaveCount(0)
+  // Dismissed, the choice is unmade: nothing is blocked, nothing to say.
+  await page.waitForTimeout(300)
+  await expect(door(page).getByText(BLOCKED)).toHaveCount(0)
   await page.reload()
   await expect(door(page).getByRole('status')).toContainText('At the door')
   await expect(offer).toHaveCount(0)
+})
+
+// Seams (docs/plans/dictation-and-notify-said.md): the browser's answer is denied, so the door says where knocks show.
+
+test('knock · notifications blocked at the prompt: the door says knocks show only here', async ({ page }) => {
+  await standIns(page, { permission: 'default', hidden: false, answer: 'denied' })
+  await page.goto('/room.html?lobby=waiting')
+  await door(page).getByRole('button', { name: 'Notify me when someone knocks' }).click()
+  await expect(door(page).getByRole('status').filter({ hasText: BLOCKED })).toHaveText(BLOCKED)
+  expect((await alerts(page))?.asked).toBe(1)
+})
+
+test('knock · notifications blocked after the door opened: the press says so too', async ({ page }) => {
+  await standIns(page, { permission: 'default', hidden: false })
+  await page.goto('/room.html?lobby=waiting')
+  const offer = door(page).getByRole('button', { name: 'Notify me when someone knocks' })
+  await expect(offer).toBeVisible()
+  await page.evaluate(() => window.blockNotifications?.())
+  await offer.click()
+  await expect(door(page).getByRole('status').filter({ hasText: BLOCKED })).toHaveText(BLOCKED)
 })
