@@ -148,3 +148,35 @@ describe('a screen stop mutes the sound before the share (A31)', () => {
     assert.equal(after.cause, refused)
   })
 })
+
+/** A room client that answers each sid's mute with `answers[sid]`: a track, nothing, or a refusal. */
+const answering = (answers: Record<string, () => Promise<unknown>>) => ({
+  mutePublishedTrack: (_room: string, _who: string, sid: string) => answers[sid]!() as Promise<never>,
+})
+const track = () => Promise.resolve({ sid: 'muted' })
+
+describe('a mute of a track already gone changes nothing and is not counted', () => {
+  for (const [how, err] of [
+    ['only HTTP 404 (a body that is not JSON, so no code)', new ServerError('Not Found', 'not found', 404)],
+    ['only the code not_found', new ServerError('Gone', 'participant does not exist', 400, 'not_found')],
+  ] as const) {
+    it(`a refusal with ${how} is gone, not a failure`, async () => {
+      const rooms = answering({ gone: () => Promise.reject(err), live: track })
+      assert.equal(await muteUnmuted(rooms, 'r', 'p', unmutedTracks('gone', 'live')), 1)
+    })
+  }
+
+  it('the room server answering with no track (the pinned server, for one no longer published) mutes nothing', async () => {
+    const rooms = answering({ mic: () => Promise.resolve(undefined), live: track })
+    assert.equal(
+      await muteUnmuted(rooms, 'r', 'p', unmutedTracks('mic')),
+      0,
+      'a microphone unpublished before its mute',
+    )
+    assert.equal(await muteUnmuted(rooms, 'r', 'p', unmutedTracks('mic', 'live')), 1)
+  })
+})
+
+function unmutedTracks(...sids: string[]) {
+  return sids.map((sid) => ({ sid, muted: false }))
+}
