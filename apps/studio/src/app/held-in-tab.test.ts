@@ -6,9 +6,11 @@ import {
   heldOnlyOf,
   keepHeld,
   keepTabDrafts,
+  putTabDraftsBack,
   readHeld,
   readTabDrafts,
   tabDraftsOnlyOf,
+  takeTabDrafts,
   type HeldAt,
 } from './held-in-tab.ts'
 
@@ -139,5 +141,25 @@ describe('unsent words kept in the tab (drafts-survive-reload.md)', () => {
     assert.doesNotThrow(() => keepTabDrafts(DAVIDE_TALK, 'words', refusing))
     assert.equal(readTabDrafts(DAVIDE_TALK, refusing), null)
     assert.equal(tabDraftsOnlyOf(null, refusing), false)
+  })
+})
+
+describe('a sign-out that fails keeps the words it took (drafts-survive-reload.md)', () => {
+  it('takes every account’s words and nothing else, and puts them back as they were', () => {
+    const { storage, items } = tab()
+    keepTabDrafts(DAVIDE_ROOM, 'half a thought', storage)
+    keepTabDrafts(LUIS_TALK, { c1: { text: 'his', askSophia: true } }, storage)
+    keepHeld(DAVIDE_ROOM, { key: 'k' }, storage)
+    const taken = takeTabDrafts(storage)
+    assert.deepEqual([...items.keys()], [heldKey(DAVIDE_ROOM)])
+    assert.deepEqual(Object.keys(taken).toSorted(), [draftsKey(DAVIDE_ROOM), draftsKey(LUIS_TALK)].toSorted())
+    putTabDraftsBack(taken, storage)
+    assert.equal(readTabDrafts(DAVIDE_ROOM, storage), 'half a thought')
+    assert.deepEqual(readTabDrafts(LUIS_TALK, storage), { c1: { text: 'his', askSophia: true } })
+  })
+
+  it('takes nothing and throws nothing where the browser refuses storage', () => {
+    assert.deepEqual(takeTabDrafts(refusing), {})
+    assert.doesNotThrow(() => putTabDraftsBack({ [draftsKey(DAVIDE_ROOM)]: '"words"' }, refusing))
   })
 })

@@ -328,6 +328,14 @@ describe('goneFrom and withListed: only a whole list says one is gone', () => {
     assert.deepEqual(goneFrom(settled, ['c2', 'c3', 'c4']), [])
   })
 
+  it('a draft with words counts though never seen listed (read back after a reload); an empty one doesn’t', () => {
+    const k = keptWith({ drafts: { c1: 'kept in the tab', c2: '', c3: 'listed' } })
+    assert.deepEqual(goneFrom(k, ['c3']), ['c1'])
+    const settled = withoutConversation(k, 'c1')
+    assert.equal(settled.drafts.c1, undefined)
+    assert.deepEqual(goneFrom(settled, ['c3']), [])
+  })
+
   it('an erasure held here counts though never seen listed; a start seen listed is never gone while listed', () => {
     const k = withListed(keptWith({ erasures: { c9: { key: 'e9', ask: 'c9', sending: false } } }), ['c1'], true)
     assert.deepEqual(goneFrom(k, ['c1']), ['c9'])

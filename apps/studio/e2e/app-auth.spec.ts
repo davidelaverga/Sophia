@@ -1414,6 +1414,45 @@ test('drafts · another account coming into the tab finds none of the last one�
   await expect(composer(page)).toHaveValue('')
 })
 
+/** Davide in the project's room, in the call, the chat open. */
+async function inTheRoomsChat(page: Page) {
+  await page
+    .getByRole('navigation', { name: 'Room controls' })
+    .getByRole('button', { name: /^Join the room/ })
+    .click()
+  await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
+  await page.getByRole('button', { name: /^Chat/ }).first().click()
+  await expect(page.locator('#converse-draft')).toBeVisible()
+}
+
+test('drafts · a sign-out that fails leaves the person in with the room chat’s words, there after a reload too', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.goto(`${APP}/p/${WORK_PROJECT}/studio?work=lost`)
+  await inTheRoomsChat(page)
+  await page.locator('#converse-draft').fill('Half a thought for the room')
+  await expect.poll(() => draftsInTab(page)).toHaveLength(1)
+  // The browser's storage refuses to let the session go: the sign-out fails, the session stays (as above, #410).
+  // Only the session's key refuses: every other removal, from either storage, goes through to its own storage.
+  await page.evaluate((key) => {
+    const removeItem = Storage.prototype.removeItem
+    Storage.prototype.removeItem = function (this: Storage, name: string) {
+      if (name === key) throw new Error('Storage refused')
+      removeItem.call(this, name)
+    }
+  }, SESSION_KEY)
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
+  await expect(page.locator('.toast')).toContainText('Couldn’t sign out: this device is still signed in.')
+  await expect(page.locator('#converse-draft')).toHaveValue('Half a thought for the room')
+  expect(await draftsInTab(page)).toHaveLength(1)
+  await page.reload()
+  await inTheRoomsChat(page)
+  await expect(page.locator('#converse-draft')).toHaveValue('Half a thought for the room')
+})
+
 test('legal · a sign-out in another tab forgets the views’ unsent words here too (Codex P1 on #366)', async ({
   context,
 }) => {
