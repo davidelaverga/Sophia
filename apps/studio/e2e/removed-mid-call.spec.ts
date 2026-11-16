@@ -55,3 +55,29 @@ test('removed · out of a call, the door shuts: the plain notice, with no word o
   await expect(notice(page).locator('h2')).toHaveText('No access to this project')
   await expect(page.getByText(LINE)).toHaveCount(0)
 })
+
+test('removed · Leave project in another tab of this browser is no removal: tab A’s notice says nothing of one (review P2)', async ({
+  page,
+  context,
+}) => {
+  await page.goto('/room.html?call=on&role=editor')
+  await expect(leave(page).first()).toBeVisible()
+  const other = await context.newPage()
+  await other.route(
+    (url) => url.origin !== 'http://127.0.0.1:5199',
+    (route) => route.abort(),
+  )
+  await other.goto('/room.html?role=editor')
+  await other.locator('header.topbar').getByRole('button', { name: 'Fixture project' }).click()
+  await other.getByRole('menu', { name: 'Project' }).getByRole('menuitem', { name: 'Leave project…' }).click()
+  await other.getByRole('dialog', { name: 'Leave project' }).getByRole('button', { name: 'Leave project' }).click()
+  await expect
+    .poll(() => other.evaluate(() => [...(window.fixture?.served ?? [])].some((s) => s.startsWith('leave'))))
+    .toBe(true)
+  // The API's leave takes this person out of tab A's call and out of the project: both reach tab A.
+  await page.evaluate(() => window.fixture?.drop('removed'))
+  await shutDoor(page)
+  await expect(notice(page).locator('h2')).toHaveText('No access to this project')
+  await expect(notice(page)).toContainText('isn’t a member. Ask a project admin to add you, or open another project.')
+  await expect(page.getByText(LINE)).toHaveCount(0)
+})

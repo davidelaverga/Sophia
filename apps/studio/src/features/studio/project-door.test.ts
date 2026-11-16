@@ -91,23 +91,28 @@ describe('the work board Sophia serves', () => {
 })
 
 describe('a call here ended by the removal (removed-and-stopped-said.md)', () => {
-  const off = { on: false, takenOut: false }
+  const off = { on: false, takenOut: false, left: false }
 
   it('says so when a call here was on as the door closed', () => {
-    assert.equal(callEndedByRemoval('denied', { on: true, takenOut: false }), true)
+    assert.equal(callEndedByRemoval('denied', { on: true, takenOut: false, left: false }), true)
     assert.equal(REMOVED_MID_CALL, 'Your call here ended when you were removed from the project.')
   })
 
   it('says so when the server had just taken this person out of the call', () => {
-    assert.equal(callEndedByRemoval('denied', { on: false, takenOut: true }), true)
+    assert.equal(callEndedByRemoval('denied', { on: false, takenOut: true, left: false }), true)
   })
 
   it('a plain visit to a project this person is not in says nothing of a call', () => {
     assert.equal(callEndedByRemoval('denied', off), false)
   })
 
+  it('a Leave project in another tab of this browser is no removal: nothing is said (review P2)', () => {
+    assert.equal(callEndedByRemoval('denied', { on: true, takenOut: false, left: true }), false)
+    assert.equal(callEndedByRemoval('denied', { on: false, takenOut: true, left: true }), false)
+  })
+
   it('only a removal: a sign-out, an unreachable project or an open door say nothing', () => {
     for (const blocked of ['expired', 'unreachable', null] as const)
-      assert.equal(callEndedByRemoval(blocked, { on: true, takenOut: true }), false, String(blocked))
+      assert.equal(callEndedByRemoval(blocked, { on: true, takenOut: true, left: false }), false, String(blocked))
   })
 })
