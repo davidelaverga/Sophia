@@ -184,6 +184,11 @@ interface Project {
   goalTargets?: Map<string, { ownerId: string | null; targetDate: string | null; revision: number }>
   /** The next target saved finds someone else's first (`window.fixture.staleTarget`). */
   staleTarget?: boolean
+  /**
+   * The next goal target or role saved loses its reply (`window.fixture.loseNextSaveReply`, save-reply-lost.md):
+   * `landed` after it is recorded, `unlanded` before it reaches the API.
+   */
+  loseSaveReply?: 'landed' | 'unlanded' | null
   /** Members an admin removed (A29), by actor id. */
   removedMembers?: Set<string>
   /** Members' roles as an admin changed them (A27), by actor id. */
@@ -875,8 +880,24 @@ function memberRemoved(project: Project, actorId: string): Response {
   return json({ actorId, cursor: String(project.revision) })
 }
 
-/** The project's own PUTs: a goal's owner and date (A25), a member's role (A27); null for any other path. */
-function projectPut(project: Project, path: string, init: RequestInit | undefined): Response | null {
+/**
+ * The project's own PUTs: a goal's owner and date (A25), a member's role (A27); null for any other path. Its reply may
+ * be lost (`loseSaveReply`), after the save is recorded or before it reaches the API.
+ */
+function projectPut(
+  project: Project,
+  path: string,
+  init: RequestInit | undefined,
+): Response | Promise<Response> | null {
+  const lost = project.loseSaveReply
+  if (!lost || !(GOAL_TARGET.test(path) || MEMBER_ROLE.test(path))) return savedPut(project, path, init)
+  project.loseSaveReply = null
+  if (lost === 'landed') savedPut(project, path, init)
+  return Promise.reject(new TypeError('Failed to fetch')) // the page never hears whether it landed
+}
+
+/** A goal's owner and date (A25), or a member's role (A27), saved and answered; null for any other path. */
+function savedPut(project: Project, path: string, init: RequestInit | undefined): Response | null {
   const target = GOAL_TARGET.exec(path)?.[1]
   if (target) return goalTargetPut(project, target, init)
   const member = MEMBER_ROLE.exec(path)?.[1]

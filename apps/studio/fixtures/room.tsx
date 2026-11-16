@@ -201,6 +201,8 @@ interface Fixture {
   unmutes: (n: number) => void
   /** The next goal target saved finds someone else's first (goal-owner-date.md). */
   staleTarget: () => void
+  /** The next goal target or role saved loses its reply, after it lands or before (save-reply-lost.md). */
+  loseNextSaveReply: (landed: boolean) => void
   /** The next invitation to this address fails, as an unavailable API's (invite-from-projects.md). */
   failInvite: (email: string) => void
   /** While on, host controls land but their replies wait; off, they answer. */
@@ -846,6 +848,7 @@ const project = {
   failHost: false,
   failAfterMuteAll: false,
   staleTarget: false,
+  loseSaveReply: null as 'landed' | 'unlanded' | null,
   // `archived=1`: the project is archived (archive-project.md).
   archived: query.get('archived') === '1',
   // `archivedFails=1`: the archived list can't be read (archive-keys-and-work.md).
@@ -1211,6 +1214,9 @@ window.fixture = {
   unmutes,
   staleTarget: () => {
     project.staleTarget = true
+  },
+  loseNextSaveReply: (landed) => {
+    project.loseSaveReply = landed ? 'landed' : 'unlanded'
   },
   failInvite: (email) => {
     project.invitations.failFor = email

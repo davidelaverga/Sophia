@@ -61,6 +61,43 @@ test('owner · a save someone else beat is said, and the sheet shows what stands
   await expect(sheet(page).getByLabel('Target date')).toHaveValue('2026-12-01')
 })
 
+// A save whose reply was lost may have landed: the targets are read again and say which (docs/plans/save-reply-lost.md).
+const CHECKED = 'Saved. The reply was slow, so we checked.'
+
+test('owner · a save whose reply was lost after it landed says so, and saving again blames no one', async ({
+  page,
+}) => {
+  await open(page, '&targets=1')
+  await expect(sheet(page).getByRole('combobox', { name: 'Owner' })).toHaveValue(MARCO)
+  await page.evaluate(() => window.fixture?.loseNextSaveReply(true))
+  await sheet(page).getByLabel('Target date').fill('2026-11-15')
+  await sheet(page).getByRole('button', { name: 'Save' }).click()
+  await expect(sheet(page).getByRole('status')).toHaveText(CHECKED)
+  await expect(sheet(page).getByRole('alert')).toHaveCount(0)
+  await expect(sheet(page).getByLabel('Target date')).toHaveValue('2026-11-15')
+  await sheet(page).getByLabel('Target date').fill('2026-11-20')
+  await sheet(page).getByRole('button', { name: 'Save' }).click()
+  await expect(sheet(page).getByRole('status')).toHaveText('Saved')
+  await expect(sheet(page).getByRole('alert')).toHaveCount(0)
+  expect((await served(page)).filter((s) => s.startsWith(`target:${MARCO}:`))).toHaveLength(2)
+})
+
+test('owner · a save whose reply was lost before it landed says so, keeps the date, and lands again', async ({
+  page,
+}) => {
+  await open(page, '&targets=1')
+  await expect(sheet(page).getByRole('combobox', { name: 'Owner' })).toHaveValue(MARCO)
+  await page.evaluate(() => window.fixture?.loseNextSaveReply(false))
+  await sheet(page).getByLabel('Target date').fill('2026-11-15')
+  await sheet(page).getByRole('button', { name: 'Save' }).click()
+  await expect(sheet(page).getByRole('alert')).toHaveText('Not saved. Try again.')
+  await expect(sheet(page).getByLabel('Target date')).toHaveValue('2026-11-15')
+  expect((await served(page)).filter((s) => s.startsWith('target:'))).toEqual([])
+  await sheet(page).getByRole('button', { name: 'Save' }).click()
+  await expect(sheet(page).getByRole('status')).toHaveText('Saved')
+  expect(await served(page)).toContain(`target:${MARCO}:2026-11-15:1`)
+})
+
 // A read that fails is said in place, never as «none» (docs/plans/silent-reads.md; the reliability baseline's gap #4).
 const UNREAD = 'The owner and date can’t be read right now.'
 
