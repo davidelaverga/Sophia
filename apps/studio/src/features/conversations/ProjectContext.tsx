@@ -12,7 +12,7 @@ import type { ConversationSummary } from '../../api/conversations.ts'
 import type { MissionContext, MissionDecision } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
-import { Button } from '@sophia/ui'
+import { Button, Icon } from '@sophia/ui'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { acceptedOf, coverageWords, pendingOf, questionWords, type Unnamed } from './conversation-list.ts'
 import { useReadAgain } from './useReadAgain.ts'
@@ -200,9 +200,7 @@ function Frame(props: {
           aria-label="Close the context"
           onClick={props.onClose}
         >
-          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-            <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-          </svg>
+          <Icon name="close" />
         </Button>
       </div>
       {/* Keyed: a confirmation asked for one conversation never stays for the next one opened. */}
