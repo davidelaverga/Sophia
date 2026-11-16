@@ -297,6 +297,53 @@ test('keeps nothing of the catalog in this browser', async ({ page }) => {
   expect(kept).not.toContain('catalog')
 })
 
+/** The Sort menu's button, which says the order in use. */
+const sortButton = (page: Page) => page.getByRole('button', { name: /^Sort/ })
+const tileOrder = (page: Page) => tiles(page).evaluateAll((all) => all.map((t) => t.textContent))
+/** Chooses an order from the Sort menu, as a person would. */
+async function sortBy(page: Page, label: string) {
+  await sortButton(page).click()
+  await page.getByRole('menuitemradio', { name: label }).click()
+}
+
+test('the catalog sorts only as it can: by owner or tool, and its tiles aren’t arranged by hand', async ({ page }) => {
+  await page.goto(`${PAGE}?case=complete`)
+  await expect(tiles(page)).toHaveCount(6)
+  // No requests or host state to rank by attention, and no custom order it could keep: Owner and Tool, on Owner.
+  await expect(sortButton(page)).toHaveText('SortOwner')
+  await sortButton(page).click()
+  await expect(page.getByRole('menu', { name: 'Sort' }).getByRole('menuitemradio')).toHaveText(['Owner', 'Tool'])
+  await page.keyboard.press('Escape')
+  const before = await tileOrder(page)
+  // A tile dragged onto another, or moved with Alt and an arrow, stays where it is: the arrow only moves the focus.
+  await expect(tiles(page).first()).not.toHaveAttribute('draggable', 'true')
+  await tiles(page).first().dragTo(tiles(page).nth(2))
+  await tiles(page).first().focus()
+  await page.keyboard.press('Alt+ArrowRight')
+  await expect(tiles(page).nth(1)).toBeFocused()
+  expect(await tileOrder(page)).toEqual(before)
+  await expect(sortButton(page)).toHaveText('SortOwner')
+  await sortBy(page, 'Tool')
+  await expect(sortButton(page)).toHaveText('SortTool')
+  await expect.poll(() => tileOrder(page)).not.toEqual(before)
+})
+
+test('@phone the catalog’s Sort at 390: two orders, the menu in view, nothing wider than the page', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?case=complete`)
+  await expect(tiles(page)).toHaveCount(6)
+  await sortButton(page).tap()
+  const menu = page.getByRole('menu', { name: 'Sort' })
+  await expect(menu.getByRole('menuitemradio')).toHaveText(['Owner', 'Tool'])
+  const box = await menu.boundingBox()
+  expect(box?.x ?? -1).toBeGreaterThanOrEqual(0)
+  expect((box?.x ?? 0) + (box?.width ?? 999)).toBeLessThanOrEqual(390)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  await menu.getByRole('menuitemradio', { name: 'Tool' }).tap()
+  await expect(sortButton(page)).toHaveText('SortTool')
+})
+
 test('@phone the catalog at 390: tiles, the owner’s sheet, More and a refusal fit and work by touch', async ({
   page,
 }) => {
