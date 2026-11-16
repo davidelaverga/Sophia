@@ -23,15 +23,17 @@
   - Tasks: the decisions waiting on you (`useDecisionsWaiting`'s count);
   - Resources (shown only where the vision flag serves it): the requests in your tools (`resourcesWaiting`).
 - **A small number beside the view's name**, in the kit: Geist Mono at the label size, amber on its own tint, as the
-  board's «for you», with a 4 px radius. Zero shows nothing.
+  board's «for you», with a 4 px radius. Zero shows nothing. The tint is a solid over the void (review): the bar is
+  see-through, and dark content under it took the number on paper to 3:1.
+- **On a narrow row** a counted view is brought clear of the fades, the current view kept whole in the row (review).
 - **Its accessible name** joins two phrases the app already says: the view's name and Goals' «1 waiting on you»
   (`goals-glance.ts`, now one exported helper both use): «Tasks, 1 waiting on you». No new words.
 
 ## Limits
 
 - The decisions are the board's last read (decision-alert.md's limits): read on Goals, Tasks and search only.
-- The row at 1280 had 15 px to spare (nav-fits-1280.md); one number fits in it, two may make the row scroll, with its
-  fades, as under 1241 px.
+- At 375 px Tasks current and Resources counted can't both stand clear of the fades: the count does, the current view
+  stays whole in the row.
 - `U` («Needs you» from any view) waits on a plan that defines it.
 
 ## Checks (written first)
@@ -41,4 +43,6 @@
   both; as Luis (nothing waits), no number at all;
 - `resources.html?viewer=davide`: the Resources link counts the request waiting on him, and a second one makes it 2;
 - at 375 px the number stands inside its link and the page doesn't scroll sideways;
-- the number's contrast, measured on paper and on the dark room: 4.5:1 or more.
+- the number's contrast, measured on paper and on the dark room: 4.5:1 or more, every number, black under the bar;
+- (review) at 375 px on Tasks with a Resources count, Resources clear of the fades and Tasks whole in the row; at 1280
+  with both counts, the row whole and the name's text not cut.
