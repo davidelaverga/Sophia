@@ -25,7 +25,7 @@ import { micOnJoin, rememberMic } from './mic-preference.ts'
 import type { Heard } from './reaction-channel.ts'
 import { paced, shownAfter, SHOWN_FOR_MS, type Reaction, type ReactionEmoji } from './reactions.ts'
 import type { Level } from './people-volume.ts'
-import { mediaMessage, type Device, type DockStatus, type RoomParticipant } from './room-view.ts'
+import { HOST_STOPPED_SCREEN, mediaMessage, type Device, type DockStatus, type RoomParticipant } from './room-view.ts'
 import type { SophiaSignal } from './sophia-view.ts'
 
 export type { VideoFeed } from './livekit-room.ts'
@@ -275,6 +275,8 @@ function useDevices(connection: { current: RoomConnection | null }, refresh: () 
   return {
     mediaError,
     clearNote: () => setMediaError(null),
+    /** Said as a device note, so it goes as they go: the next device that works, or the call's end. */
+    hostStoppedScreen: () => setMediaError(HOST_STOPPED_SCREEN),
     /** The microphone a join turns on, in that join's call: false when text mode began meanwhile and it stayed on. */
     arrive: () => {
       const c = connection.current
@@ -334,6 +336,8 @@ interface JoinPorts {
   scoped: (scope: string) => void
   /** A new call began. */
   onLive: () => void
+  /** An admin stopped this person's screen share: the dock says so (removed-and-stopped-said.md). */
+  hostStoppedScreen: () => void
 }
 
 /**
@@ -341,7 +345,7 @@ interface JoinPorts {
  * this person's call.
  */
 function heardWhile(current: () => boolean, ports: JoinPorts): RoomCallbacks {
-  const { typedChat, setStatus, refresh, outOfCall } = ports
+  const { typedChat, setStatus, refresh, outOfCall, hostStoppedScreen } = ports
   return {
     onChange: refresh,
     onChat: (packet) => {
@@ -361,6 +365,9 @@ function heardWhile(current: () => boolean, ports: JoinPorts): RoomCallbacks {
     },
     onSpeakingMuted: () => {
       if (current()) typedChat.onSpeakingMuted()
+    },
+    onHostStoppedScreen: () => {
+      if (current()) hostStoppedScreen()
     },
     onStatus: (s) => {
       if (current()) setStatus(s)
@@ -776,7 +783,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   useEffect(() => () => void calls.end(), [calls])
 
   const refresh = () => setPeople(peopleOf(calls.current))
-  const { clearNote, arrive, silence, ...devices } = useDevices(calls, refresh)
+  const { clearNote, arrive, silence, hostStoppedScreen, ...devices } = useDevices(calls, refresh)
   const { choices, resetChoices } = useCallChoices(calls)
   const typedChat = useConversation(calls, silence)
 
@@ -792,7 +799,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   const say = (note: string | null) => (note === null ? rest() : setError(note))
   const outOfCall = outOfCallFor({ calls, joining, typedChat, stand, reset, setStatus, setError: say, ended })
 
-  const ports = { calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall, scoped }
+  const ports = { calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall, scoped, hostStoppedScreen }
   const joined = useJoin(ports, joining, () => devices.setCamera(true))
   const join = joinOnline(joined.join)
   const { line, rejoining, rejoin } = useRejoin(status, calls, join, setError)

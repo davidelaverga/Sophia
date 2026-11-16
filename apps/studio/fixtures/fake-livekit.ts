@@ -471,6 +471,7 @@ function fromTheServer(me: RoomParticipant, cb: RoomCallbacks, open: () => boole
     asked.push('screen:off')
     me.screenOn = false
     changed()
+    cb.onHostStoppedScreen?.()
   }
   browserScreenEnd = () => {
     if (!open() || !me.screenOn) return

@@ -139,6 +139,8 @@ export interface RoomCallbacks {
   onReaction?: (heard: Heard) => void
   /** Speech heard on this person's microphone while it is off (muted-speech.md). */
   onSpeakingMuted?: () => void
+  /** An admin stopped this person's screen share, and it stopped here (A31): never their own stop or the browser's. */
+  onHostStoppedScreen?: () => void
   /** Someone joined, left, spoke, muted or shared video: re-read `participants()` and `feeds()`. */
   onChange: () => void
   onStatus: (status: RoomStatus) => void
@@ -246,12 +248,14 @@ function remoteAudio(room: Room) {
 
 /**
  * A screen share the host stopped (A31, host-more.md) stops here too: the server can only mute it, so this person's
- * share ends, and the browser's capture with it, rather than sending a black screen.
+ * share ends, and the browser's capture with it, rather than sending a black screen. The room is told, to say so: only
+ * the server mutes a share, as this person's own stop and the browser's «Stop sharing» bar unpublish it.
  */
-function stopsWhenHostStops(room: Room): void {
+function stopsWhenHostStops(room: Room, cb: RoomCallbacks): void {
   room.on(RoomEvent.TrackMuted, (publication, participant) => {
     if (participant !== room.localParticipant || publication.source !== Track.Source.ScreenShare) return
     void room.localParticipant.setScreenShareEnabled(false).catch(() => undefined)
+    cb.onHostStoppedScreen?.()
   })
 }
 
@@ -502,7 +506,7 @@ export async function connectRoom(
   let textOnly = false
   const audio = remoteAudio(room)
   watchQualification(room, qualification)
-  stopsWhenHostStops(room)
+  stopsWhenHostStops(room, cb)
   endsWith(room, audio, cb)
   listenToSophia(room, cb)
   listenToReactions(room, (heard) => cb.onReaction?.(heard))
