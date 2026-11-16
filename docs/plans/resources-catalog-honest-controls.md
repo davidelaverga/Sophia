@@ -31,7 +31,8 @@
    token. The change and its test were reverted (`git revert` of `cd650a0ae` and of `001c0ef28`'s test).
 2. **The catalog sorts by Owner or Tool.** `SortMenu` takes the orders to offer; the catalog passes Owner and Tool and
    starts on Owner (the order Attention gave it, so the tiles come in the same order as before). Its tiles can't be
-   arranged: no drag, and Alt with an arrow moves the focus as an arrow does, nothing more. The project's known-data
+   arranged: no drag, and Alt with an arrow moves the focus as an arrow does, nothing more; at the grid's edge, where
+   there is nowhere to move, the key is still kept from the browser (Alt+Left would be Back), as the review found. The project's known-data
    view is untouched: all four orders, Attention first, dragging and Alt-arrows, kept as before.
 3. **A window's name starts upper case.** An id not in `WINDOW_NAME` reads with its first letter upper:
    `daily_tokens` → «Daily tokens», `credits` → «Credits», as the known names do. The tests that pinned the lower case

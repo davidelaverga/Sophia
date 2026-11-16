@@ -357,6 +357,35 @@ test('the catalog sorts only as it can: by owner or tool, and its tiles aren’t
   await expect.poll(() => tileOrder(page)).not.toEqual(before)
 })
 
+test('Alt and an arrow at the grid’s edge is kept by the catalog: never the browser’s Back or Forward', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?case=empty`)
+  await page.goto(`${PAGE}?case=complete`)
+  await expect(tiles(page)).toHaveCount(6)
+  // What the page lets through to the browser: whether a key's default (Alt+Left is Back) was kept from it.
+  await page.evaluate(() => {
+    window.addEventListener('keydown', (e) => {
+      if (e.altKey) document.body.dataset.altKept = String(e.defaultPrevented)
+    })
+  })
+  const url = page.url()
+  for (const [at, key] of [
+    [0, 'Alt+ArrowLeft'],
+    [0, 'Alt+ArrowUp'],
+    [5, 'Alt+ArrowRight'],
+    [5, 'Alt+ArrowDown'],
+  ] as const) {
+    await tiles(page).nth(at).focus()
+    await page.keyboard.press(key)
+    await expect(page.locator('body'), key).toHaveAttribute('data-alt-kept', 'true')
+    await expect(tiles(page).nth(at), key).toBeFocused()
+    await page.evaluate(() => delete document.body.dataset.altKept)
+  }
+  expect(page.url()).toBe(url)
+  await expect(tiles(page)).toHaveCount(6)
+})
+
 test('@phone the catalog’s Sort at 390: two orders, the menu in view, nothing wider than the page', async ({
   page,
 }) => {
