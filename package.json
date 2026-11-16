@@ -24,7 +24,7 @@
     "artifacts:record": "node scripts/build-artifacts.mjs --record",
     "profile:install": "node scripts/profile-install.mjs",
     "profile:verify": "node scripts/profile-verify.mjs",
-    "check": "pnpm toolchain:check && pnpm format:check && pnpm lint && pnpm build && pnpm typecheck && pnpm contracts:check && pnpm test && pnpm artifacts && pnpm test:integration",
+    "check": "pnpm toolchain:check && pnpm format:check && pnpm lint && pnpm build && pnpm typecheck && pnpm contracts:check && pnpm artifacts && pnpm test && pnpm test:integration",
     "contracts:check": "pnpm --filter @sophia/contracts run generate:check",
     "db:migrate": "node packages/persistence/scripts/migrate.ts",
     "supabase:local": "node scripts/supabase-local.ts",

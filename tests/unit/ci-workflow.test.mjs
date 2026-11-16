@@ -185,14 +185,17 @@ describe('ci: everything else in the workflow is unchanged from d3e5ba9c', () =>
     assert.deepEqual(ci.jobs['studio-browser-part'].strategy.matrix.part, [1, 2, 3])
   })
 
-  it('the whole parsed workflow, apart from the concurrency group and the diagnostics, is the structure d3e5ba9c parsed to', () => {
-    // A digest of the parsed workflow with concurrency.group set back to d3e5ba9c's value and runtime-unit's steps set
-    // back to its four (install, `pnpm check`, the dsh source; the diagnostics are checked below). Any other change to a
-    // trigger, job, step, timeout, service, pin, permission, matrix or the aggregate changes it; update it only with a
-    // reviewed reason.
+  it('the whole parsed workflow, apart from the concurrency group, the diagnostics and the Supabase isolation, is the structure d3e5ba9c parsed to', () => {
+    // A digest of the parsed workflow with concurrency.group set back to d3e5ba9c's value, runtime-unit's steps set
+    // back to its four (install, `pnpm check`, the dsh source; the diagnostics are checked below) and supabase-live
+    // without exactly the reviewed attempt isolation. Any other change to a trigger, job, step, timeout, service, pin,
+    // permission, matrix or the aggregate changes it; update it only with a reviewed reason.
+    assert.deepEqual(ci.jobs['supabase-live'].env, ISOLATION_ENV)
+    isolationAt(ci.jobs['supabase-live'].steps)
     const rest = structuredClone(ci)
     rest.concurrency.group = D3E_GROUP
     rest.jobs['runtime-unit'].steps = withoutDiagnostics(rest.jobs['runtime-unit'].steps)
+    rest.jobs['supabase-live'] = withoutSupabaseIsolation(rest.jobs['supabase-live'])
     const digest = createHash('sha256').update(JSON.stringify(rest)).digest('hex')
     assert.equal(digest, 'fc501764446a618da3ad44170b8cbf0fe266943c13e31903986c04e37110448f')
   })
@@ -253,6 +256,45 @@ function withoutDiagnostics(steps) {
       return diagnostic ? rest : step
     })
 }
+// CI-3A1E-SUPABASE-ISOLATION-REPAIR-001: the Supabase job's own project, ports and cleanup (scripts/supabase-local.ts).
+const ISOLATION_ENV = { SOPHIA_SUPABASE_ISOLATION: '${{ github.run_id }}-${{ github.run_attempt }}' }
+const ISOLATED_START = { id: 'supabase', run: 'pnpm supabase:local' }
+const ISOLATED_STOP = {
+  name: "Stop this attempt's Supabase project",
+  if: "always() && steps.supabase.outcome != 'skipped'",
+  'timeout-minutes': 3,
+  run: 'node scripts/supabase-local.ts --stop',
+}
+
+/**
+ * Where the reviewed start and stop are, asserted: exactly one start, immediately before the one auth test, and exactly
+ * one stop, immediately after it and last. Any other step that stops Supabase (a duplicate, or one moved before the
+ * auth test, even with another name or condition) fails here, before any normalization.
+ */
+function isolationAt(steps) {
+  const where = (predicate) => steps.flatMap((step, i) => (predicate(step) ? [i] : []))
+  const auth = where((step) => step.run === 'pnpm test:supabase')
+  const starts = where((step) => isDeepStrictEqualTo(step, ISOLATED_START))
+  const stops = where((step) => isDeepStrictEqualTo(step, ISOLATED_STOP))
+  const stopping = where((step) => /supabase-local\.ts --stop|supabase stop/.test(step.run ?? ''))
+  assert.equal(auth.length, 1, 'one auth test step')
+  assert.deepEqual(stops, [auth[0] + 1], 'exactly one reviewed stop, immediately after the auth test')
+  assert.deepEqual(stopping, stops, 'no other step stops Supabase')
+  assert.equal(stops[0], steps.length - 1, 'the owned cleanup is the last step')
+  assert.deepEqual(starts, [auth[0] - 1], 'exactly one reviewed start, immediately before the auth test')
+  return { start: starts[0], stop: stops[0] }
+}
+
+/** supabase-live as d3e5ba9c had it: only the verified start's id and the verified stop are taken out. */
+function withoutSupabaseIsolation(job) {
+  const { env, ...rest } = job
+  if (!isDeepStrictEqualTo(env, ISOLATION_ENV)) return job
+  const { start, stop } = isolationAt(rest.steps)
+  const steps = rest.steps
+    .filter((_, i) => i !== stop)
+    .map((step, i) => (i === start ? { run: step.run } : step))
+  return { ...rest, steps }
+}
 function isDeepStrictEqualTo(a, b) {
   try {
     assert.deepStrictEqual(a, b)
@@ -305,10 +347,14 @@ describe('ci: runtime-unit records the integration suite as TAP, and the record 
     assert.equal(job.steps.at(-1).if, undefined, 'the dsh source step still runs only after everything before it succeeded')
   })
 
-  it('package.json: only `test:integration` changed, to the runner; the check chain is the same', () => {
+  it('package.json: only `test:integration` changed, to the runner, and the check prepares the runtime before the unit tests', () => {
     const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'))
     assert.equal(pkg.scripts['test:integration'], 'node scripts/test-integration.mjs')
-    assert.equal(pkg.scripts.check, 'pnpm toolchain:check && pnpm format:check && pnpm lint && pnpm build && pnpm typecheck && pnpm contracts:check && pnpm test && pnpm artifacts && pnpm test:integration')
+    // CI-3A1E-SUPABASE-ISOLATION-REPAIR-001: the SDK unit tests read the deployed runtime, so `artifacts` builds and
+    // verifies it before `test`; every phase is kept, in one `&&` chain.
+    assert.equal(pkg.scripts.check, 'pnpm toolchain:check && pnpm format:check && pnpm lint && pnpm build && pnpm typecheck && pnpm contracts:check && pnpm artifacts && pnpm test && pnpm test:integration')
+    assert.deepEqual(pkg.scripts.check.split(' && ').toSorted(), OLD_CHECK.split(' && ').toSorted())
+    pkg.scripts.check = OLD_CHECK
     pkg.scripts['test:integration'] = OLD_INTEGRATION_SCRIPT
     assert.equal(createHash('sha256').update(JSON.stringify(pkg)).digest('hex'), '8772bc1b090356ae795da35c821e5825c9b8df9b92eddb51bf8ae83e4bce4f16')
   })
@@ -316,6 +362,8 @@ describe('ci: runtime-unit records the integration suite as TAP, and the record 
 
 /** 805523a1's `test:integration`, whose flags and glob the runner keeps. */
 const OLD_INTEGRATION_SCRIPT = 'node --test --test-concurrency=1 --test-timeout=180000 "tests/integration/**/*.test.mjs"'
+/** 805523a1's check chain, which ran the unit tests before the artifacts. */
+const OLD_CHECK = 'pnpm toolchain:check && pnpm format:check && pnpm lint && pnpm build && pnpm typecheck && pnpm contracts:check && pnpm test && pnpm artifacts && pnpm test:integration'
 const RUNNER = fileURLToPath(new URL('../../scripts/test-integration.mjs', import.meta.url))
 
 describe('scripts/test-integration.mjs: the same suite, one run, and an optional TAP file', () => {
