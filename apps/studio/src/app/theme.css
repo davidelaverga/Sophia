@@ -7759,7 +7759,8 @@ button.contribution-quote:hover {
   color: var(--text-3);
   font-size: var(--type-small);
 }
-.in-project-people .form-error {
+.in-project-people .form-error,
+.in-project-people .sheet-status {
   grid-column: 1 / -1;
   margin: 0;
 }

@@ -1,11 +1,13 @@
 // Who is in the project, in the Invite sheet's Members tab (docs/plans/member-roles.md, A27): each member with their
 // role, you marked. An admin changes a role from its select, admin included, so the admin role can be handed over;
-// a project keeps an admin, and a refusal is said on the row while the select shows the role that stands.
+// a project keeps an admin, and a refusal is said on the row while the select shows the role that stands. A change whose
+// reply was lost is read again, and the row says whether it landed (docs/plans/save-reply-lost.md).
 import { useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import type { ProjectMember } from '@sophia/contracts'
 import { ConfirmButton } from '@sophia/ui'
-import { changeMemberRole, removeMember } from '../../api/client.ts'
+import { changeMemberRole, getProjectMembers, removeMember } from '../../api/client.ts'
+import { replyLost } from '../../api/reply-lost.ts'
 import { useMembers } from '../work/GoalTargets.tsx'
 import { membershipKey, type SheetContext } from './useAccess.ts'
 import { removalKeys } from './removal-keys.ts'
@@ -34,28 +36,58 @@ function RoleSelect(props: { member: ProjectMember; label: string; onChange: (ro
   )
 }
 
-/** A role change in flight, and the refusal on its row; reads the members and one's own membership again after. */
-function useRoleChange({ projectId, identity }: SheetContext) {
+/** What a row says after a change or a removal: a refusal as an alert, a change found landed as a status. */
+interface RowNote {
+  actorId: string
+  text: string
+  polite?: boolean
+}
+
+const UNCHANGED = 'Couldn’t change the role.'
+
+/**
+ * After a lost reply, what stands says whether the role changed: the member's role as sent, or not. A read that fails
+ * too tells nothing, so today's words stay.
+ */
+async function roleChecked({ projectId, identity }: SheetContext, actorId: string, role: Role): Promise<RowNote> {
+  try {
+    const { members } = await getProjectMembers(identity.token, projectId)
+    return members.find((m) => m.actorId === actorId)?.role === role
+      ? { actorId, text: 'Saved. The reply was slow, so we checked.', polite: true }
+      : { actorId, text: 'The role wasn’t changed. Try again.' }
+  } catch {
+    return { actorId, text: UNCHANGED }
+  }
+}
+
+/** A role change in flight, and what its row says; reads the members and one's own membership again after. */
+function useRoleChange(context: SheetContext) {
+  const { projectId, identity } = context
   const client = useQueryClient()
-  const [state, setState] = useState<{ busy: string | null; failed: { actorId: string; text: string } | null }>({
-    busy: null,
-    failed: null,
-  })
+  const [state, setState] = useState<{ busy: string | null; failed: RowNote | null }>({ busy: null, failed: null })
+  const readAgain = () =>
+    Promise.all([
+      client.invalidateQueries({ queryKey: ['members', projectId, identity.name] }),
+      client.invalidateQueries({ queryKey: membershipKey(projectId, identity.name) }),
+    ])
   const change = (member: ProjectMember) => (role: Role) => {
     setState({ busy: member.actorId, failed: null })
     changeMemberRole(identity.token, projectId, member.actorId, role).then(
       async () => {
         setState({ busy: null, failed: null })
-        await Promise.all([
-          client.invalidateQueries({ queryKey: ['members', projectId, identity.name] }),
-          client.invalidateQueries({ queryKey: membershipKey(projectId, identity.name) }),
-        ])
+        await readAgain()
       },
-      (err: unknown) =>
-        setState({
-          busy: null,
-          failed: { actorId: member.actorId, text: err instanceof Error ? err.message : 'Couldn’t change the role.' },
-        }),
+      async (err: unknown) => {
+        if (!replyLost(err)) {
+          setState({
+            busy: null,
+            failed: { actorId: member.actorId, text: err instanceof Error ? err.message : UNCHANGED },
+          })
+          return
+        }
+        setState({ busy: null, failed: await roleChecked(context, member.actorId, role) })
+        await readAgain()
+      },
     )
   }
   // One key per member removal: a retry after an unknown outcome is the same removal (A29); confirmed, it is retired.
@@ -80,6 +112,18 @@ function useRoleChange({ projectId, identity }: SheetContext) {
     )
   }
   return { state, change, remove }
+}
+
+function RowSaid({ note }: { note: RowNote }) {
+  return note.polite ? (
+    <p className="sheet-status" role="status">
+      {note.text}
+    </p>
+  ) : (
+    <p className="form-error" role="alert">
+      {note.text}
+    </p>
+  )
 }
 
 export function InProject({ context }: { context: SheetContext }) {
@@ -120,11 +164,7 @@ export function InProject({ context }: { context: SheetContext }) {
                   onConfirm={remove(m)}
                 />
               )}
-              {state.failed?.actorId === m.actorId && (
-                <p className="form-error" role="alert">
-                  {state.failed.text}
-                </p>
-              )}
+              {state.failed?.actorId === m.actorId && <RowSaid note={state.failed} />}
             </li>
           )
         })}
