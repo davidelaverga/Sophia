@@ -719,7 +719,7 @@ const TOKEN_HEAD = /[^\s\u2013\u2014\u2015\u2e3a\u2e3b]*$/u
 const TOKEN_TAIL = /^[^\s\u2013\u2014\u2015\u2e3a\u2e3b]*/u
 /** What may share a token with an imported span: punctuation only (quotes, brackets, stops). */
 const SPAN_EDGE = /^\p{P}*$/u
-const tokenHead = (text: string, at: number): string => TOKEN_HEAD.exec(text.slice(0, at))?.[0] ?? ''
+export const tokenHead = (text: string, at: number): string => TOKEN_HEAD.exec(text.slice(0, at))?.[0] ?? ''
 const tokenTail = (text: string, end: number): string => TOKEN_TAIL.exec(text.slice(end))?.[0] ?? ''
 
 /** Every occurrence of a literal, overlapping ones included, and whether each one is a complete span. */
