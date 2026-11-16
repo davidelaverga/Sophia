@@ -36,6 +36,7 @@ import {
   CATALOG_PRIVATE,
   CATALOG_UNREPORTED,
   catalogHostLines,
+  catalogEnrollment,
   catalogState,
   connectionSaid,
   CONTROL_NAME,
@@ -180,6 +181,7 @@ function CatalogEvidence({ mine, now }: { mine: NonNullable<CatalogFacts['mine']
  */
 function CatalogHost({ facts, now }: { facts: CatalogFacts; now: Date }) {
   const state = catalogState(facts)
+  const enrollment = catalogEnrollment(facts)
   return (
     <div className="resource-host resource-catalog">
       <p className={facts.mine === null ? 'unknown resource-private' : 'unknown resource-connection'}>
@@ -187,6 +189,7 @@ function CatalogHost({ facts, now }: { facts: CatalogFacts; now: Date }) {
         {facts.mine === null ? CATALOG_PRIVATE : connectionSaid(facts.mine.connection)}
       </p>
       {state && <p className="resource-recorded resource-catalog-state">{state}</p>}
+      {enrollment && <p className="resource-recorded resource-catalog-enrollment">{enrollment}</p>}
       <p className="resource-as-read">
         As observed by the service <time dateTime={facts.observedAt}>{when(facts.observedAt, now.getTime())}</time>
       </p>

@@ -1,6 +1,6 @@
 // The tiles' order, at the toolbar's end: a menu in the app's own look (the kit's, as the account's), not the system's
 // list. It opens on the order in use, the arrows move through the others, Enter or a press chooses, and Escape gives
-// the focus back to its button (usePopover).
+// the focus back to its button (usePopover). It offers the orders its view can keep (every one, unless told).
 import { useEffect, useState } from 'react'
 import { Button, Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
 import { ORDER_LABEL, ORDERS, type Order } from './order.ts'
@@ -8,9 +8,11 @@ import { ORDER_LABEL, ORDERS, type Order } from './order.ts'
 interface Props {
   order: Order
   onChange: (order: Order) => void
+  /** The orders offered, in this order; all of them when absent. */
+  orders?: readonly Order[] | undefined
 }
 
-export function SortMenu({ order, onChange }: Props) {
+export function SortMenu({ order, onChange, orders = ORDERS }: Props) {
   const [open, setOpen] = useState(false)
   const menu = usePopover(open, () => setOpen(false))
   useEffect(() => {
@@ -38,7 +40,7 @@ export function SortMenu({ order, onChange }: Props) {
       </Button>
       {open && (
         <Menu popover={menu} label="Sort" className="resource-sort-menu">
-          {ORDERS.map((o) => (
+          {orders.map((o) => (
             <MenuItem key={o} checked={o === order} onClick={() => choose(o)}>
               {ORDER_LABEL[o]}
             </MenuItem>
