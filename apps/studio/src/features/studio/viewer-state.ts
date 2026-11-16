@@ -62,6 +62,26 @@ export function forgetViewerDrafts(store: Storage = localStorage): boolean {
   return went
 }
 
+/**
+ * Whose the state rendered is: the key it was loaded for, and the state a load for it handed the reducer, until a
+ * render shows that state (null once it has, or for the state the view started with).
+ */
+export interface StateOwner {
+  key: string
+  loaded: ViewerState | null
+}
+
+/**
+ * Whether the state rendered under `key` is that key's to keep (drafts-survive-reload.md): the owner as it stands once
+ * it is, or null while it is still another viewer's or project's (the key moved and nothing was loaded for it, or the
+ * load is not rendered yet), so one viewer's words are never written under another's key.
+ */
+export function ownedBy(owner: StateOwner, key: string, state: ViewerState): StateOwner | null {
+  if (owner.key !== key) return null
+  if (owner.loaded === null) return owner
+  return owner.loaded === state ? { key, loaded: null } : null
+}
+
 /** Storage key: per viewer and project, so two people on one browser never share a view. */
 export const viewerKey = (viewer: string, projectId: string) => `sophia.viewer.v1.${viewer}.${projectId}`
 

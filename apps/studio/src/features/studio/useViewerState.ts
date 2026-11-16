@@ -16,7 +16,9 @@ import {
   viewerKey,
   viewerReducer,
   withLensInAddress,
+  ownedBy,
   type Lens,
+  type StateOwner,
   type ViewerState,
 } from './viewer-state.ts'
 
@@ -88,23 +90,27 @@ export function useViewerState(viewer: string, projectId: string, inAddress = tr
   const shown = shownLens(state.lens, VISION)
   // Another subject (or project) at the same page: their own stored state, and not the lens the address kept for the
   // last one (the address is then rewritten from theirs, below).
-  const loadedFor = useRef(key)
+  const owner = useRef<StateOwner>({ key, loaded: null })
   useEffect(() => {
-    if (loadedFor.current === key) return
-    loadedFor.current = key
-    dispatch({ type: 'load', state: load(key, chatAt(viewer, projectId), false) })
+    if (owner.current.key === key) return
+    const loaded = load(key, chatAt(viewer, projectId), false)
+    owner.current = { key, loaded }
+    dispatch({ type: 'load', state: loaded })
   }, [key, viewer, projectId])
 
+  // Kept only once the state rendered is this key's: never the last viewer's under the new key (ownedBy).
   useEffect(() => {
+    const owns = ownedBy(owner.current, key, state)
+    if (!owns) return
+    owner.current = owns
     try {
       localStorage.setItem(key, JSON.stringify(storedViewerState(state)))
     } catch {
       /* storage unavailable: the view lasts for this page only */
     }
-  }, [key, state])
-  const chatDraft = state.drafts.converse
-  // The chat's draft, kept in the tab as it changes (drafts-survive-reload.md); the other lenses' stay on the device.
-  useEffect(() => keepChatDraft(chatAt(viewer, projectId), chatDraft), [viewer, projectId, chatDraft])
+    // The chat's draft, kept in the tab (drafts-survive-reload.md); the other lenses' stay on the device.
+    keepChatDraft(chatAt(viewer, projectId), state.drafts.converse)
+  }, [key, state, viewer, projectId])
   // The lens in the address, no history entry, Converse too (docs/plans/studio-lens-address.md). `moves`: the address
   // moved under a mounted shell (the view already shown, pressed again) is written again (Codex on #242).
   const moves = useAddressMoves()

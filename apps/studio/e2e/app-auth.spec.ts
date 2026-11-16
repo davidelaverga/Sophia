@@ -1437,10 +1437,10 @@ test('drafts · a sign-out that fails leaves the person in with the room chat’
   // The browser's storage refuses to let the session go: the sign-out fails, the session stays (as above, #410).
   // Only the session's key refuses: every other removal, from either storage, goes through to its own storage.
   await page.evaluate((key) => {
-    const removeItem = Storage.prototype.removeItem
+    const removeItem: unknown = Reflect.get(Storage.prototype, 'removeItem')
     Storage.prototype.removeItem = function (this: Storage, name: string) {
       if (name === key) throw new Error('Storage refused')
-      removeItem.call(this, name)
+      if (typeof removeItem === 'function') Reflect.apply(removeItem, this, [name])
     }
   }, SESSION_KEY)
   await account(page).click()

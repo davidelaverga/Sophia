@@ -433,14 +433,16 @@ export const withHome = (k: Kept, messageId: string, conversationId: string): Ke
 const heldBackFor = (k: Kept): string[] => (k.start.heldBack ? [k.start.heldBack.receipt.conversation.id] : [])
 
 /**
- * The conversations a whole list read now no longer holds, of those seen listed here, with an erasure held here or in
- * doubt, with a start's receipt held back for them or landed after it (`reached`): gone (erased, here or by anyone
- * else). Only a whole list says so: call it with nothing else.
+ * The conversations a whole list read now no longer holds, of those seen listed here or with a draft, with an erasure
+ * held here or in doubt, with a start's receipt held back for them or landed after it (`reached`): gone (erased, here
+ * or by anyone else). Only a whole list says so: call it with nothing else.
  */
 export function goneFrom(k: Kept, now: readonly string[]): string[] {
   const here = new Set(now)
   const knew = new Set([
     ...Object.keys(k.listed),
+    // A draft with words, read back after a reload before any list was seen (drafts-survive-reload.md).
+    ...Object.keys(k.drafts).filter((id) => (k.drafts[id] ?? '').trim() !== ''),
     ...Object.keys(k.erasures),
     ...Object.keys(k.doubted),
     ...Object.keys(k.reached),

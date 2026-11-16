@@ -6,7 +6,7 @@ import { draftsOnlyOf, forgetDrafts } from '../features/personal/draft.ts'
 import { cacheFor, cacheOf } from './account-cache.ts'
 import { accountOf } from './auth-callback.ts'
 import { forgetKept } from '../features/conversations/talk-store.ts'
-import { forgetHeld, forgetTabDrafts, heldOnlyOf, tabDraftsOnlyOf } from './held-in-tab.ts'
+import { forgetHeld, heldOnlyOf, putTabDraftsBack, tabDraftsOnlyOf, takeTabDrafts } from './held-in-tab.ts'
 import { forgetProposals, proposalsKeptFor, proposalsOnlyOf } from '../features/work/planning/review-proposal.ts'
 import { setSignedIn } from './signed-in.ts'
 import { useAuth, type AuthState } from './auth.ts'
@@ -167,11 +167,14 @@ function useOwnPage(state: AuthState) {
   return { joinPage, legal }
 }
 
-/** Every unsent word this device keeps: Personal's, each project view's (terms-privacy.md), and this tab's composers'. */
-const forgetAllDrafts = () => {
+/**
+ * Every unsent word this device keeps: Personal's, each project view's (terms-privacy.md), and this tab's composers',
+ * these taken into `taken` as they last stood, so a sign-out that fails keeps them again (drafts-survive-reload.md).
+ */
+const forgetAllDrafts = (taken: Record<string, string>) => () => {
   forgetDrafts()
   forgetViewerDrafts()
-  forgetTabDrafts()
+  Object.assign(taken, takeTabDrafts())
 }
 
 /**
@@ -189,10 +192,12 @@ const leaving =
     forgetUnderWay()
     forgetPendingUnlock()
     // A sign-out that fails leaves the person in: their writes are theirs again, and SignedIn says so (false).
+    const taken: Record<string, string> = {}
     try {
-      await signOutForgetting(end, forgetAllDrafts)
+      await signOutForgetting(end, forgetAllDrafts(taken))
       return true
     } catch {
+      putTabDraftsBack(taken)
       setSignedIn(signedInAs)
       return false
     }

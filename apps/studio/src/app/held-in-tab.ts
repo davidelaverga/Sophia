@@ -134,5 +134,30 @@ export const forgetHeld = () => heldOnlyOf(null)
 export const tabDraftsOnlyOf = (account: string | null | undefined, store: Store | null = session()): boolean =>
   onlyOf(DRAFTS, account, store)
 
-/** Signing out: no unsent words of anyone's stay in the tab. */
-export const forgetTabDrafts = (): boolean => tabDraftsOnlyOf(null)
+/**
+ * Signing out: every account's unsent words leave the tab, handed back as they were (key and kept value), so a sign-out
+ * that fails can keep them again (putTabDraftsBack). Storage refused: none were kept, none taken.
+ */
+export function takeTabDrafts(store: Store | null = session()): Readonly<Record<string, string>> {
+  try {
+    if (!store) return {}
+    const keys = Array.from({ length: store.length }, (_, i) => store.key(i))
+    const taken = keys.flatMap((key) => {
+      const value = key?.startsWith(DRAFTS) === true ? store.getItem(key) : null
+      return key && value !== null ? [[key, value] as const] : []
+    })
+    for (const [key] of taken) store.removeItem(key)
+    return Object.fromEntries(taken)
+  } catch {
+    return {}
+  }
+}
+
+/** The words a sign-out took, kept in the tab again: the person is still in. */
+export function putTabDraftsBack(taken: Readonly<Record<string, string>>, store: Store | null = session()): void {
+  try {
+    for (const [key, value] of Object.entries(taken)) if (key.startsWith(DRAFTS)) store?.setItem(key, value)
+  } catch {
+    // Not kept beyond this page.
+  }
+}
