@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { richLines } from './rich-text.ts'
+import { marksIn, richLines, shownText } from './rich-text.ts'
 
 // Bold, code and quotes in messages (docs/plans/message-format.md).
 describe('a message’s marks', () => {
@@ -36,5 +36,27 @@ describe('a message’s marks', () => {
     assert.deepEqual(richLines('2 ** 3 and `open').at(0)?.pieces, [{ kind: 'text', text: '2 ** 3 and `open' }])
     assert.deepEqual(richLines('****').at(0)?.pieces, [{ kind: 'text', text: '****' }])
     assert.deepEqual(richLines('>no space').at(0), { quote: false, pieces: [{ kind: 'text', text: '>no space' }] })
+  })
+})
+
+// What Personal's Find and Copy read (docs/plans/personal-replies-formatted.md).
+describe('a message as shown', () => {
+  it('drops the marks and keeps the lines', () => {
+    assert.equal(shownText('Run `sum` **now**\n> as I said\nand **2 ** 3'), 'Run sum now\nas I said\nand **2 ** 3')
+    assert.equal(shownText('see https://example.com/**draft**'), 'see https://example.com/**draft**')
+  })
+
+  it('cuts Find’s pieces to a span, their numbers kept', () => {
+    const marks = [
+      { text: 'Start ', n: null },
+      { text: 'one fig', n: 0 },
+      { text: 'ure', n: null },
+    ]
+    assert.deepEqual(marksIn(marks, 6, 9), [{ text: 'one', n: 0 }])
+    assert.deepEqual(marksIn(marks, 3, 10), [
+      { text: 'rt ', n: null },
+      { text: 'one ', n: 0 },
+    ])
+    assert.deepEqual(marksIn(marks, 13, 16), [{ text: 'ure', n: null }])
   })
 })
