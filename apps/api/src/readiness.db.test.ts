@@ -7,6 +7,8 @@
 // ready on a database short of any. A report's Sources read a cited project text through 0090's guard: not ready
 // without it. The atomic contributed admission (0105) is core whatever the switches say (INC04-S02a coherent): short
 // of it, no API is ready, so the optional voice contrast (0085, 0087) is shown with every other migration installed.
+// The tracked model-call boundary (0109) and its observed-facts opt-in (0110) are core too: through 0109 only, no API is
+// ready; with 0110, it is.
 import { randomUUID } from 'node:crypto'
 import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -153,16 +155,23 @@ async function answers(api: FastifyInstance, url: string): Promise<unknown[]> {
 // Codex review 5911393845 (P1, app.ts): every maintained model-call wrapper sends a tracked_v1 reserve and refuses a
 // reply without its binding, which only 0109 adds (research_call_ack, folded into the reply by research_call_reply).
 // The research and runtime routes are served whatever the switches say, so /ready requires 0109 like 0105: on a
-// database migrated through 0108, 0105 included, no switch makes this API ready; with 0109 applied as written, it is.
-// It runs before the 0043 walk: its own database installs 0070, which refuses a second installation in the cluster
-// while another database holds one (0070's Q13 check), so it is made and dropped while the file's database is at 0042.
-describe('readiness across 0109', () => {
+// database migrated through 0108, 0105 included, no switch makes this API ready. Codex review 5916589022 (P1, app.ts):
+// a qualified research or review call also opts into observed facts (`facts: observed_v1`) and refuses a binding without
+// `facts`, which only 0110's research_call_ack echoes; so through 0109 it is still not ready, and with 0110 applied as
+// written, it is (nothing of 0111 or later). Removing either of 0110's own objects, in this database only, makes it not
+// ready again. It runs before the 0043 walk: its own database installs 0070, which refuses a second installation in the
+// cluster while another database holds one (0070's Q13 check), so it is made and dropped while the file's database is at
+// 0042.
+describe('readiness across 0109 and 0110', () => {
   const TRACKED_CALLS = '0109_research_call_evidence.sql'
+  const OBSERVED_FACTS = '0110_research_call_observed_facts.sql'
   let trackedDir: string
   let trackedDb: TestDatabase
   let trackedPool: pg.Pool
   /** The API with its switches off (the default), then with each switch whose part this database already has. */
   let apis: Array<[string, FastifyInstance]>
+  /** The migrations after 0108 this block has applied, so each test can run alone. */
+  const trackedApplied = new Set<string>()
 
   before(async () => {
     // Every migration before 0109, exactly as written: the core through 0108, 0105 and the voice migrations included.
@@ -196,25 +205,58 @@ describe('readiness across 0109', () => {
     rmSync(trackedDir, { recursive: true, force: true })
   })
 
-  it('is not ready through 0108 with 0105, whatever the switches; ready once 0109 is applied as written', async () => {
-    assert.ok(readdirSync(trackedDir).includes('0105_contribution_atomic_admission.sql'), 'migrated with 0105')
-    assert.ok(readdirSync(trackedDir).includes('0108_owner_runner_model_reports.sql'), 'migrated through 0108')
-    assert.ok(!readdirSync(trackedDir).includes(TRACKED_CALLS), 'without 0109')
-    for (const [name, api] of apis) {
-      assert.deepEqual(await answers(api, '/ready'), [503, { ready: false, reason: 'schema' }], `${name}, without 0109`)
-      assert.deepEqual(await answers(api, '/health'), [200, { ok: true, commit: null }], `${name}: alive without 0109`)
-    }
+  /** Run one statement as this block's database owner, on a client closed after. */
+  async function asTrackedOwner(sql: string): Promise<void> {
     const owner = new pg.Client({ connectionString: trackedDb.ownerUrl })
     await owner.connect()
     try {
-      await owner.query(readFileSync(join(MIGRATIONS, TRACKED_CALLS), 'utf8'))
+      await owner.query(sql)
     } finally {
       await owner.end()
     }
+  }
+
+  /** Apply one migration after 0108 as written, once. */
+  async function applyTracked(file: string): Promise<void> {
+    if (trackedApplied.has(file)) return
+    trackedApplied.add(file)
+    await asTrackedOwner(readFileSync(join(MIGRATIONS, file), 'utf8'))
+  }
+
+  /** Every API answers /ready as expected, and /health stays alive. */
+  async function expectEvery(expected: 'ready' | 'schema', label: string): Promise<void> {
+    const want = expected === 'ready' ? [200, { ready: true }] : [503, { ready: false, reason: 'schema' }]
     for (const [name, api] of apis) {
-      assert.deepEqual(await answers(api, '/ready'), [200, { ready: true }], `${name}, with 0109`)
-      assert.deepEqual(await answers(api, '/health'), [200, { ok: true, commit: null }], `${name}: alive with 0109`)
+      assert.deepEqual(await answers(api, '/ready'), want, `${name}, ${label}`)
+      assert.deepEqual(await answers(api, '/health'), [200, { ok: true, commit: null }], `${name}: alive, ${label}`)
     }
+  }
+
+  it('is not ready through 0108 with 0105, nor through 0109, whatever the switches; ready once 0110 is applied', async () => {
+    assert.ok(readdirSync(trackedDir).includes('0105_contribution_atomic_admission.sql'), 'migrated with 0105')
+    assert.ok(readdirSync(trackedDir).includes('0108_owner_runner_model_reports.sql'), 'migrated through 0108')
+    assert.ok(!readdirSync(trackedDir).includes(TRACKED_CALLS), 'without 0109')
+    await expectEvery('schema', 'without 0109')
+    await applyTracked(TRACKED_CALLS)
+    await expectEvery('schema', 'with 0109, without 0110')
+    await applyTracked(OBSERVED_FACTS)
+    await expectEvery('ready', 'with 0109 and 0110')
+  })
+
+  it('is not ready once either object of 0110 is removed from its own database; ready again once restored', async () => {
+    await applyTracked(TRACKED_CALLS)
+    await applyTracked(OBSERVED_FACTS)
+    await expectEvery('ready', 'with 0110')
+    const column = 'ALTER TABLE sophia.research_call_identities RENAME COLUMN'
+    await asTrackedOwner(`${column} facts_version TO facts_version_removed`)
+    await expectEvery('schema', 'without the facts_version column')
+    await asTrackedOwner(`${column} facts_version_removed TO facts_version`)
+    await expectEvery('ready', 'with the column restored')
+    const fn = 'ALTER FUNCTION sophia.research_call_facts_version'
+    await asTrackedOwner(`${fn}(jsonb) RENAME TO research_call_facts_version_removed`)
+    await expectEvery('schema', 'without research_call_facts_version')
+    await asTrackedOwner(`${fn}_removed(jsonb) RENAME TO research_call_facts_version`)
+    await expectEvery('ready', 'with the function restored')
   })
 })
 
