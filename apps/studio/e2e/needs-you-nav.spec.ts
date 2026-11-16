@@ -75,23 +75,27 @@ const clear = (link: Locator) =>
     return r.left >= box.left + (moreStart ? fade : 0) - 1 && r.right <= box.right - (moreEnd ? fade : 0) + 1
   })
 
-test('needs you · on a phone, a count on a view out of sight is scrolled into it, the current view kept', async ({
-  page,
-}) => {
+// Luis 2026-11-16: #233 wins on a narrow row. The current view always stands clear of the fades; a counted one is
+// brought clear too when both fit, else it may sit under a fade (the tab's title still counts it).
+test('needs you · on a phone, the current view stays clear of the fades with a count elsewhere', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 })
   await page.goto('/work.html?viewer=davide&toolsWaiting=1')
-  const row = nav(page)
-  const current = row.getByRole('link', { name: TASKS })
-  const resources = row.getByRole('link', { name: 'Resources, 1 waiting on you' })
+  const current = nav(page).getByRole('link', { name: TASKS })
+  await expect(current).toHaveAttribute('aria-current', 'page')
+  await expect(nav(page).getByRole('link', { name: 'Resources, 1 waiting on you' })).toHaveCount(1)
+  await expect.poll(() => clear(current)).toBe(true)
+})
+
+test('needs you · where both fit, a count on a view out of sight is brought clear, the current view too', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 480, height: 812 })
+  await page.goto('/work.html?viewer=davide&toolsWaiting=1')
+  const current = nav(page).getByRole('link', { name: TASKS })
+  const resources = nav(page).getByRole('link', { name: 'Resources, 1 waiting on you' })
   await expect(current).toHaveAttribute('aria-current', 'page')
   await expect.poll(() => clear(resources)).toBe(true)
-  // The current view stays whole in the row; where both can't stand clear of the fades, the count does.
-  const inRow = await current.evaluate((el) => {
-    const box = el.parentElement?.getBoundingClientRect()
-    const r = el.getBoundingClientRect()
-    return !!box && r.left >= box.left - 1 && r.right <= box.right + 1
-  })
-  expect(inRow).toBe(true)
+  expect(await clear(current)).toBe(true)
 })
 
 test('needs you · at 1280 with both counts, the row stands whole and the project’s name reads whole', async ({
