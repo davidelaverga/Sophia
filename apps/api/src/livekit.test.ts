@@ -1,8 +1,9 @@
 // Verify actual API-issued RTC grants: members and bridge can send typed data; guests remain media-only.
 import assert from 'node:assert/strict'
-import { it } from 'node:test'
+import { describe, it } from 'node:test'
 import { jwtVerify } from 'jose'
-import { issueRoomToken, issueBridgeToken, muteUnmuted, PartialMute } from './livekit.ts'
+import { ServerError, TrackSource } from 'livekit-server-sdk'
+import { issueRoomToken, issueBridgeToken, muteSources, muteUnmuted, PartialMute, SCREEN_SOURCES } from './livekit.ts'
 
 const cfg = {
   url: 'wss://synthetic.livekit.test',
@@ -79,4 +80,71 @@ it('a batch the room server fails partway says how many it muted; one that muted
   assert.equal(partly.muted, 1)
   const none = await muteUnmuted(failing(0), 'r', 'p', screen).catch((err: unknown) => err)
   assert.ok(none instanceof Error && !(none instanceof PartialMute))
+})
+
+/** LiveKit's answer for a participant or track that is no longer there: Twirp's not_found, HTTP 404. */
+const notFound = () => new ServerError('Not Found', 'participant does not exist', 404, 'not_found')
+
+/**
+ * A room client holding one person's screen share and its sound, listed in `order`. Muting the share stops their
+ * sharing, as their Studio does (livekit-room.ts: a host-muted ScreenShare → setScreenShareEnabled(false)), so the sound
+ * is gone after it: its mute is refused as not found. `refuse` answers one sid's mute with an error instead.
+ */
+function sharing(order: readonly ('video' | 'audio')[], refuse: { sid: string; err: Error } | null = null) {
+  const source = { video: TrackSource.SCREEN_SHARE, audio: TrackSource.SCREEN_SHARE_AUDIO }
+  const live = new Set<string>(order)
+  const muted: string[] = []
+  const rooms = {
+    getParticipant: () =>
+      Promise.resolve({ tracks: order.map((sid) => ({ sid, source: source[sid], muted: false })) } as never),
+    mutePublishedTrack: (_room: string, _who: string, sid: string) => {
+      if (refuse?.sid === sid) return Promise.reject(refuse.err)
+      if (!live.has(sid)) return Promise.reject(notFound())
+      muted.push(sid)
+      if (sid === 'video') live.clear()
+      return Promise.resolve({} as never)
+    },
+  }
+  return { rooms, muted }
+}
+
+// Codex P2 on #369 (issue draft item 3): muted after the share, the sound was already gone and the stop failed.
+describe('a screen stop mutes the sound before the share (A31)', () => {
+  for (const order of [
+    ['video', 'audio'],
+    ['audio', 'video'],
+  ] as const) {
+    it(`listed ${order.join(' then ')}: the sound first, then the share; both counted`, async () => {
+      const { rooms, muted } = sharing(order)
+      assert.equal(await muteSources(rooms, 'r', 'p', SCREEN_SOURCES), 2)
+      assert.deepEqual(muted, ['audio', 'video'])
+    })
+  }
+
+  it('a sound already gone is done, not a failure: the share is muted and counted alone', async () => {
+    const { rooms, muted } = sharing(['audio', 'video'], { sid: 'audio', err: notFound() })
+    assert.equal(await muteSources(rooms, 'r', 'p', SCREEN_SOURCES), 1)
+    assert.deepEqual(muted, ['video'])
+  })
+
+  it('any other refusal fails as before: the error itself first, a partial mute after the sound', async () => {
+    const down = new ServerError('Internal Server Error', 'room server down', 500, 'internal')
+    const first = await muteSources(
+      sharing(['video', 'audio'], { sid: 'audio', err: down }).rooms,
+      'r',
+      'p',
+      SCREEN_SOURCES,
+    ).catch((err: unknown) => err)
+    assert.equal(first, down)
+    const refused = new ServerError('Unauthorized', 'no', 401, 'unauthenticated')
+    const after = await muteSources(
+      sharing(['video', 'audio'], { sid: 'video', err: refused }).rooms,
+      'r',
+      'p',
+      SCREEN_SOURCES,
+    ).catch((err: unknown) => err)
+    assert.ok(after instanceof PartialMute)
+    assert.equal(after.muted, 1)
+    assert.equal(after.cause, refused)
+  })
 })

@@ -233,22 +233,32 @@ export async function muteMicrophone(cfg: LiveKitConfig, roomId: string, identit
 }
 
 /**
- * Mute every published track of these sources of theirs (A31); only they turn them on again. True when it muted one;
- * false when they publish none, or every one was already muted.
+ * Mute every published track of these sources of theirs (A31); only they turn them on again. How many it muted: none
+ * when they publish none, or every one was already muted.
  */
-async function muteSources(cfg: LiveKitConfig, roomId: string, identity: string, sources: readonly TrackSource[]) {
-  const rooms = new RoomServiceClient(apiUrl(cfg), cfg.apiKey, cfg.apiSecret)
+export async function muteSources(
+  rooms: Pick<RoomServiceClient, 'getParticipant' | 'mutePublishedTrack'>,
+  roomId: string,
+  identity: string,
+  sources: readonly TrackSource[],
+): Promise<number> {
   const tracks = (await rooms.getParticipant(roomId, identity)).tracks.filter((t) => sources.includes(t.source))
-  return (await muteUnmuted(rooms, roomId, identity, tracks)) > 0
+  return muteUnmuted(rooms, roomId, identity, tracks)
 }
 
-/** Stop someone's camera (A31): their published camera track, muted. */
+/** A screen share's tracks: the share and its sound. */
+export const SCREEN_SOURCES = [TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO]
+
+const stopSources = async (cfg: LiveKitConfig, roomId: string, identity: string, sources: readonly TrackSource[]) =>
+  (await muteSources(new RoomServiceClient(apiUrl(cfg), cfg.apiKey, cfg.apiSecret), roomId, identity, sources)) > 0
+
+/** Stop someone's camera (A31): their published camera track, muted. True when it muted one. */
 export const stopCamera = (cfg: LiveKitConfig, roomId: string, identity: string) =>
-  muteSources(cfg, roomId, identity, [TrackSource.CAMERA])
+  stopSources(cfg, roomId, identity, [TrackSource.CAMERA])
 
 /** Stop someone's screen share (A31): the share and its sound, muted; their Studio then stops sharing. */
 export const stopScreen = (cfg: LiveKitConfig, roomId: string, identity: string) =>
-  muteSources(cfg, roomId, identity, [TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO])
+  stopSources(cfg, roomId, identity, SCREEN_SOURCES)
 
 /** Mute everyone else's microphone (A31): members and guests, never Sophia's participant. Says how many. */
 export async function muteEveryone(cfg: LiveKitConfig, roomId: string, except: string): Promise<number> {
