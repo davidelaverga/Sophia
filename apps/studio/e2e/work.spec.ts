@@ -8,7 +8,13 @@ const PAGE = '/work.html'
 const board = (page: Page) => page.locator('.board').first()
 const tile = (page: Page, id: string) => page.locator(`[data-task="${id}"]`)
 const lane = (page: Page, name: string) => board(page).getByRole('region', { name, exact: true })
-const titles = (l: Locator) => l.locator('.task-tile-title').allInnerTexts()
+/** A lane's titles. Complete beside Blocked is folded (board-fold-complete.md): opened first, so no read of it passes on
+ *  a lane it cannot see. */
+const titles = async (l: Locator) => {
+  const folded = l.locator('.lane-fold[aria-expanded="false"]')
+  if ((await folded.count()) > 0) await folded.click()
+  return l.locator('.task-tile-title').allInnerTexts()
+}
 /** Waits for every arriving animation on the board to end, so what is measured is at rest. */
 const settled = (page: Page) =>
   board(page).evaluate((b) =>
@@ -68,6 +74,9 @@ test('five lanes, each task in the one its state says; the words only where the 
   await expect(laneTitles('Up next')).toHaveText(['Review the retry’s candidate'], { useInnerText: true })
   await expect(laneTitles('Blocked')).toHaveText(['Write the export’s release note'], { useInnerText: true })
   await expect(laneTitles('Unassigned')).toHaveText(['Measure render time on large reports'], { useInnerText: true })
+  // Complete is folded beside Blocked (board-fold-complete.md): its count, then its tile once opened.
+  await expect(lane(page, 'Complete').locator('.lane-fold')).toHaveText(/^Complete\s*1$/)
+  await lane(page, 'Complete').locator('.lane-fold').click()
   await expect(laneTitles('Complete')).toHaveText(['Reproduce the failed render'], { useInnerText: true })
   await expect(tile(page, 'work-1').locator('.task-chip')).toHaveText('Waiting on Davide')
   await expect(tile(page, 'work-2').locator('.task-chip')).toHaveText('Working')
