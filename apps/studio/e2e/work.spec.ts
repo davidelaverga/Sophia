@@ -15,6 +15,12 @@ const titles = async (l: Locator) => {
   if ((await folded.count()) > 0) await folded.click()
   return l.locator('.task-tile-title').allInnerTexts()
 }
+/** Opens Complete when it is folded beside Blocked (board-fold-complete.md), for a check that reaches or counts its tiles. */
+const unfolded = async (page: Page) => {
+  await board(page).locator('.task-tile').first().waitFor()
+  const folded = board(page).locator('.lane-fold[aria-expanded="false"]')
+  if ((await folded.count()) > 0) await folded.click()
+}
 /** Waits for every arriving animation on the board to end, so what is measured is at rest. */
 const settled = (page: Page) =>
   board(page).evaluate((b) =>
@@ -113,6 +119,7 @@ test('back after a while: one line of what changed, then Mark seen, remembered f
   page,
 }) => {
   await page.goto(`${PAGE}?viewer=davide&since=1`)
+  await unfolded(page)
   const away = board(page).locator('.board-return')
   await expect(away).toContainText('While you were away')
   await expect(away).toContainText('Implement the PDF retry now waits on you')
@@ -126,6 +133,7 @@ test('back after a while: one line of what changed, then Mark seen, remembered f
 
 test('lenses dim what they don’t show and move nothing; each says how many it shows', async ({ page }) => {
   await page.goto(PAGE) // Luis looks
+  await unfolded(page)
   const lens = (name: string) => board(page).getByRole('radio', { name: new RegExp(`^${name}`) })
   await expect(lens('For you')).toHaveText('For you3')
   await settled(page)
@@ -784,6 +792,7 @@ test('type · the board, a goal without a plan, and a task’s sheet keep to the
 
 const sheetOf = (page: Page, name: string) => page.getByRole('dialog', { name })
 async function openTask(page: Page, id: string, name: string) {
+  await unfolded(page)
   await tile(page, id).click()
   const sheet = sheetOf(page, name)
   await expect(sheet).toBeVisible()
@@ -1308,6 +1317,7 @@ test('wbc · UI-18 · a revision that failed keeps the last usable version opena
 
 test('wbc · UI-19 · by keys alone: a task’s conditions and its result are reached and opened', async ({ page }) => {
   await page.goto(`${PAGE}?viewer=davide&case=defects`)
+  await unfolded(page) // the review is complete
   await tile(page, 'work-1-review').focus()
   await page.keyboard.press('Enter')
   const sheet = sheetOf(page, 'Review the retry’s candidate')

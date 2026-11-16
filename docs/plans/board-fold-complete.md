@@ -64,3 +64,10 @@ folded, so none of them passes on a lane it cannot see.
 - The report's «at 1600 nothing folds» is not followed: the board is as narrow there (above).
 - «Measure render time on large reports» still takes two lines: the tile keeps 66 px of a lane for its doer and
   padding. Not this change.
+
+## After the fix
+
+Seven more of `work.spec.ts`' checks met the fold at the suite's 1280 px: two count every tile (what changed while
+away, the lenses), five reach the complete review (by its focus, or `openTask`). They open the fold first
+(`unfolded`); what they assert is unchanged. The opened head first stood 10 px taller than the others (the kit's
+`.ghost` height won over the fold's): the fold's own rules now name the head, and the five heads read 18 px at one top.
