@@ -585,13 +585,13 @@ describe('the catalog’s words', () => {
 
   it('says a host as recorded, its age from the server’s count before its reading, never online or fresh', () => {
     assert.deepEqual(sw.catalogHostLines(host()), [
-      'Host bound (recorded) · last seen 4 min before this reading',
-      'Handshake recorded',
+      'Linked to your computer (recorded) · last seen 4 min before this reading',
+      'Connected once',
     ])
     assert.deepEqual(
       sw.catalogHostLines(host({ state: 'active', helloOk: false, helloConflict: true, secondsSinceSeen: null })),
       [
-        'Host active (recorded) · last seen time not recorded in a usable form',
+        'Your computer is connected (recorded) · last seen time not recorded in a usable form',
         'No handshake recorded',
         'A conflict is recorded',
       ],
@@ -623,6 +623,7 @@ describe('the catalog’s words', () => {
       'Recorded qualification: current for create, input and stop. Recorded evidence, not a promise that a control works.',
     )
     assert.equal(sw.qualificationSaid(q('expired', ['stop'])), 'Recorded qualification: expired')
+    assert.equal(sw.qualificationSaid(q('stale', ['stop'])), 'Needs checking again')
     assert.equal(sw.qualificationSaid(q('not_applicable', ['stop'])), 'Recorded qualification: doesn’t apply now')
     assert.doesNotMatch(sw.qualificationSaid(q('current', ['stop'])) ?? '', /supported|verified|ready/i)
   })
@@ -636,7 +637,7 @@ describe('the catalog’s words', () => {
       qualification: { state: 'none' as const, operations: [], qualifiedAt: null, expiresAt: null },
     }
     assert.equal(sw.catalogHostShort({ ...facts, mine }), 'No host')
-    assert.equal(sw.catalogHostShort({ ...facts, mine: { ...mine, host: host({ state: 'active' }) } }), 'Host recorded')
+    assert.equal(sw.catalogHostShort({ ...facts, mine: { ...mine, host: host({ state: 'active' }) } }), 'Your computer')
     assert.equal(sw.catalogState(facts), 'Needs a connection')
     assert.equal(sw.catalogState({ ...facts, state: 'active' }), null)
     assert.equal(sw.catalogState({ ...facts, state: 'revoked' }), 'Revoked')

@@ -449,7 +449,7 @@ async function settledInCall(context: BrowserContext, on: string, phone: boolean
   await expect(call.getByRole('button', { name: /Microphone/ })).toBeVisible()
   await expect(call.getByRole('button', { name: 'Leave the room' })).toBeVisible()
   await sheet.getByText('Recorded host and capability evidence').click()
-  await expect(sheet.getByText('Handshake recorded')).toBeVisible()
+  await expect(sheet.getByText('Connected once')).toBeVisible()
   await sheet.locator('.resource-connection').click()
   await page.keyboard.press('j')
   await expect(sheet).toContainText('Its host and connection details are private to its owner.')

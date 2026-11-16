@@ -41,7 +41,10 @@ test('the catalog read: what is recorded, and what isn’t reported said so, nev
   await says(page, NEVER)
   // Its owner's tiles say their host as recorded; a teammate's, that it is private; claude is Claude Code.
   const own = tiles(page).filter({ hasText: 'Davide' })
-  await expect(own.first().locator('.resource-tile-host')).toHaveText(/Host recorded|No host/)
+  await expect(own.first().locator('.resource-tile-host')).toHaveText(/Your computer|No host/)
+  // In plain words, as written: never set in capitals, which would make it a code again.
+  const yours = tiles(page).filter({ hasText: 'Your computer' }).first().locator('.resource-tile-host')
+  await expect(yours).toHaveText('Your computer', { useInnerText: true })
   await expect(tiles(page).filter({ hasText: 'Luis' }).first().locator('.resource-tile-host')).toHaveText(
     'Host private',
   )
@@ -60,7 +63,7 @@ test('its owner reads their own recorded facts in the sheet, by keys, and Escape
   page,
 }) => {
   await page.goto(`${PAGE}?case=complete`)
-  const first = tiles(page).filter({ hasText: 'Host recorded' }).first()
+  const first = tiles(page).filter({ hasText: 'Your computer' }).first()
   await first.focus()
   await page.keyboard.press('Enter')
   await expect(sheet(page)).toBeVisible()
@@ -72,12 +75,14 @@ test('its owner reads their own recorded facts in the sheet, by keys, and Escape
   // Then its recorded evidence, closed until asked for, and opened by keys.
   const evidence = body.locator('details.resource-evidence')
   await expect(evidence).not.toHaveAttribute('open')
-  await expect(body.getByText('Handshake recorded')).toBeHidden()
+  await expect(body.getByText('Connected once')).toBeHidden()
   await evidence.locator('summary').focus()
   await page.keyboard.press('Enter')
   await expect(evidence).toHaveAttribute('open')
-  await expect(body.getByText('Host active (recorded) · last seen 4 min before this reading')).toBeVisible()
-  await expect(body.getByText('Handshake recorded')).toBeVisible()
+  await expect(
+    body.getByText('Your computer is connected (recorded) · last seen 4 min before this reading'),
+  ).toBeVisible()
+  await expect(body.getByText('Connected once')).toBeVisible()
   await expect(evidence).toContainText(
     'Recorded qualification: current for create, input and stop. Recorded evidence, not a promise that a control works.',
   )
@@ -113,7 +118,7 @@ test('the owner’s recorded host says what isn’t recorded as such: no time, a
   await page.goto(`${PAGE}?case=complete`)
   await tiles(page).filter({ hasText: 'Revoked' }).click()
   await sheet(page).getByText(EVIDENCE).click()
-  await expect(sheet(page)).toContainText('Host bound (recorded) · last seen 3 h before this reading')
+  await expect(sheet(page)).toContainText('Linked to your computer (recorded) · last seen 3 h before this reading')
   await expect(sheet(page)).toContainText('Connection revoked')
   await expect(sheet(page)).toContainText('Recorded qualification: doesn’t apply now')
   await page.keyboard.press('Escape')
@@ -122,7 +127,7 @@ test('the owner’s recorded host says what isn’t recorded as such: no time, a
   await expect(sheet(page)).toContainText('No bound or active host recorded')
   // Linked but past its time: expired, never usable.
   await expect(sheet(page)).toContainText('Connection expired')
-  await expect(sheet(page)).toContainText('Recorded qualification: stale')
+  await expect(sheet(page)).toContainText('Needs checking again')
 })
 
 test('a teammate never reads the owner’s facts: not in the sheet, not anywhere in the page', async ({ page }) => {
@@ -134,16 +139,18 @@ test('a teammate never reads the owner’s facts: not in the sheet, not anywhere
   // No evidence at all for a teammate: no disclosure, closed or hidden, and none of its words (UX02).
   await expect(sheet(page).locator('.resource-evidence, details')).toHaveCount(0)
   const html = await page.content()
-  for (const fact of ['Connection linked', 'Handshake recorded', 'Recorded qualification', 'last seen 4 min', EVIDENCE])
+  for (const fact of ['Connection linked', 'Connected once', 'Recorded qualification', 'last seen 4 min', EVIDENCE])
     expect(html).not.toContain(fact)
   // A listed record is no entitlement (UX06): nothing to use, share, assign or pool.
   await expect(sheet(page).getByRole('button', { name: /use|share|assign|pool|connect/i })).toHaveCount(0)
   await expect(sheet(page)).not.toContainText(/shared subscription|pooled|use this tool/i)
   await page.keyboard.press('Escape')
   // Luis's own reads as his: a conflict recorded, no usable last-seen time, no qualification record shown.
-  await tiles(page).filter({ hasText: 'Host recorded' }).first().click()
+  await tiles(page).filter({ hasText: 'Your computer' }).first().click()
   await sheet(page).getByText(EVIDENCE).click()
-  await expect(sheet(page)).toContainText('Host bound (recorded) · last seen time not recorded in a usable form')
+  await expect(sheet(page)).toContainText(
+    'Linked to your computer (recorded) · last seen time not recorded in a usable form',
+  )
   await expect(sheet(page)).toContainText('A conflict is recorded')
   await expect(sheet(page)).toContainText('No qualification recorded')
 })
@@ -351,7 +358,17 @@ test('@phone the catalog at 390: tiles, the owner’s sheet, More and a refusal 
   await expect(tiles(page)).toHaveCount(3)
   await page.getByRole('button', { name: 'More resources' }).tap()
   await expect(tiles(page)).toHaveCount(6)
-  await tiles(page).filter({ hasText: 'Host recorded' }).first().tap()
+  // The owner's host label, in plain words and sentence case, whole inside its tile.
+  const yours = tiles(page).filter({ hasText: 'Your computer' }).first()
+  await expect(yours.locator('.resource-tile-host')).toHaveText('Your computer', { useInnerText: true })
+  const inside = await yours.evaluate((tile) => {
+    const t = tile.getBoundingClientRect()
+    const label = tile.querySelector('.resource-tile-host')
+    const l = label?.getBoundingClientRect()
+    return !!label && !!l && l.left >= t.left && l.right <= t.right && label.scrollWidth <= label.clientWidth + 1
+  })
+  expect(inside).toBe(true)
+  await yours.tap()
   await expect(sheet(page)).toContainText('Recorded qualification: current')
   const box = await sheet(page).boundingBox()
   expect(box?.width ?? 0).toBeLessThanOrEqual(390)
@@ -610,7 +627,7 @@ test('stepping from an opened owner’s evidence: the next resource’s starts c
   page,
 }) => {
   await page.goto(`${PAGE}?case=complete`)
-  await tiles(page).filter({ hasText: 'Host recorded' }).first().click()
+  await tiles(page).filter({ hasText: 'Your computer' }).first().click()
   await sheet(page).getByText(EVIDENCE).click()
   await expect(sheet(page).locator('details.resource-evidence')).toHaveAttribute('open')
   const seen: string[] = []
@@ -634,7 +651,7 @@ test('the changed words read against their actual surfaces (measured, 4.5:1 floo
   expect(await lowContrast(page, '.resources-scope')).toEqual([])
   expect(await lowContrast(page, '.resources-cue')).toEqual([])
   await page.goto(`${PAGE}?case=complete`)
-  await tiles(page).filter({ hasText: 'Host recorded' }).first().click()
+  await tiles(page).filter({ hasText: 'Your computer' }).first().click()
   await sheet(page).getByText(EVIDENCE).click()
   expect(await lowContrast(page, '.resource-catalog')).toEqual([])
   expect(await lowContrast(page, '.resource-unreported-group')).toEqual([])
@@ -663,8 +680,8 @@ test('@phone at 390 the scope and the partial cue show before any tile, and More
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
   // The owner's evidence opens by touch, and fits.
   await page.goto(`${PAGE}?case=complete`)
-  await tiles(page).filter({ hasText: 'Host recorded' }).first().tap()
+  await tiles(page).filter({ hasText: 'Your computer' }).first().tap()
   await sheet(page).getByText(EVIDENCE).tap()
-  await expect(sheet(page).getByText('Handshake recorded')).toBeVisible()
+  await expect(sheet(page).getByText('Connected once')).toBeVisible()
   expect((await sheet(page).boundingBox())?.width ?? 0).toBeLessThanOrEqual(390)
 })

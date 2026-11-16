@@ -48,3 +48,26 @@
 - `status-words.test.ts`, `resource.test.ts`: the fallback name capitalised; `resource-control-status.spec.ts`'s
   pinned lines follow.
 - Phone 390 and paper/dark: the notice without its press and the Sort menu with two items, measured in place.
+
+## Two more on the same branch (review items 8 and 9, copy approved by Luis 2026-11-16)
+
+Luis approved these words on 2026-11-16, exact; nothing else is reworded.
+
+- **A · Plain words for the owner's host** (`status-words.ts`, item 8). As a mapping only:
+  «Host recorded» → «Your computer»; «Host bound» → «Linked to your computer»; «Host active» → «Your computer is
+  connected»; «Handshake recorded» → «Connected once»; «Recorded qualification: stale» → «Needs checking again».
+  The sheet's host line keeps its frame («… (recorded) · last seen …»). The tile's host label is set in capitals by
+  `.resource-tile-host` (`text-transform: uppercase`, tracked mono), which would make «Your computer» a code again:
+  on catalog tiles (`data-catalog`, owner's and teammate's alike, so one grid reads one way) the label is set as
+  written, without the capitals or their tracking. The project's own tiles keep theirs.
+  The review's other internal words (A conflict is recorded, Connection rotation unknown, Recorded host and
+  capability evidence, «Each is a request until its runtime confirms it.», `receipts.ts` «Held. Its runtime confirmed
+  the hold.», `resource.ts` «Saved coding-resource records…», and «No handshake recorded») have no approved copy and
+  stay; they are listed in the handoff for Luis.
+- **B · What to do about a connection** (`ResourceSheet.tsx` `CatalogHost`, item 9). Under «Needs a connection» and
+  under «Connection expired», the sheet shows the line the empty catalog already uses, `CATALOG_ENROLLMENT` («Each
+  owner enrolls their own tool from the computer it runs on; Studio doesn’t enroll tools.»): once, even where both
+  hold. No new words.
+- **Checks.** Unit: the five words, and when the line shows (each state alone, both, neither). E2E (flag on): the tile
+  label reads «Your computer» as rendered (`innerText`), whole inside its tile at 390; the sheet's line under the
+  fixture's needs-a-connection resource (whose connection is also expired), desktop and 390; and not on a linked one.
