@@ -26,8 +26,9 @@
 
 ## What changes
 
-- **`livekit.ts`:** one helper reads a person's published tracks; a `not_found` from the room server reads as no
-  tracks. `muteMicrophone` and `muteSources` use it. Nothing else changes:
+- **Stacked on `api/stop-screen-sound-first`** (item 3), which added `isNotFound` and a `muteSources(rooms, …)`.
+- **`livekit.ts`:** one helper reads a person's published tracks; a `not_found` from the room server (`isNotFound`,
+  narrowed to the Twirp code, for the 404 reason above) reads as no tracks. `muteMicrophone` and `muteSources` use it. Nothing else changes:
   - A single mute or stop of someone who just left answers `false`: 204, nothing recorded, as for a microphone already
     off.
   - `muteEveryone` gets `false` for the leaver and carries on: the people after them are muted and counted. When it
