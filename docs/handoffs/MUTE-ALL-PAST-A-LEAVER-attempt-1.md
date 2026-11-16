@@ -27,7 +27,8 @@ and this record.
   is recorded. Any other failure stops it as before (`PartialMute` with those muted so far).
 - **A single mute, camera stop or screen stop** of someone who left after the route's check answers 204 and records
   nothing (was 503 `unavailable`: a `ServerError` isn't a `DomainError`, so `handleError` gave its fallback). 204 is
-  in the contract for all four routes.
+  in the contract for all four routes. Gone just before the route's `memberInRoom` check, the same leaver gets 422
+  «They aren’t a member in the call» instead; both are in the contract, and the Studio's row is gone either way.
 
 ## Evidence
 
@@ -54,7 +55,10 @@ and this record.
 
 ## Remaining obligations
 
-- Someone who leaves between `getParticipant` and `mutePublishedTrack` still fails the act: the «track already gone»
-  case, item 3 of the same draft, left to its branch (it changes `muteUnmuted`; this branch doesn't).
-- A room that no longer exists at all isn't pinned against the real server (its `GetParticipant` code unverified).
+- Someone who leaves between `getParticipant` and `mutePublishedTrack` is item 3's «track already gone» case, handled
+  on the base branch (`muteIfThere`).
+- A deleted room (the call ended) most likely answers `not_found` too: a single act 204, mute everyone 0, as
+  `roomParticipants` reads a missing room as empty. Unverified on the real server.
+- `host-leaver.livekit.test.ts` pins «a participant the room never had», not «joined, then left»; an rtc-node
+  join-and-disconnect case would cover that later.
 - Not pushed; CI is the run on record.

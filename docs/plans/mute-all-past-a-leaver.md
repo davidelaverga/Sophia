@@ -30,7 +30,8 @@
 - **`livekit.ts`:** one helper reads a person's published tracks; a `not_found` from the room server (`isNotFound`,
   the Twirp code alone, for the 404 reason above) reads as no tracks. `muteMicrophone` and `muteSources` use it. Nothing else changes:
   - A single mute or stop of someone who just left answers `false`: 204, nothing recorded, as for a microphone already
-    off.
+    off. The same leaver gets one of two answers: gone just before the route's `memberInRoom` check, 422 «They aren’t
+    a member in the call»; just after it, 204. Both are in the contract, and the Studio's row is gone either way.
   - `muteEveryone` gets `false` for the leaver and carries on: the people after them are muted and counted. When it
     finishes, the whole act is recorded (`room.host_muted_all`), which is true: everyone still in the call is muted.
   - Any other error stops the batch as today: `PartialMute` with the people muted so far, or the error itself when no
@@ -54,8 +55,11 @@
 
 ## Limits
 
-- Someone who leaves between `getParticipant` and `mutePublishedTrack` still fails the act. That is the «track
-  already gone» case, item 3 of the same draft, on another branch; this one leaves `muteUnmuted` as it is.
+- Someone who leaves between `getParticipant` and `mutePublishedTrack` is item 3's «track already gone» case, which
+  the base branch handles (`muteIfThere`); this branch leaves `muteUnmuted` as it is.
 - The LiveKit server's `not_found` is checked in CI (`test:livekit`), not on this machine: Docker isn't running here.
-- A room that no longer exists at all is not pinned against the real server: whether its `GetParticipant` answers
-  `not_found` or another code wasn't verified. If it answers otherwise, the act fails as it does today.
+- A deleted room (the call ended) most likely answers `not_found` too, so a single act gets 204 and mute everyone
+  counts 0, as `roomParticipants` already reads a missing room as an empty list. Unverified on the real server: if it
+  answers another code, the act fails as it does today.
+- `host-leaver.livekit.test.ts` pins «a participant the room never had», not «joined, then left». A case with an
+  rtc-node participant that joins and disconnects would cover that later.
