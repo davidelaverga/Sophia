@@ -260,6 +260,21 @@ export function muteByHost(): void {
   hostMute()
 }
 
+let hostScreenStop: () => void = () => undefined
+/**
+ * An admin stops this viewer's screen share from the room's server (A31, host-more.md): the server mutes it, and this
+ * page stops sharing, as livekit-room.ts's `stopsWhenHostStops` does.
+ */
+export function stopScreenByHost(): void {
+  hostScreenStop()
+}
+
+let browserScreenEnd: () => void = () => undefined
+/** The browser's own «Stop sharing» bar ends this viewer's share: LiveKit unpublishes it; no mute, nobody else acted. */
+export function endScreenInBrowser(): void {
+  browserScreenEnd()
+}
+
 export function sophiaLeaves(): void {
   setSophia(null)
   emit(RoomEvent.ParticipantDisconnected, SOPHIA)
@@ -438,7 +453,10 @@ function deviceSwitch(me: RoomParticipant, changed: () => void, micPublished: ()
   }
 }
 
-/** What reaches this viewer while the connection is open: speech heard on a muted microphone, an admin's mute. */
+/**
+ * What reaches this viewer while the connection is open: speech heard on a muted microphone, an admin's mute, an
+ * admin's stop of their screen, and the browser's own end of it.
+ */
 function fromTheServer(me: RoomParticipant, cb: RoomCallbacks, open: () => boolean, changed: () => void): void {
   mutedSpeech = () => {
     if (open() && !me.micOn) cb.onSpeakingMuted?.()
@@ -446,6 +464,17 @@ function fromTheServer(me: RoomParticipant, cb: RoomCallbacks, open: () => boole
   hostMute = () => {
     if (!open()) return
     me.micOn = false
+    changed()
+  }
+  hostScreenStop = () => {
+    if (!open() || !me.screenOn) return
+    asked.push('screen:off')
+    me.screenOn = false
+    changed()
+  }
+  browserScreenEnd = () => {
+    if (!open() || !me.screenOn) return
+    me.screenOn = false
     changed()
   }
 }
