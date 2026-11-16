@@ -67,7 +67,8 @@ test('report index · enlarged at 1280: On this page in the margin, the column i
   await enlarge(page)
   const links = index(page).getByRole('link')
   await expect(links).toHaveText(SECTIONS)
-  await expect(index(page)).toBeVisible()
+  // The nav is a row of no height in the margin (it takes no room from the column): its list is what is seen.
+  await expect(index(page).locator('ol')).toBeVisible()
   // In the margin: left of the column, inside the page, never over the text; the column keeps its centre.
   const at = await page.evaluate(() => {
     const list = document.querySelector('.md-toc ol')?.getBoundingClientRect()

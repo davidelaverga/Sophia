@@ -3,8 +3,8 @@
 // citation stays on the line of the word before it, adjacent ones are one group with commas, and one whose source was
 // read only in part, as a snippet or not at all is marked and named so, in the report's language (cite-view.ts).
 // Everything is rendered as React text from the parsed blocks (markdown.ts); nothing is set as HTML. Headings drop one
-// level under the viewer's own title.
-import { Fragment, useMemo } from 'react'
+// level under the viewer's own title. A long report has its sections listed before it (OnThisPage).
+import { Fragment, useMemo, useRef } from 'react'
 import type { ReportSource } from '@sophia/contracts'
 import {
   around,
@@ -23,6 +23,8 @@ import {
 } from './cite-view.ts'
 import type { Mark } from './live-version.ts'
 import type { Block, Inline, ParsedReport } from './markdown.ts'
+import { OnThisPage } from './OnThisPage.tsx'
+import { pageIndex } from './page-index.ts'
 import { hostOf, sourceTitle } from './report-view.ts'
 
 interface Props {
@@ -67,10 +69,19 @@ export function MarkdownView({ report, sources, language, onCite, marks = null }
       marks,
     }
   }, [sources, language, onCite, marks])
+  const index = useMemo(() => pageIndex(report.blocks), [report.blocks])
+  // Each section heading carries its place in the index, which finds it by that (a repeated heading shares its id).
+  const placeOf = new Map(index.map((s, n) => [s.at, n]))
+  const column = useRef<HTMLDivElement>(null)
   return (
-    <div className="md" lang={language === 'und' ? undefined : language}>
-      <Blocks blocks={report.blocks} citing={citing} />
-    </div>
+    <>
+      {index.length > 0 && <OnThisPage sections={index} column={column} />}
+      <div ref={column} className="md" lang={language === 'und' ? undefined : language}>
+        {report.blocks.map((b, i) => (
+          <BlockView key={i} block={b} citing={citing} section={placeOf.get(i)} />
+        ))}
+      </div>
+    </>
   )
 }
 
@@ -80,10 +91,10 @@ function Blocks({ blocks, citing }: { blocks: readonly Block[]; citing: Citing }
 
 const HEADINGS = ['h2', 'h3', 'h4', 'h5', 'h6', 'h6'] as const
 
-function BlockView({ block, citing }: { block: Block; citing: Citing }) {
+function BlockView({ block, citing, section }: { block: Block; citing: Citing; section?: number | undefined }) {
   switch (block.kind) {
     case 'heading':
-      return <HeadingView block={block} citing={citing} />
+      return <HeadingView block={block} citing={citing} section={section} />
     case 'paragraph':
       return (
         <p>
@@ -114,13 +125,18 @@ function BlockView({ block, citing }: { block: Block; citing: Citing }) {
 }
 
 /** A heading, one level under the viewer's title, with its mark when its section changed since the last version read. */
-function HeadingView({ block, citing }: { block: Extract<Block, { kind: 'heading' }>; citing: Citing }) {
+function HeadingView(props: {
+  block: Extract<Block, { kind: 'heading' }>
+  citing: Citing
+  section: number | undefined
+}) {
+  const { block, citing, section } = props
   const H = HEADINGS[block.level - 1] ?? 'h6'
   const mark = citing.marks?.get(block.anchor)
   return (
     // A heading of only punctuation or emoji has an empty anchor: it is named "_" (no slug can be), as Search names
     // its hits, so a hit opens it (4306435438; persistence search.ts EMPTY_SECTION).
-    <H id={`md-${block.anchor || '_'}`}>
+    <H id={`md-${block.anchor || '_'}`} data-section={section}>
       <Inlines inline={block.children} citing={citing} />
       {mark && <span className="md-mark">{mark}</span>}
     </H>
