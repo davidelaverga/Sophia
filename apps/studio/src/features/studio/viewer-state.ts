@@ -1,6 +1,7 @@
 // Viewer-local state (architecture 04 §2, 13 §3): one person's lens and unsent drafts in one project.
 // It never becomes a project mutation, so changing it cannot move another person's view or retask work.
-// Lens and non-chat drafts are kept per viewer/project on this device. Chat drafts survive resnapshots only.
+// Lens and non-chat drafts are kept per viewer/project on this device. The chat's draft is kept in the tab only
+// (useViewerState, held-in-tab.ts): a reload finds it, another tab or account never does (drafts-survive-reload.md).
 
 export const LENSES = ['converse', 'explore', 'build'] as const
 export type Lens = (typeof LENSES)[number]
@@ -92,7 +93,7 @@ export function readViewerState(raw: string | null): ViewerState {
   }
 }
 
-/** Chat drafts stay in this component session; only the other lens drafts are device conveniences. */
+/** The chat's draft is the tab's (useViewerState); only the other lens drafts are device conveniences. */
 export function storedViewerState(state: ViewerState): ViewerState {
   const { converse: _chat, ...drafts } = state.drafts
   return { ...state, drafts }
