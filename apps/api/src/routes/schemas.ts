@@ -7,6 +7,12 @@
  */
 export const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 
+/**
+ * The one spelling of an id a `format: 'uuid'` schema has accepted (any case, optionally `urn:uuid:`): its last 36
+ * characters, lowercase, the spelling the database reads. As the A48, A51 and A53 routes read their path ids.
+ */
+export const canonicalId = (id: string): string => id.slice(-36).toLowerCase()
+
 export const projectParams = {
   type: 'object',
   additionalProperties: false,
