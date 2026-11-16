@@ -250,7 +250,11 @@ const WINDOW_NAME: Record<string, string> = {
   seven_day_opus: '7-day, one model',
   spend_limit: 'Spend limit',
 }
-export const windowName = (id: string) => WINDOW_NAME[id] ?? id.replaceAll('_', ' ')
+/** A window's name: its known one, or its id in words, its first letter upper as the known names' are. */
+export const windowName = (id: string) => {
+  const words = id.replaceAll('_', ' ')
+  return WINDOW_NAME[id] ?? words.charAt(0).toUpperCase() + words.slice(1)
+}
 
 export interface WindowView {
   /** The window's id, as the observation gave it. */
