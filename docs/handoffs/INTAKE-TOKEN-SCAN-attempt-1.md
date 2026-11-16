@@ -12,9 +12,21 @@ Writable scope: `packages/coordination/src/intake-observation.ts` and its test, 
 no policy or report change.
 Runtime unit: Luis's Windows host; CI as the run on record.
 Existing authority: Luis, the quote above; local only, nothing pushed.
-Ending commit/tree: `bdbe37456`, the last commit that changes code; the next one adds only this record. Files changed
-against `9495c87fc`: `packages/coordination/src/intake-observation.ts` and its test, `docs/plans/intake-token-scan.md`
-(new), and this record.
+Ending commit/tree: `df23b44d3`, the last commit that changes a test or the note (the review's P3s); the next one adds
+only this record's update. Files changed against `9495c87fc`: `packages/coordination/src/intake-observation.ts` and its
+test, `docs/plans/intake-token-scan.md` (new), and this record.
+
+## After the independent review (no P1/P2; its P3s)
+
+- **The review verified the equivalence over every BMP unit.**
+- **`df23b44d3`**: the bound test observes a short message first, so module warm-up isn't in the 200 ms budget. It is
+  still red on the old code (`observed 4000 characters with 500 imports in 1794 ms`) and green on the fix (about
+  1 ms). The design note gains «Limits»: `importOccurrences` stays O(token length) per occurrence, about 57–81 ms per
+  declared import for one 4 000-character token with an occurrence at every offset (about 160 ms with both imports),
+  bounded by `INTAKE_LIMITS.textChars`. It would become linear by remembering the previous token's start, later, if the
+  API needs it.
+- **Green:** `intake-observation.test.ts` 201/201; whole-repo `oxlint --type-aware` exit 0; `tsc` for coordination
+  exit 0; Prettier clean.
 
 ## Outcome
 
