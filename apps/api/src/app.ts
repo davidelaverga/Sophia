@@ -616,6 +616,16 @@ function inputsOn(deps: AppDeps): boolean {
 const TRACKED_CALL_SCHEMA = `SELECT to_regprocedure('sophia.research_call_ack(uuid,uuid)') IS NOT NULL
   AND to_regclass('sophia.research_call_identities') IS NOT NULL AS ok`
 
+/**
+ * 0110's observed-facts opt-in (INC04-R07-C2B, A58): a qualified research or review call reserves with `facts:
+ * observed_v1` and refuses a binding without `facts`, which only 0110's research_call_ack echoes (for a facts_version 2
+ * identity); 0109 ignores the opt-in. 0110 is one transaction, so two objects it adds, never replaces, prove it is
+ * installed: the identity's facts_version column and research_call_facts_version. Each lookup is false when missing.
+ */
+const OBSERVED_FACTS_SCHEMA = `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_attribute
+    WHERE attrelid = to_regclass('sophia.research_call_identities') AND attname = 'facts_version' AND NOT attisdropped)
+  AND to_regprocedure('sophia.research_call_facts_version(jsonb)') IS NOT NULL AS ok`
+
 /** What /health and /ready answer for: the schema parts this API's switches require, its companion and its commit. */
 interface Health {
   stores: boolean
@@ -657,8 +667,11 @@ async function schemaReady(
     (await part(true, ATOMIC_ADMISSION_SCHEMA)) &&
     // 0109's tracked-call boundary, whatever the switches say, for the same reason: the research and runtime routes
     // are always served, and without 0109 every maintained model call is refused for want of its binding (Codex
-    // review 5911393845). Nothing of 0110 or later is required here.
+    // review 5911393845).
     (await part(true, TRACKED_CALL_SCHEMA)) &&
+    // 0110's observed facts, for the same reason: without them a qualified research or review call is refused before its
+    // provider call (Codex review 5916589022). Nothing of 0111 or later is required here.
+    (await part(true, OBSERVED_FACTS_SCHEMA)) &&
     (await part(stores, STORE_SCHEMA)) &&
     (await part(conversations, CONVERSATION_SCHEMA)) &&
     (await part(conversationInputs, CONVERSATION_INPUTS_SCHEMA)) &&
