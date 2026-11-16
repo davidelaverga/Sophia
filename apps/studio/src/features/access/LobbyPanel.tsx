@@ -162,10 +162,22 @@ const rememberAsked = () => {
   }
 }
 
+/**
+ * The offer to be notified of knocks, asked once. Blocked (the answer, or the site's setting since the door opened), it
+ * says where knocks show instead (docs/plans/dictation-and-notify-said.md); granted or left unmade, nothing.
+ */
 function NotifyOffer() {
   const [asked, setAsked] = useState(
     () => typeof Notification === 'undefined' || Notification.permission !== 'default' || askedBefore(),
   )
+  const [blocked, setBlocked] = useState(false)
+  if (blocked) {
+    return (
+      <p className="lobby-note" role="status">
+        Notifications are blocked in this browser, so knocks show only here.
+      </p>
+    )
+  }
   if (asked) return null
   return (
     <button
@@ -175,7 +187,8 @@ function NotifyOffer() {
         setAsked(true)
         // Asked once, the browser's answer is final here, even a prompt closed with no choice (Codex P2 on #362).
         rememberAsked()
-        void Notification.requestPermission()
+        // An old browser's callback form answers nothing here: then nothing is said.
+        void Promise.resolve(Notification.requestPermission()).then((answer) => setBlocked(answer === 'denied'))
       }}
     >
       Notify me when someone knocks
