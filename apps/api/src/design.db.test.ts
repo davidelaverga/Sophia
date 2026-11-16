@@ -1480,24 +1480,23 @@ describe('a failed design tried again from its frozen package (0081, FND-B-HTML-
     assert.deepEqual([added(start, raced).tasks, added(start, raced).allowances, added(start, raced).goals], [1, 1, 1])
   })
 
-  it('offers no retry where 0081 refuses one: a newer version, a designed page, a design under way, sixteen designs (P3s on #480)', async () => {
+  it('offers no retry where 0081 refuses one: a newer version, a designed page, a package not intact, a design under way, sixteen designs (P3s on #480)', async () => {
     const { w, taskB, shared, counts, retry, offered } = await twoFailedReports()
     const fresh = { approval: 'fresh', grantRevision: shared, approvalRef: 'approval:shared' }
     assert.deepEqual(await offered(taskB), fresh, 'the ordinary case: offered')
-    const start = await counts()
     const b = (
       await owner((c) =>
         c.query(
-          `SELECT t.artifact_id, t.base_version_id, v.source_id,
-                  (SELECT x.id FROM sophia.artifact_versions x WHERE x.project_id=t.project_id AND x.artifact_id<>t.artifact_id LIMIT 1) AS other
+          `SELECT t.artifact_id, t.base_version_id, t.package_source_id, v.source_id
              FROM sophia.design_tasks t JOIN sophia.artifact_versions v ON v.project_id=t.project_id AND v.id=t.base_version_id
             WHERE t.job_id=$1`,
           [taskB],
         ),
       )
     ).rows[0]
-    // Each state is written as the records would hold it, its foreign keys aside (replica mode skips their triggers,
-    // never the table's checks), then undone: on each, the read offers nothing and 0081 refuses with its own reason.
+    // Where the service can't bring the records to a state here, it is written as they would hold it, its foreign keys
+    // aside (replica mode skips their triggers, never the table's checks); each state is then undone. On each, the read
+    // offers nothing and 0081 refuses with its own reason, admitting nothing.
     const fabricate = (sql: string, params: unknown[]) =>
       owner(async (c) => {
         await c.query('BEGIN')
@@ -1507,14 +1506,10 @@ describe('a failed design tried again from its frozen package (0081, FND-B-HTML-
       })
     const refused = async (key: string, reason: RegExp) => {
       assert.equal(await offered(taskB), undefined, `no retry offered: ${String(reason)}`)
+      const was = await counts()
       assert.match(await retryOutcome(retry(taskB, key, shared, 'approval:shared')), reason)
+      assert.deepEqual(await counts(), was, `${String(reason)}: nothing admitted`)
     }
-    const point = (version: string) =>
-      fabricate(`UPDATE sophia.artifacts SET stable_version_id=$2 WHERE project_id=$1 AND id=$3`, [
-        w.projectId,
-        version,
-        b.artifact_id,
-      ])
     // Copies of the failed design, older than it (so none is a later design), in the state given.
     const designs = (state: string, copies: number) =>
       fabricate(
@@ -1526,10 +1521,33 @@ describe('a failed design tried again from its frozen package (0081, FND-B-HTML-
            FROM sophia.design_tasks, generate_series(1,$3::int) n WHERE project_id=$1 AND job_id=$4`,
         [w.projectId, state, copies, taskB],
       )
-    // A newer stable version of the report (0081:84).
-    await point(b.other)
+    // A newer stable version of the same report (0081:84): its next version, the report's stable one, the failed
+    // design's superseded, as an amendment leaves them (every key and check holds: no replica mode).
+    const newer = await owner(async (c) => {
+      await c.query('BEGIN')
+      const { rows } = await c.query(
+        `WITH v AS (INSERT INTO sophia.artifact_versions(project_id,artifact_id,parent_id,source_id,source_hash,goal_id,
+                      goal_revision,authority_epoch,state,version_number)
+                    SELECT project_id,artifact_id,id,source_id,source_hash,goal_id,goal_revision,authority_epoch,'stable',
+                           version_number+1
+                      FROM sophia.artifact_versions WHERE project_id=$1 AND id=$2 RETURNING id)
+         UPDATE sophia.artifacts a SET stable_version_id=v.id FROM v WHERE a.project_id=$1 AND a.id=$3 RETURNING v.id`,
+        [w.projectId, b.base_version_id, b.artifact_id],
+      )
+      await c.query(`UPDATE sophia.artifact_versions SET state='superseded' WHERE project_id=$1 AND id=$2`, [
+        w.projectId,
+        b.base_version_id,
+      ])
+      await c.query('COMMIT')
+      return String(rows[0]?.id ?? assert.fail('no version 2 of the report'))
+    })
     await refused('n1', /Stale report version: a newer version of this report exists/)
-    await point(b.base_version_id)
+    await fabricate(
+      `WITH back AS (UPDATE sophia.artifacts SET stable_version_id=$2 WHERE project_id=$1 AND id=$3 RETURNING id),
+            kept AS (UPDATE sophia.artifact_versions SET state='stable' WHERE project_id=$1 AND id=$2 RETURNING id)
+       DELETE FROM sophia.artifact_versions WHERE project_id=$1 AND id=$4`,
+      [w.projectId, b.base_version_id, b.artifact_id, newer],
+    )
     assert.deepEqual(await offered(taskB), fresh)
     // The version already has a designed page (0081:86).
     await fabricate(
@@ -1543,21 +1561,30 @@ describe('a failed design tried again from its frozen package (0081, FND-B-HTML-
       [w.projectId, b.base_version_id],
     )
     assert.deepEqual(await offered(taskB), fresh)
+    // The frozen package's stored text no longer matches its hash (0081:93).
+    await fabricate(`UPDATE sophia.source_texts SET body=body||' ' WHERE project_id=$1 AND source_id=$2`, [
+      w.projectId,
+      b.package_source_id,
+    ])
+    await refused('n3', /The frozen content package of this design is not intact/)
+    await fabricate(`UPDATE sophia.source_texts SET body=left(body,-1) WHERE project_id=$1 AND source_id=$2`, [
+      w.projectId,
+      b.package_source_id,
+    ])
+    assert.deepEqual(await offered(taskB), fresh)
     // A design of the version under way, older than the failed one (0081:96).
     await designs('designing', 1)
-    await refused('n3', /A design of this page is already under way/)
+    await refused('n4', /A design of this page is already under way/)
     await fabricate(
       `DELETE FROM sophia.design_tasks WHERE project_id=$1 AND base_version_id=$2 AND state='designing'`,
       [w.projectId, b.base_version_id],
     )
     assert.deepEqual(await offered(taskB), fresh)
-    assert.deepEqual(await counts(), start, 'each refusal admitted nothing')
     // Sixteen designs of the report (0081:100): fifteen still offer a retry, sixteen do not.
     await designs('failed', 14)
     assert.deepEqual(await offered(taskB), fresh, 'fifteen designs: offered')
     await designs('failed', 1)
-    await refused('n4', /Design edit limit reached/)
-    assert.deepEqual(await counts(), { ...start, tasks: Number(start.tasks) + 15 }, 'only the copies written here')
+    await refused('n5', /Design edit limit reached/)
   })
 })
 

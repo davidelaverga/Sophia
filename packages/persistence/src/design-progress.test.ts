@@ -4,18 +4,37 @@ import { describe, it } from 'node:test'
 import type pg from 'pg'
 import { readDesignProgress } from './design-progress.ts'
 
-// A42's read offers a failed design's retry only where 0081's retry_failed_design could admit it: each refusal 0081
-// decides from the records alone is in the read's gate, written as 0081 writes it (its failed task `f` read as the
-// task `t`, `p_project` as `t.project_id`), so a change to either side shows here. Whitespace is ignored.
+// A42's read offers a failed design's retry only where retry_failed_design could admit it: each refusal the routine
+// decides from the records alone is in the read's gate, written as the routine writes it (its failed task `f` read as
+// the task `t`, `p_project` as `t.project_id`), so a change to either side shows here. Whitespace is ignored. This pins
+// the text; what it means is pinned by apps/api's design.db.test.ts, on PostgreSQL.
 const MIGRATIONS = new URL('../../../db/migrations/', import.meta.url)
-const RETRY = readFileSync(new URL('0081_retry_failed_design.sql', MIGRATIONS), 'utf8')
 const squeeze = (sql: string) => sql.replace(/\s+/g, '')
 
-/** The condition of the IF that raises `message` in 0081, as the read writes it. */
+/** The routine as the migrations leave it: its last definition (0081's, until one replaces it), through `END $$;`. */
+function routine(): string {
+  const definitions = readdirSync(MIGRATIONS)
+    .filter((f) => f.endsWith('.sql'))
+    .toSorted()
+    .flatMap((f) => {
+      const sql = readFileSync(new URL(f, MIGRATIONS), 'utf8')
+      const at = Math.max(
+        sql.lastIndexOf('CREATE FUNCTION sophia.retry_failed_design('),
+        sql.lastIndexOf('CREATE OR REPLACE FUNCTION sophia.retry_failed_design('),
+      )
+      return at === -1 ? [] : [sql.slice(at, sql.indexOf('\nEND $$;', at))]
+    })
+  const latest = definitions.at(-1)
+  assert.ok(latest, 'a migration defines sophia.retry_failed_design')
+  return latest
+}
+
+/** The condition of the IF that raises `message` in the routine, as the read writes it. */
 function refusal(message: string): string {
-  const at = RETRY.indexOf(`RAISE EXCEPTION '${message}`)
-  assert.notEqual(at, -1, `0081 refuses: ${message}`)
-  const condition = RETRY.slice(RETRY.lastIndexOf(' IF ', at) + ' IF '.length, RETRY.lastIndexOf(' THEN', at))
+  const retry = routine()
+  const at = retry.indexOf(`RAISE EXCEPTION '${message}`)
+  assert.notEqual(at, -1, `retry_failed_design refuses: ${message}`)
+  const condition = retry.slice(retry.lastIndexOf(' IF ', at) + ' IF '.length, retry.lastIndexOf(' THEN', at))
   return squeeze(condition.replace(/\bp_project\b/g, 't.project_id').replace(/\bf\./g, 't.'))
 }
 
@@ -32,13 +51,14 @@ async function gate(): Promise<string> {
   const read = squeeze(sql)
   const start = read.indexOf("CASEWHENt.mode='create'ANDt.state='failed'")
   assert.notEqual(start, -1, 'the read has its retry gate')
-  return read.slice(start, read.indexOf('THEN(SELECTjsonb_strip_nulls', start))
+  return read.slice(start, read.indexOf('(SELECTjsonb_strip_nulls', start))
 }
 
 describe('a failed design is offered a retry only where 0081 could admit it (A42, P3s on #480)', () => {
   for (const message of [
     'Stale report version: a newer version of this report exists',
     'This version already has a designed page',
+    'The frozen content package of this design is not intact',
     'A design of this page is already under way',
     'A later design of this version exists',
     'Design edit limit reached',
