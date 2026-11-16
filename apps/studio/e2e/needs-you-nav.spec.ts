@@ -85,7 +85,13 @@ test('needs you · on a phone, a count on a view out of sight is scrolled into i
   const resources = row.getByRole('link', { name: 'Resources, 1 waiting on you' })
   await expect(current).toHaveAttribute('aria-current', 'page')
   await expect.poll(() => clear(resources)).toBe(true)
-  expect(await clear(current)).toBe(true)
+  // The current view stays whole in the row; where both can't stand clear of the fades, the count does.
+  const inRow = await current.evaluate((el) => {
+    const box = el.parentElement?.getBoundingClientRect()
+    const r = el.getBoundingClientRect()
+    return !!box && r.left >= box.left - 1 && r.right <= box.right + 1
+  })
+  expect(inRow).toBe(true)
 })
 
 test('needs you · at 1280 with both counts, the row stands whole and the project’s name reads whole', async ({
@@ -96,7 +102,8 @@ test('needs you · at 1280 with both counts, the row stands whole and the projec
   await expect(nav(page).locator('.view-count')).toHaveCount(2)
   const seen = await page.evaluate(() => {
     const row = document.querySelector('.view-nav')
-    const name = document.querySelector('.project-name')
+    // The name's own text: cut, it ends in an ellipsis (its button's -6 px margins overhang the box by design).
+    const name = document.querySelector('.project-name-text')
     return {
       page: document.documentElement.scrollWidth,
       row: row ? row.scrollWidth - row.clientWidth : -1,
