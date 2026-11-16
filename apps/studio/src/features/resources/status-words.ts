@@ -458,7 +458,7 @@ const OPERATIONS_SAID: Record<CatalogMine['qualification']['operations'][number]
 const QUALIFICATION: Record<Exclude<CatalogMine['qualification']['state'], 'none' | 'current'>, string> = {
   expired: 'Recorded qualification: expired',
   revoked: 'Recorded qualification: revoked',
-  stale: 'Needs checking again',
+  stale: 'Qualification: needs checking again',
   not_applicable: 'Recorded qualification: doesn’t apply now',
 }
 
