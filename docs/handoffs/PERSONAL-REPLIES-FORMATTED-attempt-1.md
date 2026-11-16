@@ -11,7 +11,7 @@ Writable scope: this worktree only (`apps/studio/src/app`, `apps/studio/src/feat
 contract or product-copy change.
 Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1` guard); CI as the run on record.
 Existing authority: Luis, the quote above; local only, nothing pushed.
-Ending commit/tree: `75fb39b8f` (the fix). Files changed against `9495c87fc`: `RichText.tsx`,
+Ending commit/tree: `da9973519` (after the review round); the next commit changes only the note and this record. Files changed against `9495c87fc`: `RichText.tsx`,
 `rich-text.ts`, `rich-text.test.ts`, `LinkedText.tsx` (`Run` exported), `personal/Find.tsx`, `personal/find-view.ts`,
 `personal/Conversation.tsx`, `fixtures/personal.tsx` (`formatted=1`), `e2e/personal-format.spec.ts`,
 `docs/plans/personal-replies-formatted.md`, and this record.
@@ -51,6 +51,18 @@ Ending commit/tree: `75fb39b8f` (the fix). Files changed against `9495c87fc`: `R
   - the fixture's quote, «The rest can lean on it.», already stood in an earlier turn, so Find's current match was
     there. The quote now reads «Everything else can rest on that.».
 - Whole-repo `oxlint --type-aware` (exit 0), `tsc --noEmit -p apps/studio` (exit 0), Prettier on every touched file.
+
+- **Review round** (independent review: no P1/P2, offsets verified; three asks):
+  - kept shown words (`325d96cb8`, failing): `rich-text.test.ts` failed to load, `does not provide an export named
+    'SHOWN_KEPT'`. The fix is `83a50e46e`: `shownText` is kept per text in a bounded `Map` (1000, oldest first), equal
+    to a fresh read (`shownOf`). Unit 15/15.
+  - an invariant lock (`da9973519`, not a fix, so green on arrival): for eight tricky inputs, each piece's marks
+    rebuilt line by line equal `shownText`, and `foundIn`'s count equals the matches drawn. A control mutant that
+    drops marked parts in `marksIn` fails 7 of 8 (the empty message has nothing to drop).
+  - plan lines: two highlights for one match across a bold or code edge, Copy without `**`, backticks or «> », and
+    your own turns formatted on purpose.
+  - after the round: `personal-format`, `personal-find-ask` and `message-links` through the guard, 14/14
+    (`pw-logs/prf-review.txt`). Whole-repo oxlint, tsc and Prettier are clean.
 
 ## Decisions and changes
 
