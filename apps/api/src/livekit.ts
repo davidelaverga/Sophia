@@ -1,8 +1,17 @@
 // Room-scoped LiveKit access tokens (architecture 06 §1, 13 §4). The grant names exactly one room, so a
 // token issued for one project's room cannot join another; it is short-lived and carries no Google key.
-import { AccessToken, RoomServiceClient, TrackSource } from 'livekit-server-sdk'
+import { AccessToken, RoomServiceClient, ServerError, TrackSource } from 'livekit-server-sdk'
 import type { RoomToken } from '@sophia/contracts'
 import type { RemovalOutcome } from '@sophia/persistence'
+
+/**
+ * The room server's «not there»: a participant, room or track gone, which LiveKit answers as Twirp's not_found (HTTP
+ * 404). The pinned server answers a mute of a track no longer published with no track and no error; this covers a
+ * server that refuses it, and a person who left between the read and the mute.
+ */
+function isNotFound(err: unknown): boolean {
+  return err instanceof ServerError && (err.code === 'not_found' || err.status === 404)
+}
 
 export interface LiveKitConfig {
   /** The URL browsers connect to (wss:// in production). */
@@ -198,10 +207,26 @@ export class PartialMute extends Error {
   }
 }
 
+/** Mute one published track; false when it is already gone (isNotFound), which is done, not a failure. */
+async function muteIfThere(
+  rooms: Pick<RoomServiceClient, 'mutePublishedTrack'>,
+  roomId: string,
+  identity: string,
+  sid: string,
+): Promise<boolean> {
+  try {
+    await rooms.mutePublishedTrack(roomId, identity, sid, true)
+    return true
+  } catch (err: unknown) {
+    if (isNotFound(err)) return false
+    throw err
+  }
+}
+
 /**
  * Mute those of these published tracks that are on; how many it muted. One already muted is left as it is and not
- * counted, so a repeated or retried act that changes nothing is not recorded as done (Codex P2 on #385). A failure
- * after some were muted says how many (PartialMute).
+ * counted, so a repeated or retried act that changes nothing is not recorded as done (Codex P2 on #385); nor is one
+ * already gone. A failure after some were muted says how many (PartialMute).
  */
 export async function muteUnmuted(
   rooms: Pick<RoomServiceClient, 'mutePublishedTrack'>,
@@ -212,8 +237,7 @@ export async function muteUnmuted(
   let muted = 0
   try {
     for (const t of tracks) {
-      if (t.muted) continue
-      await rooms.mutePublishedTrack(roomId, identity, t.sid, true)
+      if (t.muted || !(await muteIfThere(rooms, roomId, identity, t.sid))) continue
       muted += 1
     }
   } catch (err: unknown) {
@@ -233,8 +257,8 @@ export async function muteMicrophone(cfg: LiveKitConfig, roomId: string, identit
 }
 
 /**
- * Mute every published track of these sources of theirs (A31); only they turn them on again. How many it muted: none
- * when they publish none, or every one was already muted.
+ * Mute every published track of these sources of theirs (A31), in the order of `sources`; only they turn them on again.
+ * How many it muted: none when they publish none, or every one was already muted or gone.
  */
 export async function muteSources(
   rooms: Pick<RoomServiceClient, 'getParticipant' | 'mutePublishedTrack'>,
@@ -242,12 +266,17 @@ export async function muteSources(
   identity: string,
   sources: readonly TrackSource[],
 ): Promise<number> {
-  const tracks = (await rooms.getParticipant(roomId, identity)).tracks.filter((t) => sources.includes(t.source))
+  const tracks = (await rooms.getParticipant(roomId, identity)).tracks
+    .filter((t) => sources.includes(t.source))
+    .toSorted((a, b) => sources.indexOf(a.source) - sources.indexOf(b.source))
   return muteUnmuted(rooms, roomId, identity, tracks)
 }
 
-/** A screen share's tracks: the share and its sound. */
-export const SCREEN_SOURCES = [TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO]
+/**
+ * A screen share's tracks, the sound first: muted, the share makes their Studio stop sharing and take the sound with it
+ * (livekit-room.ts), so the sound is muted while it is still there (Codex P2 on #369).
+ */
+export const SCREEN_SOURCES = [TrackSource.SCREEN_SHARE_AUDIO, TrackSource.SCREEN_SHARE]
 
 const stopSources = async (cfg: LiveKitConfig, roomId: string, identity: string, sources: readonly TrackSource[]) =>
   (await muteSources(new RoomServiceClient(apiUrl(cfg), cfg.apiKey, cfg.apiSecret), roomId, identity, sources)) > 0
