@@ -641,12 +641,19 @@ export function PersonalComposer(props: Props) {
         void send()
       }}
     >
-      <Over note={offline ? OFFLINE_WAITS : (handedWaiting(props) ?? note)} count={counted ? length : null} />
+      {/* Why dictation stopped leads until the next attempt or the next word written (dictation-and-notify-said.md). */}
+      <Over
+        note={offline ? OFFLINE_WAITS : (dictation.said ?? handedWaiting(props) ?? note)}
+        count={counted ? length : null}
+      />
       <Bar
         {...{ field, text, state, counted, ready, busy, dictation }}
         over={length > MOST}
         placeholder={placeholderFor(state, online, !!props.night)}
-        onChange={change}
+        onChange={(words) => {
+          dictation.quiet()
+          change(words)
+        }}
         onSend={() => void send()}
       />
       {props.foot}
