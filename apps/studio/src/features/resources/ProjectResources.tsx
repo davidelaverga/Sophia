@@ -44,7 +44,8 @@ const REFUSED: Record<401 | 403 | 404, string> = {
 /**
  * A read that showed nothing, said in the panel's frame: why, and the explicit way on. A final 401 asks to sign in
  * again, so it offers that, where the app gives the way (UX04): pressed, it says first what signing out of this device
- * ends and removes, and only Sign out and continue starts it (REC01). Everything else reads again.
+ * ends and removes, and only Sign out and continue starts it (REC01). A final 403 or 404 offers nothing: a new read with
+ * the same access could only end the same way. Everything else reads again.
  */
 function ReadNotice({
   state,
@@ -56,6 +57,7 @@ function ReadNotice({
   onSignIn: (() => void) | undefined
 }) {
   const signIn = state.status === 'refused' && state.refusal === 401 && onSignIn !== undefined
+  const denied = state.status === 'refused' && (state.refusal === 403 || state.refusal === 404)
   const said =
     state.status === 'refused' && state.refusal
       ? REFUSED[state.refusal]
@@ -71,7 +73,7 @@ function ReadNotice({
       <CatalogScope />
       <div className="resources-read" role="status" data-read={state.status}>
         <p>{said}</p>
-        {signIn ? (
+        {denied ? null : signIn ? (
           // Asked first, in place: Stay here takes the focus, so a second Enter never confirms; only Sign out and
           // continue calls the app's sign-out, once (REC01).
           <ConfirmButton
