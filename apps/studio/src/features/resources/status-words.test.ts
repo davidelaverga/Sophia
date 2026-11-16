@@ -644,6 +644,33 @@ describe('the catalog’s words', () => {
     assert.equal(sw.CATALOG_PRIVATE, 'Its host and connection details are private to its owner.')
   })
 
+  it('says how a tool is enrolled under a connection it needs or that expired, and nowhere else', () => {
+    const qualification = { state: 'none' as const, operations: [], qualifiedAt: null, expiresAt: null }
+    const mine = (connection: Parameters<typeof sw.connectionSaid>[0]) => ({ connection, host: null, qualification })
+    const facts = (
+      state: 'active' | 'needs_connection' | 'revoked',
+      connection = mine({ state: 'linked', expired: false }),
+    ) => ({
+      state,
+      observedAt: '2026-11-12T14:00:00Z',
+      mine: connection,
+    })
+    assert.equal(sw.catalogEnrollment(facts('needs_connection')), sw.CATALOG_ENROLLMENT)
+    assert.equal(sw.catalogEnrollment({ ...facts('needs_connection'), mine: null }), sw.CATALOG_ENROLLMENT)
+    assert.equal(sw.catalogEnrollment(facts('active', mine({ state: 'linked', expired: true }))), sw.CATALOG_ENROLLMENT)
+    assert.equal(
+      sw.catalogEnrollment(facts('active', mine({ state: 'expired', expired: false }))),
+      sw.CATALOG_ENROLLMENT,
+    )
+    assert.equal(
+      sw.catalogEnrollment(facts('needs_connection', mine({ state: 'linked', expired: true }))),
+      sw.CATALOG_ENROLLMENT,
+    )
+    assert.equal(sw.catalogEnrollment(facts('active')), null)
+    assert.equal(sw.catalogEnrollment(facts('active', mine(null))), null)
+    assert.equal(sw.catalogEnrollment(facts('revoked', mine({ state: 'revoked', expired: false }))), null)
+  })
+
   it('says the catalog’s limits as limits (UX iteration 001): never ready, online, signed in, none or zero', () => {
     const said = [sw.CATALOG_LIVE_UNREPORTED, sw.CATALOG_UNREPORTED, sw.CATALOG_EVIDENCE, sw.CATALOG_ENROLLMENT]
     for (const words of said) {

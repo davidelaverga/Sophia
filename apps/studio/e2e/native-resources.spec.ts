@@ -15,6 +15,8 @@ const SCOPE = 'Saved coding-resource records. Live activity, usage and controls 
 const LIVE = 'Live sign-in and readiness aren’t reported.'
 const UNREPORTED = 'Work activity, remaining usage and controls aren’t reported by this view.'
 const EVIDENCE = 'Recorded host and capability evidence'
+/** How a tool comes to be listed (UX04): under an empty catalog, and under a connection needed or expired. */
+const ENROLLMENT = 'Each owner enrolls their own tool from the computer it runs on; Studio doesn’t enroll tools.'
 /** What Sign in again says before it signs this device out (REC01). */
 const SIGN_IN_WARNING =
   'Signing in again signs out this device. It ends any call you’re in and removes everything unsent on this device: drafts and messages in your projects and your personal space.'
@@ -120,6 +122,8 @@ test('the owner’s recorded host says what isn’t recorded as such: no time, a
   await sheet(page).getByText(EVIDENCE).click()
   await expect(sheet(page)).toContainText('Linked to your computer (recorded) · last seen 3 h before this reading')
   await expect(sheet(page)).toContainText('Connection revoked')
+  // Revoked, it isn't told how a tool is enrolled: only a connection it needs, or one expired, is.
+  await expect(sheet(page)).not.toContainText(ENROLLMENT)
   await expect(sheet(page)).toContainText('Recorded qualification: doesn’t apply now')
   await page.keyboard.press('Escape')
   await tiles(page).filter({ hasText: 'Needs a connection' }).click()
@@ -128,6 +132,24 @@ test('the owner’s recorded host says what isn’t recorded as such: no time, a
   // Linked but past its time: expired, never usable.
   await expect(sheet(page)).toContainText('Connection expired')
   await expect(sheet(page)).toContainText('Needs checking again')
+  // What to do about it, under the state, once though both hold: the empty catalog's own line.
+  await expect(sheet(page).locator('.resource-catalog-state + .resource-catalog-enrollment')).toHaveText(ENROLLMENT)
+  await expect(sheet(page).getByText(ENROLLMENT)).toHaveCount(1)
+})
+
+test('@phone what to do about a connection, under its state at 390, whole inside the sheet', async ({ page }) => {
+  await page.goto(`${PAGE}?case=complete`)
+  await tiles(page).filter({ hasText: 'Needs a connection' }).tap()
+  const line = sheet(page).locator('.resource-catalog-enrollment')
+  await expect(line).toHaveText(ENROLLMENT)
+  await expect(sheet(page)).toContainText('Connection expired')
+  const inside = await line.evaluate((p) => {
+    const s = p.closest('[role="dialog"]')?.getBoundingClientRect()
+    const l = p.getBoundingClientRect()
+    return !!s && l.left >= s.left && l.right <= s.right && p.scrollWidth <= p.clientWidth + 1
+  })
+  expect(inside).toBe(true)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
 })
 
 test('a teammate never reads the owner’s facts: not in the sheet, not anywhere in the page', async ({ page }) => {
