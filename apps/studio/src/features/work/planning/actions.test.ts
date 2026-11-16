@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { lost, sending, type CommandTarget, type Known } from '../../resources/receipts.ts'
 import { boundaries, notOffered, offered, sheetKeys, targetOf, writable } from './actions.ts'
 import { assignment, goal, item, plan, view } from './board-samples.ts'
 import type { ItemAction, ItemView } from './board-view.ts'
@@ -143,6 +144,9 @@ describe('what a task’s sheet offers to send (G3)', () => {
   })
 })
 
+/** A control just sent to `target`, before any receipt. */
+const sentTo = (kind: 'hold' | 'stop', target: CommandTarget) => sending({ operation_id: `op-${kind}`, kind, target })
+
 describe('the sheet’s keys beside their presses (informe-25 DL-12)', () => {
   const port = { project: 'project-1', canSend: true }
   const all = [allowed('hold'), allowed('resume'), allowed('stop')]
@@ -173,5 +177,21 @@ describe('the sheet’s keys beside their presses (informe-25 DL-12)', () => {
     const untargeted = rowOf({ lifecycle: 'planned', assignment: null, available_actions: all })
     assert.ok(offered(untargeted).length > 0)
     assert.deepEqual(sheetKeys(untargeted, port), none)
+  })
+
+  // INC01-DES-001 r3: the keys follow the work's control state, kept with the commands sent (work-control.ts).
+  it('names no H while a Hold for this exact work is on its way; a Stop on its way keeps S and H as they were', () => {
+    const row = rowOf({ available_actions: all })
+    const target = targetOf(row, 'project-1')
+    if (!target) throw new Error('no target')
+    const sent = (kind: 'hold' | 'stop', at: CommandTarget = target) => sentTo(kind, at)
+    const keysWith = (...known: Known[]) => sheetKeys(row, { ...port, of: () => known })
+    assert.deepEqual(keysWith(), { hold: true, stop: true })
+    assert.deepEqual(keysWith(sent('hold')), { hold: false, stop: true })
+    assert.deepEqual(keysWith(lost(sent('hold'))), { hold: false, stop: true }) // tried again from its own line
+    assert.deepEqual(keysWith(sent('stop')), { hold: true, stop: true }) // pressed again: the same operation
+    // Sent for another generation of the work: not this execution's, so it changes nothing here.
+    const earlier = sent('hold', { ...target, assignment_generation: (target.assignment_generation ?? 0) - 1 })
+    assert.deepEqual(keysWith(earlier), { hold: true, stop: true })
   })
 })

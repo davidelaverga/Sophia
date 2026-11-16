@@ -1,0 +1,202 @@
+{
+  "id": "A52",
+  "goal": "INC03-CC-002-P2",
+  "title": "Personal automatic inputs: the owner's message retained under the explicit automatic_v1 contract, held, with no effect; A10 reads list it as recorded",
+  "why": [
+    "SOPHIA-INC-2026-11 INC-03, INC03-CC-002 P2: the HTTP boundary for migration 0098's writer (send_personal_input) and the read projection every Personal reader needs before any producer exists. Its generated output is regenerated with `pnpm --filter @sophia/contracts generate`, never by hand.",
+    "A10 PersonalTurn.reply gains `recorded`: a person turn kept and held, neither asked (pending), answered nor failed. One schema change reaches every embedding read (PersonalSpace, PersonalTurnPage, PersonalEarlierTurns, PersonalExport), so a client that validates them reads a recorded turn instead of refusing the whole page. Readers ship before the producer; a recorded row stays readable after the route is turned off again.",
+    "A new path, not a variant of sendPersonalTurn: the legacy PersonalMessage body, its route, its PersonalReceipt (operation unchanged) and its companion behaviour are untouched, so an old client cannot opt in by accident. The body is closed and the contract explicit; a missing, null or other contract is refused (422).",
+    "The owner is the verified actor only. Every Personal write's Idempotency-Key namespace and current-epoch fence apply (x-sophia-personal-epoch). The receipt is the exact retained turn, read in the write's own transaction, and the input's metadata: recorded, effect none. No companion is woken and nothing is assessed, answered, claimed, reserved, notified or routed. Served only when the API is built with Personal inputs (off by default)."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalTurn/properties/reply/anyOf/0/enum/3",
+      "value": "recorded"
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalInputSend",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "interactionContract": {
+            "type": "string",
+            "enum": ["automatic_v1"],
+            "description": "The interaction contract, explicit and required. No other value, no default; a legacy PersonalMessage is a different request."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        },
+        "required": ["interactionContract", "text"],
+        "description": "A Personal message retained as an automatic_v1 input, held. Closed: the owner, audience, origin, addressing, project and context are the server's, never the request's."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalInputRef",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "interactionContract": {
+            "type": "string",
+            "enum": ["automatic_v1"]
+          },
+          "contractVersion": {
+            "type": "integer",
+            "enum": [1]
+          },
+          "state": {
+            "type": "string",
+            "enum": ["recorded"]
+          },
+          "effect": {
+            "type": "string",
+            "enum": ["none"]
+          }
+        },
+        "required": ["id", "interactionContract", "contractVersion", "state", "effect"],
+        "description": "The retained input. Recorded is not asked, answered, assessed, routed or admitted: nothing follows from it."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalInputRecorded",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "turn": {
+            "$ref": "#/components/schemas/PersonalTurn"
+          },
+          "input": {
+            "$ref": "#/components/schemas/PersonalInputRef"
+          }
+        },
+        "required": ["revision", "turn", "input"],
+        "description": "What a held Personal input answers: the space's revision, the exact retained turn (reply recorded) and its input."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1personal~1inputs",
+      "value": {
+        "post": {
+          "operationId": "sendPersonalInput",
+          "summary": "The owner's message retained as an automatic_v1 input, held: nothing is asked, answered or set in motion. Served only when the API is built with Personal inputs (off by default). Idempotent per person and key, in the one Personal key namespace.",
+          "tags": ["personal"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC03-CC-002-P2",
+          "parameters": [
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            },
+            {
+              "name": "x-sophia-personal-epoch",
+              "in": "header",
+              "required": true,
+              "description": "The epoch of the space the write is made against (PersonalSpace.epoch). A write made against another epoch, so one issued before an erasure however late it arrives, is refused (409 request_erased) and writes nothing.",
+              "schema": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]{0,14})$"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalInputSend"
+                }
+              }
+            }
+          },
+          "responses": {
+            "202": {
+              "description": "Recorded: the input is retained and nothing follows from it (effect none)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalInputRecorded"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted: a guest",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Personal inputs are not served by this API (off by default)"
+            },
+            "409": {
+              "description": "Idempotency key reused with a different request, including a legacy Personal message (idempotency_conflict), or a write against an epoch an erasure has since moved, or under a key from before it (request_erased)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema (a missing, null or other interactionContract; unknown fields such as askSophia, ownerId, audience, origin, projectId, mentions or context are refused)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Personal inputs are not installed on this database (projection_unavailable), the database is unavailable, or the write's outcome is unknown: retry with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

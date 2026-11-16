@@ -111,11 +111,26 @@ function refusal(err: unknown): MediaToolResult {
       output: { code: `unconfirmed:${err.code}`, reason: 'I could not confirm whether the research was admitted.' },
     }
   }
+  // The member's pinned API contribution refused it (0094): say which reason, and that no other payer was used.
+  const contribution = CONTRIBUTION_REFUSAL.exec(err.message)
+  if (contribution && (err.code === 'contribution_unavailable' || err.code === 'forbidden')) {
+    const code = err.code === 'contribution_unavailable' ? 'contribution_unavailable' : 'contribution_not_permitted'
+    return {
+      status: 'refused',
+      output: {
+        code: `not_started:${code}`,
+        reason: `The API contribution you chose can't be used for this now (${contribution[1]}), so nothing was started. No other payer was used.`,
+      },
+    }
+  }
   return {
     status: 'refused',
     output: { code: `not_started:${err.code}`, reason: REFUSALS[err.code] ?? 'The research was not started.' },
   }
 }
+
+/** A typed contribution refusal's reason code (0094), from its kept message. */
+const CONTRIBUTION_REFUSAL = /^Contribution (?:unavailable|not permitted): ([a-z_]+)$/
 
 /** Up to eight items that each pass `ok`; absent is none, anything else is null (ask again). */
 const listOf = (v: unknown, ok: (x: unknown) => boolean): string[] | null =>

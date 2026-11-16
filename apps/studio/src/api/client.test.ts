@@ -3,6 +3,7 @@ import { getConversationMessages, listConversations } from './conversations.ts'
 import { getSince } from './vision.ts'
 import { afterEach, describe, it } from 'node:test'
 import { retryRead } from '../app/account-cache.ts'
+import { renewTokensWith } from './renew.ts'
 import {
   admitGoalCommand,
   ApiError,
@@ -298,5 +299,279 @@ describe('Updates’ «since» read refused by its status', () => {
     const error = await refusal(getSince('t', 'p'))
     assert.ok(error instanceof ApiError)
     assert.deepEqual([error.status, error.code], [503, 'unavailable'])
+  })
+})
+
+// R-MEMBER-READ-01 (docs/plans/native-resources-member-read.md): a project member read that opts in (`memberRead`) is
+// refused at the client's first sight of a final 401, 403 or 404, with that status and retry `never`, before its error
+// body is inspected: a slow, endless or malformed body can't delay or change it, and the cache never asks again.
+const MEMBER_PATH = `/api/v1/projects/${P}/native-resources` as const
+type Init = Parameters<typeof callApi>[1]
+type Cancel = 'settles' | 'hangs' | 'rejects'
+
+/** What happened, in order: the send, any read or cancel of the reply's body, the parser, the refusal. */
+interface Seen {
+  events: string[]
+}
+
+/** A body that sends `text` (or nothing) and then never ends; its cancel notes itself and settles, hangs or rejects. */
+function openBody(seen: Seen, text: string | null, cancel: Cancel): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      if (text !== null) controller.enqueue(new TextEncoder().encode(text))
+    },
+    cancel() {
+      seen.events.push('cancel')
+      if (cancel === 'hangs') return new Promise<void>(() => undefined)
+      if (cancel === 'rejects') return Promise.reject(new Error('cancel failed'))
+      return undefined
+    },
+  })
+}
+
+/** A reply whose body readers note themselves: reading it at all is what an early refusal must not do. */
+function watched(seen: Seen, body: BodyInit | null, status: number): Response {
+  const res = new Response(body, { status, headers: { 'content-type': 'application/json' } })
+  for (const read of ['json', 'text', 'arrayBuffer', 'blob', 'formData'] as const)
+    Object.defineProperty(res, read, {
+      value: () => {
+        seen.events.push(`read:${read}`)
+        return Response.prototype[read].call(res)
+      },
+    })
+  return res
+}
+
+/** Every fetch answers with `make`, noting the send. */
+function answer(seen: Seen, make: () => Response): void {
+  globalThis.fetch = () => {
+    seen.events.push('fetch')
+    return Promise.resolve(make())
+  }
+}
+
+/** One call to the member path, its parser noting itself. */
+function memberCall(seen: Seen, init: Partial<Init>): Promise<unknown> {
+  return callApi(MEMBER_PATH, { token: 't', method: 'GET', ...init }, (value) => {
+    seen.events.push('parse')
+    return value
+  })
+}
+
+/** The call's ApiError within `ms`, noted as the refusal in causal order. */
+async function refusedWithin(seen: Seen, call: Promise<unknown>, ms = 500): Promise<ApiError> {
+  const error = await withinMs(ms, refusal(call))
+  seen.events.push('refused')
+  assert.ok(error instanceof ApiError, `expected an ApiError, got ${String(error)}`)
+  return error
+}
+
+const errorBody = { code: 'not_found', message: 'No such project for this member', requestId: G, retry: 'never' }
+
+describe('a member read refused by its final status (memberRead)', () => {
+  afterEach(() => {
+    globalThis.fetch = realFetch
+    renewTokensWith(null)
+  })
+
+  for (const status of [401, 403, 404]) {
+    for (const cancel of ['settles', 'hangs', 'rejects'] as const) {
+      it(`${status}: refused at once while its error body never ends (its cancel ${cancel})`, async () => {
+        const seen: Seen = { events: [] }
+        answer(seen, () => watched(seen, openBody(seen, null, cancel), status))
+        const error = await refusedWithin(seen, memberCall(seen, { memberRead: true }))
+        assert.deepEqual(
+          [error.status, error.code, error.message, error.retry],
+          [status, `http_${status}`, 'That didn’t go through.', 'never'],
+        )
+        // Cancelled, not awaited, before the refusal; never read and never parsed.
+        assert.deepEqual(seen.events, ['fetch', 'cancel', 'refused'])
+      })
+    }
+
+    it(`${status}: refused with its status whatever a malformed error body says, unread`, async () => {
+      const seen: Seen = { events: [] }
+      answer(seen, () => watched(seen, openBody(seen, '<html>{"code":"ok"', 'settles'), status))
+      const error = await refusedWithin(seen, memberCall(seen, { memberRead: true }))
+      assert.deepEqual([error.status, error.code, error.retry], [status, `http_${status}`, 'never'])
+      assert.deepEqual(seen.events, ['fetch', 'cancel', 'refused'])
+    })
+
+    it(`${status}: refused with its status, unread, even when the error body is a contract Error`, async () => {
+      const seen: Seen = { events: [] }
+      answer(seen, () => watched(seen, JSON.stringify({ ...errorBody, retry: 'safe_read' }), status))
+      const error = await refusedWithin(seen, memberCall(seen, { memberRead: true }))
+      assert.deepEqual([error.status, error.code, error.retry], [status, `http_${status}`, 'never'])
+      assert.ok(!seen.events.some((e) => e.startsWith('read:') || e === 'parse'), seen.events.join(' '))
+    })
+  }
+
+  it('a refused token is renewed once (apiFetch, as before), and the 200 that follows is read', async () => {
+    const seen: Seen = { events: [] }
+    const asked: string[] = []
+    renewTokensWith((stale) => {
+      asked.push(stale)
+      return Promise.resolve('fresh-token')
+    })
+    const sent: (string | null)[] = []
+    globalThis.fetch = (_url, init) => {
+      const authorization = new Headers(init?.headers).get('authorization')
+      sent.push(authorization)
+      return Promise.resolve(
+        authorization === 'Bearer fresh-token'
+          ? Response.json({ page: 1 })
+          : new Response(openBody(seen, null, 'settles'), { status: 401 }),
+      )
+    }
+    const value = await withinMs(500, memberCall(seen, { memberRead: true, token: 'stale-token' }))
+    assert.deepEqual(value, { page: 1 })
+    assert.deepEqual(asked, ['stale-token'])
+    assert.deepEqual(sent, ['Bearer stale-token', 'Bearer fresh-token'])
+    assert.deepEqual(seen.events, ['cancel', 'parse'])
+  })
+
+  it('a 401 after the one renewal is the refusal: never renewed again, never sent a third time', async () => {
+    const seen: Seen = { events: [] }
+    const asked: string[] = []
+    renewTokensWith((stale) => {
+      asked.push(stale)
+      return Promise.resolve(`${stale}-renewed`)
+    })
+    const sent: (string | null)[] = []
+    globalThis.fetch = (_url, init) => {
+      sent.push(new Headers(init?.headers).get('authorization'))
+      return Promise.resolve(watched(seen, openBody(seen, null, 'hangs'), 401))
+    }
+    const error = await refusedWithin(seen, memberCall(seen, { memberRead: true, token: 'stale-token' }))
+    assert.deepEqual([error.status, error.code, error.retry], [401, 'http_401', 'never'])
+    assert.deepEqual(asked, ['stale-token'])
+    assert.deepEqual(sent, ['Bearer stale-token', 'Bearer stale-token-renewed'])
+    assert.ok(!seen.events.some((e) => e.startsWith('read:') || e === 'parse'), seen.events.join(' '))
+  })
+
+  it('combined with protectedRead or doorRead, its own refusal wins: its status and never', async () => {
+    for (const [legacy, status] of [
+      [{ protectedRead: true }, 403],
+      [{ doorRead: true }, 401],
+      [{ doorRead: true }, 403],
+      [{ protectedRead: true, doorRead: true }, 403],
+      [{ protectedRead: true, doorRead: true }, 404],
+    ] as const) {
+      const seen: Seen = { events: [] }
+      answer(seen, () => watched(seen, openBody(seen, null, 'hangs'), status))
+      const error = await refusedWithin(seen, memberCall(seen, { ...legacy, memberRead: true }))
+      assert.deepEqual([error.status, error.code, error.retry], [status, `http_${status}`, 'never'], `${status}`)
+      assert.deepEqual(seen.events, ['fetch', 'cancel', 'refused'])
+    }
+  })
+
+  it('a successful member read is parsed exactly as without the option', async () => {
+    for (const init of [{ memberRead: true }, {}] as const) {
+      const seen: Seen = { events: [] }
+      answer(seen, () => Response.json({ observedAt: '2026-11-12T00:00:00Z', resources: [] }))
+      assert.deepEqual(await memberCall(seen, init), { observedAt: '2026-11-12T00:00:00Z', resources: [] })
+      assert.deepEqual(seen.events, ['fetch', 'parse'])
+    }
+  })
+
+  it('a reply that breaks the contract is still a contract violation, safe to read again', async () => {
+    answer({ events: [] }, () => Response.json({ observedAt: 7 }))
+    const error = await apiError(
+      callApi(MEMBER_PATH, { token: 't', method: 'GET', memberRead: true }, () => {
+        throw new Error('not a page')
+      }),
+    )
+    assert.deepEqual([error.status, error.code, error.retry], [200, 'contract_violation', 'safe_read'])
+  })
+})
+
+describe('without memberRead, and for what it doesn’t cover, nothing changes', () => {
+  afterEach(() => {
+    globalThis.fetch = realFetch
+  })
+
+  it('an ordinary 404 is still read from its body: a contract Error speaks, else the status', async () => {
+    const seen: Seen = { events: [] }
+    answer(seen, () => watched(seen, JSON.stringify(errorBody), 404))
+    const error = await refusedWithin(seen, memberCall(seen, {}))
+    assert.deepEqual(
+      [error.status, error.code, error.message, error.retry],
+      [404, 'not_found', errorBody.message, 'never'],
+    )
+    assert.deepEqual(seen.events, ['fetch', 'read:json', 'refused'])
+
+    const malformed: Seen = { events: [] }
+    answer(malformed, () => watched(malformed, '<html>missing</html>', 404))
+    const page = await refusedWithin(malformed, memberCall(malformed, {}))
+    assert.deepEqual([page.code, page.retry], ['http_404', 'never'])
+    assert.deepEqual(malformed.events, ['fetch', 'read:json', 'refused'])
+  })
+
+  it('protectedRead alone: 403 forbidden as before, a 404 still read from its body', async () => {
+    const seen: Seen = { events: [] }
+    answer(seen, () => watched(seen, openBody(seen, null, 'settles'), 403))
+    const error = await refusedWithin(seen, memberCall(seen, { protectedRead: true }))
+    assert.deepEqual([error.status, error.code, error.retry], [403, 'forbidden', 'safe_read'])
+
+    const missing: Seen = { events: [] }
+    answer(missing, () => watched(missing, JSON.stringify(errorBody), 404))
+    const read = await refusedWithin(missing, memberCall(missing, { protectedRead: true }))
+    assert.deepEqual([read.code, read.retry], ['not_found', 'never'])
+    assert.deepEqual(missing.events, ['fetch', 'read:json', 'refused'])
+  })
+
+  it('doorRead alone: 401 and 403 with their status as before, a 404 still read from its body', async () => {
+    for (const status of [401, 403]) {
+      const seen: Seen = { events: [] }
+      answer(seen, () => watched(seen, openBody(seen, null, 'settles'), status))
+      const error = await refusedWithin(seen, memberCall(seen, { doorRead: true }))
+      assert.deepEqual([error.status, error.code, error.retry], [status, `http_${status}`, 'safe_read'])
+    }
+    const missing: Seen = { events: [] }
+    answer(missing, () => watched(missing, JSON.stringify(errorBody), 404))
+    const read = await refusedWithin(missing, memberCall(missing, { doorRead: true }))
+    assert.deepEqual([read.code, read.retry], ['not_found', 'never'])
+    assert.deepEqual(missing.events, ['fetch', 'read:json', 'refused'])
+  })
+
+  it('a proxy’s 503 on a member read is still a failure to ask again, read as before', async () => {
+    for (const init of [{ memberRead: true }, {}] as const) {
+      const seen: Seen = { events: [] }
+      answer(seen, () => watched(seen, '<html>Service Unavailable</html>', 503))
+      const error = await refusedWithin(seen, memberCall(seen, init))
+      assert.deepEqual([error.status, error.code, error.retry], [503, 'http_503', 'safe_read'])
+      assert.deepEqual(seen.events, ['fetch', 'read:json', 'refused'])
+    }
+  })
+
+  it('memberRead on a write or a keyed admission changes nothing: its 404 and 503 are read as before', async () => {
+    for (const [init, retry503] of [
+      [{ method: 'POST', key: 'key-member' }, 'same_admission_key'],
+      [{ method: 'POST' }, 'never'],
+    ] as const) {
+      const missing: Seen = { events: [] }
+      answer(missing, () => watched(missing, JSON.stringify(errorBody), 404))
+      const read = await refusedWithin(missing, memberCall(missing, { ...init, memberRead: true }))
+      assert.deepEqual([read.code, read.retry], ['not_found', 'never'])
+      assert.deepEqual(missing.events, ['fetch', 'read:json', 'refused'])
+
+      const busy: Seen = { events: [] }
+      answer(busy, () => watched(busy, '<html>busy</html>', 503))
+      const failed = await refusedWithin(busy, memberCall(busy, { ...init, memberRead: true }))
+      assert.deepEqual([failed.code, failed.retry], ['http_503', retry503])
+    }
+  })
+
+  it('a member read still gives up at a read’s time, and ends at once when its caller stops waiting', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    silence()
+    const timed = apiError(memberCall({ events: [] }, { memberRead: true }))
+    t.mock.timers.tick(READ_TIMEOUT_MS)
+    assert.deepEqual([(await timed).code, (await timed).retry], ['outcome_unknown', 'safe_read'])
+
+    const caller = new AbortController()
+    const stopped = apiError(memberCall({ events: [] }, { memberRead: true, signal: caller.signal }))
+    caller.abort()
+    assert.deepEqual([(await stopped).code, (await stopped).retry], ['outcome_unknown', 'safe_read'])
   })
 })

@@ -20,6 +20,8 @@ import { OpeningPrepares } from './opening-prepares.ts'
 import type { Identity } from './dev-identity.ts'
 import { joinStands, projectOnScreen, shownView, type Place } from './route.ts'
 import { ATTENTION } from './attention.ts'
+import { NATIVE_RESOURCES } from './native-resources.ts'
+import { ProjectResources } from '../features/resources/ProjectResources.tsx'
 import { CONVERSATIONS, VISION } from './vision.ts'
 import { ShortcutScope } from './shortcuts.ts'
 import { SIGN_OUT_FAILED } from './sign-out.ts'
@@ -240,6 +242,19 @@ function ProjectShells(props: ShellsProps) {
               onCall={(next, note) => onCall(id, next, note)}
               joinOnOpen={joining === id}
               onJoinHandled={onJoinHandled}
+              // A51's catalog of native resources, read only, where the build reads it (NATIVE_RESOURCES, off by
+              // default): keyed by account and project, so another's rows never show here (INC01-DES-002).
+              resources={
+                NATIVE_RESOURCES ? (
+                  <ProjectResources
+                    key={`${accountOf(identity)}:${id}`}
+                    projectId={id}
+                    identity={identity}
+                    // A final 401's Sign in again: the same sign-out the project's expired notice offers (UX04).
+                    onSignIn={onSignOut}
+                  />
+                ) : undefined
+              }
             />
           </ShortcutScope.Provider>
         </div>

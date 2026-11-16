@@ -10,3 +10,10 @@ export {
   type PaperclipClient,
   type PluginAnswer,
 } from './coordination-dispatch.ts'
+export {
+  RunnerDispatcher,
+  runnerDispatchFromEnv,
+  runnerDispatchOnce,
+  type RunnerDispatchOptions,
+  type RunnerPass,
+} from './runner-dispatch.ts'

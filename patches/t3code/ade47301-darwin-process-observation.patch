@@ -1,0 +1,266 @@
+diff --git a/packages/provider-opencode/src/server/OpenCodeServerLedger.test.ts b/packages/provider-opencode/src/server/OpenCodeServerLedger.test.ts
+index 5ea1943a1cb9c328233bdfc94fc210e6a5a8a505..782119d49d3fe2782f7e760a4fef31f2d533aca0 100644
+--- a/packages/provider-opencode/src/server/OpenCodeServerLedger.test.ts
++++ b/packages/provider-opencode/src/server/OpenCodeServerLedger.test.ts
+@@ -1,16 +1,19 @@
+ // @effect-diagnostics nodeBuiltinImport:off
+ import * as NodeChildProcess from "node:child_process";
++import * as NodeModule from "node:module";
+ import * as NodeReadline from "node:readline";
+ 
+ import * as NodeServices from "@effect/platform-node/NodeServices";
+ import { describe, expect, it } from "@effect/vitest";
+ import * as HostProcess from "@t3tools/shared/HostProcess";
++import * as Cause from "effect/Cause";
+ import * as Deferred from "effect/Deferred";
+ import * as Effect from "effect/Effect";
+ import * as Exit from "effect/Exit";
+ import * as Fiber from "effect/Fiber";
+ import * as FileSystem from "effect/FileSystem";
+ import * as Layer from "effect/Layer";
++import * as Logger from "effect/Logger";
+ import * as Path from "effect/Path";
+ import * as Scope from "effect/Scope";
+ import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
+@@ -289,3 +292,191 @@ describe.skipIf(observedPlatforms.length === 0)("OpenCode server startup", () =>
+     }).pipe(Effect.provide(NodeServices.layer)),
+   );
+ });
++
++// A confined macOS host refuses to exec the setuid /bin/ps: Node's spawn throws EPERM synchronously
++// (syscall "spawn"). These tests keep the real Node spawner and answer only its /bin/ps call that way.
++const nodeChildProcess = NodeModule.createRequire(import.meta.url)(
++  "node:child_process",
++) as typeof NodeChildProcess;
++
++const errnoException = (code: string, syscall: string) =>
++  Object.assign(new Error(`${syscall} ${code}`), { errno: -1, code, syscall });
++
++const answerPs = (
++  answer: (original: typeof NodeChildProcess.spawn) => NodeChildProcess.ChildProcess,
++) =>
++  Effect.acquireRelease(
++    Effect.sync(() => {
++      const original = nodeChildProcess.spawn;
++      nodeChildProcess.spawn = ((file: string, ...rest: ReadonlyArray<unknown>) =>
++        file === "/bin/ps"
++          ? answer(original)
++          : Reflect.apply(original, nodeChildProcess, [file, ...rest])) as typeof original;
++      NodeModule.syncBuiltinESMExports();
++      return original;
++    }),
++    (original) =>
++      Effect.sync(() => {
++        nodeChildProcess.spawn = original;
++        NodeModule.syncBuiltinESMExports();
++      }),
++  );
++
++const refusePs = (thrown: unknown) =>
++  answerPs(() => {
++    throw thrown;
++  });
++
++const OWNER_UNKNOWN = "Could not observe this server's own process";
++
++// The warnings logged while the effect runs, by their message.
++const capturingWarnings = <A, E, R>(
++  effect: (warnings: ReadonlyArray<string>) => Effect.Effect<A, E, R>,
++) => {
++  const warnings: Array<string> = [];
++  const logger = Logger.make(({ logLevel, message }) => {
++    if (logLevel !== "Warn") return;
++    for (const part of Array.isArray(message) ? message : [message]) {
++      if (typeof part === "string") warnings.push(part);
++    }
++  });
++  return effect(warnings).pipe(
++    Effect.provide(Logger.layer([logger], { mergeWithExisting: false })),
++  );
++};
++
++const entriesIn = (stateDir: string) =>
++  Effect.gen(function* () {
++    const fs = yield* FileSystem.FileSystem;
++    const path = yield* Path.Path;
++    return yield* fs
++      .readDirectory(path.join(stateDir, "opencode-servers"))
++      .pipe(Effect.orElseSucceed((): ReadonlyArray<string> => []));
++  });
++
++describe.skipIf(!observedPlatforms.includes("darwin"))(
++  "OpenCodeServerLedger when the host refuses to run ps",
++  () => {
++    const provideDarwin = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
++      effect.pipe(
++        Effect.provideService(HostProcess.Platform, "darwin"),
++        Effect.provide(NodeServices.layer),
++      );
++
++    it.live("records its own identity when ps answers", () =>
++      Effect.gen(function* () {
++        const fs = yield* FileSystem.FileSystem;
++        const path = yield* Path.Path;
++        const stateDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-opencode-ledger-" });
++        const ledger = yield* OpenCodeServerLedger.make({ stateDir });
++        const server = yield* spawnGroup(SERVE_ARGS);
++        const forget = yield* ledger.track({ pid: server.pid, port: 4096, args: SERVE_ARGS });
++        const entry = JSON.parse(
++          yield* fs.readFileString(path.join(stateDir, "opencode-servers", `${server.pid}.json`)),
++        );
++        expect(entry.owner.pid).toBe(process.pid);
++        expect(entry.owner.startTime).not.toBe("");
++        yield* forget;
++        expect(yield* entriesIn(stateDir)).toEqual([]);
++      }).pipe(provideDarwin),
++    );
++
++    it.live("starts with its own identity unknown and records nothing", () =>
++      capturingWarnings((warnings) =>
++        Effect.gen(function* () {
++          const fs = yield* FileSystem.FileSystem;
++          const stateDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-opencode-ledger-" });
++          yield* refusePs(errnoException("EPERM", "spawn"));
++          const started = yield* Effect.exit(OpenCodeServerLedger.make({ stateDir }));
++          expect(
++            Exit.isSuccess(started),
++            Exit.isFailure(started) ? Cause.pretty(started.cause) : "",
++          ).toBe(true);
++          if (!Exit.isSuccess(started)) return;
++          const server = yield* spawnGroup(SERVE_ARGS);
++          const forget = yield* started.value.track({
++            pid: server.pid,
++            port: 4096,
++            args: SERVE_ARGS,
++          });
++          yield* forget;
++          expect(yield* entriesIn(stateDir)).toEqual([]);
++          expect(groupExists(server.pid)).toBe(true);
++          expect(warnings.filter((w) => w.startsWith(OWNER_UNKNOWN))).toHaveLength(1);
++        }),
++      ).pipe(provideDarwin),
++    );
++
++    it.live("leaves a recorded server running and recorded when ps is refused", () =>
++      Effect.gen(function* () {
++        const fs = yield* FileSystem.FileSystem;
++        const stateDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-opencode-ledger-" });
++        const orphan = yield* spawnGroup(SERVE_ARGS);
++        yield* recordFromDeadServer(stateDir, orphan);
++        const recorded = yield* entriesIn(stateDir);
++        expect(recorded).toHaveLength(1);
++
++        yield* refusePs(errnoException("EPERM", "spawn"));
++        const started = yield* Effect.exit(OpenCodeServerLedger.make({ stateDir }));
++        expect(
++          Exit.isSuccess(started),
++          Exit.isFailure(started) ? Cause.pretty(started.cause) : "",
++        ).toBe(true);
++        if (!Exit.isSuccess(started)) return;
++        yield* started.value.reapOrphans;
++
++        expect(groupExists(orphan.pid)).toBe(true);
++        expect(yield* entriesIn(stateDir)).toEqual(recorded);
++      }).pipe(provideDarwin),
++    );
++
++    it.live("still fails to start on any other synchronous spawn failure or defect", () =>
++      Effect.gen(function* () {
++        const fs = yield* FileSystem.FileSystem;
++        const stateDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-opencode-ledger-" });
++        for (const thrown of [
++          errnoException("EACCES", "spawn"),
++          errnoException("EPERM", "kill"),
++          Object.assign(new TypeError("spawn EPERM"), { code: "EPERM" }),
++          { code: "EPERM", syscall: "spawn" },
++        ]) {
++          const started = yield* Effect.scoped(
++            refusePs(thrown).pipe(
++              Effect.andThen(Effect.exit(OpenCodeServerLedger.make({ stateDir }))),
++            ),
++          );
++          expect(Exit.isFailure(started)).toBe(true);
++          if (Exit.isFailure(started)) expect(Cause.squash(started.cause)).toBe(thrown);
++        }
++      }).pipe(provideDarwin),
++    );
++
++    it.live("stays interruptible while it observes its own process", () =>
++      capturingWarnings((warnings) =>
++        Effect.gen(function* () {
++          const fs = yield* FileSystem.FileSystem;
++          const stateDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-opencode-ledger-" });
++          const observing = yield* Deferred.make<number>();
++          // A ps that never answers: the observation is still running when startup is interrupted.
++          yield* answerPs((original) => {
++            const child = original("/bin/sh", ["-c", "sleep 600"], { stdio: "ignore" });
++            if (child.pid !== undefined) Deferred.doneUnsafe(observing, Effect.succeed(child.pid));
++            return child;
++          });
++          const starting = yield* OpenCodeServerLedger.make({ stateDir }).pipe(Effect.forkChild);
++          const pid = yield* Deferred.await(observing);
++          yield* Fiber.interrupt(starting);
++          const started = yield* Fiber.await(starting);
++          expect(Exit.isFailure(started) && Cause.hasInterruptsOnly(started.cause)).toBe(true);
++          yield* Effect.sync(() => {
++            try {
++              process.kill(pid, "SIGKILL");
++            } catch {}
++          });
++          // An interrupted observation is not a refused one: no unknown owner is claimed.
++          expect(warnings.filter((w) => w.startsWith(OWNER_UNKNOWN))).toEqual([]);
++        }),
++      ).pipe(provideDarwin),
++    );
++  },
++);
+diff --git a/packages/provider-opencode/src/server/OpenCodeServerLedger.ts b/packages/provider-opencode/src/server/OpenCodeServerLedger.ts
+index af90d19acd67d283487bb4618b829353a6df9a8f..1667c3140a818f8d99e4d4ae121b0c08372873ea 100644
+--- a/packages/provider-opencode/src/server/OpenCodeServerLedger.ts
++++ b/packages/provider-opencode/src/server/OpenCodeServerLedger.ts
+@@ -1,4 +1,5 @@
+ import * as HostProcess from "@t3tools/shared/HostProcess";
++import * as Cause from "effect/Cause";
+ import * as Context from "effect/Context";
+ import * as Effect from "effect/Effect";
+ import * as FileSystem from "effect/FileSystem";
+@@ -73,6 +74,21 @@ const parseDarwinPs = (output: string): ReadonlyArray<ObservedProcess> =>
+     ];
+   });
+ 
++// A host that refuses to exec a file makes Node's spawn throw EPERM synchronously (syscall "spawn"),
++// as a sandbox profile denying setuid-marked executables does for macOS's /bin/ps. The Node spawner
++// calls spawn inside Effect.callback, so the refusal arrives as a defect, which orElseSucceed does
++// not absorb. Only a cause that is exactly that one defect matches; interruption never does.
++const isRefusedSpawn = (cause: Cause.Cause<never>) => {
++  const [reason, ...others] = cause.reasons;
++  if (reason === undefined || others.length > 0 || !Cause.isDieReason(reason)) return false;
++  const defect = reason.defect;
++  return (
++    defect instanceof Error &&
++    (defect as NodeJS.ErrnoException).code === "EPERM" &&
++    (defect as NodeJS.ErrnoException).syscall === "spawn"
++  );
++};
++
+ const signalGroup = (pgid: number, signal: NodeJS.Signals) => {
+   try {
+     signalProcessGroup(pgid, signal);
+@@ -179,7 +195,16 @@ export const make = Effect.fn("OpenCodeServerLedger.make")(function* (input: {
+     );
+ 
+   const ownerPid = input.ownerPid ?? process.pid;
+-  const ownerProcess = yield* observe(ownerPid);
++  // A refused own-process observation leaves the owner unknown, as a failed one already does: track
++  // then records nothing, and nothing is reaped on an observation that could not be made.
++  const ownerProcess = yield* observe(ownerPid).pipe(
++    Effect.catchCauseIf(isRefusedSpawn, () =>
++      Effect.logWarning(
++        "Could not observe this server's own process; OpenCode servers it starts will not be recorded",
++        { pid: ownerPid },
++      ).pipe(Effect.as(undefined)),
++    ),
++  );
+   const owner =
+     ownerProcess === undefined ? undefined : { pid: ownerPid, startTime: ownerProcess.startTime };
+ 

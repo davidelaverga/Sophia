@@ -226,8 +226,9 @@ describe('finding a resource among many', () => {
 
   it('says what a resource does in one line', () => {
     assert.equal(activity(claude), 'Implement the PDF retry · 2 sessions')
-    assert.equal(activity({ ...claude, sessions: claude.sessions.slice(0, 1) }), 'Implement the PDF retry')
-    const idle = { ...claude, sessions: claude.sessions.map((s) => ({ ...s, assignment: null })) } as Resource
+    const sessions = claude.sessions ?? []
+    assert.equal(activity({ ...claude, sessions: sessions.slice(0, 1) }), 'Implement the PDF retry')
+    const idle = { ...claude, sessions: sessions.map((s) => ({ ...s, assignment: null })) } as Resource
     assert.equal(activity(idle), '2 sessions, none assigned')
   })
 })

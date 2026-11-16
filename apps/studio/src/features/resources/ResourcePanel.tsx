@@ -23,6 +23,7 @@ import { SortMenu } from './SortMenu.tsx'
 import { TileGrid } from './TileGrid.tsx'
 import {
   anyLive,
+  CATALOG_SCOPE,
   FILTER_LABEL,
   FILTERS,
   inFilter,
@@ -37,13 +38,33 @@ import {
   type Resource,
 } from './resource.ts'
 import { ToolLogo } from './ToolLogo.tsx'
+import type { PartialWhy } from './native-catalog.ts'
+import { CATALOG_ENROLLMENT } from './status-words.ts'
+import { clock } from '../../app/time-words.ts'
 import './resources.css'
+
+/**
+ * Where the resources come from A51's catalog (INC01-DES-002): how far its pages were read, and the ways to read on. The
+ * panel then keeps nothing in this browser (no last look, no kept filter or order), offers only the filters whose facts
+ * it reports, and says what it doesn't report.
+ */
+export interface CatalogRead {
+  status: 'complete' | 'more' | 'partial'
+  /** A More read under way. */
+  reading: boolean
+  partial: PartialWhy | null
+  /** When the last page read was observed: said with a partial read. */
+  lastObservedAt: string | null
+  onMore: () => void
+  onRetry: () => void
+}
 
 interface Props {
   resources: Resource[]
   /** The latest observation per account; an account without one shows its capacity as unknown. */
   observations: QuotaObservation[]
-  actions: RequiredAction[]
+  /** The requests waiting on owners; null where they aren't reported (the catalog): never "nothing waiting". */
+  actions: RequiredAction[] | null
   /** Who is looking: only an action's owner is told how to answer it, and their own resource says "You". */
   viewerId: string
   /** When the data was read: the view's clock starts here and moves on while the page is open (clock.ts). */
@@ -65,7 +86,12 @@ interface Props {
   projectId?: string
   /** Where the viewer's last look is kept (LFE-06.7): the project's id, so two projects' never mix. */
   scope?: string
+  /** Read from A51's catalog, how far (INC01-DES-002); absent for every other source. */
+  catalog?: CatalogRead
 }
+
+/** The requests known to the panel's parts: none where they aren't reported, which no part then says as none. */
+const known = (actions: Props['actions']): RequiredAction[] => actions ?? []
 
 /** The panel's commands, for the project its scope names, in the space Tasks shares (command-store.ts). */
 const usePanelActs = ({ onAct, projectId, viewerId }: Props) =>
@@ -76,20 +102,27 @@ const usePanelActs = ({ onAct, projectId, viewerId }: Props) =>
  * that moved. A first visit, once the resources are read, remembers them as they are and says nothing.
  */
 function useAway(props: Props) {
-  const { resources, actions, observations, viewerId, now, loading = false, scope = 'resources' } = props
+  const { resources, observations, viewerId, now, loading = false, scope = 'resources' } = props
+  const actions = known(props.actions)
+  // The catalog's view keeps nothing in this browser: no last look is read or written (INC01-DES-002).
+  const keeps = !props.catalog
   // Kept for whose look, where: another scope or viewer reads its own.
   const at = `${scope}.${viewerId}`
-  const [kept, setKept] = useState(() => ({ at, seen: readSeen(scope, viewerId) }))
-  const seen = kept.at === at ? kept.seen : readSeen(scope, viewerId)
-  const keep = (glanced: Seen) => setKept({ at, seen: writeSeen(scope, viewerId, glanced) })
+  const [kept, setKept] = useState(() => ({ at, seen: keeps ? readSeen(scope, viewerId) : null }))
+  const seen = !keeps ? null : kept.at === at ? kept.seen : readSeen(scope, viewerId)
+  const keep = (glanced: Seen) => {
+    if (keeps) setKept({ at, seen: writeSeen(scope, viewerId, glanced) })
+  }
   const current = glance(resources, actions, observations, now)
   // Read, even with nothing enrolled yet: one enrolled later is then new here.
-  const first = !seen && !loading
+  const first = keeps && !seen && !loading
   useEffect(() => {
     if (first) setKept({ at, seen: writeSeen(scope, viewerId, glance(resources, actions, observations, now)) })
   }, [first, at, scope, viewerId, resources, actions, observations, now])
-  const line = loading ? null : whileAway({ resources, actions, observations, now: current, seen, at: now, viewerId })
+  const line =
+    loading || !keeps ? null : whileAway({ resources, actions, observations, now: current, seen, at: now, viewerId })
   return {
+    keeps,
     since: line?.ids ?? new Set<string>(),
     line: line ?? { phrases: [], more: 0 },
     markSeen: () => keep(current),
@@ -105,7 +138,8 @@ function Attention({
   actions,
   viewerId,
   onOpen,
-}: Pick<Props, 'resources' | 'actions' | 'viewerId'> & {
+}: Pick<Props, 'resources' | 'viewerId'> & {
+  actions: RequiredAction[]
   onOpen: (id: string) => void
 }) {
   const waiting = resources.filter((r) => openOn(actions, r.id) > 0)
@@ -138,15 +172,25 @@ interface FiltersProps {
   filter: Filter
   counts: Record<Filter, number>
   onChange: (f: Filter) => void
+  /** The filters offered: all four, or only those whose facts are reported. */
+  filters: readonly Filter[]
+  /** Their counts are of the rows read so far, not the whole catalog (UX03). */
+  loaded?: boolean
 }
 
-function Filters({ filter, counts, onChange }: FiltersProps) {
+/**
+ * The catalog's filters (INC01-DES-002): all, and the viewer's own. It reports no requests and no host online, so it
+ * offers no Waiting or Online to count as none.
+ */
+const CATALOG_FILTERS: readonly Filter[] = ['all', 'mine']
+
+function Filters({ filter, counts, onChange, filters, loaded = false }: FiltersProps) {
   return (
     <Segmented
       role="tablist"
-      label="Show"
+      label={loaded ? 'Show loaded' : 'Show'}
       className="resource-filters"
-      items={FILTERS.map((f) => ({ id: f, label: FILTER_LABEL[f], count: counts[f], controls: 'resource-grid' }))}
+      items={filters.map((f) => ({ id: f, label: FILTER_LABEL[f], count: counts[f], controls: 'resource-grid' }))}
       value={filter}
       onChange={onChange}
     />
@@ -156,10 +200,12 @@ function Filters({ filter, counts, onChange }: FiltersProps) {
 interface SearchProps {
   query: string
   onChange: (q: string) => void
+  /** What it searches: the catalog's tools and owners only (UX03), or a richer source's work too. */
+  scope?: 'catalog' | 'all'
 }
 
 /** The search, focused with "/" from anywhere on the view; Escape clears it, then leaves it. */
-function Search({ query, onChange }: SearchProps) {
+function Search({ query, onChange, scope = 'all' }: SearchProps) {
   const input = useRef<HTMLInputElement>(null)
   useCommands([
     {
@@ -182,7 +228,7 @@ function Search({ query, onChange }: SearchProps) {
       className="resource-search"
       aria-label="Search resources"
       aria-keyshortcuts="/"
-      placeholder="Search tools, owners, work…"
+      placeholder={scope === 'catalog' ? 'Search tools or owners…' : 'Search tools, owners, work…'}
       value={query}
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={onKeyDown}
@@ -196,13 +242,32 @@ interface NoneProps {
   filter: Filter
   onClear: () => void
   onAll: () => void
+  /** The catalog, while rows remain unread (UX03): no match is said of what was loaded, with the way to read on. */
+  unread?: CatalogRead | undefined
 }
 
-/** Nothing shown: said, with the way back to what is there. */
-function None({ query, filter, onClear, onAll }: NoneProps) {
+/** Nothing shown among the rows loaded, while more remain unread: said of those, with the next read (UX03). */
+function NoneLoaded({ query, filter, read }: Pick<NoneProps, 'query' | 'filter'> & { read: CatalogRead }) {
+  const what = query ? `Nothing loaded matches “${query}”.` : `Nothing loaded under ${FILTER_LABEL[filter]}.`
   return (
-    <div className="resources-none">
-      <p>{query ? `Nothing matches “${query}”` : `Nothing here under ${FILTER_LABEL[filter]}`}</p>
+    <>
+      <p>
+        {what} {read.status === 'more' ? 'More resources aren’t read yet.' : 'The rest couldn’t be read.'}
+      </p>
+      <ReadOn read={read} />
+    </>
+  )
+}
+
+/** Nothing shown: said, with the way back to what is there, and, while rows remain unread, the way to read on. */
+function None({ query, filter, onClear, onAll, unread: read }: NoneProps) {
+  return (
+    <div className="resources-none" data-none={read ? 'loaded' : 'all'}>
+      {read ? (
+        <NoneLoaded query={query} filter={filter} read={read} />
+      ) : (
+        <p>{query ? `Nothing matches “${query}”` : `Nothing here under ${FILTER_LABEL[filter]}`}</p>
+      )}
       {query && (
         <button type="button" className="text-button" onClick={onClear}>
           Clear search
@@ -217,13 +282,21 @@ function None({ query, filter, onClear, onAll }: NoneProps) {
   )
 }
 
-function useView({ resources, actions, viewerId }: Props) {
+/** What a view starts from where nothing of the viewer's is kept (the catalog): every resource, by attention. */
+const FRESH = { filter: 'all' as Filter, order: 'attention' as Order, custom: [] as string[] }
+
+function useView({ resources, viewerId, catalog, actions: given }: Props) {
+  const actions = known(given)
+  // The catalog's view keeps nothing in this browser: its filter and order aren't read or saved (INC01-DES-002).
+  const keeps = !catalog
   const [query, setQuery] = useState('')
-  const [kept] = useState(() => readPrefs(viewerId))
+  const [kept] = useState(() => (keeps ? readPrefs(viewerId) : FRESH))
   const [filter, setFilter] = useState<Filter>(kept.filter)
   const [order, setOrder] = useState<Order>(kept.order)
   const [custom, setCustom] = useState<string[]>(kept.custom)
-  useEffect(() => savePrefs(viewerId, { filter, order, custom }), [viewerId, filter, order, custom])
+  useEffect(() => {
+    if (keeps) savePrefs(viewerId, { filter, order, custom })
+  }, [keeps, viewerId, filter, order, custom])
   const found = resources.filter((r) => matches(r, query))
   const count = (f: Filter) => found.filter((r) => inFilter(f, r, actions, viewerId)).length
   const counts: Record<Filter, number> = {
@@ -260,16 +333,24 @@ type View = ReturnType<typeof useView>
 type Shown = Props & { onOpen: (id: string) => void; view: View; since: ReadonlySet<string> }
 
 function Browse(props: Shown) {
-  const { resources, observations, actions, viewerId, now, onOpen, view, since } = props
+  const { resources, observations, viewerId, now, onOpen, view, since } = props
+  const actions = known(props.actions)
+  const unread = props.catalog && props.catalog.status !== 'complete' ? props.catalog : undefined
   return (
     <>
       <div className="resources-toolbar">
-        <Search query={view.query} onChange={view.setQuery} />
-        <Filters filter={view.filter} counts={view.counts} onChange={(f) => moving(() => view.setFilter(f))} />
+        <Search query={view.query} onChange={view.setQuery} scope={props.catalog ? 'catalog' : 'all'} />
+        <Filters
+          filter={view.filter}
+          counts={view.counts}
+          onChange={(f) => moving(() => view.setFilter(f))}
+          filters={props.catalog ? CATALOG_FILTERS : FILTERS}
+          loaded={unread !== undefined}
+        />
         <SortMenu order={view.order} onChange={(o) => moving(() => view.setOrder(o))} />
       </div>
       <p className="sr-only" aria-live="polite">
-        {view.shown.length} of {plural(resources.length, 'resource')} shown
+        {view.shown.length} of {plural(resources.length, unread ? 'loaded resource' : 'resource')} shown
       </p>
       {view.shown.length === 0 ? (
         <None
@@ -277,6 +358,7 @@ function Browse(props: Shown) {
           filter={view.filter}
           onClear={() => moving(() => view.setQuery(''))}
           onAll={() => moving(() => view.setFilter('all'))}
+          unread={unread}
         />
       ) : (
         <TileGrid
@@ -302,10 +384,47 @@ function Placeholders() {
 }
 
 /** What the view shows under its head: placeholders while reading, the empty note, or the tiles to browse. */
+/**
+ * The catalog read, with no row shown, when it isn't complete (DES002-F01): a first page with none that says more
+ * follows is never an empty catalog. Said as such, when it was read, with a new read to try.
+ */
+function Incomplete({ read }: { read: CatalogRead }) {
+  const at = read.lastObservedAt
+  return (
+    <div className="resources-read" role="status" data-read="incomplete">
+      <p>
+        The resources couldn’t be read in full, so none is shown.
+        {at && (
+          <>
+            {' '}
+            Read at <time dateTime={at}>{clock(at)}</time>.
+          </>
+        )}
+      </p>
+      <button type="button" className="text-button" onClick={read.onRetry}>
+        Try again
+      </button>
+    </div>
+  )
+}
+
+/** Whether no row is shown because the catalog wasn't read in full: never an empty catalog then. */
+const unread = ({ catalog, resources }: { catalog: CatalogRead | undefined; resources: Resource[] }) =>
+  resources.length === 0 && catalog !== undefined && catalog.status !== 'complete'
+
 function Body(props: Shown) {
   if (props.loading) return <Placeholders />
+  if (props.catalog && unread({ catalog: props.catalog, resources: props.resources })) {
+    return <Incomplete read={props.catalog} />
+  }
   if (props.resources.length === 0) {
-    return <EmptyState>No tool is enrolled for this project yet. An owner enrolls one from their own host.</EmptyState>
+    // Only an observed complete empty catalog, or known data with none, says so; the catalog with how one comes to be
+    // listed (UX04), as no enrollment is offered here.
+    return props.catalog ? (
+      <EmptyState>No tool is enrolled for this project yet. {CATALOG_ENROLLMENT}</EmptyState>
+    ) : (
+      <EmptyState>No tool is enrolled for this project yet. An owner enrolls one from their own host.</EmptyState>
+    )
   }
   return <Browse {...props} />
 }
@@ -377,10 +496,120 @@ function useAddressedRequest(
   }, [named, actions, resources, setOpen])
 }
 
+/** The catalog's way to read on, where rows remain unread: the next page, or a new read after one failed. */
+function ReadOn({ read }: { read: CatalogRead }) {
+  if (read.status === 'more') {
+    return (
+      <button type="button" className="text-button" onClick={read.onMore} disabled={read.reading}>
+        {read.reading ? 'Reading more resources…' : 'More resources'}
+      </button>
+    )
+  }
+  return (
+    <button type="button" className="text-button" onClick={read.onRetry}>
+      Try again
+    </button>
+  )
+}
+
+/**
+ * Under the catalog's head, before its toolbar and tiles (UX05): while rows remain unread, how many are loaded, and
+ * either more to read, with More resources, or that the rest couldn't be read, when, with Try again. Said here once,
+ * where a phone shows it first; nothing under the tiles repeats it. Nothing when every page was read.
+ */
+function CatalogCue({ read, loaded }: { read: CatalogRead; loaded: number }) {
+  if (read.status === 'complete') return null
+  const at = read.lastObservedAt
+  return (
+    <div
+      className={read.status === 'partial' ? 'resources-cue resources-partial' : 'resources-cue'}
+      role="status"
+      data-read={read.status}
+    >
+      <p>
+        <span className="resources-cue-count">{loaded} loaded</span>
+        {' · '}
+        {read.status === 'more'
+          ? 'more not read yet'
+          : read.partial === 'inconsistent'
+            ? 'the rest couldn’t be read consistently.'
+            : 'couldn’t read the rest.'}
+        {read.status === 'partial' && at && (
+          <>
+            {' '}
+            Shown as read at <time dateTime={at}>{clock(at)}</time>.
+          </>
+        )}
+      </p>
+      <ReadOn read={read} />
+    </div>
+  )
+}
+
+/** What the catalog is, under its head (UX01): said once, in the panel and in every read notice (ProjectResources). */
+export function CatalogScope() {
+  return <p className="resources-scope">{CATALOG_SCOPE}</p>
+}
+
+/**
+ * The view's head: how many, and beside it what waits; for the catalog, how many are loaded while more remain unread
+ * (UX03), and under it what the catalog is (UX01), at every width.
+ */
+function ViewHead({
+  resources,
+  actions,
+  loading,
+  catalog,
+}: Pick<Props, 'resources'> & {
+  actions: RequiredAction[]
+  loading: boolean | undefined
+  catalog: CatalogRead | undefined
+}) {
+  const count =
+    loading || unread({ catalog, resources })
+      ? '–'
+      : catalog && catalog.status !== 'complete'
+        ? `${resources.length} loaded`
+        : resources.length
+  return (
+    <>
+      <header className="view-head">
+        <h2 id="resources-title">Resources</h2>
+        <span className="count">{count}</span>
+        {!loading && !catalog && <span className="resources-summary">{summary(resources, actions)}</span>}
+      </header>
+      {catalog && <CatalogScope />}
+    </>
+  )
+}
+
+/**
+ * The lines under the head, once read: what waits on an owner, where requests are reported; what changed since the
+ * viewer last looked, where a look is kept (never for the catalog, which keeps nothing in this browser).
+ */
+function Lines({
+  resources,
+  actions,
+  viewerId,
+  away,
+  onOpen,
+}: Pick<Props, 'resources' | 'actions' | 'viewerId'> & {
+  away: ReturnType<typeof useAway>
+  onOpen: (id: string | null) => void
+}) {
+  return (
+    <>
+      {actions !== null && <Attention resources={resources} actions={actions} viewerId={viewerId} onOpen={onOpen} />}
+      {away.keeps && <AwayLine away={away.line} onSeen={away.markSeen} className="resources-away" />}
+    </>
+  )
+}
+
 export function ResourcePanel(given: Props) {
   const now = useViewClock(given)
   const props = { ...given, now }
-  const { resources, observations, actions, viewerId } = props
+  const { resources, observations, viewerId } = props
+  const actions = known(props.actions)
   // The address's resource is kept until the resources are read; it opens when it is among them.
   const [open, setOpen] = useState<string | null>(() => linkedId(window.location.hash))
   useAddressedRequest(actions, resources, setOpen)
@@ -404,13 +633,13 @@ export function ResourcePanel(given: Props) {
       <p className="sr-only" role="status">
         {ultra ? 'Ultracode, for everyone, for a moment.' : ''}
       </p>
-      <header className="view-head">
-        <h2 id="resources-title">Resources</h2>
-        <span className="count">{props.loading ? '–' : resources.length}</span>
-        {!props.loading && <span className="resources-summary">{summary(resources, actions)}</span>}
-      </header>
-      {!props.loading && <Attention resources={resources} actions={actions} viewerId={viewerId} onOpen={show} />}
-      {!props.loading && <AwayLine away={away.line} onSeen={away.markSeen} className="resources-away" />}
+      <ViewHead resources={resources} actions={actions} loading={props.loading} catalog={props.catalog} />
+      {!props.loading && props.catalog && resources.length > 0 && (
+        <CatalogCue read={props.catalog} loaded={resources.length} />
+      )}
+      {!props.loading && (
+        <Lines resources={resources} actions={props.actions} viewerId={viewerId} away={away} onOpen={show} />
+      )}
       <Body {...props} onOpen={show} view={view} since={away.since} />
       {selected && !props.loading && (
         <ResourceSheet

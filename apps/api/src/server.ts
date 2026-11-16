@@ -74,6 +74,17 @@ function voiceQualificationFromEnv(): boolean {
   if (value !== 'on') throw new Error('SOPHIA_VOICE_QUALIFICATION is on, off or unset')
   return true
 }
+/**
+ * New owner-runner work (A47, 0092): unset or off refuses new creates and inputs; admit admits them. Either way a
+ * qualified owner's Stop is still admitted with all its checks, and the owner keeps reading work already admitted, so
+ * turning admissions off never hides admitted, uncertain or settling work, nor takes away its Stop.
+ */
+function ownerRunnerAdmissionsFromEnv(): 'off' | 'admit' {
+  const value = optional('SOPHIA_OWNER_RUNNERS')
+  if (value === undefined || value === 'off') return 'off'
+  if (value !== 'admit') throw new Error('SOPHIA_OWNER_RUNNERS is off, admit or unset')
+  return value
+}
 const app = buildApp({
   pool,
   logger: true,
@@ -89,6 +100,7 @@ const app = buildApp({
   commit: /^[0-9a-f]{40}$/.test(process.env.RENDER_GIT_COMMIT ?? '') ? (process.env.RENDER_GIT_COMMIT ?? null) : null,
   // Voice qualification evidence (A45, 0085): on only by the operator's batch, with 0085 applied.
   voiceQualification: voiceQualificationFromEnv(),
+  ownerRunnerAdmissions: ownerRunnerAdmissionsFromEnv(),
   ...(mediaBridgeTokenSha256 ? { mediaBridgeTokenSha256 } : {}),
   ...(livekitUrl
     ? { livekit: { url: livekitUrl, apiKey: required('LIVEKIT_API_KEY'), apiSecret: required('LIVEKIT_API_SECRET') } }

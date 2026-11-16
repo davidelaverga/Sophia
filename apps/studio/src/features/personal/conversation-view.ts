@@ -44,6 +44,8 @@ export type Row =
     }
   | { kind: 'typing'; key: string; first: boolean }
   | { kind: 'failed'; key: string; turnId: string }
+  /** Under a message of yours kept without asking her (A52's `recorded`): said quietly, nothing to press, no wait. */
+  | { kind: 'recorded'; key: string; turnId: string }
   | {
       kind: 'suggestion'
       key: string
@@ -53,6 +55,12 @@ export type Row =
     }
 
 const DAY_MS = 86_400_000
+
+/** What a message kept without asking Sophia says under it: kept, and that she was not asked (nor is she writing). */
+export const RECORDED = 'Kept — not asked yet'
+
+/** A message of yours kept without asking her (A52): it waits for nothing, and nothing is written from it. */
+export const held = (turn: PersonalTurn): boolean => turn.author === 'person' && turn.reply === 'recorded'
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
 
@@ -269,6 +277,10 @@ export function conversationRows(input: ConversationInput): Row[] {
       layout.rows.push({ kind: 'failed', key: `failed-${turn.id}`, turnId: turn.id })
       layout.lastSide = null
     }
+    if (held(turn)) {
+      layout.rows.push({ kind: 'recorded', key: `recorded-${turn.id}`, turnId: turn.id })
+      layout.lastSide = null
+    }
     const movedOn = !!sending || i < lastAsked
     addSuggestion(layout, turn, movedOn)
   })
@@ -301,9 +313,12 @@ export function opensWithIntro(turns: readonly PersonalTurn[], earlier: boolean,
   return !earlier && startOfDay(new Date(first.createdAt)) === startOfDay(now)
 }
 
-/** A welcome back is due: the last turn is more than an hour old and is not already one (the server decides too). */
+/**
+ * A welcome back is due: the last turn, messages kept without asking her aside (as the server, 0099), is more than an
+ * hour old and is not already one (the server decides too).
+ */
 export function welcomeDue(turns: readonly PersonalTurn[], now: Date): boolean {
-  const last = turns.at(-1)
+  const last = turns.findLast((t) => !held(t))
   if (!last) return false
   const greeting = last.author === 'sophia' && last.replyTo === null
   return !greeting && now.getTime() - new Date(last.createdAt).getTime() > 3_600_000

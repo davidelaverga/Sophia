@@ -45,12 +45,13 @@ const KEPT = 4
 export const withActivity = (list: Resource[]): Resource[] =>
   list.map((r) => ({
     ...r,
-    sessions: r.sessions.map((s) => {
-      const a = ACTIVITY[s.id]
-      if (!a) return s
-      const recent = a.earlier.map(([said, ago]) => ({ said, observedAt: before(ago) }))
-      return { ...s, activity: { said: a.said, observedAt: before(a.ago) }, recent }
-    }),
+    sessions:
+      r.sessions?.map((s) => {
+        const a = ACTIVITY[s.id]
+        if (!a) return s
+        const recent = a.earlier.map(([said, ago]) => ({ said, observedAt: before(ago) }))
+        return { ...s, activity: { said: a.said, observedAt: before(a.ago) }, recent }
+      }) ?? null,
   }))
 
 /** Codex's reviewer goes on reading, one file after another, as its tool would report it. */
@@ -65,15 +66,16 @@ const READING = [
 export const nextActivity = (list: Resource[], at: Date, n: number): Resource[] =>
   list.map((r) => ({
     ...r,
-    sessions: r.sessions.map((s) =>
-      s.id === 'codex-reviewer'
-        ? {
-            ...s,
-            activity: { said: READING[n % READING.length] ?? 'Reading', observedAt: at.toISOString() },
-            recent: [...(s.activity ? [s.activity] : []), ...(s.recent ?? [])].slice(0, KEPT),
-          }
-        : s,
-    ),
+    sessions:
+      r.sessions?.map((s) =>
+        s.id === 'codex-reviewer'
+          ? {
+              ...s,
+              activity: { said: READING[n % READING.length] ?? 'Reading', observedAt: at.toISOString() },
+              recent: [...(s.activity ? [s.activity] : []), ...(s.recent ?? [])].slice(0, KEPT),
+            }
+          : s,
+      ) ?? null,
   }))
 
 /** Its next report on the plan's board: the same attempt, the same generation, a new observation. */

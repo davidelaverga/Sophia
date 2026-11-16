@@ -71,6 +71,11 @@ export interface Session {
      * replaced it. The Studio's proposal for SCM-01/02 (LFE-06: "current assignment IDs and epochs").
      */
     epoch?: number
+    /**
+     * Its control as its runtime reports it, apart from any command sent from here: held or stopped; absent or null
+     * when neither is reported. The Studio's proposal for SCM-02 (INC01-DES-001 r3): no service supplies it yet.
+     */
+    runtimeControl?: 'held' | 'stopped' | null
   } | null
   /**
    * The last thing its tool reported doing, in its own words, and when it was observed ("ran the export tests"). Never
@@ -92,19 +97,87 @@ export const WORK_STATE = {
   waiting: ['amber', 'Waiting'],
 } as const
 
+/**
+ * A native resource as A51's member-safe catalog records it (INC01-DES-002): read only, judged at its page's observation
+ * time. Its host, connection and recorded qualification are its owner's alone (`mine`, null for everyone else), and
+ * none of them is online, signed in, ready or a supported control: the server's words at that time, kept as given.
+ */
+export interface CatalogFacts {
+  state: 'active' | 'revoked' | 'needs_connection'
+  /** Its page's observation (A51 `observedAt`): every state and age here was judged then, never on this clock. */
+  observedAt: string
+  mine: CatalogMine | null
+}
+
+/** The owner's own recorded facts (A51 `mine`): states and booleans only, as recorded. */
+export interface CatalogMine {
+  connection: {
+    state: 'pending' | 'linked' | 'expired' | 'denied' | 'revoked' | 'rotation_unknown'
+    expired: boolean
+  } | null
+  /** The connection's one bound or active host, as recorded; null when none is. */
+  host: {
+    state: 'bound' | 'active'
+    helloOk: boolean
+    helloConflict: boolean
+    /** Null when it has no representable time. */
+    lastSeenAt: string | null
+    /** Seconds from its last sighting to the page's observation; null when unknown or not before it. */
+    secondsSinceSeen: number | null
+  } | null
+  /** The operator's recorded qualification, its state the server's at the page's time: evidence, never support. */
+  qualification: {
+    state: 'none' | 'current' | 'expired' | 'revoked' | 'stale' | 'not_applicable'
+    operations: readonly ('create' | 'input' | 'stop')[]
+    qualifiedAt: string | null
+    expiresAt: string | null
+  }
+}
+
 export interface Resource {
   /** The enrollment: `davide-codex`, `davide-claude`, `luis-claude`. */
   id: string
-  /** The owner, with their account's picture when the provider gives one. */
-  owner: { id: string; name: string; avatarUrl?: string | null }
+  /**
+   * The owner, with their account's picture when the provider gives one. `named` false: no name is known (the catalog's
+   * null label), so `name` is the words for that and the avatar is neutral; `former`: no longer a member.
+   */
+  owner: { id: string; name: string; avatarUrl?: string | null; named?: boolean; former?: boolean }
   tool: Tool
-  /** The owner's account behind it: sessions on one account share one allowance. */
-  entitlementId: string
+  /** The owner's account behind it: sessions on one account share one allowance. Null where it isn't reported. */
+  entitlementId: string | null
   host: { state: 'online' | 'offline' | 'unknown'; observedAt: string | null }
-  sessions: Session[]
-  controls: Record<ControlName, Support>
+  /** Null where sessions aren't reported (the catalog): never an empty list, which would say there are none. */
+  sessions: Session[] | null
+  /** Null where its route's controls aren't reported (the catalog): none is offered, none is said unsupported. */
+  controls: Record<ControlName, Support> | null
   /** What the owner keeps back from the project, in percent of a window; null when they set none. */
   reservePercent: number | null
+  /**
+   * What its tool's readiness is observed to be, beyond its host: absent where nothing reports it, which is everywhere
+   * today. The Studio's proposal for SCM-01 (INC01-DES-001 r3, C01-R05); no service supplies it yet.
+   */
+  readiness?: Readiness | null
+  /** Where it was read from A51's catalog: its recorded facts (INC01-DES-002); absent for every other source. */
+  catalog?: CatalogFacts
+}
+
+/** One operation a connection may be used for, as its profile qualifies it (C01-R06). */
+export interface OperationReadiness {
+  id: string
+  /** As people say it: "Repository analysis", "Code changes". */
+  name: string
+  state: 'qualified' | 'unqualified' | 'unsupported' | 'unknown'
+}
+
+/** A tool's readiness as observed: its sign-in and its operations, when, until when, and from where. */
+export interface Readiness {
+  signIn: 'signed_in' | 'signed_out' | 'expired' | 'unknown'
+  operations: OperationReadiness[]
+  observedAt: string
+  /** Until when it holds; past it, it is said as last observed, never as current. Null: no stated limit. */
+  validUntil: string | null
+  /** Where it came from, in words: a collector, or "simulated fixture". */
+  source: string
 }
 
 export interface QuotaWindow {
@@ -147,9 +220,14 @@ export interface RequiredAction {
   openTarget: string | null
 }
 
-/** How long ago (app/time-words.ts): "just now", "4 min ago", "3 h ago", "2 days ago"; or never observed. */
+/**
+ * How long ago (app/time-words.ts): "just now", "4 min ago", "3 h ago", "2 days ago"; never observed when there is no
+ * time. A time that isn't an instant gives nothing to say, never an age made up from it, nor "never observed" for what
+ * was (r3 repair 6, UI85C4-F09): a line of facts leaves the empty fragment out.
+ */
 export function ago(at: string | null, now: Date): string {
-  return at ? agoWords(at, now.getTime()) : 'never observed'
+  if (at === null) return 'never observed'
+  return Number.isFinite(Date.parse(at)) ? agoWords(at, now.getTime()) : ''
 }
 
 /** How long ago a session's activity was observed, to the second while it is fresh: "40 s ago", then "3 min ago". */
@@ -222,15 +300,27 @@ function valueOf(w: QuotaWindow, v: number): string {
 }
 
 /**
+ * A window's reset as an instant, or null when it reports none or what it reports isn't one: an unknown reset, never a
+ * made-up time (r3 repair 4, UI85C4-F09). The reported `resets_at` itself is kept as given.
+ */
+export function resetAt(w: QuotaWindow): number | null {
+  if (w.resets_at === null) return null
+  const at = Date.parse(w.resets_at)
+  return Number.isFinite(at) ? at : null
+}
+
+/**
  * A window as it stands now: a reset already due is refresh pending, never fresh capacity; unknown stays unknown; a
- * reading past its `valid_until` is expired; a value whose applicability isn't known says so.
+ * reading past its `valid_until` is expired; a value whose applicability isn't known says so. A reset that isn't an
+ * instant is said as none is: not due, and no time.
  */
 export function windowView(w: QuotaWindow, now: Date, stale = false): WindowView {
-  const due = w.resets_at !== null && Date.parse(w.resets_at) <= now.getTime()
+  const at = resetAt(w)
+  const due = at !== null && at <= now.getTime()
   const applies = w.applicability
   const state = stateOf(w, due, stale)
-  const reset =
-    w.resets_at === null ? null : due ? `reset was due ${ago(w.resets_at, now)}` : `resets ${until(w.resets_at, now)}`
+  const when = at === null ? null : new Date(at).toISOString()
+  const reset = when === null ? null : due ? `reset was due ${ago(when, now)}` : `resets ${until(when, now)}`
   const name = windowName(w.window_id)
   const withheld = NOT_A_VALUE[state]
   if (withheld) return { id: w.window_id, name, state, value: withheld, reset, percent: null, applies }
@@ -324,6 +414,12 @@ export function summary(resources: Resource[], actions: RequiredAction[]): strin
   ].join(' · ')
 }
 
+/**
+ * Under the view's head, for the catalog (INC01-DES-002, UX01): what it is, and what it doesn't report, at every width.
+ * It stands for the summary, so the catalog never totals hosts online or requests waiting, which it can't know.
+ */
+export const CATALOG_SCOPE = 'Saved coding-resource records. Live activity, usage and controls aren’t reported here.'
+
 /** The requests' heading in a sheet: what waits on whom; one whose outcome isn't known yet; else earlier ones. */
 export function requestsHeading(own: readonly RequiredAction[], owner: Resource['owner'], viewerId: string): string {
   if (own.some((a) => a.state === 'open')) return `Waiting on ${owner.id === viewerId ? 'you' : owner.name}`
@@ -367,12 +463,6 @@ export function usageTone(percent: number): UsageTone {
   return percent >= WARN_AT ? 'warn' : 'ok'
 }
 
-export const SUPPORT: Record<Support, string> = {
-  supported: 'supported',
-  unqualified: 'not qualified yet',
-  unsupported: 'not offered',
-}
-
 /** The resource list's filters: everything, what has a request waiting, what is online, what is the viewer's own. */
 export type Filter = 'all' | 'waiting' | 'online' | 'mine'
 export const FILTERS: Filter[] = ['all', 'waiting', 'online', 'mine']
@@ -403,14 +493,18 @@ export function matches(r: Resource, query: string): boolean {
       TOOL[r.tool],
       VENDOR[r.tool],
       r.owner.name,
-      ...r.sessions.flatMap((s) => [s.role, s.model ?? '', s.assignment?.title ?? '']),
+      ...(r.sessions ?? []).flatMap((s) => [s.role, s.model ?? '', s.assignment?.title ?? '']),
     ].join(' '),
   )
   return words.every((w) => haystack.includes(w))
 }
 
-/** What a resource is doing, in a tile's one line: its first assignment, and how many sessions share the account. */
+/**
+ * What a resource is doing, in a tile's one line: its first assignment, and how many sessions share the account. Where
+ * sessions aren't reported, that: never "No assignment", which would say none is.
+ */
 export function activity(r: Resource): string {
+  if (r.sessions === null) return 'Sessions not reported'
   const n = r.sessions.length
   const first = r.sessions.find((s) => s.assignment)?.assignment
   if (!first) return n > 1 ? `${n} sessions, none assigned` : 'No assignment'
@@ -419,10 +513,10 @@ export function activity(r: Resource): string {
 
 /** A resource's latest observation: its account's, which every resource on that account shares. */
 export const observationOf = (observations: readonly QuotaObservation[], r: Resource) =>
-  observations.find((o) => o.entitlement_id === r.entitlementId)
+  r.entitlementId === null ? undefined : observations.find((o) => o.entitlement_id === r.entitlementId)
 
 /** The session a tile speaks for: the first one at work with a report; null when none. */
-export const liveSession = (r: Resource): Session | null => r.sessions.find((s) => s.assignment && s.activity) ?? null
+export const liveSession = (r: Resource): Session | null => r.sessions?.find((s) => s.assignment && s.activity) ?? null
 
 /**
  * Whether a session's report is live now: its host online and the report younger than `LIVE_S`. An older one is still
@@ -432,7 +526,7 @@ export const reportsLive = (r: Resource, s: Session | null, now: Date): boolean 
   r.host.state === 'online' && Boolean(s?.activity) && freshness(s?.activity?.observedAt ?? '', now) > 0
 
 /** Whether any of a resource's sessions reports live now. */
-export const anyLive = (r: Resource, now: Date): boolean => r.sessions.some((s) => reportsLive(r, s, now))
+export const anyLive = (r: Resource, now: Date): boolean => (r.sessions ?? []).some((s) => reportsLive(r, s, now))
 
 /** A tile's capacity, short enough for its width: the window and how full on one end, what comes on the other. */
 export interface TileCapacityLine {

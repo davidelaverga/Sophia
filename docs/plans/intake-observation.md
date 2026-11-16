@@ -1,0 +1,860 @@
+# Intake observation — offline policy and replay report (INC03-CC-001)
+
+Source preparation for INC03-S01/S02 (pack v2, `modules/INC-03_NATURAL_COMPOSER_AND_CONTINUITY.md`,
+`contracts/03_INTAKE_ALLOCATION_AND_EVENTS.md`, issued at `afe68b679722e28471dcdf6222d519759cd78c49`). It is **not**
+installed automatic routing, not a live intake service and not the shipped INC-03 feature. Nothing here is exported
+from `@sophia/coordination`, registered in an app, or reachable from a request.
+
+- `packages/coordination/src/intake-observation.ts` — a pure, versioned, deterministic observation policy
+  (currently `sophia.intake-observation.policy.v25`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11, v12 r12, v13 r13, v14 r14, v15 r15 (unpublished), v16 r16, v17 r17, v18 r18, v19 r19, v20 r20, v21 r20 published, v22 r26 (unpublished, not accepted), v23 r27 (unpublished, not accepted), v24 r28, v25 r30). It reads a validated input and returns a proposal. It holds no
+  transport, provider, database, notification, control or dispatch handle and reads no clock or environment.
+- `scripts/intake-observe.ts` — the consumer: an offline CLI that validates a bounded corpus file, strips every
+  label before the policy sees a case, runs the policy, compares results with the labels separately and writes a
+  versioned JSON report to an explicit path outside the repository.
+
+The later admitted intake consumer (after INC01-CC-002's contract/migration/generation ownership is reconciled)
+must reuse this policy behind an additive durable contract. It must not grow a parallel scheduler or event bus,
+and this CLI is not that consumer.
+
+## Current source this respects (read at `953e5dc3`)
+
+| Seam | Actual behaviour | What the policy does |
+|---|---|---|
+| `Contribution.intent` (A05) | `discuss` / `ask_sophia` / `propose_work`; room writes `discuss` | Not renamed or reinterpreted. Room migration is separate. |
+| `ConversationStart/Send.askSophia` (A33, 0063) | Required boolean; `false` persists without `conversation_ask`; omitted is invalid at OpenAPI and SQL | `legacy_explicit_ask` requires the boolean: `false` → recorded only, no assessment; `true` → the existing explicit reply path; omitted → **invalid input**, never normalized to false or opted into `automatic_v1`. |
+| `WorkCommand.guidance` (0042 `work_command`) | Returns `unavailable` | Not used as a follow-up path. `manager_followup` is a proposal only. |
+| `GoalCommand.steer` | Stronger native steering | Never proposed for an ordinary follow-up. |
+| `persistence/conversation-context.ts` | Renderer only, not exported, nothing calls it | Not described or used as an installed assembler. |
+
+`automatic_v1` is an internal versioned test input of this module only; it is not an installed public contract.
+
+## Input
+
+An input is `{ interaction, text, context }`. `interaction` is `{ contract: 'automatic_v1' }` or
+`{ contract: 'legacy_explicit_ask', askSophia: boolean }`. The corpus schema `sophia.inc03.development-corpus.v2`
+declares automatic-mode cases, so the CLI gives its cases `automatic_v1`; a case may name a legacy interaction
+explicitly with an `interaction` member, and then `askSophia` must be a boolean.
+
+`context` holds **typed facts only**, each validated against a closed table (`CONTEXT_FIELDS`); an unknown key, a
+wrong type, an oversized string or list is an input error. What each group means and how far it is trusted:
+
+| Group | Fields | Trust |
+|---|---|---|
+| Audience | `audience`, `originalAudience`, `participantsChanged` | Server scope of the thread/call. Never widened. |
+| Addressing | `trustedMentions`, `currentMembers`, `directAddress`, `replyTo`, `replyAuthor`, `needsReply` | Structured mentions/reply targets as the composer would send them. A mention not in `currentMembers` (when given) is dropped. |
+| Untrusted text | `untrustedTextMentions`, `quotedText`, `attachmentInstruction` | Evidence only. Fenced out of the text before rules run; never an addressee or an instruction. |
+| Exact context | `selectedArtifact`, `selectedComparison`, `attachment`, `uniqueDecision`, `uniqueDate`, `retainedEvidence`, `latestArtifact`, `otherArtifact`, `acceptedVersion`, `accepted`, `acceptedStandard`, `repo`, `base`, `issue` | Exact references; a selected version is never replaced by `latestArtifact`. |
+| Ambiguity | `possibleTargets`, `possibleComparisons`, `candidates`, `possibleRepos` | More than one distinct plausible referent → clarify (v17: repeated entries are one; a comparison is its ordered pair). |
+| Work | `activeMission`, `selectedMission`, `manager`, `control`, `relatedToActive`, `pendingOperation` | Current mission link and control state. |
+| Resource/permission facts | `apiGrant`, `apiResource`, `nativePair`, `nativeSubscription`, `inquiryGrant`, `stop/hold/resumeQualified`, `pin`, `pinUnavailable`, `alternateAvailable`, `requester`, `resourceOwner`, `nativeDelegationQualified`, `projectExcludedByGrant`, `currentSourceEligible`, `sourceEligible`, `sourcePermission`, `unrelatedNativeHistory`, `membershipRemovedBeforePublication`, `grantRevokedBeforeSend`, `designState`, `implementationAuthorized`, `currentActorAuthorized`, `currentGrant` | **Supplied facts, not grants.** A negative fact can wait or deny; a positive one never admits. |
+| Origin/identity | `origin`, `causedBy`, `voiceUtterance`, `isFinal`, `operationId`, `redeliveryOf`, `samePayload`, `originalAdmission`, `originalOperation`, `dispatchState`, `expectedRevision`, `currentRevision`, `newTarget`, `correctedSourceManifest`, `originalBinding`, `currentBindingRevision`, `missionAllowanceLineage`, `originalEffectState`, `nativeSession` | Ingestion facts. Generated output never becomes a human instruction. |
+| Adoption | `actorExplicitlyAdopts` | A structured fact that the actor adopts quoted words as their own request (as a composer "use this quote" action would send). Read only by the quotation rule; text never sets it. |
+| Informational | `textContainsBuildWord` | Accepted and recorded; no rule reads it. |
+
+The policy never sees `caseId`, `family`, `split`, `expected`, `status`, `labelAuthority` or `fixtureAuthority`:
+the CLI keeps them as comparison metadata, and a context that carries any of those keys is an input error.
+`family` is any string (`__proto__` and `constructor` included); absent or `null` means no family and is tallied as
+`unlabelled`. Any other value (number, boolean, array, object) is the case error `invalid_family` at
+`cases[i].family` (r18), so the case is counted invalid, never observed, and the command line exits 1.
+
+## States (one observation) — policy v25
+
+Policy v2 (`sophia.intake-observation.policy.v2`) replaced v1 after the independent r1 review
+(INC03-CC-001-r1-SOURCE-PRE-PUSH-001, F01–F07). Policy v3 (`sophia.intake-observation.policy.v3`) replaces v2 after
+the r2 review (review SHA-256 `1d568e04…`, F01 and F04 remaining): straight single quotes are bounded across lines and
+an unclosed opening straight quote abstains; an explicit negative native route makes a follow-up, inquiry or
+correction wait. Policy v4 (`sophia.intake-observation.policy.v4`) replaces v3 after the r3 review (SHA-256
+`901583b5…`, one F01 class remaining): single-quoted evidence whose end is ambiguous fails closed. Policy v5
+(`sophia.intake-observation.policy.v5`) replaces v4 after the r4 review (SHA-256 `df9abc94…`): v4 recognised a
+straight opener only after a short list of characters and discarded every other straight quote as an apostrophe, so a
+quote opened after an em dash or a backslash exposed its contents. v5 replaces the opener list with the general rule
+below. Policy v6 (`sophia.intake-observation.policy.v6`) replaces v5 after the r5 review (SHA-256 `110918ad…`): v5
+exempted every apostrophe glyph with a letter or digit on both sides before looking at quotation structure, so a pair
+of such marks around a multi-word span (`said'first line. Stop the job'next`) vanished and the Stop inside was read as
+authored. v6 exempts a mark only in a provable token shape (below). Policy v7 (`sophia.intake-observation.policy.v7`)
+replaces v6 after the r6 review (SHA-256 `6229777b…`): v6 still judged each mark alone, so two marks that each fit a
+contraction or name shape (`said's first line. Stop the job's next`) were both discarded and the Stop between them was
+read as authored. v7 adds a whole-input pair check (below). No earlier version's semantics are reused under a later
+name.
+
+Order (v8, unchanged since; the descriptor's `order` lists it this way from v10 — v8 and v9 still listed the interaction contract first): **origin (terminal)** → **transport redelivery** → interaction contract (legacy explicit Ask, or
+automatic) → addressing → **human-only addressing (terminal)** → correction of an earlier operation → quotation check →
+**identified control** → structural ambiguity → text intent → mission identity → target → blockers.
+
+v8 (published r7 `cf5f82e8`, automatic review on PR 504, gate SHA-256 `0114e54c…`) moved origin and redelivery ahead
+of the interaction contract. Before v8 a legacy `askSophia` input never reached the origin rule: generated,
+agent_result, receipt, delayed_output and voice_interim inputs became an `answer` with `askSophia:true`, and claimed
+`humanInstruction:true` with either boolean. A selector boolean is not provenance. Now:
+
+| Input | Proposal | Provenance |
+|---|---|---|
+| any non-human origin (generated, agent_result, receipt, delayed_output, voice_interim), legacy true or false or automatic | the origin result (`no_action`, `record_provisional`, `withhold_from_current_call`), correlation kept | `humanInstruction: false` |
+| transport redelivery (`redeliveryOf` + `samePayload`), any contract | `replay_original` / `conflict` | `humanInstruction: false` (it re-delivers an existing operation) |
+| human or `voice_final` origin, `legacy_explicit_ask` true | `answer` via the existing explicit path | `humanInstruction: true` |
+| human or `voice_final` origin, `legacy_explicit_ask` false | `recorded_only`, no assessment | `humanInstruction: true` |
+| legacy without `askSophia`, or an invalid one | input error (`legacy_ask_missing` / `invalid_interaction`); never automatic | — |
+
+Declared imported spans (v8). `quotedText` and `attachmentInstruction` are removed **first**, before backslash/encoded
+escape detection, fences, single-quote boundaries and the whole-input pair check — every occurrence, across lines,
+counted as fenced spans. Before v8 they were removed last, so an unmatched quote, an escaped quote or a pair of
+apostrophes wholly inside a declared import made the authored text around it abstain as `malformed_quotation`. A
+directive inside a declared import is still data; malformed quotation in the authored text outside it still abstains.
+From v17 an occurrence is removed only as a complete span (below); every complete occurrence is still removed.
+
+v9 (published r8 `08925d90`, automatic review on PR 504, gate SHA-256 `ed8cd02f…`) repairs two policy classes:
+
+- **Acknowledgement prefix.** v8 classified a whole clause as an acknowledgement as soon as it began with one of the
+  eight acknowledgement terms, so `Thanks stop` or `Okay hold` lost the control (32 of 32 acknowledgement × Stop/Hold
+  verb pairs were `no_action`). v9 peels leading acknowledgements — repeated, with the existing fillers or `also`
+  between them, or followed by a hyphen or dash — and reads the words after them as a clause of their own, with the
+  existing lexicon, exactly as `Thanks, stop` was already read. v9 also kept any acknowledgement whose remaining words
+  named no request as an acknowledgement (`Thanks for the update.`, but equally `Okay immediately halt the job.`):
+  **superseded by v10, below.** Fences, declared imports, non-human origins and the legacy contract decide before
+  this, unchanged. An acknowledgement followed by other words and a question mark reads as a question, like its
+  comma form.
+- **Transport redelivery addressee.** v8 gave a redelivery with no addressing an invented `sophia` addressee on basis
+  `operation_reference`. v9 reports only what the delivery's own addressing resolves (trusted mention, reply target,
+  direct address, or the personal default); otherwise no addressee with basis `unresolved`, and dropped non-members
+  stay reported. A redelivery never asks for attention. `operation_reference` remains only for a fresh correction of
+  the actor's own operation, which is a new act, not a delivery.
+
+v10 (unpublished r9 `5fc91608`, independent gate `INC03-CC-001-r9-SOURCE-PRE-PUSH-001`, SHA-256 `59cac462…`) closes
+the remaining acknowledgement class: an acknowledgement never decides words the lexicon cannot read. In v9 an
+acknowledgement prefix turned an unread remainder into `no_action` (64 of 64 review forms with an unknown word before
+Stop/Hold), and `combine` did the same for a separate clause (`Thanks, <unread>`, `Okay. <unread>`, `<unread>, thanks`).
+In v10 a clause with words of no family is unread; a message whose only recognised clauses are acknowledgements and
+that has an unread clause has family none and abstains (`outside_lexicon`, semantic assessment required) exactly as
+the unread words alone do. A message is quiet `no_action` by acknowledgement only when every authored clause is an
+acknowledgement (the existing terms, with fillers, `also`, repetition and separators: `Thanks!`, `Got it, thanks.`,
+`Perfect, thank you!`). Nothing was added to the lexicon, so ordinary gratitude with other words
+(`Thanks for the update.`, `Great job everyone.`) now abstains too; a `needsReply:false` hint still quiets it, as it
+quiets any unread remark, and never a request. An acknowledgement with a recognised request keeps the request
+(Stop/Hold first). Quoted, imported, non-human and legacy inputs keep their outcomes; the one crossing that changed is
+authored words left around a quotation (`Thanks, she wrote "stop the job".`), which now abstain instead of `no_action`.
+
+v11 (published r10 `2684bb50`, automatic review on PR 504, gate SHA-256 `d0dcb777…`) repairs one policy class: a
+`null` `inquiryGrant` is known absence of that qualification, as `null` already is for `apiGrant` and `nativePair`.
+Before v11 a running mission with an exact manager and `inquiryGrant: null` was treated like an omitted field
+(`recorded_only` / `observation_unqualified` with `inquiry_grant_unknown`); now it waits as `inquiry_unqualified`,
+exactly as explicit `unqualified`. Omitted stays unknown (`inquiry_grant_unknown`); `qualified` stays an unassessed
+`recorded_only` proposal. `inquiry_grant_unknown` is reported only when the field is omitted (v10 also attached it
+to explicit `unqualified`). The order is unchanged: retained evidence is read first; held or stopped work never gets
+a fresh inquiry; then this qualification; then manager identity. The other nullable fields were checked: the two
+nullable qualifications already treat `null` as negative, and `retainedEvidence`/`activeMission` `null` already
+mean none.
+
+v12 (published r11 `7079989c`, automatic review on PR 504, gate SHA-256 `141d0000…`) repairs two policy classes:
+
+- **Failed structured addressing.** In v11, when every supplied `trustedMentions` entry was a human outside
+  `currentMembers`, the mentions were dropped and the message fell through as if no addressing had been supplied:
+  to a reply target, a direct address, the personal default, a correction, a control or text intent — so a message
+  addressed to a removed person could become a Sophia `build_start` or `control_stop`. v12 distinguishes **absent**
+  addressing (no `trustedMentions`, or an empty list) from **failed** addressing (a non-empty list naming no current
+  recipient). Failed addressing stops before every fallback: `abstain` (rule `address.structured_unresolved`), no
+  addressee (basis `unresolved`), attention none, uncertainty `structured_addressing_failed` plus one
+  `mention_not_current_member` per dropped mention. The dropped ids are never reported. Partial drops keep the
+  remaining current humans; an explicit `sophia` mention beside dropped humans stays Sophia-directed; with
+  `currentMembers` unknown nothing is dropped. Origin, transport redelivery and the legacy contract still decide first.
+- **Legacy target provenance.** A legacy `askSophia:true` without a selection answered on the current thread but
+  reported `targetBasis: explicit_selection`. v12 reports `current_thread` for that fallback and keeps
+  `explicit_selection` for an actual selected artifact, comparison or decision with its exact target. The legacy
+  answer path, its admission and legacy false are unchanged.
+
+v13 (published r12 `9bd567a8`, automatic review on PR 504, gate SHA-256 `d3f1a0be…`) repairs two policy classes, and
+the report one accounting class:
+
+- **A dash directly after an acknowledgement.** v9 documented hyphen, en dash and em dash as separators after an
+  acknowledgement, but an acknowledgement was only recognised when a space followed it, so `Thanks—stop` or `okay-hold`
+  never reached the separator and abstained while `Thanks — stop` was a control (48 of 48 joined forms). v13 recognises
+  an acknowledgement term followed by the end, whitespace or one of those dashes, and peels the dash as before. A word
+  that only begins with an acknowledgement is none (`Thanksgiving`, `Okayish`, `Okstop`); other lexicon boundaries are
+  unchanged; unread words after it still abstain (v10).
+- **Comparison ref syntax.** v12 checked only for one `@` and no whitespace. v13 implements `name@version[:region]`
+  (below) for the selected pair and every possible pair.
+- **Report tallies** (`scripts/intake-observe.ts`, report v5 shape unchanged): counts by kind, admission, family and
+  field result were accumulated in an ordinary object, so a family named `__proto__` vanished and one named
+  `constructor` or `toString` was not a number. They are now accumulated in a `Map` and written as own numeric
+  properties for every name; family counts sum to the observed cases. No global prototype was changed before or after.
+
+v14 (published r13 `bc11826b`, automatic review on PR 504, gate SHA-256 `caa98503…`) repairs two policy classes:
+
+- **A supplied date is an exact reference.** `uniqueDate` was an accepted exact-context field that target resolution
+  never read, so `Remind me.` with a supplied date answered on the current thread, for automatic and legacy Ask alike.
+  v14 resolves it as a `reference` target with `explicit_selection` basis. It is an opaque id: never parsed as a date,
+  time or timezone, and nothing is scheduled.
+- **One notion of exact selection.** Generic target ambiguity (two or more `possibleTargets` or `candidates`, and the
+  reply-referent check) counted only `selectedArtifact` as a selection, so an attachment, a selected comparison or a
+  unique decision with the same exactness was clarified before its target was used. v14 uses the same exact selection
+  for both target resolution and that ambiguity. Precedence when several are present: the selected comparison, the
+  selected artifact, an attachment, a unique decision, a unique date. Unrelated native history is a target kind but
+  not a resolved reference, so it does not suppress ambiguity; a null selection is none. Comparison and repository
+  ambiguity stay specialized; people, origins, transport, legacy false and identified controls still decide first.
+
+v15 (published r14 `25117228`, automatic review on PR 504, gate SHA-256 `bb0953ee…`) repairs three policy classes:
+
+- **A no-reply hint never quiets a request.** `needsReply:false` quieted every answer, so `Explain the plan.` or
+  `Tell me the answer.` became `no_action`. An answer clause that opens with an imperative answer verb (explain,
+  summarise, describe, compare, remind, tell) is a request; the hint now quiets only acknowledgements, unread remarks
+  and questions, and never controls, exploration, builds, follow-ups or publications.
+- **Malformed quotation is decided before the hint.** The hint was checked before the quotation rule, so a malformed
+  authored quotation became a quiet `no_action`. Malformed or unadopted quotation now abstains first, whatever the
+  hint. Origin, transport, human and legacy rules still decide earlier; balanced and imported evidence and quiet
+  acknowledgements keep their outcomes.
+- **A build uses the exact selection that resolved it.** An attachment suppressed generic ambiguity (v14) but the
+  build dropped it for a text objective. The build item is now the selected artifact, else an issue, else an
+  attachment, with the same basis rule and the accepted-version guard applied to the item actually used. A selected
+  comparison, decision or date is no build item: the build clarifies (`selected_context_not_buildable`) and none is
+  turned into an artifact. Answer and exploration consume every exact selection; follow-up, inquiry, controls and
+  publication target the mission or the pending operation (unchanged; a documented limit).
+
+v16 (unpublished r15 `be8e5169`, independent gate `INC03-CC-001-r15-SOURCE-PRE-PUSH-001`) closes the residual of the
+build-selection class: the accepted-version guard read the selected artifact or else an attachment, while the build
+item could be an issue ahead of that attachment, so an unused `ignored@r8` attachment lifted the wait on an issue
+build. In v16 the build item reports the artifact it actually consumes (the selected artifact, or the attachment when
+it is the item), and the guard reads only that, by the same precedence. An issue or a text objective has no version,
+so a supplied accepted version keeps it waiting, as before, whatever an unused attachment says.
+
+v17 (published r16 `e6292dee`, gate `INC03-CC-001-r16-SOURCE-FINAL-001`) repairs three classes:
+
+- **Complete import spans.** Up to v16 a declared import was cut out wherever its characters appeared, even inside an
+  authored word: `Stopping the job.` with `quotedText: "ping"` read as `stop the job`, and `Holding` minus `ing` as
+  `hold`. Now an occurrence is removed only when the rest of its token on each side is punctuation (`\p{P}`: quotes,
+  brackets, stops). Tokens are split by Unicode whitespace and by the clause dashes (en, em, bar) that already separate
+  an acknowledgement (v13); a hyphen joins a word and stays inside the token. Any letter, number, mark or symbol in
+  that rest, in any script, means the import sits inside an authored token. An occurrence inside a larger complete one
+  is part of it, and identical spans from both fields count once. Any other inside-token occurrence, or two that
+  partially overlap, leaves the bounds unknown: nothing is removed and the input abstains as `malformed_quotation`
+  before any family is read. Complete spans become a space, so no two fragments are joined. Imports are still removed
+  before escape and quote analysis; a wholly imported command stays data; an authored control beside a complete import
+  still acts.
+- **Distinct candidates.** Ambiguity counted list entries, so `possibleTargets: [a, a]` was two targets. Now
+  `possibleTargets`, `candidates` and `possibleRepos` count distinct ids, and `possibleComparisons` counts distinct
+  whole ordered pairs (`[a, b]` and `[b, a]` stay two). A list with one distinct candidate decides exactly as the
+  one-entry list. It is no exact target and no permission. Other lists, `selectedComparison` included, keep their
+  order and length; list bounds and validation are unchanged.
+- **Coherent ledger conflicts.** `observeWithLedger` built the conflict by spreading the rejected payload's own
+  observation, so a changed payload's addressee, attention, assessment, uncertainty, fences and provenance appeared
+  in the conflict. Now a changed payload under a stored `operationId` is not interpreted. The conflict carries the
+  rejected input's digest and contract, plus the stored operation's identity (target and `provenance.correlation`),
+  audience scope and origin. It also carries: addressee none (`unresolved`), attention none, `humanInstruction:
+  false`, no fenced spans, assessment `not_needed`, uncertainty `changed_payload_not_interpreted`, zero effects. Its
+  `observationId` binds both digests. The stored observation and an exact replay are unchanged. The command line uses
+  a fresh ledger per case, so this is tested on the stateful function itself; no cross-case CLI behaviour is claimed.
+
+v18 (published r17 `2bbaae7a`, gate `INC03-CC-001-r17-SOURCE-FINAL-001`) repairs two classes:
+
+- **Distinct recipients.** Structured mentions were filtered and projected as supplied, so `trustedMentions:
+  [a, a]` gave `addressee.ids: [a, a]`, and repeats survived partial drops and unknown members. Now the ids are made
+  distinct, in first-occurrence order, before the membership check and before the addressee is built. Every distinct
+  id is still checked against `currentMembers`, so a repeated departed member is still dropped, all-dropped mentions
+  are still failed addressing (no Sophia fallback), distinct people stay distinct and Sophia stays last. The list bound
+  and validation still apply to the list as supplied.
+- **Family metadata** (command line, not the policy): an explicit non-string, non-null family was silently counted as
+  `unlabelled`. It is now `invalid_family` (above); `null` is the documented way to say "no family".
+
+v19 (published r18 `8a718786`, gate `INC03-CC-001-r18-SOURCE-FINAL-001`) repairs one class:
+
+- **Redelivery correlation.** A redelivery targets the operation it returns to: `originalAdmission`, else
+  `redeliveryOf`. Up to v18 its `provenance.correlation` was read only from `causedBy`, `operationId` or
+  `voiceUtterance`, so a redelivery identified only by `redeliveryOf` (and an `originalAdmission` override) had a
+  target but a null correlation. This held for the same, changed and unknown payload, and under the automatic contract
+  and legacy true or false, since redelivery decides before the contract.
+- Now every `identity.redelivery*` observation correlates to that same resolved operation. A supplied `causedBy`,
+  `operationId` or `voiceUtterance` does not replace it; they are not the retained operation.
+- Unchanged: every other rule keeps the supplied chain (outputs, voice, fresh corrections), generated and other
+  non-human origins still decide before redelivery with their own cause, and replay, conflict, addressee, quiet
+  attention and no-admission behave as before.
+
+v20 (published r19 `90e46f7b`, gate `INC03-CC-001-r19-SOURCE-FINAL-001`) repairs two classes:
+
+- **Quiet mixed addressees.** On a quietable acknowledgement, question or unread remark, `needsReply:false` answered
+  `no_action` with the addressee `[sophia]`, dropping the humans structured addressing had resolved. Now the addressee
+  is the same resolved projection as every other path: distinct current humans in first-occurrence order, then
+  Sophia. Departed members stay dropped. The hint quiets Sophia's answer only. Attention follows the existing audience
+  rule, as without the hint: shared members may see it, and a personal message stays private. Nothing is notified,
+  admitted or granted.
+- **Whole code points at word boundaries.** Every neighbour the quotation check reads is now a whole Unicode code
+  point, so a supplementary letter or digit (two UTF-16 units) is a word character exactly as its ASCII and BMP
+  analogues are. Offsets stay UTF-16. The sites are:
+  - the apostrophe's left and right neighbours;
+  - the character before a one-letter name prefix;
+  - the outer neighbours of a supported quote pair;
+  - the suffix window, now the two-unit suffix plus one whole code point, four units instead of three, so its
+    lookahead never sees half a letter.
+
+  Both directions are fixed. Valid supplementary possessives and name prefixes no longer abstain, and a quote pair or
+  contraction touching a supplementary letter no longer counts as bounded. A lone surrogate, a combining mark and a
+  symbol are still no word character. The pair shapes, the whole-input pair check, escaping and imports are
+  unchanged. The lexicon's own `\b` matching treats every non-ASCII letter alike, BMP or supplementary, and is not a
+  quote boundary; it is unchanged.
+
+v21 (published r20 `dbe6b772`, gate `INC03-CC-001-r20-SOURCE-FINAL-001`) repairs one class:
+
+- **Original unknown-effect reconciliation.** A retry of an operation whose dispatch is `possibly_sent` or
+  `outcome_unknown`, with no new target, proposes `reconcile_original`: the original operation, `newTarget` null,
+  admission `reconciliation_required` / `original_effect_outcome_unknown`.
+  - **Before v21:** the first current negative on new effects replaced that admission with a denial or a wait. Those
+    negatives are a source ineligible (three facts), membership lost, grant revoked, project excluded, actor
+    unauthorized, delegation unqualified, and an unavailable pin. The proposal still said "reconcile", but the
+    admission pretended a new, not-yet-sent effect was being judged.
+  - **Now:** that reconciliation is a settled outcome, like replay and conflict. It is bookkeeping about what may
+    already have happened, never admission of another effect, so those negatives do not replace it.
+  - **Not a reorder:** a replacement target after a possible send (`correlated_followup`, waiting), a new target before
+    a send (`correct_proposal`) and every other proposal still meet the current negatives first. Origin, redelivery,
+    human-only, failed addressing, replay, conflict and quiet keep their order. Effects stay zero.
+
+v22 (r26, gate `INC03-CC-001-r25-SOURCE-FINAL-001`, finding R25-F01) repairs one class: an empty `also` added a
+follow-up to the active mission.
+
+- **Before v22:** a message counted as "also" when any of its clauses carried the marker, whether or not that clause
+  kept any words. With an active mission, all eight acknowledgement terms with `also` before or after them (`Also,
+  thanks.`, `Thanks also.`, `Got it, also.`) and marker-only text (`Also.`, `Also, please.`) proposed
+  `manager_followup` with no request in them. The flag also reached `quotationRule`, so a quotation beside an empty
+  `also` could be read as adopted.
+- **Now:** a marker counts only when its own authored sentence keeps words after fillers and acknowledgements are
+  peeled (`alsoWithWords`). Quoted and imported spans are blanked before the clauses are read, so they never give a
+  sentence its words. All-acknowledgement text stays quiet `no_action`; marker- or filler-only text abstains with the
+  existing `outside_lexicon`; an empty marker beside a quotation asks no adoption.
+- **Sentence, not subclause.** The reviewed plan put the test on the marked clause. Subclauses split at commas, so
+  that reading turned `Also, kaleidoscope.` and `Also, add the requested safeguard.` (marker and words in one
+  sentence) into non-follow-ups. Testing found this before commit; the rule is therefore scoped to the marker's
+  sentence, which keeps those controls and still gives every case below.
+- **Kept:** substantive known or unread work in the marked sentence (`Also, kaleidoscope.`, `Thanks, also add the
+  test.`), questions, Stop, Hold and qualified Resume, and the precedence of no-reply, origin, addressing, legacy and
+  source identity. Explicit adoption still adopts a quotation the marked sentence has words around.
+- **Declared changes (not every v21 outcome is unchanged).** The gate named the first two in advance. It accepted the
+  fourth on review. It rejected the third (R26-F01), which v23 reverts:
+  - `Also, thanks.` followed by a separate unread sentence (`Also, thanks. Kaleidoscope.`) no longer lends its
+    marker to that sentence: it abstains under the existing unread rule (`outside_lexicon`).
+  - A detached `Also.` followed by a build sentence (`Also. Implement the card.`) uses the ordinary
+    `relatedToActive` rules: `true` proposes the follow-up, unknown asks for clarification.
+  - ~~An empty adopted quotation~~ (`Also, "add tests".` with `actorExplicitlyAdopts`) abstained `outside_lexicon`.
+    This was mislabelled in r26. The quoted content `add tests` is not empty; only the authored text left after
+    blanking is. The change dropped an explicitly adopted request, and v23 (below) restores the follow-up.
+  - An unadopted quotation or declared import beside an empty marked acknowledgement (`Also, thanks "deploy
+    everything".`) no longer asks for adoption: it is quiet `no_action`, as the same text without `also` already was
+    (v21 abstained with `quoted_content_unadopted`). The quoted or imported words stay data either way.
+- **Identity:** `INTAKE_OBSERVATION_POLICY_VERSION` is `sophia.intake-observation.policy.v22`. The descriptor gains
+  `rules.also`; its digest moves from `69283963ce3da74c5ac8354233c9c0cb3962e6b9f04a705d7aa3f1d6e2f4556c` (v21) to
+  `861e0e104b002c773d1af3d1eb8f1f7e8959c5f388e3ec31b4ee82e9254e3f9d` (v22). Decisions and ledger entries carry the new
+  version and digests. v21 reports and first observations are not reinterpreted or retallied. Nothing was added to
+  the lexicon. Effects stay zero.
+
+v23 (r27, gate `INC03-CC-001-r26-SOURCE-PRE-PUSH-001`, finding R26-F01) repairs one class: v22 dropped explicitly
+adopted, non-empty quoted requests beside `also`.
+
+- **Before v23:** `Also, "add tests".`, `Also, “include the safeguard”.` and `Also, 'adjust the focus'.` with
+  `actorExplicitlyAdopts: true` and an active mission abstained (`outside_lexicon`). Blanking removed the quotation
+  before the clauses were read, so the marker's sentence looked empty, and the marker was cleared before
+  `quotationRule` could honour the adoption.
+- **Now:** a quoted, fenced or declared-import span that the actor explicitly adopts gives its own sentence substance
+  for the `also` test, when the span's own content keeps words after the same filler and acknowledgement peel.
+  - The authority is the existing structured `actorExplicitlyAdopts`, the fact `quotationRule` already honours.
+  - Adopted unread content counts, as authored unread content does (`Also, "kaleidoscope".`).
+  - Empty, marker-only, filler-only, acknowledgement-only and mention-only adopted content gives nothing:
+    `Also, "".`, `Also, "also".`, `Also, "please".`, `Also, "thanks".`, `Also, "@sam".`.
+- **Same sentence only:** the marker's own sentence counts, so the detached v22 outcomes stay. For example
+  `Also. "Add tests".` abstains, and `Also, okay. "Add tests".` stays quiet.
+- **Unadopted data supplies nothing, and each case keeps its own reason.**
+  - Unadopted `Also, "add tests".` abstains `outside_lexicon`.
+  - `Also add "the retry" to it.` abstains `quoted_content_unadopted`.
+  - An unadopted quote or import beside an empty acknowledgement stays quiet.
+- **Families are unchanged:** quoted words stay fenced for families, questions and extra requests. An adopted
+  `Also, "stop".` is therefore a follow-up (as in v21), never a control.
+- **Precedence is unchanged:** malformed or ambiguous bounds, origin, human address, no-reply, Stop, no active
+  mission and legacy decide as before.
+- **How it is computed:** the authored-text pass is unchanged. It also keeps a private, same-length eligibility text,
+  built from the same removals, where an adopted span with words is marked in place. Nothing is matched on that text.
+  A sentence holds adopted substance where the two texts differ, so an authored U+2063 means nothing. The work stays
+  linear in the text, with no new recursion.
+- **Changed outcomes:** only adopted, substantive content in the marker's own sentence changes, from `abstain` (or
+  quiet `no_action` beside an acknowledgement) to `manager_followup`. That is the v21 outcome. On 51 fresh inputs, each
+  adopted and not (102 runs), it is the only change from v22, and every changed run equals its v21 outcome. v21 to v23
+  is v21 to v22 minus this class; not every v21 outcome is unchanged.
+- **Identity:** `sophia.intake-observation.policy.v23`. The descriptor's `rules.also` states the adopted clause; its
+  digest moves from `861e0e104b002c773d1af3d1eb8f1f7e8959c5f388e3ec31b4ee82e9254e3f9d` (v22) to
+  `3160aad775e3a8c7573b8b21a587482fa24b0a634dee7337875f728e258851bb` (v23). v21 and v22 reports, corpora and first
+  observations are not reinterpreted or retallied. Report v7, target-label.v1, the depth bound and the comparator are
+  unchanged. Effects stay zero.
+
+v24 (r28, gate `INC03-CC-001-r27-SOURCE-CORE-001`, finding R27-F01) repairs one class: v23 let quotation framing
+around adopted content count as words.
+
+- **Before v24:**
+  - With `actorExplicitlyAdopts` and an active mission, `Also, okay 'thanks'.` with `quotedText` or
+    `attachmentInstruction` declared as `'thanks'` proposed `manager_followup`.
+  - The same held for straight or curly single quotes around empty content, `okay, thanks`, `please`, `also` or a
+    mention.
+  - **Cause:** v23 read a removed span's content after dropping only the double, backtick, guillemet and `>` marks. A
+    declared import keeps its own single quotes, escaped quotes (`\'`) or encoded quotes (`&apos;`), so `'thanks'`
+    reached the acknowledgement peel as one unrecognised token.
+  - The same applied to an ordinary double quotation around single-quoted content (`Also, "'thanks'".`).
+- **Now:** one reader (`contentHasWords`) serves every removed span the actor adopts: a declared import (either field),
+  a fenced span and a single-quote pair. It works in this order:
+  1. escaped and encoded quote forms (the existing `ESCAPED_QUOTE` class), each matched whole, become spaces;
+  2. fence marks become spaces;
+  3. single-quote-like marks that the existing apostrophe classifier (`boundaryMarks`) calls boundaries become spaces;
+  4. mentions become spaces;
+  5. the same filler and acknowledgement peel decides.
+- **Inner apostrophes stay.** `'don't add tests'` and `'check o'brien's note'` still have words.
+- **Opaque punctuation is read as before.** `'-'` has a word, and `'...'` has none, exactly as unwrapped `...` already
+  had none. The framing alone never adds one.
+- **Unchanged:** the authored text, its removals, fence counts, malformed and import-boundary detection, families,
+  questions and extra requests. Unadopted inputs never run the reader. An authored escaped or encoded quotation is
+  still malformed, whatever it encloses.
+- **Changed outcomes:**
+  - I ran 1384 fresh runs: 12 contents × 10 wrappers × 3 carriers × 2 surfaces, adopted and not, minus shapes that
+    cannot be written.
+  - 154 adopted runs change from v23: content that is empty, an acknowledgement, a filler, a marker, a mention or
+    `...` inside single-quote, escaped, encoded or nested framing. Each moves from `manager_followup` to `no_action` or
+    `abstain` (`outside_lexicon`), the same outcome v22 gave.
+  - All 692 unadopted runs, and every adopted substantive run, are unchanged.
+  - Not every earlier outcome is unchanged.
+- **Identity:** `sophia.intake-observation.policy.v24`. The descriptor's `rules.also` states the delimiter-aware
+  reading; its digest moves from `3160aad775e3a8c7573b8b21a587482fa24b0a634dee7337875f728e258851bb` (v23) to
+  `96fad3004393c9b4038d229559f95f94f658ddd115b24c794f88eeb8c760893f` (v24). No v21, v22 or v23 report, corpus or
+  first prediction is reinterpreted or retallied. Report v7, target-label.v1, the depth bound and the comparator are
+  unchanged. Effects stay zero.
+
+v25 (r30, gate `INC03-CC-001-r29r1-SOURCE-FINAL-001`, finding R29r1-F01) repairs one class: a leading filler or
+followup marker joined to its words by a dash was not recognised.
+
+- **Before v25:**
+  - `Please—stop.`, `Sophia–hold the job.`, `kindly-stop.` and `Also—add tests.` abstained (`outside_lexicon`), for
+    all ten existing fillers and `also`, with a hyphen, an en dash or an em dash.
+  - The spaced forms (`Please stop.`) and a dash after an acknowledgement (`Thanks—stop.`, r13) were already read.
+  - **Cause:** `stripFillers` found fillers and `also` with the generic `startsWithTerm` (the exact term, or the term
+    and a space), which also recognises verbs, and consumed only whitespace and commas after them.
+- **Now:** one prefix-only matcher, `leadingPrefix`, used by `stripFillers` for the existing fillers and followup
+  markers only.
+  - A term matches when it is the whole clause or is followed by `ACK_SEPARATOR`, the separator `leadingAck` already
+    documents: whitespace, a hyphen, an en dash or an em dash.
+  - The term is consumed with `[\s,\-–—]+`: the comma it always took, and the same separators.
+  - Repeated and acknowledgement-interleaved prefixes compose through the existing loops: `Thanks—please—stop.`,
+    `Now—just—stop.`, `Okay–kindly–also–hold the job.`.
+- **Not widened:** the generic `startsWithTerm`/`leading`, which recognises verbs, is unchanged, so verbs still need
+  the exact term or a following space.
+  - `non-stop`, `stop-motion` and `stop-gap` are never a Stop.
+  - A filler is never peeled from a longer token: `nowhere`, `pleasehood`, `Sophiaish`, `alsohold`.
+  - `just-in-time stop.` still abstains: `just` is peeled, and `in-time` is unread.
+  - No new vocabulary and no new separator.
+- **Kept:**
+  - An `also`, filler or acknowledgement with no words of its own stays quiet or outside the lexicon (`Also—thanks.`
+    is `no_action`, `Also—.` abstains as `Also.` does), never a follow-up.
+  - Questions, quotations, declared imports, adoption, origin, human addressing, legacy Ask and their precedence are
+    unchanged.
+  - A quotation or import after a correctly peeled filler is read as it is after a spaced one, which may be a quiet
+    `no_action`. No earlier abstention for it is pinned.
+- **Changed outcomes,** from 4560 fresh texts:
+  - Shape: the ten fillers, `also` and the eight acknowledgements, each in three casings, × 8 separators (space,
+    comma, the three dashes, and the three dashes with spaces) × 10 tails (Stop, Hold, a follow-up, a question, an
+    acknowledgement, nothing, an unread word, a quotation, two compounds).
+  - 828 change from v24. All of them are filler or `also` rows joined by a dash.
+  - Every one of the 1980 dash-joined filler and `also` rows now has exactly its spaced form's outcome.
+  - The acknowledgement, space and comma rows are all unchanged, and so are the compound and longer-token negatives.
+- **Identity:** `sophia.intake-observation.policy.v25`. A new descriptor rule, `rules.prefixes`, states where a
+  prefix ends; its digest moves from `96fad3004393c9b4038d229559f95f94f658ddd115b24c794f88eeb8c760893f` (v24) to
+  `ce012b8b4e931d8e3cc005a58e0a20cfe9a2afd4efb46dc13c01bf3919cd4f54` (v25). No earlier report, corpus or first
+  prediction is reinterpreted or retallied. Report v7, target-label.v1, the depth bound, the bounds and the comparator
+  are unchanged. Effects stay zero.
+
+| State | When | Proposal | Admission |
+|---|---|---|---|
+| legacy false | `legacy_explicit_ask`, `askSophia:false` | `recorded_only`, no addressee inference | `recorded_only` / `legacy_ask_false_no_assessment` |
+| legacy true | `askSophia:true` | `answer` via the existing explicit path; target the selection (`explicit_selection`) or else the current thread (`current_thread`, v12) | `recorded_only` / `legacy_explicit_path` |
+| contradictory origin | `isFinal` without a voice origin; `voice_interim` with `isFinal:true`; `voice_final` with `isFinal:false` | none — input error `contradictory_origin` | — |
+| generated output | `origin` agent_result/receipt/generated | `no_action`, addressee none, target = cause | `recorded_only` / `output_not_instruction` |
+| voice interim | `origin:voice_interim` | `record_provisional` | `recorded_only` / `voice_interim_not_instruction` |
+| delayed output, same audience | `origin:delayed_output`, audience unchanged | `no_action`, correlation kept in `provenance.correlation` and the target; `proposal.rule: origin.delayed_deliver_after_recheck` | `recorded_only` / `output_not_instruction` |
+| delayed output, audience changed | `origin:delayed_output`, participants/audience changed | `withhold_from_current_call` | `recorded_only` / `audience_changed_withheld` |
+| transport redelivery | `redeliveryOf` with `samePayload` | `replay_original` / `conflict`; correlation = the operation returned to (v19); addressee only as this delivery's addressing resolves it, else none (`unresolved`, v9); attention none | same, `operation_redelivered` / `operation_payload_changed` |
+| ledger replay / conflict | same `operationId`, same / changed payload hash | the stored observation / `conflict` built from audit facts only (v17: the changed payload is not interpreted) | unchanged / `operation_payload_changed` |
+| failed structured addressing | non-empty `trustedMentions`, none a current recipient (v12) | `abstain`, addressee none (`unresolved`), attention none, `structured_addressing_failed` | universal blockers, else `semantic_assessment_unavailable` |
+| private human mention | personal audience, human-only trusted mention (any operation metadata ignored, flagged) | `recorded_only`, attention none | `recorded_only` / `private_audience_no_attention` |
+| human message | project, human-only trusted mention or human reply author (operation metadata ignored, flagged) | `human_message`, no AI response | `recorded_only` / `human_directed` |
+| correction before dispatch | Sophia-directed or unaddressed; `originalOperation`, `not_sent`, matching revision, `newTarget` | `correct_proposal` | no blocker → `recorded_only` |
+| correction, stale revision / after possible send / retry of unknown | as v1 | `conflict` / `correlated_followup` / `reconcile_original` | `conflict` / `waiting` / `reconciliation_required` |
+| malformed quotation | an unbalanced quote or fence remains after balanced spans are removed | `abstain` / `malformed_quotation` | universal blockers, else `semantic_assessment_unavailable` |
+| unadopted quoted request | a quoted/imported span was fenced, the authored request is build/follow-up/explore/publish/resume, and `actorExplicitlyAdopts` is not true | `abstain` / `quoted_content_unadopted` | as above |
+| identified Stop/Hold | a Stop/Hold clause (alone, after "also", or beside other requests) and one consistent mission | `control_stop`/`control_hold` before follow-up and before unrelated artifact ambiguity | qualification and state checks |
+| Resume | a Resume clause and one consistent mission | `control_resume`, same precedence | `resume_unqualified`, `resume_requires_held`, `stopped_generation_not_resumable` |
+| mission conflict | `selectedMission` ≠ `activeMission`, or `managerMission` ≠ the target mission | `clarify` / `mission_identity_conflict` | `clarification_required` |
+| manager identity unresolved | follow-up or fresh inquiry without both `manager` and `managerGeneration` | `manager_followup`/`manager_inquiry`, target carries what is known (nulls otherwise) | `waiting` / `manager_identity_unresolved` |
+| ambiguity | >1 plausible target/comparison/candidate/repo, or an ineligible reply referent, when the request is not an identified control | `clarify`, target unresolved | `clarification_required` |
+| answer / explore / build / follow-up / work read / inquiry | addressed to Sophia, text in the v2 lexicon | that family with an exact structured target | blockers below, else `recorded_only` / `observation_unqualified` |
+| abstain | meaning needs semantic assessment | `abstain`, `semantic_assessment_required` | universal blockers, else `recorded_only` / `semantic_assessment_unavailable` |
+
+The policy's admission is **never** `admitted`. Blockers it derives from facts: `source_ineligible`,
+`membership_lost`, `grant_revoked`, `project_excluded`, `actor_unauthorized`, `pin_unavailable` (no switch to an
+alternate), `native_delegation_unqualified` (universal); `api_payer_missing`, `api_resource_unavailable` (API
+families); `awaiting_design_approval`, `project_coding_slot_occupied`, `native_route_unqualified`,
+`implementation_not_authorized`, `selection_not_accepted`, `selected_version_not_accepted` (build);
+`held_no_fresh_inquiry`, `inquiry_unqualified`, `mission_held`, `manager_identity_unresolved` (inquiry/follow-up);
+`stop_unqualified`, `hold_unqualified`, `resume_unqualified`, `resume_requires_held`, `mission_already_stopped`,
+`mission_not_running`, `stopped_generation_not_resumable` (control); `native_route_unqualified` also for follow-ups,
+fresh inquiries and corrections when `nativePair` is explicitly `unqualified` or `null` (v3). An explicit negative
+fact blocks; an absent fact is uncertainty, never a grant.
+
+Mission identity (F05): the observation's mission target carries `mission`, `manager`, `managerGeneration` and
+`binding` exactly as supplied, `null` where absent; nothing is guessed. A mission id alone is not a qualified
+current-manager queue: follow-ups and fresh inquiries wait until the manager and its generation are known.
+Audience is the coarse scope only (`personal` / `project` / `voice_call`): the observation states
+`audience.exactness: scope_only`, because no owner, member, revision or thread identity is in the input.
+
+Held or stopped work: a question with retained evidence is a `work_read`; without evidence it is a
+`manager_inquiry` that waits — never a fresh turn or a resume. A follow-up targets the one current mission
+only, queued (no fan-out, no new mission, no allowance reset); an unrelated build while a mission is active waits.
+
+Comparisons (F06): `selectedComparison` holds exactly two refs and each `possibleComparisons` entry exactly two;
+every comparison ref is `name@version[:region]` (v13): exactly one non-empty name and one non-empty version, and at
+most one non-empty region, each made only of letters, digits, `.`, `_` and `-`, with no `..` inside a ref. Empty
+components, a second `:`, `/`, a backslash, whitespace or any other character are outside this bounded grammar. Anything
+else is an input error (`unsupported_comparison`), counted among the invalid cases and never silently truncated. Target scoring compares structured refs, not a display string.
+
+Text (lexicon v2) is deliberately small and recorded in the policy descriptor (with its text rules from v10). A message
+with no clause in the lexicon abstains, and so does one whose only recognised clauses are acknowledgements beside
+unread words (v10). A clause outside the lexicon beside a recognised request is **not** read: the request decides.
+That is a disclosed limit, not an abstention.
+Auxiliary verbs (is, do, can …) open a question only with a question mark. A `needsReply:false` hint quiets an
+acknowledgement, a remark or a question; it never turns a request such as Stop into `no_action`. A leading
+acknowledgement is a prefix (v9): the words after it are classified as their own clause, and unread words after it stay unread (v10). The lexicon runs on
+authored text only: balanced `"…"`, `“…”`, `‘…’`, `'…'`, `«…»`, `„…“`, backticks, fenced code and `>` blockquote lines
+are removed first — every form may span lines — as are `quotedText` and `attachmentInstruction`; `@name` text is never
+an identity.
+
+Single quotes (v7) share their glyphs with apostrophes, so the policy does not decide by what precedes an opener. It
+classifies every single-quote-like mark — `'`, `‘`, `’`, `‚`, `‛`, `‹`, `›`, `＇`, `′`, `‵`, `ʼ`, `ʹ` — after double
+quotes, guillemets, low quotes, backticks, fences and `>` lines have been fenced (marks inside those are never
+examined):
+
+| Mark | Class |
+|---|---|
+| `'`, `’`, `ʼ`, `＇` with a letter or digit immediately on both sides **and** in a provable token shape: a contraction or possessive suffix — the mark followed by exactly `s`, `t`, `re`, `ve`, `ll`, `d` or `m` and then a non-letter/digit or the end (`it's`, `don't`, `we're`, `I'll`, `Maria's`, `O'Brien's` second mark, `90's`) — or a name prefix — a one-letter token `o`, `d` or `l` before the mark (`O'Brien`, `d'Arcy`, `l'Oréal`, `o'clock`) | provable apostrophe: ordinary text |
+| any other occurrence, including a mark between two letters that is in neither shape (`said'first`, `job'next`, `dell'arte`), whatever precedes or follows it (space, start, end, em dash, backslash, symbol, emoji, formatting, newline) | **boundary mark** |
+
+| Boundary marks in the input | Result |
+|---|---|
+| none | nothing to fence |
+| exactly two, the first `'` or `‘` with a non-space after it and no letter or digit before it, the second its own family's closer (`'` or `’`) with a non-space before it and no letter or digit after it | one span, fenced as evidence; text outside it is authored |
+| anything else — one, three or more, a lone possessive (`users'`), an elision (`'90s`), mismatched families, `‚ ‛ ‹ › ＇ ′ ‵ ʹ` as boundaries | bounds unknown: the whole input abstains with `malformed_quotation` |
+
+Any quote mark directly preceded by a backslash (`\'`, `\"`, `\’`) is source escaping, not supported: the whole input
+abstains with `malformed_quotation`. Literal Unicode-escape text such as `\u2014` is not decoded; it is ordinary text,
+and any quote marks around it follow the rules above. `‟`, `〝`, `〞` and `＂` anywhere are unsupported double-quote forms
+and also make the input abstain.
+
+`malformed_quotation` abstains whatever the authored text asks — Stop and Hold included — and `actorExplicitlyAdopts`
+cannot repair it, because what would be adopted is unknown. This is a conservative lexical fallback, not a quotation
+parser: the only fenced single-quote form is one exactly paired span. Deliberately unassessed, by abstention: any
+plural possessive or end-boundary apostrophe (`the users' list`, `the boss’ desk`) anywhere in the input, elisions,
+any between-letter mark outside the two provable shapes (non-English elisions such as `dell'arte`, glued quotes such as
+`said'first`), two single-quoted spans, mixed straight/typographic pairs, escaped quotes and the rarer quote glyphs.
+Contractions, possessives and `o'/d'/l'` names in the provable shapes, and a clearly authored command outside one
+exactly paired span (`'disk full'. Stop the job.`), stay meaningful. Only authored direction outside a bounded quotation
+can be a control.
+
+Whole-input pair check (v7). The per-mark shapes above only decide which marks are boundaries for fencing. After one
+exactly paired span (if any) is fenced, **every** single-quote-like mark still in the input — provable apostrophes
+included — is considered together: any two of them that could enclose words, i.e. that are separated by anything but
+letters and digits (a space, punctuation, a symbol, a line break, a zero-width character), might bound a quotation, so
+the whole input abstains with `malformed_quotation`, adoption included. Marks within one token (`O'Brien's`,
+`d'Arcy's`) enclose no words and stay ordinary; a single apostrophe cannot pair with anything.
+
+| Remaining marks after fencing | Result |
+|---|---|
+| none, or one | ordinary text |
+| two or more, all within one token (only letters/digits between consecutive marks) | ordinary text |
+| two or more, any two separated by anything else | `malformed_quotation`: the whole input abstains |
+
+Recall loss, stated: a message with apostrophes in two different words (`Stop the job; it's stuck and we're done.`)
+now abstains rather than proposing the Stop, and so does a single fenced quotation with an apostrophe on each side of
+it. The v6 limit — two marks that both fit contraction or name shapes being read as apostrophes — is closed by this
+check rather than documented.
+
+## Errors (CLI)
+
+| Code | Exit | Report |
+|---|---|---|
+| usage (missing, unknown or repeated argument, URL-like path) | 2 | none written |
+| `input_hash_mismatch`, unreadable/oversized file, invalid JSON, unknown schema, too many cases | 2 | none written |
+| `input_unreadable` also for every expected filesystem failure resolving or reading the input (r29), and for an input whose opened descriptor is not a regular file (r30) | 2 | none written |
+| `input_too_large`: the opened file is over 2 MiB ("exceeds"), or more than 2 MiB was read from it ("grew past the limit", r30) | 2 | none written |
+| `output_exists`, output inside the repository, output equal to input | 2 | none written |
+| `output_unusable` (r29): an expected filesystem failure resolving the report path or writing, syncing or linking it, or a publication that cannot be verified as this run's report (r29 repair1) | 2 | none written by this run; anything at the path is not this report |
+| an authority fixture body nests deeper than 32 (`input_fixture_too_deep`, r26) | 2 | none written |
+| `input_invalid_authority_fixtures` (r29): a malformed fixture container, entry or corpus reference | 2 | none written |
+| a case fails validation (`invalid_case`, `unknown_context_field`, `label_in_context`, `legacy_ask_missing`, `contradictory_origin`, `unsupported_comparison`, `duplicate_case_id`, `invalid_family`, `label_too_deep` (r26), bounds) | 1 | written; the case appears only in `errors`, never as a classification. `counts.invalidCases` counts cases, `counts.errorIssues` counts issues (one case may have several) |
+| all cases valid | 0 | written |
+
+Bounds: file 2 MiB, 500 cases, text 4000 characters, 64 context keys, strings 200 characters, lists 16 items, scored
+label depth 32 and fixture body depth 32 (r26, below).
+The report is written to a temporary file in the target directory with exclusive create, synced, then linked to
+the final name (which fails if it exists) — no silent overwrite of a source, an input or an earlier report.
+
+**Filesystem failures (r29).**
+- **What is translated:** an expected filesystem failure is Node's system-error shape, an `Error` with a string errno
+  `code` and a string `syscall`. Only those become usage errors, with fixed messages: no path, no errno text, no
+  stack.
+- **What stays visible, uncaught:** a `TypeError`, `RangeError` or other programming error, and the
+  installation-integrity reads (the policy source, the repository root).
+- **Input:**
+  - The input is resolved first when checking that the report is not the input (`stat` and `realpath`), then opened
+    once and read through that descriptor (r30, below). Any expected failure at either point is `input_unreadable`.
+  - r29 mapped a read refused for growth past a buffer (`ERR_FS_FILE_TOO_LARGE`) to `input_too_large`. Since r30 the
+    read is bounded, so that error cannot arise, and the mapping is removed.
+  - **Observed on Node 24.21.0:** `stat` of `<file>/x` with `throwIfNoEntry: false` returns nothing, as for a missing
+    file. So a file used as a directory was already `input_unreadable` for an input and `output_directory_missing`
+    for a report. A looping link and an over-long name were not, and raised raw errors.
+- **Output:**
+  - An expected failure resolving the report path, or creating, writing or syncing the temporary file, or linking it,
+    is `output_unusable`. Nothing is published.
+  - The temporary file this invocation created is removed. Its identity (`dev`, `ino`) is recorded at creation and the
+    descriptor stays open until cleanup, so the name is unlinked only while it still names that file. A replacement
+    or foreign file at that name is left alone, and so is a foreign file at the report path (`output_exists`).
+  - A cleanup or close failure never replaces the original failure.
+  - If the identity could not be recorded (`fstat` failed), the name is left, and that leftover is real.
+- **Publication identity (r29 repair1).** A link resolves the temporary *name*, which another party can replace, so a
+  successful link alone does not prove the report was published. Publication is therefore bound to the file this run
+  wrote and synced, and the descriptor stays open until every check and the cleanup are done:
+  - **Fence:** right before the link, the temporary name must still be the regular file with the recorded identity.
+    Otherwise nothing is linked.
+  - **Verification:** right after the link, the report path must be that same regular file. This also catches a
+    replacement at the link call itself.
+  - **On failure:** no success is announced. The refusal is `output_unusable` with the fixed message `the report could
+    not be published as written; anything at the report path is not this report`; it does not claim that the path is
+    absent.
+  - **Withdrawing a link:** a link this run made to something else is withdrawn only when the report path names the
+    same file the temporary name holds or resolves to (so it is this run's link) and that file has another name (so no
+    foreign data is lost). Otherwise the report path is left untouched, and nothing is read from it.
+  - **Boundary:** the verification holds at the moment of that check. Later changes by whoever can write the
+    directory, and physical crashes, are outside it.
+  - **Symlinks:** whether `link` follows a symlink is platform-specific. On Linux it does not, and the published path
+    is the symlink itself, which the verification rejects. The withdrawal therefore compares against both what the
+    name holds and what it resolves to.
+- **After publication:** once the link has succeeded and the report path is verified, the report is complete and
+  synced.
+  - If only removing the private temporary name fails, the run keeps its normal exit (0 or 1) and writes one fixed
+    line to stderr: `intake-observe: warning: temporary_report_left: a private temporary copy of the report could not
+    be removed`. The hidden `.<report>.<hex>.tmp` file may remain beside the report.
+  - A later close failure changes nothing.
+
+**Bounded input (r30, finding R29r1-F02).**
+- **Before:** the input was checked with a `stat` of its path and then read with `readFileSync(path)`, which opened the
+  path again and buffered whatever it named before the length was checked.
+  - A file grown or replaced between the two was read whole: over 2 MiB was held before the refusal.
+  - A FIFO swapped in at the read blocked the run until it was killed.
+- **Now:** `readBoundedInput` uses ONE descriptor.
+  1. **Open:** the path is opened once, read-only and non-blocking (`O_RDONLY | O_NONBLOCK`).
+     - Opening a FIFO, or a FIFO swapped in for the path, returns at once instead of waiting for a writer.
+     - On a regular file the flag changes nothing.
+     - Symlinks are followed, so a symlink to a regular file stays a valid input.
+  2. **Check:** `fstat` of that descriptor must be a regular file, otherwise `input_unreadable`. A size over 2 MiB is
+     `input_too_large` ("exceeds").
+  3. **Read:** a loop of `readSync` calls fills one buffer of 2 MiB + 1 bytes until end of file or until it is full.
+     - Short reads are fine.
+     - At most one byte past the limit is ever acquired.
+     - The path is never opened again.
+  4. **Refuse or hash:** more than 2 MiB held is `input_too_large` ("grew past the limit"). Otherwise exactly the
+     bytes held are hashed against `--input-sha256` and parsed. A file truncated after opening is therefore a short
+     read, and its hash does not match.
+  5. **Close:** the descriptor is closed on every branch.
+     - A close failure never replaces an earlier failure.
+     - After a complete bounded read, an expected close failure changes nothing.
+     - A programming error at close stays visible.
+- **Boundary:**
+  - The bytes are what this descriptor returned; this is not a physical snapshot.
+  - No bound is claimed for an arbitrary filesystem stall.
+  - Prompt refusal is shown for the named cases only: a FIFO, a link to one, a directory, a link to one, a missing
+    path, and a FIFO or directory swapped in before the open.
+  - A FIFO, directory or larger file swapped in after the open is never read; the opened file is.
+  - The policy-source installation read is separate and unchanged.
+  - The r29 repair1 publication rules are unchanged: identity, no overwrite, foreign-file preservation and the fixed
+    warning.
+
+**Fixture declarations (r29).**
+- `checkFixtures` validates every declaration before any body is hashed or any case is observed, in the built and the
+  written path:
+  - `authorityFixtures` absent, or `{}`, is valid.
+  - Present but not an object (`null`, a boolean, a number, a string, an array) refuses the file.
+  - Every entry's body must be an object; one that is not refuses the file. Nothing is filtered out, so the
+    single-fixture rule counts exactly the declared bodies, and a malformed sibling can no longer hide a valid body's
+    reference check.
+  - `authorityFixtureSha256` absent means no reference. Present, it must be 64 lowercase hex characters, otherwise
+    the file is refused.
+- The refusal is `input_invalid_authority_fixtures` with a fixed, value-free message.
+- Shape comes first, then the existing depth bound (`input_fixture_too_deep`), then hashing.
+- **Unchanged:**
+  - A well-formed but mismatching reference reports `matchesCorpusReference: false`.
+  - With two or more bodies, no corpus reference is compared.
+  - Fixture ids are arbitrary data keys (empty, long, `__proto__`, `constructor`).
+  - Bodies stay opaque but for the depth bound and the role list.
+  - Fixtures remain provenance only: no observation or admission depends on them.
+
+## Report
+
+`sophia.intake-observation.report.v7` (r24; v6 from r22 to r23, v5 until r21): tool and policy version, policy descriptor and source SHA-256, input
+basename/SHA-256/bytes/schema, explicit scored and unscored label fields, semantic assessment `absent`, counts with
+denominators (cases, observed, invalidCases, errorIssues, abstentions, clarifications, by kind/admission), per-field
+comparison (`match` / `mismatch` / `abstained` / `unassessed`; the denominator includes all four), every miss and
+unassessed item with its reason, development-set tallies, the synthetic fixture's provenance check (not authority) and
+zero actual-effect counts. The output is
+deterministic (no timestamps). The audience score is coarse: it compares only `change: unchanged`, not owner,
+member, revision, thread or publication qualification. The tallies are development-set observations, not safety
+evidence: novel counterexamples showed r1 gaps that a clean development tally did not reveal. An unexpected
+consequential proposal needs an actual proposed-action label that it misses (report v4): a case without that label,
+wholly unlabelled or labelled only in other fields, is listed under `consequentialProposalsActionNotLabelled` —
+neither a miss nor a match, and no evidence of safety. Report v3 counted those cases as unexpected.
+
+Report v6 (r22) changes two things and nothing else:
+
+- **Families.** `counts.byFamily` has one key per explicit family string: `unlabelled`, `none`, the empty string,
+  `__proto__` and `constructor` are ordinary keys, counted as own properties. A case whose family is absent or `null`
+  is counted in the new `counts.noFamily`. The sum of `byFamily` plus `noFamily` is `observed`. In v5, `unlabelled`
+  counted both missing metadata and the literal family; a v5 report is not reinterpreted as v6.
+- **Addressee identity.**
+  - **Matching.** A label matches when it names exactly the observed recipients as a set, not when two renderings are
+    equal. One parser (`addresseeLabelIds`) reads every label, for the comparison and for
+    `explicitHumanAddressOverrides` alike.
+  - **Label forms.** A label is a list of distinct non-empty ids, or a string:
+    - `none` means no recipient;
+    - a JSON list of ids starts with `[`;
+    - otherwise compact ids are joined by `+`. Each compact id must be non-empty, not `none`, without `+` and not
+      starting with `[` (`isCompactAddresseeId`).
+  - **Anything else** names no set and never matches.
+  - **Effect:** a human whose id is `none` is not "no recipient", the one id `a+b` is not `a` and `b`, and
+    `[a+b, c]`, `[a, b+c]` and `[a, b, c]` are three different sets. Ordinary labels (`maria+sophia`, `none`) keep
+    their meaning.
+  - **Observed values** use `renderAddressee`, now injective: the compact form when every id can be carried, otherwise
+    the sorted ids as a JSON list. The compact form never starts with `[`.
+  - Labels remain data, stripped before the policy runs.
+
+The policy's observations are unchanged (still `sophia.intake-observation.policy.v21`); only its report-notation
+helper `renderAddressee` changed.
+
+**Case identity (r23, within report v6).** A case's identity is decided before any of its other fields are checked.
+A case with a bounded `caseId` (a non-empty string of at most 200 characters, `boundedCaseId`) owns that id if no
+earlier case in input order has it, whether or not the case is otherwise valid. Every later case with the same id gets
+exactly one error, `duplicate_case_id` at `cases[i].caseId`. Its family, expected labels, other fields and input are
+not checked, and it never reaches the policy. An id that is not bounded (not a string, empty, too long) is
+`invalid_case_id` and owns nothing. It is never coerced, trimmed or truncated, so a later `"0"` after `0`, or a 200-character
+id after its 201-character extension, is a different, valid id. Ids are compared exactly: case, whitespace and
+prototype-looking names (`__proto__`, `constructor`) are ordinary distinct ids. Unchanged: the first occurrence's own
+errors and paths, `observed + invalidCases = cases`, a valid first occurrence kept beside a later duplicate error, and
+a policy-input error after valid metadata. The report shape is unchanged, so the schema stays v6. A v6 report written
+before r23 may have classified a later case whose id an earlier metadata-invalid case had; it is not reinterpreted or
+retallied.
+
+**Target comparison (r24, report v7, target label notation `sophia.intake-observation.target-label.v1`).** The v6
+comparison rendered the observed target to a compact string (`renderTarget`) and compared strings, which lost
+structure. `operation {id: a, newTarget: b/c}` and `{id: a/b, newTarget: c}` both read `a/b/c`. `{id: a/b, newTarget:
+null}` and `{id: a, newTarget: b}` both read `a/b`. A repository item null and the literal item `text_objective` both
+read `r/text_objective`. A label written for one of these targets therefore matched the other.
+
+From r24 the observed target is compared as the policy's Target object. A label takes one of two forms.
+
+- **A structured label** is an object `{kind, ...fields}` with exactly that kind's fields and types:
+  - thread `scope`; artifact `ref`; comparison `refs`;
+  - mission `id`, `manager`, `generation` (an integer) and `binding`, each of the last three possibly `null`;
+  - message, reference and utterance `id`; operation `id` and `newTarget` (possibly `null`);
+  - repository_work `repo` and `item` (possibly `null`); no field for native_history, text_objective and unresolved.
+
+  It is compared field by field, kind included. Nothing is coerced, trimmed or split, and `null` is neither `"null"`
+  nor a missing field, so one label names one target. An object that is not such a label (an unknown kind, a missing
+  or extra field, a wrong type), or any other non-string, is `mismatch` with note `invalid_target_label`.
+- **A legacy string** stays readable, explicitly limited. It never names a kind, so it is read in the observed target's
+  kind, and every target the v6 notation lets it denote there is listed:
+  - an operation string as one id, or split at any `/`;
+  - a repository string split at any `/`, with the `text_objective` item also read as `null`;
+  - a thread as its scope before `_thread`;
+  - kind-only targets as their fixed word.
+
+  It is a match (note `legacy_label`) only when it can denote exactly one target and that is the observed one. It is a
+  mismatch when none is the observed one. It is `unassessed` (note `ambiguous_legacy_target_label`) when it could
+  denote several targets, one of them the observed one: it then needs a structured label.
+
+  So all four v6 collisions are `unassessed` from either side, never a match. A legacy mission string names the mission
+  id only. With the observed id it is `unassessed` (note `legacy_label_mission_id_only`): manager, generation and
+  binding are never claimed from an id. With another id it is a mismatch. Comparison labels keep their ordered-ref
+  reading.
+
+Unchanged: abstention comes before any equality, and so do `not_labelled`, the other fields and labels as data
+stripped before the policy. The report adds `targetLabels: {notation, forms: {structured, legacy, invalid}}` and
+restates `targetScoring`. The policy, including `Target` and `renderTarget`, is byte-identical (still
+`sophia.intake-observation.policy.v21`); `renderTarget` is no longer used for comparison. v6 reports are not
+reinterpreted, and no issued report is retallied.
+
+**Work bound (r25).** A legacy string is compared in work linear in its length and the target's. Its readings are
+counted, never listed or serialized:
+- an operation string has 1 + (its number of `/`) readings;
+- a repository string has one reading per `/`, plus one when it ends in `/text_objective`;
+- every other kind has at most one reading.
+
+Whether the observed target is among the readings is checked in place: for a pair, the label is exactly the first
+field, a `/`, then the second. The verdict is the same as r24's (no hit: mismatch; one reading and a hit: match;
+several readings and a hit: unassessed), so every report v7 and target-label.v1 meaning is unchanged. Nothing is
+truncated, refused or versioned: a label of any accepted length, up to the 2 MiB file, is compared in full. r24 listed
+every split and serialized each one, which is quadratic: a label of 100 000 `/` took seconds, and one of 400 000 did not
+finish within 30 s.
+
+**Depth bound (r26, finding R25-F02, within report v7 and target-label.v1).** A scored label is kept verbatim in
+`comparison.expected` and in the misses, and a declared fixture body is hashed by `canonicalJson`; both are recursive.
+A label or body nested some thousands deep, far below 2 MiB, overflowed the stack: an uncaught `RangeError` and no
+report. JSON parsing itself is not the limit: Node 24.21.0 parsed 1 000 000 nested arrays (2 000 001 bytes) in about
+170 ms. The consumer now measures depth without recursion (`nestingExceeds`, an explicit stack, linear work):
+- **Depth:** a scalar is 0; an array or object is 1 + its deepest member; an empty array or object is 1.
+- **Labels:** `CLI_LIMITS.labelDepth` is 32 for all 8 scored labels (`audience`, `addressee`, `proposedAction`,
+  `target`, `clarificationRequired`, `admission`, `admissionDenialOrWaitReason`, `actualObservationModeEffects`). A
+  deeper label is the case error `label_too_deep` at `cases[i].expected.<field>`. It is checked last, after the case's
+  identity and its earlier checks, so a first bounded `caseId` still owns its id, a later duplicate gets only
+  `duplicate_case_id`, and `invalid_case_id`, `unknown_case_field`, `invalid_expected` and `invalid_family` come
+  first as before. The case is invalid, never observed or scored. The error names the path, never the value, so no
+  deep value is kept. The report is written and the command line exits 1. 32 deep is compared as before.
+- **Fixtures:** `CLI_LIMITS.fixtureDepth` is 32. A deeper declared fixture body refuses the file before any hashing
+  with `UsageError` `input_fixture_too_deep`, in the built and the written path: exit 2, no report. This is a
+  deliberate file refusal, not an evaluated case. Shallower bodies hash byte-identically.
+- **Not bounded:** ignored bookkeeping (`status`, `split`, `labelAuthority`, `fixtureAuthority`) and unscored
+  `expected` keys are never retained or serialized, so deep values there stay accepted and harmless. There is no
+  whole-file depth rule, V8 stack flag, truncation or coercion.
+
+Admission comparison (F04, bounded choice in r3) is separate from proposal comparison and never changes the policy
+outcome. A policy outcome that is a deterministic result — `waiting`, `denied`, `conflict`, `replay_original`,
+`reconciliation_required`, `clarification_required`, or a `recorded_only` with a non-admission reason (human
+message, private mention, no action, output, legacy, abstention) — is compared as it is. An unblocked
+`observation_unqualified` proposal is **always `unassessed`** (reason `complete_current_authority_not_representable`):
+this offline evaluator cannot establish current source, native/profile, manager/binding, payer or grant authority,
+so it makes no positive admission claim. The r2 per-family precondition table is removed rather than extended; a
+synthetic fixture whose SHA-256 is verified proves the body's provenance, not current authority. The report still
+records each fixture's recomputed SHA-256 and reference matches, as provenance only. Positive admission labels in a
+corpus therefore count as `unassessed`: a loss of evaluation scope, reported with its denominator, not an accuracy
+change. Target scoring for a mission compares only the mission id the label names; manager, generation and binding
+are in the structured observation but unscored.
+An abstained proposal's addressee, action, target, admission and admission-reason fields count as `abstained`,
+never as matches. Report v5 (r11) decides this **before** any equality: in v4 a label that happened to equal an
+abstention's placeholder value (`abstain`, `none`, `unresolved`, `recorded_only`, `null`) counted as a match and left
+the misses list. The order for a labelled field is now: not labelled (no label for it) → abstained (one of those five
+fields of an abstaining proposal) → match → unassessed (admission) → mismatch. Denominators still include every
+abstained field. Audience, clarification and actual-effect fields keep their comparisons for an abstention: they
+compare observed facts, not a semantic resolution.
+
+## Running
+
+```bash
+node scripts/intake-observe.ts --input /path/to/development-cases.json \
+  --input-sha256 477a5784c9e25ebb3966bcb6ea56c703275b99dc9ff20008f85ace7081766b8d --out /path/outside/repo/report.json
+```
+
+The reviewed development corpus stays outside the repository: `docs/DESTINATION_MAP.md` lists `tests/fixtures/` as
+unbuilt (S1-02), and changing that map is not this slice's to do. The CLI tests build their own small synthetic
+corpus instead of replaying the development cases.
+
+`pnpm test` discovers `packages/coordination/src/intake-observation.test.ts`, and — through the coordinator-granted
+wrapper `tests/unit/intake-observe-registration.test.mjs`, which only imports it — `scripts/intake-observe.test.ts`.
+No root `package.json`, glob or shared configuration was changed.
+
+## Not done here (serialized after INC01-CC-002)
+
+Additive amendment/migration with durable input/assessment/admission/effect records; generated contracts and
+validators; API registration and route compatibility; the runner's queue/control binding for `manager_followup`;
+a named API payer for semantic assessment; designer-owned composer changes with Davide's approval; reviewer-held
+held-out evaluation of a frozen policy version; founder observation (AC-03-15). No AC-03 case is passed by this
+slice.

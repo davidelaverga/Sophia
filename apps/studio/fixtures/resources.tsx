@@ -16,6 +16,10 @@
 // isn't). An owner's act on a session is taken as a runtime would (`acted` records it, `commands` each with its exact
 // target), as on the plan's page; `reassign(sessionId)` gives a session its next assignment. `unfenced=1`: the runtimes report each session's work, but not which assignment it
 // is or its generation, so nothing can be sent to them (PR #76 review).
+// Open work leaves for that board, carrying `held=<work id>` when this viewer's Hold on it was confirmed here.
+// `count=<case>` (with `readiness=1`): Codex's reading as credits or tokens, used up or not, or a reset that isn't an
+// instant (below); `reset=bad|bad-7day|ok-7day|bad-observed|bad-history`: a time of Claude Code's that isn't one;
+// `host=empty|blank|bad|none`: Codex's and Grok's host time.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -23,6 +27,8 @@ import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { glance, writeSeen } from '../src/features/resources/away.ts'
+import { added, commandSpace, received, spaceOf } from '../src/features/resources/command-store.ts'
+import { covers, workState } from '../src/features/resources/work-control.ts'
 import { linkHash, TASK } from '../src/features/resources/link.ts'
 import { ResourcePanel } from '../src/features/resources/ResourcePanel.tsx'
 import type { TaskLinks } from '../src/features/resources/ResourceSheet.tsx'
@@ -31,8 +37,8 @@ import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
 import type { EffortAsk } from '../src/features/resources/change.ts'
-import type { Command } from '../src/features/resources/receipts.ts'
-import type { Resource, Session } from '../src/features/resources/resource.ts'
+import type { QuotaObservation, QuotaWindow, Readiness, Resource, Session } from '../src/features/resources/resource.ts'
+import { sessionTarget, type Command, type Known } from '../src/features/resources/receipts.ts'
 import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import { plan, secondView } from './work-data.ts'
 import { acted, actOn, carried, commands, nextActivity, withActivity } from './work-live.ts'
@@ -111,26 +117,259 @@ const more = query.get('more') === '1'
 const unfenced = (list: Resource[]): Resource[] =>
   list.map((r) => ({
     ...r,
-    sessions: r.sessions.map((s) =>
-      s.assignment
-        ? { ...s, assignment: { workId: s.assignment.workId, title: s.assignment.title, state: s.assignment.state } }
-        : s,
-    ),
+    sessions:
+      r.sessions?.map((s) =>
+        s.assignment
+          ? { ...s, assignment: { workId: s.assignment.workId, title: s.assignment.title, state: s.assignment.state } }
+          : s,
+      ) ?? null,
   }))
 const listed = more ? [...resources, ...moreResources] : resources
-const shown = query.get('unfenced') === '1' ? unfenced(listed) : listed
+
+/** A minute offset from the view's time, as an instant. */
+const minutes = (m: number) => new Date(NOW.getTime() + m * 60_000).toISOString()
+const SIMULATED = 'simulated fixture'
+const analysis = { id: 'repository_analysis', name: 'Repository analysis' }
+const changes = { id: 'code_changes', name: 'Code changes' }
+
+/**
+ * `readiness=1`: each resource's readiness as a collector would report it, all simulated (INC01-DES-001 r3): Codex
+ * signed in, analysis verified and code changes not yet; Davide's Claude Code signed out; Gemini's last reading past its
+ * time; the others report none. Without it, no resource reports readiness, as everywhere today.
+ */
+const READINESS: Record<string, Readiness> = {
+  'davide-codex': {
+    signIn: 'signed_in',
+    operations: [
+      { ...analysis, state: 'qualified' },
+      { ...changes, state: 'unqualified' },
+    ],
+    observedAt: minutes(-1),
+    validUntil: minutes(14),
+    source: SIMULATED,
+  },
+  'davide-claude': {
+    signIn: 'signed_out',
+    operations: [
+      { ...analysis, state: 'unknown' },
+      { ...changes, state: 'unknown' },
+    ],
+    observedAt: minutes(-2),
+    validUntil: minutes(13),
+    source: SIMULATED,
+  },
+  'luis-gemini': {
+    signIn: 'signed_in',
+    operations: [{ ...analysis, state: 'qualified' }],
+    observedAt: minutes(-40),
+    validUntil: minutes(-25),
+    source: SIMULATED,
+  },
+  'davide-grok': {
+    signIn: 'signed_in',
+    operations: [{ ...analysis, state: 'qualified' }],
+    observedAt: minutes(-26 * 60),
+    validUntil: minutes(-26 * 60 + 15),
+    source: SIMULATED,
+  },
+}
+/**
+ * `readiness=edge`: the adverse projections the r3 repair 2 review named, all simulated: Codex verified for analysis and
+ * not supported for code changes; Davide's Claude Code signed in, its operations not reported; Gemini observed after now;
+ * Grok's observation time not an instant (its host offline says first).
+ */
+/** A fixture projection by its resource, there by construction: a missing one is the fixture's own error. */
+function base(id: string): Readiness {
+  const r = READINESS[id]
+  if (!r) throw new Error(`fixtures/resources.tsx: no readiness for ${id}`)
+  return r
+}
+const READINESS_EDGE: Record<string, Readiness> = {
+  'davide-codex': {
+    ...base('davide-codex'),
+    operations: [
+      { ...analysis, state: 'qualified' },
+      { ...changes, state: 'unsupported' },
+    ],
+  },
+  'davide-claude': {
+    ...base('davide-claude'),
+    signIn: 'signed_in',
+  },
+  'luis-gemini': { ...base('luis-gemini'), observedAt: minutes(60), validUntil: minutes(75) },
+  'davide-grok': { ...base('davide-grok'), observedAt: 'not-an-instant', validUntil: null },
+}
+const READINESS_SETS: Record<string, Record<string, Readiness>> = { '1': READINESS, edge: READINESS_EDGE }
+const readinessSet = READINESS_SETS[query.get('readiness') ?? '']
+const withReadiness = (list: Resource[]): Resource[] =>
+  readinessSet ? list.map((r) => ({ ...r, readiness: readinessSet[r.id] ?? null })) : list
+
+/**
+ * `seed=held|pending|unknown`: what the service retained for Codex's reviewer when the page opened, as a reload or a
+ * navigation back would read it again (INC01-DES-001 r3): its runtime reporting it held (the view), or a Hold already
+ * sent whose receipt says it is pending, or whose outcome is unknown (the store). Nothing is sent from the page.
+ */
+const seed = query.get('seed')
+const seeded = (list: Resource[]): Resource[] =>
+  seed === 'held'
+    ? list.map((r) => ({
+        ...r,
+        sessions:
+          r.sessions?.map((s) =>
+            s.id === 'codex-reviewer' && s.assignment
+              ? { ...s, assignment: { ...s.assignment, runtimeControl: 'held' as const } }
+              : s,
+          ) ?? null,
+      }))
+    : list
+
+/**
+ * `host=empty|blank|bad|none`: Davide's Codex (online) and Grok (offline, with `more=1`) report their host's
+ * observation time as an empty string, whitespace, something that isn't an instant, or none at all (r3 repair 7).
+ */
+const HOST_TIMES: Record<string, string | null> = { empty: '', blank: ' ', bad: 'not-an-instant', none: null }
+const hostTime = query.get('host') ?? ''
+const withHostTime = (list: Resource[]): Resource[] =>
+  hostTime in HOST_TIMES
+    ? list.map((r) =>
+        r.id === 'davide-codex' || r.id === 'davide-grok'
+          ? { ...r, host: { ...r.host, observedAt: HOST_TIMES[hostTime] ?? null } }
+          : r,
+      )
+    : list
+const shown = seeded(withReadiness(withHostTime(query.get('unfenced') === '1' ? unfenced(listed) : listed)))
+
+const reviewer = shown.flatMap((r) => r.sessions ?? []).find((s) => s.id === 'codex-reviewer')
+const reviewerTarget = reviewer ? sessionTarget(PROJECT, reviewer) : null
+if ((seed === 'pending' || seed === 'unknown') && reviewerTarget) {
+  const space = commandSpace(PROJECT, viewer.id)
+  const hold: Command = { operation_id: 'seeded-hold', kind: 'hold', target: reviewerTarget }
+  added(space, hold)
+  received(space, hold.operation_id, {
+    schema_version: 'sophia.work.receipt.v1',
+    operation_id: hold.operation_id,
+    receipt_id: 'seeded-hold-receipt',
+    project_id: reviewerTarget.project_id,
+    work_id: reviewerTarget.work_id,
+    assignment_id: reviewerTarget.assignment_id,
+    assignment_generation: reviewerTarget.assignment_generation,
+    kind: 'hold',
+    revision: 1,
+    observed_at: NOW.toISOString(),
+    admission: seed === 'pending' ? 'recorded' : 'unknown',
+    delivery: seed === 'pending' ? 'delivered' : 'unknown',
+    effect: seed === 'pending' ? 'pending' : 'unknown',
+    rejection: null,
+    evidence_refs: seed === 'pending' ? ['seeded-admission'] : [],
+  })
+}
 const stale = query.get('stale') === '1'
 const busy = query.get('busy') === '1'
 const spent = query.get('spent') === '1'
 const tight = query.get('tight') === '1'
+
+/**
+ * `count=<case>`: Codex's reading as counts, all simulated (INC01-DES-001 r3 repair 3, UI1164-F08): credits or tokens
+ * at zero alone (`credits0`, `tokens0`), beside a 5-hour window at 25 % or a positive count in either order
+ * (`percent-credits0`, `credits0-percent`, `tokens-credits0`, `credits0-tokens`), and the siblings that are not used up:
+ * credits left (`credits`), zero that applies only in part (`partial`), unknown (`unknown`), or whose reset is already
+ * due (`due`). With `stale=1` the reading is past its time, whatever it said. Repair 4 (UI85C4-F09): a reset that isn't
+ * an instant, on each unit used up (`credits0-badreset`, `tokens0-emptyreset`, `percent100-badreset`, `spend-badreset`),
+ * beside a used-up window whose reset is known (`badreset-percent100`), and on credits left (`credits-badreset`).
+ */
+const countWindow = (
+  unit: QuotaWindow['unit'],
+  value: number | null,
+  over: Partial<QuotaWindow> = {},
+): QuotaWindow => ({
+  window_id: unit === 'tokens_remaining' ? 'daily_tokens' : 'daily_requests',
+  unit,
+  value,
+  resets_at: minutes(9 * 60),
+  scope: 'account',
+  applicability: 'known',
+  state: 'observed',
+  ...over,
+})
+const roomy: QuotaWindow = { ...countWindow('percent_used', 25), window_id: 'five_hour', resets_at: minutes(120) }
+const noCredits = countWindow('credits_remaining', 0)
+const COUNTS: Record<string, QuotaWindow[]> = {
+  credits0: [noCredits],
+  tokens0: [countWindow('tokens_remaining', 0, { resets_at: null })],
+  'percent-credits0': [roomy, noCredits],
+  'credits0-percent': [noCredits, roomy],
+  'tokens-credits0': [countWindow('tokens_remaining', 5000), noCredits],
+  'credits0-tokens': [noCredits, countWindow('tokens_remaining', 5000)],
+  credits: [countWindow('credits_remaining', 820)],
+  partial: [countWindow('credits_remaining', 0, { applicability: 'partial' })],
+  unknown: [countWindow('credits_remaining', null, { state: 'unknown' })],
+  due: [countWindow('credits_remaining', 0, { resets_at: minutes(-30) })],
+  'credits0-badreset': [countWindow('credits_remaining', 0, { resets_at: 'not-an-instant' })],
+  'tokens0-emptyreset': [countWindow('tokens_remaining', 0, { resets_at: '' })],
+  'percent100-badreset': [{ ...roomy, value: 100, resets_at: 'not-an-instant' }],
+  'spend-badreset': [
+    { ...roomy, window_id: 'spend_limit', unit: 'spend_percent_used', scope: 'spend', value: 120, resets_at: 'NaN' },
+  ],
+  'badreset-percent100': [
+    countWindow('credits_remaining', 0, { resets_at: 'not-an-instant' }),
+    { ...roomy, value: 100 },
+  ],
+  'credits-badreset': [countWindow('credits_remaining', 820, { resets_at: '' })],
+}
+/**
+ * `reset=bad`: Davide's Claude Code reports its 5-hour window's reset as something that isn't an instant (repair 4).
+ * `reset=bad-7day`: its 7-day window, at 40 %, below the 5-hour headline, reports a reset that isn't an instant: it sits
+ * in the list of other windows, paced (repair 5); `reset=ok-7day`, the same with a reset that is one, its control.
+ * `reset=bad-observed`: the reading's own time isn't an instant.
+ */
+const badReset = (o: QuotaObservation): QuotaObservation => {
+  const kind = query.get('reset')
+  const id = kind === 'bad-7day' || kind === 'ok-7day' ? 'seven_day' : 'five_hour'
+  const resets_at = kind === 'ok-7day' ? minutes(3 * 1440) : 'not-an-instant'
+  return {
+    ...o,
+    windows: o.windows.map((w) =>
+      w.window_id !== id ? w : { ...w, resets_at, ...(id === 'seven_day' ? { value: 40 } : {}) },
+    ),
+  }
+}
+const counts = COUNTS[query.get('count') ?? '']
+const codexRead = (o: QuotaObservation): QuotaObservation => {
+  const given = counts ? { ...o, windows: counts } : o
+  if (stale) return { ...given, valid_until: expiredAt() }
+  if (spent) return spentCodex(given)
+  return busy ? busyCodex(given) : given
+}
 const read = [...observations, ...(more ? moreObservations : [])].map((o) => {
   if (busy && o.entitlement_id === 'ent-davide-anthropic') return busyClaude(o)
   if (tight && o.entitlement_id === 'ent-davide-anthropic') return tightClaude(o)
-  if (o.entitlement_id !== 'ent-davide-openai') return o
-  if (stale) return { ...o, valid_until: expiredAt() }
-  if (spent) return spentCodex(o)
-  return busy ? busyCodex(o) : o
+  if (query.get('reset')?.endsWith('7day') || query.get('reset') === 'bad') {
+    if (o.entitlement_id === 'ent-davide-anthropic') return badReset(o)
+  }
+  return o.entitlement_id === 'ent-davide-openai' ? codexRead(o) : o
 })
+
+/**
+ * `reset=bad-observed`: the live reading of Davide's Claude Code says a time that isn't an instant. The earlier readings
+ * are built from the reading as given (`earlierReadings` shifts its time), so only the one the panel shows is changed.
+ */
+const shownReadings = (list: QuotaObservation[]): QuotaObservation[] =>
+  query.get('reset') === 'bad-observed'
+    ? list.map((o) => (o.entitlement_id === 'ent-davide-anthropic' ? { ...o, observed_at: 'not-an-instant' } : o))
+    : list
+
+/**
+ * `reset=bad-history`: the earliest of Davide's Claude Code's earlier readings says a time that isn't an instant
+ * (repair 6); the history is built as given first, then only that one reading is changed.
+ */
+const shownHistory = (list: QuotaObservation[]): QuotaObservation[] =>
+  query.get('reset') === 'bad-history'
+    ? list.map((o) =>
+        o.observation_id.endsWith('-earlier-0') && o.entitlement_id === 'ent-davide-anthropic'
+          ? { ...o, observed_at: 'not-an-instant' }
+          : o,
+      )
+    : list
 
 /**
  * `since=1`: the viewer last looked a while ago, when Codex's review was still queued, nothing waited on Davide, and
@@ -140,20 +379,52 @@ if (query.get('since') === '1') {
   const then = shown.map((r) => ({
     ...r,
     host: r.id === 'davide-grok' ? { ...r.host, state: 'online' as const } : r.host,
-    sessions: r.sessions.map((s) =>
-      s.id === 'codex-reviewer' && s.assignment
-        ? { ...s, assignment: { ...s.assignment, state: 'queued' as const } }
-        : s,
-    ),
+    sessions:
+      r.sessions?.map((s) =>
+        s.id === 'codex-reviewer' && s.assignment
+          ? { ...s, assignment: { ...s.assignment, state: 'queued' as const } }
+          : s,
+      ) ?? null,
   }))
   writeSeen('fixture', viewer.id, glance(then, [], read, NOW))
 }
 
 /** The tasks on the plan's fixture board: only those open there; any other work is only its title. */
 const planned = new Set([...plan.items, ...secondView.proposed_plans.flatMap((p) => p.items)].map((i) => i.id))
+
+/**
+ * What Open work carries to the plan's page, which keeps a store of its own (the app's one page shares one and needs
+ * none of this): the work's state as structure (work-control.ts), held as its view reports or by a Hold its runtime
+ * confirmed (`held=`), and every control retained for it, each as itself, its command with its original target and
+ * its receipt as observed, pending or unknown as it is (`retained=`). Nothing is confirmed or rebound on the way.
+ */
+function carriedState(workId: string): [string, string][] {
+  const session = shown.flatMap((r) => r.sessions ?? []).find((s) => s.assignment?.workId === workId)
+  const target = session ? sessionTarget(PROJECT, session) : null
+  if (!session || !target) return []
+  const known = spaceOf(commandSpace(PROJECT, viewer.id)).known.filter(
+    (k) => k.command.kind !== 'guidance' && covers(target, k.command.target),
+  )
+  const state = workState(known, target, session.assignment?.runtimeControl ?? null)
+  const retained: Pick<Known, 'command' | 'local' | 'receipt'>[] = known.map((k) => ({
+    command: k.command,
+    local: k.local,
+    receipt: k.receipt,
+  }))
+  return [
+    ...(state.settled === 'held' ? [['held', workId] as [string, string]] : []),
+    ...(retained.length > 0 ? [['retained', JSON.stringify(retained)] as [string, string]] : []),
+  ]
+}
+
 const tasks: TaskLinks = {
   has: (workId) => planned.has(workId),
-  open: (workId) => window.location.assign(`work.html${carried(window.location.search)}${linkHash(workId, TASK)}`),
+  open: (workId) => {
+    const search = new URLSearchParams(carried(window.location.search))
+    for (const [key, value] of carriedState(workId)) search.set(key, value)
+    const said = search.toString()
+    window.location.assign(`work.html${said ? `?${said}` : ''}${linkHash(workId, TASK)}`)
+  },
 }
 
 const waitingOn = (list: typeof actions, id: string) =>
@@ -172,7 +443,10 @@ type LiveState = {
 /** The live state with one session changed. */
 const withSession = (l: LiveState, id: string, change: (s: Session) => Session): LiveState => ({
   ...l,
-  resources: l.resources.map((r) => ({ ...r, sessions: r.sessions.map((s) => (s.id === id ? change(s) : s)) })),
+  resources: l.resources.map((r) => ({
+    ...r,
+    sessions: r.sessions?.map((s) => (s.id === id ? change(s) : s)) ?? null,
+  })),
 })
 
 /** The same native session, given its next assignment at the next generation, as its runtime would report it. */
@@ -205,7 +479,7 @@ const startedWith = (s: Session, level: string): Session => ({
 function advanced(l: LiveState, id: string): LiveState {
   const ask = l.asks[id]
   if (ask?.when !== 'now') return l
-  const session = l.resources.flatMap((r) => r.sessions).find((s) => s.id === id)
+  const session = l.resources.flatMap((r) => r.sessions ?? []).find((s) => s.id === id)
   if (!session?.change) {
     const stopping = withSession(l, id, (s) => ({
       ...s,
@@ -283,7 +557,7 @@ function Live() {
   const [live, setLive] = useState<LiveState>({
     actions: query.get('quiet') === '1' ? [] : actions,
     resources: withActivity(shown),
-    observations: read,
+    observations: shownReadings(read),
     loading: query.get('loading') === '1' || query.get('refreshing') === '1',
     asks: {},
   })
@@ -317,7 +591,7 @@ function Live() {
           viewerId={viewer.id}
           now={NOW}
           loading={live.loading}
-          history={earlierReadings(read)}
+          history={shownHistory(earlierReadings(read))}
           tasks={tasks}
           scope="fixture"
           projectId={PROJECT}
@@ -339,7 +613,8 @@ if (!root) throw new Error('resources.html must contain #root')
 createRoot(root).render(
   <StrictMode>
     <p className="fixture-label" role="note">
-      Simulated — no tool, host or account read · viewing as {viewer.name}
+      Simulated — no tool, host or account read{readinessSet && ' · readiness simulated'}
+      {seed && ` · seeded: ${seed}`} · viewing as {viewer.name}
     </p>
     <QueryClientProvider client={new QueryClient()}>
       <ShortcutScope.Provider value>

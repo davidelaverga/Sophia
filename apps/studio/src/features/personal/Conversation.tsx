@@ -7,7 +7,7 @@ import { Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
 import { onScreen } from '../../app/shortcuts.ts'
 import { UMBRAL } from '../light/threshold.ts'
 import type { Way } from './arrive.ts'
-import { daysOf, notePrefill, opensHere, suggestionFor, type Row } from './conversation-view.ts'
+import { daysOf, notePrefill, opensHere, RECORDED, suggestionFor, type Row } from './conversation-view.ts'
 import { copyWords, CopyStillWriting } from './copy.ts'
 import type { Week } from './extras.ts'
 import { FindLens, Marked, type Lens } from './Find.tsx'
@@ -340,6 +340,14 @@ function RowView({ row, turns, noteAt, setNoteAt, onDays, actions }: RowProps) {
     return <Ways ways={row.ways} label={label} onStart={start} />
   }
   if (row.kind === 'typing') return <Typing first={row.first} />
+  // Said in the quiet status line Ask again uses, with nothing to press: kept, not asked, and nothing is coming.
+  if (row.kind === 'recorded') {
+    return (
+      <p className="c3-failed" data-recorded={row.turnId}>
+        {RECORDED}
+      </p>
+    )
+  }
   if (row.kind === 'failed') {
     // Ask again goes as the wait begins: the focus goes to the conversation first.
     const retry = () => {
