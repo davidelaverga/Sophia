@@ -1655,6 +1655,15 @@ for (const code of ['service-not-allowed', 'network', 'bad-grammar']) {
   })
 }
 
+test('seams · words heard before the error land, and the line says where they came from, not the error', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?speechError=no-speech&heard=${encodeURIComponent('call him on Friday')}`)
+  await page.getByRole('button', { name: 'Talk instead' }).click()
+  await expect(field(page)).toHaveValue('call him on Friday')
+  await expect(page.locator('.ps-composer .chat-line')).toHaveText('From your voice · edit it or send')
+})
+
 test('seams · why dictation stopped goes with the next attempt, and with what you write', async ({ page }) => {
   await page.goto(`${PAGE}?speechError=no-speech`)
   const line = page.locator('.ps-composer .chat-line', { hasText: 'Didn’t catch anything' })
