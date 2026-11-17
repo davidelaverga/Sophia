@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { Row } from './conversation-view.ts'
-import { marksIn, richLines, shownText } from '../../app/rich-text.ts'
+import { marksIn, richLines, shownOf } from '../../app/rich-text.ts'
 import { foundIn, pieces } from './find-view.ts'
 
 const said = (key: string, text: string): Row => ({
@@ -133,7 +133,7 @@ describe('finding in formatted words', () => {
 
   for (const [text, query] of TRICKY) {
     it(`agrees for ${JSON.stringify(text)} and ${JSON.stringify(query)}`, () => {
-      const shown = shownText(text)
+      const shown = shownOf(text)
       const marks = pieces(shown, query)
       let at = 0
       const drawn = new Set<number>()

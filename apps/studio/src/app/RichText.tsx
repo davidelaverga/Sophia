@@ -30,7 +30,7 @@ function PieceOf({ piece, lens }: { piece: Piece; lens: Lens | null }) {
 
 interface Props {
   text: string
-  /** What Find marks, as `pieces` cuts the words as shown (`shownText`); absent where nothing is found. */
+  /** What Find marks, as `pieces` cuts the words as shown (`shownOf`); absent where nothing is found. */
   marks?: readonly MarkPiece[]
   /** The match Find is on, set apart. */
   current?: number | null

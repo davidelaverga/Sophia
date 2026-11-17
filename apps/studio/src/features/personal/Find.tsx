@@ -12,7 +12,7 @@ import { focusConversation } from './focus.ts'
 import { useEscape } from './useEscape.ts'
 import { foundIn, pieces, type Found } from './find-view.ts'
 import { RichText } from '../../app/RichText.tsx'
-import { shownText } from '../../app/rich-text.ts'
+import { shownOf } from '../../app/rich-text.ts'
 
 /** What the turns mark: the query, and the match that is current. */
 export interface Lens {
@@ -28,11 +28,13 @@ export const FIND_KEYS = keyLabel('mod+f', onMac)
 /** A turn's words with their marks, what matches the lens marked, the current match set apart. */
 export function Marked({ rowKey, text }: { rowKey: string; text: string }) {
   const lens = useContext(FindLens)
+  // Read once per text by this turn, and gone with it (Codex P1 on #522: nothing module-wide keeps Personal's words).
+  const shown = useMemo(() => shownOf(text), [text])
   // Its marks drawn as the room draws them, its web addresses as links, what Find marks inside either kept inside it
   // (message-links.md, personal-replies-formatted.md): Find looks in the words as shown.
   if (!lens) return <RichText text={text} />
   const current = lens.current?.key === rowKey ? lens.current.n : null
-  return <RichText text={text} marks={pieces(shownText(text), lens.query)} current={current} />
+  return <RichText text={text} marks={pieces(shown, lens.query)} current={current} />
 }
 
 interface BarProps {
@@ -233,7 +235,15 @@ export function useFind(
     setQuery('')
     setHeld(null)
   })
-  const found = useMemo(() => (open ? foundIn(rows, query) : []), [open, rows, query])
+  // The turns' words as shown, read once per conversation's rows and kept only by this conversation (Codex P1 on #522).
+  const shownByText = useMemo(
+    () => new Map(rows.flatMap((r) => (r.kind === 'turn' ? [[r.text, shownOf(r.text)] as const] : []))),
+    [rows],
+  )
+  const found = useMemo(
+    () => (open ? foundIn(rows, query, (text) => shownByText.get(text) ?? shownOf(text)) : []),
+    [open, rows, query, shownByText],
+  )
   const index = Math.max(0, found.findIndex(sameAs(held)))
   const current = found[index] ?? null
   // The match you are on is held as itself once there is one: earlier days read in before it (from here or the days'

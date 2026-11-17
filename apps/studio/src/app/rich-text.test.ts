@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { marksIn, richLines, SHOWN_KEPT, shownKept, shownOf, shownText } from './rich-text.ts'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { marksIn, richLines, shownOf } from './rich-text.ts'
 
 // Bold, code and quotes in messages (docs/plans/message-format.md).
 describe('a message’s marks', () => {
@@ -42,8 +44,8 @@ describe('a message’s marks', () => {
 // What Personal's Find and Copy read (docs/plans/personal-replies-formatted.md).
 describe('a message as shown', () => {
   it('drops the marks and keeps the lines', () => {
-    assert.equal(shownText('Run `sum` **now**\n> as I said\nand **2 ** 3'), 'Run sum now\nas I said\nand **2 ** 3')
-    assert.equal(shownText('see https://example.com/**draft**'), 'see https://example.com/**draft**')
+    assert.equal(shownOf('Run `sum` **now**\n> as I said\nand **2 ** 3'), 'Run sum now\nas I said\nand **2 ** 3')
+    assert.equal(shownOf('see https://example.com/**draft**'), 'see https://example.com/**draft**')
   })
 
   it('cuts Find’s pieces to a span, their numbers kept', () => {
@@ -61,17 +63,13 @@ describe('a message as shown', () => {
   })
 })
 
-// Find reads every turn on each key, Marked on each render: the words as shown are kept per text, a bounded few.
-describe('the words as shown, kept', () => {
-  it('gives what a fresh read gives, and keeps no more than its bound', () => {
-    const texts = ['Run `sum` **now**\n> as I said', '', '**a** and **b**', '> \n> quoted', 'plain']
-    for (const text of texts) {
-      assert.equal(shownText(text), shownOf(text))
-      assert.equal(shownText(text), shownOf(text))
-    }
-    for (let i = 0; i < SHOWN_KEPT + 50; i += 1) assert.equal(shownText(`**turn ${String(i)}**`), `turn ${String(i)}`)
-    assert.ok(shownKept() <= SHOWN_KEPT)
-    // The oldest went first: a text read again is read afresh, the same.
-    assert.equal(shownText(texts[0] ?? ''), 'Run sum now\nas I said')
+// Personal's words never outlive the space's privacy boundaries (Codex P1 on #522): the module that reads them as
+// shown holds no store of its own, so locking, erasing or signing out leaves nothing of them here.
+describe('the words as shown, never kept by the module', () => {
+  it('declares no module-wide Map, Set or array that could hold a message', () => {
+    const source = readFileSync(fileURLToPath(new URL('./rich-text.ts', import.meta.url)), 'utf8')
+    const stores = source.match(/^(?:export )?(?:const|let|var) \w+\s*(?::[^=]+)?=\s*new (?:Map|Set|WeakRef)\b/gmu)
+    assert.equal(stores, null)
+    assert.doesNotMatch(source, /^(?:export )?(?:let|var) /mu)
   })
 })

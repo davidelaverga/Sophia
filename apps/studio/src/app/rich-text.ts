@@ -75,25 +75,8 @@ export const shownOf = (text: string): string =>
     .map((line) => line.pieces.map((p) => p.text).join(''))
     .join('\n')
 
-/** How many texts' shown words are kept: a long conversation's turns, read once each. */
-export const SHOWN_KEPT = 1000
-const kept = new Map<string, string>()
-
-/** How many are kept now (its check). */
-export const shownKept = (): number => kept.size
-
-/**
- * `shownOf`, kept per text: Find reads every turn on each key, and each turn reads its own on each render. Past the
- * bound the oldest goes first.
- */
-export function shownText(text: string): string {
-  const known = kept.get(text)
-  if (known !== undefined) return known
-  const shown = shownOf(text)
-  if (kept.size >= SHOWN_KEPT) kept.delete(kept.keys().next().value ?? '')
-  kept.set(text, shown)
-  return shown
-}
+// Nothing here keeps a message: a module-wide store of Personal's words would outlive locking the space, erasing it
+// and signing out (Codex P1 on #522). What is read once per conversation is kept by the conversation's own memo.
 
 /** Find's pieces, cut over the shown words, within `from` to `to` of them: what a piece of a line holds, numbers kept. */
 export function marksIn(marks: readonly MarkPiece[], from: number, to: number): MarkPiece[] {

@@ -20,17 +20,18 @@
 
 - **Both voices are drawn with `RichText`**: her replies and your own words, as the room draws its chat. Your own
   turns are formatted too, on purpose, as the room formats your typed turns.
-- **Find looks in what is shown.** `shownText` (in `rich-text.ts`) is a message's words as `RichText` draws them:
+- **Find looks in what is shown.** `shownOf` (in `rich-text.ts`) is a message's words as `RichText` draws them:
   - no `**`, no backticks, no «> » before a quote;
   - its lines kept.
 
-  Find counts and marks in those words, so a match may cross a bold edge («one figure you»). `shownText` is kept per
-  text (a bounded `Map`, `SHOWN_KEPT`), so Find doesn't read every turn again on each key.
+  Find counts and marks in those words, so a match may cross a bold edge («one figure you»). Nothing module-wide keeps
+  them (Codex P1 on #522: such a store outlived locking, erasing and signing out). Find reads each turn once per
+  conversation's rows in its own memo, and each turn its own words in a `useMemo`; both go with the conversation.
 - **Marks and formatting compose.** `RichText` takes Find's marks, cut over the shown words, and hands each piece its
   part (`marksIn`). A match inside bold is a `mark` inside the `strong`. A match inside code is a `mark` inside the
   `code`. A link stays whole.
 - **A match across a bold or code edge shows as two highlights and counts as one match**, both current when it is.
-- **Copy copies what it says:** `shownText(row.text)`, the words without their marks: no `**`, no backticks, no «> »
+- **Copy copies what it says:** `shownOf(row.text)`, the words without their marks: no `**`, no backticks, no «> »
   before a quote, as a selection would copy them.
   Conversations' Copy still copies a message as written. That is its own surface and is not changed here.
 - **Contrast**: code's plane and a quote's ink are measured inside Personal on paper (light) and dark. They take the
@@ -40,10 +41,10 @@
 ## Checks
 
 - **`rich-text.test.ts`**:
-  - `shownText` drops the marks and keeps the lines;
+  - `shownOf` drops the marks and keeps the lines;
   - `marksIn` cuts Find's pieces to a span;
-  - the kept `shownText` gives what a fresh read gives, within its bound.
-- **`find-view.test.ts`**: for tricky inputs, each piece's marks rebuilt line by line equal `shownText`, and
+  - `rich-text.ts` declares no module-wide store that could hold a message.
+- **`find-view.test.ts`**: for tricky inputs, each piece's marks rebuilt line by line equal `shownOf`, and
   `foundIn`'s count equals the matches drawn.
 - **`personal-format.spec.ts`**, on the fixture with `formatted=1` (her answer has bold, code, a quote and a link):
   - her reply reads as `strong`, `code`, a quote and a link, with no `**`, backtick or «> » to see;
