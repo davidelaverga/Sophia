@@ -13,8 +13,8 @@ interface Props {
   current?: number | null
 }
 
-/** One run: Find's mark where it marks, the words otherwise. */
-const Run = ({ span, current }: { span: Span; current: number | null }) =>
+/** One run: Find's mark where it marks, the words otherwise (RichText's code draws its runs with it too). */
+export const Run = ({ span, current }: { span: Pick<Span, 'text' | 'n'>; current: number | null }) =>
   span.n === null ? span.text : <mark className={span.n === current ? 'current' : undefined}>{span.text}</mark>
 
 /** A press the browser keeps: another button, or a key held for a new tab or window. */
