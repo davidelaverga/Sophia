@@ -15,6 +15,8 @@ const SCOPE = 'Saved coding-resource records. Live activity, usage and controls 
 const LIVE = 'Live sign-in and readiness aren’t reported.'
 const UNREPORTED = 'Work activity, remaining usage and controls aren’t reported by this view.'
 const EVIDENCE = 'Recorded host and capability evidence'
+/** How a tool comes to be listed (UX04): under an empty catalog, and under a connection needed or expired. */
+const ENROLLMENT = 'Each owner enrolls their own tool from the computer it runs on; Studio doesn’t enroll tools.'
 /** What Sign in again says before it signs this device out (REC01). */
 const SIGN_IN_WARNING =
   'Signing in again signs out this device. It ends any call you’re in and removes everything unsent on this device: drafts and messages in your projects and your personal space.'
@@ -41,7 +43,10 @@ test('the catalog read: what is recorded, and what isn’t reported said so, nev
   await says(page, NEVER)
   // Its owner's tiles say their host as recorded; a teammate's, that it is private; claude is Claude Code.
   const own = tiles(page).filter({ hasText: 'Davide' })
-  await expect(own.first().locator('.resource-tile-host')).toHaveText(/Host recorded|No host/)
+  await expect(own.first().locator('.resource-tile-host')).toHaveText(/Your computer|No host/)
+  // In plain words, as written: never set in capitals, which would make it a code again.
+  const yours = tiles(page).filter({ hasText: 'Your computer' }).first().locator('.resource-tile-host')
+  await expect(yours).toHaveText('Your computer', { useInnerText: true })
   await expect(tiles(page).filter({ hasText: 'Luis' }).first().locator('.resource-tile-host')).toHaveText(
     'Host private',
   )
@@ -60,7 +65,7 @@ test('its owner reads their own recorded facts in the sheet, by keys, and Escape
   page,
 }) => {
   await page.goto(`${PAGE}?case=complete`)
-  const first = tiles(page).filter({ hasText: 'Host recorded' }).first()
+  const first = tiles(page).filter({ hasText: 'Your computer' }).first()
   await first.focus()
   await page.keyboard.press('Enter')
   await expect(sheet(page)).toBeVisible()
@@ -72,12 +77,14 @@ test('its owner reads their own recorded facts in the sheet, by keys, and Escape
   // Then its recorded evidence, closed until asked for, and opened by keys.
   const evidence = body.locator('details.resource-evidence')
   await expect(evidence).not.toHaveAttribute('open')
-  await expect(body.getByText('Handshake recorded')).toBeHidden()
+  await expect(body.getByText('Connected once')).toBeHidden()
   await evidence.locator('summary').focus()
   await page.keyboard.press('Enter')
   await expect(evidence).toHaveAttribute('open')
-  await expect(body.getByText('Host active (recorded) · last seen 4 min before this reading')).toBeVisible()
-  await expect(body.getByText('Handshake recorded')).toBeVisible()
+  await expect(
+    body.getByText('Your computer is connected (recorded) · last seen 4 min before this reading'),
+  ).toBeVisible()
+  await expect(body.getByText('Connected once')).toBeVisible()
   await expect(evidence).toContainText(
     'Recorded qualification: current for create, input and stop. Recorded evidence, not a promise that a control works.',
   )
@@ -113,8 +120,10 @@ test('the owner’s recorded host says what isn’t recorded as such: no time, a
   await page.goto(`${PAGE}?case=complete`)
   await tiles(page).filter({ hasText: 'Revoked' }).click()
   await sheet(page).getByText(EVIDENCE).click()
-  await expect(sheet(page)).toContainText('Host bound (recorded) · last seen 3 h before this reading')
+  await expect(sheet(page)).toContainText('Linked to your computer (recorded) · last seen 3 h before this reading')
   await expect(sheet(page)).toContainText('Connection revoked')
+  // Revoked, it isn't told how a tool is enrolled: only a connection it needs, or one expired, is.
+  await expect(sheet(page)).not.toContainText(ENROLLMENT)
   await expect(sheet(page)).toContainText('Recorded qualification: doesn’t apply now')
   await page.keyboard.press('Escape')
   await tiles(page).filter({ hasText: 'Needs a connection' }).click()
@@ -122,7 +131,25 @@ test('the owner’s recorded host says what isn’t recorded as such: no time, a
   await expect(sheet(page)).toContainText('No bound or active host recorded')
   // Linked but past its time: expired, never usable.
   await expect(sheet(page)).toContainText('Connection expired')
-  await expect(sheet(page)).toContainText('Recorded qualification: stale')
+  await expect(sheet(page)).toContainText('Qualification: needs checking again')
+  // What to do about it, under the state, once though both hold: the empty catalog's own line.
+  await expect(sheet(page).locator('.resource-catalog-state + .resource-catalog-enrollment')).toHaveText(ENROLLMENT)
+  await expect(sheet(page).getByText(ENROLLMENT)).toHaveCount(1)
+})
+
+test('@phone what to do about a connection, under its state at 390, whole inside the sheet', async ({ page }) => {
+  await page.goto(`${PAGE}?case=complete`)
+  await tiles(page).filter({ hasText: 'Needs a connection' }).tap()
+  const line = sheet(page).locator('.resource-catalog-enrollment')
+  await expect(line).toHaveText(ENROLLMENT)
+  await expect(sheet(page)).toContainText('Connection expired')
+  const inside = await line.evaluate((p) => {
+    const s = p.closest('[role="dialog"]')?.getBoundingClientRect()
+    const l = p.getBoundingClientRect()
+    return !!s && l.left >= s.left && l.right <= s.right && p.scrollWidth <= p.clientWidth + 1
+  })
+  expect(inside).toBe(true)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
 })
 
 test('a teammate never reads the owner’s facts: not in the sheet, not anywhere in the page', async ({ page }) => {
@@ -134,16 +161,18 @@ test('a teammate never reads the owner’s facts: not in the sheet, not anywhere
   // No evidence at all for a teammate: no disclosure, closed or hidden, and none of its words (UX02).
   await expect(sheet(page).locator('.resource-evidence, details')).toHaveCount(0)
   const html = await page.content()
-  for (const fact of ['Connection linked', 'Handshake recorded', 'Recorded qualification', 'last seen 4 min', EVIDENCE])
+  for (const fact of ['Connection linked', 'Connected once', 'Recorded qualification', 'last seen 4 min', EVIDENCE])
     expect(html).not.toContain(fact)
   // A listed record is no entitlement (UX06): nothing to use, share, assign or pool.
   await expect(sheet(page).getByRole('button', { name: /use|share|assign|pool|connect/i })).toHaveCount(0)
   await expect(sheet(page)).not.toContainText(/shared subscription|pooled|use this tool/i)
   await page.keyboard.press('Escape')
   // Luis's own reads as his: a conflict recorded, no usable last-seen time, no qualification record shown.
-  await tiles(page).filter({ hasText: 'Host recorded' }).first().click()
+  await tiles(page).filter({ hasText: 'Your computer' }).first().click()
   await sheet(page).getByText(EVIDENCE).click()
-  await expect(sheet(page)).toContainText('Host bound (recorded) · last seen time not recorded in a usable form')
+  await expect(sheet(page)).toContainText(
+    'Linked to your computer (recorded) · last seen time not recorded in a usable form',
+  )
   await expect(sheet(page)).toContainText('A conflict is recorded')
   await expect(sheet(page)).toContainText('No qualification recorded')
 })
@@ -297,6 +326,82 @@ test('keeps nothing of the catalog in this browser', async ({ page }) => {
   expect(kept).not.toContain('catalog')
 })
 
+/** The Sort menu's button, which says the order in use. */
+const sortButton = (page: Page) => page.getByRole('button', { name: /^Sort/ })
+const tileOrder = (page: Page) => tiles(page).evaluateAll((all) => all.map((t) => t.textContent))
+/** Chooses an order from the Sort menu, as a person would. */
+async function sortBy(page: Page, label: string) {
+  await sortButton(page).click()
+  await page.getByRole('menuitemradio', { name: label }).click()
+}
+
+test('the catalog sorts only as it can: by owner or tool, and its tiles aren’t arranged by hand', async ({ page }) => {
+  await page.goto(`${PAGE}?case=complete`)
+  await expect(tiles(page)).toHaveCount(6)
+  // No requests or host state to rank by attention, and no custom order it could keep: Owner and Tool, on Owner.
+  await expect(sortButton(page)).toHaveText('SortOwner')
+  await sortButton(page).click()
+  await expect(page.getByRole('menu', { name: 'Sort' }).getByRole('menuitemradio')).toHaveText(['Owner', 'Tool'])
+  await page.keyboard.press('Escape')
+  const before = await tileOrder(page)
+  // A tile dragged onto another, or moved with Alt and an arrow, stays where it is: the arrow only moves the focus.
+  await expect(tiles(page).first()).not.toHaveAttribute('draggable', 'true')
+  await tiles(page).first().dragTo(tiles(page).nth(2))
+  await tiles(page).first().focus()
+  await page.keyboard.press('Alt+ArrowRight')
+  await expect(tiles(page).nth(1)).toBeFocused()
+  expect(await tileOrder(page)).toEqual(before)
+  await expect(sortButton(page)).toHaveText('SortOwner')
+  await sortBy(page, 'Tool')
+  await expect(sortButton(page)).toHaveText('SortTool')
+  await expect.poll(() => tileOrder(page)).not.toEqual(before)
+})
+
+test('Alt and an arrow at the grid’s edge is kept by the catalog: never the browser’s Back or Forward', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?case=empty`)
+  await page.goto(`${PAGE}?case=complete`)
+  await expect(tiles(page)).toHaveCount(6)
+  // What the page lets through to the browser: whether a key's default (Alt+Left is Back) was kept from it.
+  await page.evaluate(() => {
+    window.addEventListener('keydown', (e) => {
+      if (e.altKey) document.body.dataset.altKept = String(e.defaultPrevented)
+    })
+  })
+  const url = page.url()
+  for (const [at, key] of [
+    [0, 'Alt+ArrowLeft'],
+    [0, 'Alt+ArrowUp'],
+    [5, 'Alt+ArrowRight'],
+    [5, 'Alt+ArrowDown'],
+  ] as const) {
+    await tiles(page).nth(at).focus()
+    await page.keyboard.press(key)
+    await expect(page.locator('body'), key).toHaveAttribute('data-alt-kept', 'true')
+    await expect(tiles(page).nth(at), key).toBeFocused()
+    await page.evaluate(() => delete document.body.dataset.altKept)
+  }
+  expect(page.url()).toBe(url)
+  await expect(tiles(page)).toHaveCount(6)
+})
+
+test('@phone the catalog’s Sort at 390: two orders, the menu in view, nothing wider than the page', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?case=complete`)
+  await expect(tiles(page)).toHaveCount(6)
+  await sortButton(page).tap()
+  const menu = page.getByRole('menu', { name: 'Sort' })
+  await expect(menu.getByRole('menuitemradio')).toHaveText(['Owner', 'Tool'])
+  const box = await menu.boundingBox()
+  expect(box?.x ?? -1).toBeGreaterThanOrEqual(0)
+  expect((box?.x ?? 0) + (box?.width ?? 999)).toBeLessThanOrEqual(390)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  await menu.getByRole('menuitemradio', { name: 'Tool' }).tap()
+  await expect(sortButton(page)).toHaveText('SortTool')
+})
+
 test('@phone the catalog at 390: tiles, the owner’s sheet, More and a refusal fit and work by touch', async ({
   page,
 }) => {
@@ -304,7 +409,17 @@ test('@phone the catalog at 390: tiles, the owner’s sheet, More and a refusal 
   await expect(tiles(page)).toHaveCount(3)
   await page.getByRole('button', { name: 'More resources' }).tap()
   await expect(tiles(page)).toHaveCount(6)
-  await tiles(page).filter({ hasText: 'Host recorded' }).first().tap()
+  // The owner's host label, in plain words and sentence case, whole inside its tile.
+  const yours = tiles(page).filter({ hasText: 'Your computer' }).first()
+  await expect(yours.locator('.resource-tile-host')).toHaveText('Your computer', { useInnerText: true })
+  const inside = await yours.evaluate((tile) => {
+    const t = tile.getBoundingClientRect()
+    const label = tile.querySelector('.resource-tile-host')
+    const l = label?.getBoundingClientRect()
+    return !!label && !!l && l.left >= t.left && l.right <= t.right && label.scrollWidth <= label.clientWidth + 1
+  })
+  expect(inside).toBe(true)
+  await yours.tap()
   await expect(sheet(page)).toContainText('Recorded qualification: current')
   const box = await sheet(page).boundingBox()
   expect(box?.width ?? 0).toBeLessThanOrEqual(390)
@@ -545,7 +660,7 @@ test('stepping from an opened owner’s evidence: the next resource’s starts c
   page,
 }) => {
   await page.goto(`${PAGE}?case=complete`)
-  await tiles(page).filter({ hasText: 'Host recorded' }).first().click()
+  await tiles(page).filter({ hasText: 'Your computer' }).first().click()
   await sheet(page).getByText(EVIDENCE).click()
   await expect(sheet(page).locator('details.resource-evidence')).toHaveAttribute('open')
   const seen: string[] = []
@@ -569,7 +684,7 @@ test('the changed words read against their actual surfaces (measured, 4.5:1 floo
   expect(await lowContrast(page, '.resources-scope')).toEqual([])
   expect(await lowContrast(page, '.resources-cue')).toEqual([])
   await page.goto(`${PAGE}?case=complete`)
-  await tiles(page).filter({ hasText: 'Host recorded' }).first().click()
+  await tiles(page).filter({ hasText: 'Your computer' }).first().click()
   await sheet(page).getByText(EVIDENCE).click()
   expect(await lowContrast(page, '.resource-catalog')).toEqual([])
   expect(await lowContrast(page, '.resource-unreported-group')).toEqual([])
@@ -598,8 +713,8 @@ test('@phone at 390 the scope and the partial cue show before any tile, and More
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
   // The owner's evidence opens by touch, and fits.
   await page.goto(`${PAGE}?case=complete`)
-  await tiles(page).filter({ hasText: 'Host recorded' }).first().tap()
+  await tiles(page).filter({ hasText: 'Your computer' }).first().tap()
   await sheet(page).getByText(EVIDENCE).tap()
-  await expect(sheet(page).getByText('Handshake recorded')).toBeVisible()
+  await expect(sheet(page).getByText('Connected once')).toBeVisible()
   expect((await sheet(page).boundingBox())?.width ?? 0).toBeLessThanOrEqual(390)
 })

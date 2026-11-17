@@ -282,8 +282,14 @@ function None({ query, filter, onClear, onAll, unread: read }: NoneProps) {
   )
 }
 
-/** What a view starts from where nothing of the viewer's is kept (the catalog): every resource, by attention. */
-const FRESH = { filter: 'all' as Filter, order: 'attention' as Order, custom: [] as string[] }
+/**
+ * The catalog's orders (INC01-DES-002): by owner or by tool. It reports no requests and no host state, so attention
+ * would rank nothing; and it keeps nothing in this browser, so an order arranged by hand would be lost unsaid.
+ */
+const CATALOG_ORDERS: readonly Order[] = ['owner', 'tool']
+
+/** What a view starts from where nothing of the viewer's is kept (the catalog): every resource, by owner. */
+const FRESH = { filter: 'all' as Filter, order: 'owner' as Order, custom: [] as string[] }
 
 function useView({ resources, viewerId, catalog, actions: given }: Props) {
   const actions = known(given)
@@ -347,7 +353,11 @@ function Browse(props: Shown) {
           filters={props.catalog ? CATALOG_FILTERS : FILTERS}
           loaded={unread !== undefined}
         />
-        <SortMenu order={view.order} onChange={(o) => moving(() => view.setOrder(o))} />
+        <SortMenu
+          order={view.order}
+          onChange={(o) => moving(() => view.setOrder(o))}
+          orders={props.catalog ? CATALOG_ORDERS : undefined}
+        />
       </div>
       <p className="sr-only" aria-live="polite">
         {view.shown.length} of {plural(resources.length, unread ? 'loaded resource' : 'resource')} shown
@@ -368,7 +378,7 @@ function Browse(props: Shown) {
           viewerId={viewerId}
           now={now}
           onOpen={onOpen}
-          onArrange={view.arrange}
+          onArrange={props.catalog ? undefined : view.arrange}
           since={since}
         />
       )}

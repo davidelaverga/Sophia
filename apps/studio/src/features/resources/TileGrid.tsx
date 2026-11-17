@@ -1,6 +1,7 @@
 // The tiles as a grid to move through and to arrange. Arrow keys, Home and End move the focus (one tile in the Tab
 // order); a tile dragged onto another takes its place, and Alt with an arrow moves the focused tile the same way, so
-// arranging never needs a pointer. Arranging puts the view in the viewer's own order (Custom). Two Claude Codes that
+// arranging never needs a pointer. Arranging puts the view in the viewer's own order (Custom); where the view offers
+// none (the catalog), tiles don't drag and Alt with an arrow moves the focus as the arrow does. Two Claude Codes that
 // end up side by side greet (buddies.ts).
 import { useRef, useState } from 'react'
 import { useBuddies } from './buddies.ts'
@@ -25,6 +26,12 @@ function moveTo(key: string, from: number, count: number, columns: number): numb
   return to >= 0 && to < count ? to : null
 }
 
+/**
+ * Where tiles can't be arranged (the catalog), Alt with an arrow is the grid's own even where there is nowhere to move:
+ * let through at an edge, Alt+Left would be the browser's Back.
+ */
+const keptAtEdge = (e: React.KeyboardEvent, arrangeable: boolean) => !arrangeable && e.altKey && e.key in STEP
+
 const openOn = (actions: RequiredAction[], id: string) =>
   actions.filter((a) => a.resourceId === id && a.state === 'open').length
 const openIds = (actions: RequiredAction[], id: string) =>
@@ -41,8 +48,8 @@ interface Props {
   viewerId: string
   now: Date
   onOpen: (id: string) => void
-  /** Moves a resource into another's place, in the viewer's own order. */
-  onArrange: (id: string, target: string) => void
+  /** Moves a resource into another's place, in the viewer's own order; absent where tiles can't be arranged. */
+  onArrange?: ((id: string, target: string) => void) | undefined
   /** The resources that changed since the viewer last looked (away.ts). */
   since?: ReadonlySet<string>
 }
@@ -52,7 +59,7 @@ interface Props {
  * is a tile, by its id, not a place: when the tiles re-sort by themselves, or one is moved, it stays on the same one
  * (the first, when it is no longer shown).
  */
-function useKeys(shown: Resource[], onArrange: Props['onArrange']) {
+function useKeys(shown: Resource[], onArrange: ((id: string, target: string) => void) | undefined) {
   const tiles = useRef<(HTMLButtonElement | null)[]>([])
   const [active, setActive] = useState<string | null>(null)
   const current = Math.max(
@@ -67,9 +74,10 @@ function useKeys(shown: Resource[], onArrange: Props['onArrange']) {
     const to = moveTo(e.key, at, shown.length, columns)
     const from = shown[at]
     const target = to === null ? undefined : shown[to]
+    if (keptAtEdge(e, onArrange !== undefined)) e.preventDefault()
     if (to === null || !from || !target || to === at) return
     e.preventDefault()
-    if (e.altKey) {
+    if (e.altKey && onArrange) {
       // The moved tile keeps the focus by itself (the same element, in its new place), and stays the Tab stop.
       setActive(from.id)
       onArrange(from.id, target.id)
@@ -82,7 +90,7 @@ function useKeys(shown: Resource[], onArrange: Props['onArrange']) {
 }
 
 /** A tile dragged onto another: which is dragged, which it is over, and the handlers each tile takes. */
-function useDrag(onArrange: Props['onArrange']) {
+function useDrag(onArrange: (id: string, target: string) => void) {
   const [dragging, setDragging] = useState<string | null>(null)
   const [over, setOver] = useState<string | null>(null)
   const end = () => {
@@ -117,17 +125,20 @@ function useDrag(onArrange: Props['onArrange']) {
 export function TileGrid(props: Props) {
   const { shown, observations, actions, viewerId, now, onOpen, since } = props
   const [said, setSaid] = useState('')
-  const arrange = (id: string, target: string) => {
-    const to = shown.findIndex((r) => r.id === target)
-    const r = shown.find((x) => x.id === id)
-    if (r) setSaid(`Moved ${nameOf(r)} to ${to + 1} of ${shown.length}`)
-    props.onArrange(id, target)
-  }
+  const { onArrange } = props
+  const arrange = onArrange
+    ? (id: string, target: string) => {
+        const to = shown.findIndex((r) => r.id === target)
+        const r = shown.find((x) => x.id === id)
+        if (r) setSaid(`Moved ${nameOf(r)} to ${to + 1} of ${shown.length}`)
+        onArrange(id, target)
+      }
+    : undefined
   const keys = useKeys(shown, arrange)
   // A tile dragged into place becomes the Tab stop.
   const drag = useDrag((id, target) => {
     keys.setActive(id)
-    arrange(id, target)
+    arrange?.(id, target)
   })
   const list = useRef<HTMLUListElement>(null)
   const buddies = useBuddies(list, shown.map((r) => r.id).join(' '))
@@ -157,7 +168,7 @@ export function TileGrid(props: Props) {
               buddy={buddies.get(r.id)}
               current={i === keys.current}
               onFocus={() => keys.setActive(r.id)}
-              drag={drag.handlers(r.id)}
+              drag={arrange ? drag.handlers(r.id) : { draggable: false }}
               ref={(el) => {
                 keys.tiles.current[i] = el
               }}
