@@ -59,6 +59,7 @@ import {
   conversations,
   messageId,
   messagesOf,
+  manyQuiet,
   quietConversation,
   type FixtureMessage,
 } from './conversation-data.ts'
@@ -1883,12 +1884,24 @@ function withdrawAsked(which: string | null): 'slow' | 'feedFirst' | 'thenFail' 
 }
 
 /** The conversations a page asks for (A18), with the brief's context beside them; none when it asks for none. */
+/** The list `conversations=` asks for: none, the three, with a quiet one, or with sixteen quiet ones. */
+function listAsked(which: string) {
+  if (which === 'none') return []
+  if (which === 'quiet') return [...conversations(), quietConversation()]
+  if (which === 'many') return [...conversations(), quietConversation(), ...manyQuiet()]
+  return conversations()
+}
+
 function conversationsAsked(which: string | null, failMessages: boolean) {
   if (which === null) return {}
   return {
     conversations: {
-      list: which === 'none' ? [] : which === 'quiet' ? [...conversations(), quietConversation()] : conversations(),
-      messages: { ...messagesOf(), [CONVERSATION.quiet]: [] },
+      list: listAsked(which),
+      messages: {
+        ...messagesOf(),
+        [CONVERSATION.quiet]: [],
+        ...Object.fromEntries(manyQuiet().map((c) => [c.id, []])),
+      },
       failList: which === 'fail',
       lastShown: DEMO || query.get('last') === '1',
       more: query.get('more') === '1',

@@ -87,6 +87,15 @@ export const quietConversation = (): FixtureConversation => ({
   output: null,
 })
 
+/** `conversations=many`: fifteen more quiet ones after it, so the list runs past a screen (keys-tip.md). */
+export const manyQuiet = (): FixtureConversation[] =>
+  Array.from({ length: 15 }, (_, n) => ({
+    ...quietConversation(),
+    id: `00000000-0000-4000-8000-0000000001${n.toString(16).padStart(2, '0')}`,
+    title: `An older question ${String(n + 1)}`,
+    lastAt: `2026-09-${String(28 - n).padStart(2, '0')}T09:00:00.000Z`,
+  }))
+
 const member = (actorId: string, name: string) => ({ author: 'member' as const, actorId, name })
 const sophia = { author: 'sophia' as const, actorId: null, name: null }
 const at = (day: number, hh: number, mm: number) =>
