@@ -29,7 +29,9 @@ export function pipShows<F extends Feed>(people: readonly RoomParticipant[], fee
   const person = others.find((p) => p.speaking) ?? others.find((p) => camera(p)) ?? others[0] ?? people[0]
   if (!person) return null
   const name = shortName(person.name)
-  return { person, feed: camera(person), caption: person.local ? `${name} · you` : name }
+  // A guest is always marked as one: a visitor chooses their own name (Codex P1 on #523).
+  const caption = person.local ? `${name} · you` : person.standing === 'guest' ? `${name} · guest` : name
+  return { person, feed: camera(person), caption }
 }
 
 export type PipWay = 'document' | 'video' | null

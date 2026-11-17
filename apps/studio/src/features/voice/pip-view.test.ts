@@ -21,6 +21,13 @@ const marco = person('m', 'Marco Bellini')
 const lucia = person('l', 'Lucía Gómez')
 
 describe('pipShows', () => {
+  it('a guest is marked as one in the window, speaking or on camera, as the stage marks them (Codex P1 on #523)', () => {
+    const noor = person('g', 'Marco', { standing: 'guest' })
+    assert.equal(pipShows([ana, marco, { ...noor, speaking: true }], [])?.caption, 'Marco · guest')
+    assert.equal(pipShows([ana, noor], [feed('g', 'camera')])?.caption, 'Marco · guest')
+    assert.equal(pipShows([ana, marco], [])?.caption, 'Marco')
+  })
+
   it('a shared screen before anyone, the newest, captioned as the stage captions it', () => {
     const shown = pipShows([ana, marco, { ...lucia, speaking: true }], [feed('m', 'screen'), feed('l', 'screen')])
     assert.equal(shown?.person.identity, 'l')

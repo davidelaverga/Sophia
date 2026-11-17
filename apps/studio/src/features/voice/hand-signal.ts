@@ -48,6 +48,11 @@ export interface HandSignal {
 
 /** An ask answered at most once a second for each asker, so a page that keeps asking can't make this one flood. */
 const ASK_PACE_MS = 1000
+/**
+ * How many times a reconnect's ask is tried (Codex P2 on #523): a channel that refuses for a moment is asked again, and
+ * one that never takes it (a guest's token has no data grant) is let go after a few tries, never asked forever.
+ */
+const ASK_TRIES = 4
 
 /** What others said: each raised hand with the count of packets heard when it was, which only grows. */
 function heardHands(onChange: () => void) {
@@ -146,14 +151,26 @@ export function handSignal(
     if (own.mine() && !isSophia(p)) tell(p.identity)
   })
   room.on(RoomEvent.ParticipantDisconnected, (p) => hands.left(p.identity))
-  room.on(RoomEvent.Disconnected, own.stop)
-  room.on(RoomEvent.Reconnected, () => {
-    // Counted, not timed: an answer in the same clock tick as the drop's end is still one heard since.
-    const upTo = hands.count()
-    own.lower()
+  // Each reconnect's ask has its own turn; a later reconnect or the call's end stops an earlier one's tries.
+  let turn = 0
+  const ask = (mine: number, upTo: number, tries: number) => {
     publish(encodeAsk())
-      .then(() => hands.forget(upTo))
-      .catch(() => undefined)
+      .then(() => {
+        if (mine === turn) hands.forget(upTo)
+      })
+      .catch(() => {
+        if (mine === turn && tries < ASK_TRIES) setTimeout(() => ask(mine, upTo, tries + 1), retryMs)
+      })
+  }
+  room.on(RoomEvent.Disconnected, () => {
+    turn += 1
+    own.stop()
+  })
+  room.on(RoomEvent.Reconnected, () => {
+    turn += 1
+    // Counted, not timed: an answer in the same clock tick as the drop's end is still one heard since.
+    own.lower()
+    ask(turn, hands.count(), 1)
   })
   return { set: own.set, mine: own.mine, raised: hands.raised }
 }

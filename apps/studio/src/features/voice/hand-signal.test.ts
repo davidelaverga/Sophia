@@ -177,6 +177,24 @@ describe('handSignal', () => {
     assert.equal(signal.raised('l'), true)
   })
 
+  it('back from a drop, an ask refused is tried again, and the hands from before go once it is sent (Codex P2 on #523)', async () => {
+    const { signal, from, emit, taken, refuse } = setup()
+    from(marco, { hand: true })
+    refuse(1)
+    emit(RoomEvent.Reconnected)
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    assert.deepEqual(taken, [{ ask: true }])
+    assert.equal(signal.raised('m'), false)
+  })
+
+  it('an ask that is never taken (a guest has no data grant) is tried a few times, then let go', async () => {
+    const { emit, sent } = setup('fail')
+    emit(RoomEvent.Reconnected)
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    const asks = sent.filter((s) => JSON.stringify(s.packet) === '{"ask":true}').length
+    assert.ok(asks > 1 && asks <= 4, `asks: ${String(asks)}`)
+  })
+
   it('back from a drop, a lowering refused is tried again until it is sent', async () => {
     const { signal, emit, taken, refuse } = setup()
     await signal.set(true)
