@@ -1062,6 +1062,8 @@ function Shell({ plans, viewer, now, onCommand }: ShellProps) {
       onWork={nothing}
       onSignOut={nothing}
       {...(plans && { plans })}
+      // `toolsWaiting=<n>`: requests waiting on this viewer in their tools, as the Resources fixture counts them.
+      resourcesWaiting={Number(query.get('toolsWaiting') ?? 0)}
       resources={
         <ResourcePanel
           resources={withActivity(owned)}

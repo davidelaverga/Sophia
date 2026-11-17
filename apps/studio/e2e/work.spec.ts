@@ -2127,6 +2127,8 @@ test('codex · F-015 · the plan’s updating band holds its own choices only; a
 // ---- CX-0016 (Codex on #74; GitHub 4179419841, …844, …848, …853). ----
 
 const views = (page: Page) => page.getByRole('navigation', { name: 'Project views' })
+/** Tasks in the views' row, by its name with or without what waits there on the viewer (needs-you-in-project.md). */
+const TASKS_VIEW = /^Tasks(, \d+ waiting on you)?$/
 
 /** Davide's Claude Code worker, its acts open, in Resources: reached from Tasks in the same page. */
 async function workerInResources(page: Page) {
@@ -2146,7 +2148,7 @@ async function workerInResources(page: Page) {
 /** Back to Tasks, the retry's sheet open. */
 async function retryInTasks(page: Page) {
   await page.keyboard.press('Escape')
-  await views(page).getByRole('link', { name: 'Tasks', exact: true }).click()
+  await views(page).getByRole('link', { name: TASKS_VIEW }).click()
   return openTask(page, 'work-1', 'Implement the PDF retry')
 }
 
@@ -2901,7 +2903,7 @@ test('codex · F-023 · the first send’s late reply changes nothing while the 
   await expect(board(page)).toHaveCount(0)
   await page.clock.runFor(35_000)
   // Back at 125 s, the board anew: still the second send, waiting; then its own reply.
-  await views(page).getByRole('link', { name: 'Tasks', exact: true }).click()
+  await views(page).getByRole('link', { name: TASKS_VIEW }).click()
   await expect(status).toHaveText('Sending your choice…')
   await page.clock.runFor(5_000)
   await expect(status).toHaveText('Your choice is recorded. The plan is updating.')
@@ -3758,7 +3760,7 @@ async function lostThenBack(page: Page, away: 'view' | 'reload') {
   if (away === 'view') {
     await views(page).getByRole('link', { name: 'Resources', exact: true }).click()
     await expect(page.getByRole('button', { name: 'Review sources' })).toHaveCount(0)
-    await views(page).getByRole('link', { name: 'Tasks', exact: true }).click()
+    await views(page).getByRole('link', { name: TASKS_VIEW }).click()
   } else {
     await page.reload()
   }
@@ -3875,7 +3877,7 @@ async function lateAnswerAfterNewer(page: Page) {
   expect(await keptProposals(page)).toHaveLength(1)
   // The board, read again, shows it recorded and waiting on the viewer's decision: the kept one is let go.
   await views(page).getByRole('link', { name: 'Resources', exact: true }).click()
-  await views(page).getByRole('link', { name: 'Tasks', exact: true }).click()
+  await views(page).getByRole('link', { name: TASKS_VIEW }).click()
   const choice = page.getByRole('group', { name: 'Your choice' })
   await expect(choice).toBeVisible()
   await expect.poll(() => keptProposals(page)).toEqual([])
