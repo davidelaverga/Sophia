@@ -242,9 +242,12 @@
 }
 /* Complete beside Blocked folds while five lanes stand in one row (docs/plans/board-fold-complete.md): a narrow column
    as tall as the lanes, its head the press, written down it. Opened, the head lies across its lane as any head does,
-   the press the same, its chevron turned as Closed work's. */
-.board-lanes[data-folded] {
-  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+   the press the same, its chevron turned as Closed work's. The folded row is the container's to allow, over the same
+   1148 px as the three-and-two rule below (PlanBoard's FIVE_IN_A_ROW), so a fold never squeezes a narrower board. */
+@container board (width > 1148px) {
+  .board-lanes[data-folded] {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  }
 }
 .lane-head:has(.lane-fold) {
   padding: 0;

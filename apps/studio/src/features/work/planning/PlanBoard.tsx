@@ -668,13 +668,17 @@ function useTileFocus(rows: readonly PlanRow[], folds: boolean) {
   }, [rows, folds])
 }
 
-/** Over this width (`.board`'s, as its container query reads it) five lanes stand in one row: board.css's line. */
+/**
+ * Over this width (`.board`'s, as its container query reads it) five lanes stand in one row: board.css's line, which
+ * also holds the folded row to it.
+ */
 const FIVE_IN_A_ROW = 1148
 
-/** An element's content width, as `@container board` reads the board's. */
+/** An element's content width, unrounded, as `@container board` reads the board's. */
 const contentWidth = (el: Element) => {
   const style = getComputedStyle(el)
-  return el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+  const edges = [style.paddingLeft, style.paddingRight, style.borderLeftWidth, style.borderRightWidth]
+  return el.getBoundingClientRect().width - edges.reduce((sum, edge) => sum + parseFloat(edge), 0)
 }
 
 /**
@@ -688,9 +692,10 @@ function useFold(lanes: RefObject<HTMLDivElement | null>, count: number): Fold |
   useLayoutEffect(() => {
     const board = lanes.current?.closest('.board')
     if (!board) return undefined
-    const read = () => setWide(contentWidth(board) > FIVE_IN_A_ROW)
-    read()
-    const watch = new ResizeObserver(read)
+    setWide(contentWidth(board) > FIVE_IN_A_ROW)
+    const watch = new ResizeObserver(([entry]) => {
+      if (entry) setWide(entry.contentRect.width > FIVE_IN_A_ROW)
+    })
     watch.observe(board)
     return () => watch.disconnect()
   }, [lanes])

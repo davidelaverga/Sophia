@@ -61,3 +61,25 @@ this record.
 - Folded or not is the board's moment, not remembered across visits (as Closed work's fold).
 - The fold's width line (`FIVE_IN_A_ROW`, 1148) is written in `PlanBoard.tsx` beside the container query that holds
   it in `board.css`; changing one needs the other.
+
+## After the independent review (no P1/P2; four asks)
+
+- **A folded task's sheet gives the focus back to its fold.** Opened from the address (`#task-work-0a`), its opener is
+  the page, so `backTo` (`TaskSheet.tsx`) looked for the tile, found none and gave the board's first tile. It now
+  tries the task's own lane's fold (`laneOf(row, rows)`, `.lane[data-folded] .lane-fold`) before the board's first.
+  Written first `a4a1f88ad` (`pw-logs/fold-red-2`): 1 failed, 5 passed, «expect(locator).toBeFocused() failed …
+  Received: inactive».
+- **One threshold, CSS holds it too.** The folded grid sits in `@container board (width > 1148px)`, so the fold never
+  squeezes a narrower board whatever the script says; `useFold` reads the board's width unrounded (its box less padding
+  and border, then the observer's `contentRect.width`), against the same `FIVE_IN_A_ROW`.
+- **«Complete 1».** The spec now asks for that exact name; it already passed in the red run (the browser puts a space
+  between the head's flex items), so no change was needed in the code.
+- **`unfolded()`** waits for `.board-lanes[data-lanes]` and reads until the lanes stand open, not after one count.
+- **Not done, by choice:** a pulse on the folded count when a task completes (no motion change without Luis), and the
+  lens counts' note from the review: both left for Luis.
+- **Green not yet run for this round**: the guard refused for memory for 90 minutes (free RAM 4.4-7.1 GB; one run
+  started and was stopped by it at test 10 of 247, `fold-green-4`), and WoW was not open, so pw-direct did not apply.
+  `tsc`, whole-repo `oxlint --type-aware` and Prettier are clean. Run board-fold, work, board-why, task-keys,
+  board-robust, light-work and task-links through the guard before merging.
+- **pw-direct** was used twice in the first round (the screenshots and `fold-green-3`), each time right after
+  `tasklist` showed `Wow.exe` running and no Aion 2 process.
