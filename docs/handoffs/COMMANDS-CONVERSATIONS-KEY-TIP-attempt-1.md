@@ -46,21 +46,44 @@ Ending commit: the branch's last commit; two test-first pairs and this record.
   the status wrapper (zero size, always mounted) read as hidden. The spec now reads the line itself (exact text); fixed
   in the test commit, and its red run again on the new sha.
 
+## After the review (2026-11-16: no P1, two P2s, P3s)
+
+- **P2-1 / P2-2, the tip over controls:** above the floor band now, and never shown while its box meets a control (a
+  button, link, field or tab stop), measured unseen and checked again on page changes, resize and focus moves.
+- **P3s:** a focused field (input, text area, select, editable) holds it back; a `storage` listener ends it in other
+  tabs; let be for three visits it ends on its own, and its watch stops once it ends; drawn at the end of `body`, so Tab
+  reaches it last; `keys-tip.md` says once per browser, not per account, by choice; `commands.md` line 14 says `?` in
+  the Studio view opens the index with the chat shut; the palette's conversations, none while fenced and none once
+  erased elsewhere (coverage: both held already). A rename has no way in the client to test by; the words follow the
+  list as read.
+- Commits: `83bf278ba` test (palette coverage, green on arrival), `e5560bd17` test (failing), `b044dfe2e` the fix,
+  then the docs.
+- **Red** at `e5560bd17` (`pw-direct.ps1`, Wow.exe running, Aion 2 not, checked before the run): 7 failed. In a call at
+  1024×768 the tip held the centres of «Microphone», «Audio settings», «Camera»; at 960×800 also «Video settings»; in
+  Conversations with nineteen conversations at 1280, «An older question 8»; the composer focused, the tip stayed
+  (count 1); the other tab kept it (count 1); the fourth visit showed it (count 1); Dismiss came before eleven
+  controls in the page's order (the lenses first). The palette's two coverage checks passed.
+- **Green** at `b044dfe2e`: palette-conversations, keys-tip, commands, conversations-find, conversations-decide,
+  conversations-removal, dock-header, first-step: 128 passed (4.9 m). Units (keys-tip, commands, shortcuts,
+  palette-recent) 40/40; `oxlint --type-aware .` 0; `tsc` 0; Prettier clean.
+- The 1024, 960 and nineteen-conversation checks assert that no control is under the tip. They don't require it to
+  show there: where it would cover one, it waits by design.
+
 ## Decisions and changes
 
 - Item 7 lives in Conversations only, where the list is read and fenced; the other views' palette has no list read,
   and reading one there would bypass the fence (Left in the note).
 - Item 8 once globally, as the brief asked and the plan doesn't say otherwise.
 - Placement: the header has no room (143 px free between the views' nav and its end at 1280 px, measured on the
-  fixture) and the views fill `100dvh − topbar`, so a band in flow would overflow; the bottom-left corner holds no
-  control in the views measured (the spec asserts no button, link or field meets the tip's box in the Studio view).
+  fixture) and the views fill `100dvh − topbar`, so a band in flow would overflow. The bottom-left corner, raised above
+  the floor band after the review, with the measured rule that it never shows over a control.
 - Source differs from the code: `commands.spec` says Tasks takes stray typing, so `?` is a letter there; measured on
   the fixture 2026-11-16, `?` from nowhere in Tasks opens the index. Left as it is (not this work's concern).
 
 ## Remaining obligations
 
 - The conversations in the palette from other views of a project (see the note's Left).
-- The tip's corner is checked against controls in the Studio view; the other views were looked at, not asserted.
+- The fixture got `conversations=many` (nineteen conversations) for the full-list check.
 
 ## Next bounded action
 

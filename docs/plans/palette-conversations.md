@@ -23,6 +23,9 @@
 
 - `e2e/palette-conversations.spec.ts` (fixture, `conversations=1`): the blank palette names no conversation; «short
   brie» finds «Open conversation: Short or long briefs?» first; Enter opens it (the open conversation's heading).
+- After the review (2026-11-16): fenced after a refusal of the list, the palette names no conversation; one erased
+  elsewhere leaves it with the list. Both held already; they guard it. A rename has no way in the client to test by:
+  the words follow the list as read, so a title changed in a read since is the new one.
 
 ## Left
 
