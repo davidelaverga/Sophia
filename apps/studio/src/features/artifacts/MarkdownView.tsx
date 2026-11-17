@@ -3,7 +3,7 @@
 // citation stays on the line of the word before it, adjacent ones are one group with commas, and one whose source was
 // read only in part, as a snippet or not at all is marked and named so, in the report's language (cite-view.ts).
 // Everything is rendered as React text from the parsed blocks (markdown.ts); nothing is set as HTML. Headings drop one
-// level under the viewer's own title. A long report has its sections listed before it (OnThisPage).
+// level under the viewer's own title. In the Document tab, a long report lists its sections first (OnThisPage).
 import { Fragment, useMemo, useRef } from 'react'
 import type { ReportSource } from '@sophia/contracts'
 import {
@@ -38,6 +38,11 @@ interface Props {
   onCite: (sourceId: string) => void
   /** The headings marked as changed since the version that was on screen, by anchor (useLiveVersion); null for none. */
   marks?: ReadonlyMap<string, Mark> | null
+  /**
+   * A long report lists its sections before it (OnThisPage): the Document tab's. The stage's shown report has its own
+   * «Sections» (PresentedReport), so it leaves this out.
+   */
+  indexed?: boolean
 }
 
 /** What every citation needs: where it goes, how much of its source was read, and the words to name it. */
@@ -58,7 +63,7 @@ function nameOf(source: ReportSource | undefined): string | null {
   return host && host !== title ? `${title} · ${host}` : title
 }
 
-export function MarkdownView({ report, sources, language, onCite, marks = null }: Props) {
+export function MarkdownView({ report, sources, language, onCite, marks = null, indexed = false }: Props) {
   const citing = useMemo<Citing>(() => {
     const listed = new Map((sources ?? []).map((s) => [s.sourceId, s]))
     return {
@@ -69,7 +74,7 @@ export function MarkdownView({ report, sources, language, onCite, marks = null }
       marks,
     }
   }, [sources, language, onCite, marks])
-  const index = useMemo(() => pageIndex(report.blocks), [report.blocks])
+  const index = useMemo(() => (indexed ? pageIndex(report.blocks) : []), [indexed, report.blocks])
   // Each section heading carries its place in the index, which finds it by that (a repeated heading shares its id).
   const placeOf = new Map(index.map((s, n) => [s.at, n]))
   const column = useRef<HTMLDivElement>(null)
