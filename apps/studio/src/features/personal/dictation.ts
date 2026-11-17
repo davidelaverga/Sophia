@@ -139,7 +139,8 @@ export function useDictation(onText: (text: string) => void, hidden: boolean) {
       setListening(false)
       if (gone.current) return
       if (heard) deliver.current(heard)
-      setSaid(trouble)
+      // Words heard tell their own story (where they came from); the error after them is not the person's to fix.
+      setSaid(heard ? null : trouble)
     })
     current.current = r
     setListening(true)
