@@ -112,11 +112,13 @@ test('discussion · a message with no reply is offered again after a reload; Try
   await bar(page).press('Enter')
   await expect(page.getByText('Not confirmed: “Once only.”')).toBeVisible()
   await reenter(page)
-  // The service holds it (it landed; its reply was lost), and the bar says it may not be confirmed.
+  // The service holds it (it landed; its reply was lost), and the bar says it may not be confirmed. The bar holds its
+  // words, as it did before the reload: they are cleared once the message is in (drafts-survive-reload.md).
   await expect(page.getByText('Not confirmed: “Once only.”')).toBeVisible()
-  await expect(bar(page)).toHaveValue('')
+  await expect(bar(page)).toHaveValue('Once only.')
   await page.getByRole('button', { name: 'Try again' }).click()
   await expect(page.getByText('Not confirmed: “')).toHaveCount(0)
+  await expect(bar(page)).toHaveValue('')
   await expect(discussion(page).getByText('Once only.')).toHaveCount(1)
   expect(await toRoom(page)).toEqual(['contribution:discuss'])
   const keys = await contributionKeys(page)
@@ -139,6 +141,26 @@ const contributionMentions = (page: Page) =>
         : [],
     )
   })
+
+/** What the tab keeps of the Studio's unsent words (held-in-tab.ts), by its keys. */
+const draftsInTab = (page: Page) =>
+  page.evaluate(() => Object.keys(sessionStorage).filter((k) => k.startsWith('sophia.drafts.v1:')))
+
+test('discussion · the bar’s unsent words survive a reload, and are gone once sent (drafts-survive-reload.md)', async ({
+  page,
+}) => {
+  await enter(page, 'people=2&floor=1')
+  await bar(page).fill('Half a thought for the room.')
+  await expect.poll(() => draftsInTab(page)).toHaveLength(1)
+  await reenter(page)
+  await expect(bar(page)).toHaveValue('Half a thought for the room.')
+  await bar(page).press('Enter')
+  await expect(discussion(page).getByText('Half a thought for the room.')).toBeVisible()
+  await expect(bar(page)).toHaveValue('')
+  await expect.poll(() => draftsInTab(page)).toEqual([])
+  await reenter(page)
+  await expect(bar(page)).toHaveValue('')
+})
 
 test('discussion · a kept message that named members names them again when sent after a reload (A37)', async ({
   page,
