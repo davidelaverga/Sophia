@@ -3,6 +3,7 @@
 // elsewhere it folds under one button. The app's routes are paths, so a press brings the heading to the top and gives
 // it the focus, as a search hit's arrival does (useSectionArrival), and leaves the address alone.
 import { useEffect, useId, useState, type RefObject } from 'react'
+import { flushSync } from 'react-dom'
 import { Icon } from '@sophia/ui'
 import type { IndexSection } from './page-index.ts'
 
@@ -64,10 +65,11 @@ export function OnThisPage({ sections, column }: Props) {
     const heading = headingAt(column.current, n)
     if (!plainPress(e) || !heading) return
     e.preventDefault()
+    // Folded first: the list's height leaves the page before the heading is placed, or it would land above the top.
+    flushSync(() => setOpen(false))
     heading.tabIndex = -1
     heading.scrollIntoView({ block: 'start' })
     heading.focus({ preventScroll: true })
-    setOpen(false)
   }
   return (
     <nav className="md-toc" aria-label="On this page" data-open={open || undefined}>
