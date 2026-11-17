@@ -17,13 +17,13 @@ tests `pip-view.test.ts`, `hand-signal.test.ts`, `room-view.test.ts`), `apps/stu
 Both were open on main: nothing asked for picture in picture or raised a hand.
 
 - **Keep the call in view** (help «Picture in picture») in the dock, after React. With Document Picture-in-Picture
-  (Chromium) a 400×225 window shows the stage's one view (`pipShows`): a shared screen, else whoever speaks (another
-  before you), else another with a camera, else another, else you; their video or initial, with the stage's own
+  (Chromium) a 400×225 window shows the stage's one view (`pipShows`): a shared screen, else another who speaks, else
+  another with a camera, else another, you last and only when alone; their video or initial, with the stage's own
   caption. It is a React portal of the dock's render, so it follows the call; the page's styles and theme go with it.
   Elsewhere the stage's video goes into the browser's picture in picture; without a video there, or with neither API,
   no button. Closing the small window turns the button off; leaving the call (the live controls unmount) closes it.
   On a phone (≤ 600 px) it isn't offered, so the dock keeps its one row of seven.
-- **Raise hand / Lower hand** for members, beside React; on a phone, first in React's menu. «Hand raised» shows on the
+- **Raise hand** for members, beside React (one name, pressed while raised, tip «Lower hand»); on a phone, first in React's menu. «Hand raised» shows on the
   person's tile for everyone (the gallery chip after the name, a phone's strip shows the hand alone; in the light's
   seats, their line, before any other).
 - **The token, checked first:** `issueRoomToken` grants `canPublishData` to members only and `canUpdateOwnMetadata:
@@ -33,6 +33,30 @@ Both were open on main: nothing asked for picture in picture or raised a hand.
   sender leaves; after a reconnect this person's own hand is lowered and said so, and what was heard before is
   forgotten once the room is asked. Leaving lowers it (the hand lives in the connection). A guest isn't offered it,
   as React (guest-reactions.md). No keyboard key: the plans define none.
+
+## Review round (independent review: no P1, three P2s, P3s)
+
+- **P2-1, orphaned PiP window:** a press while a request is under way asks nothing more; a window that arrives after
+  the call was left (the button unmounted) is closed at once; `pagehide` clears only its own window.
+- **P2-2, a lowering lost after a reconnect:** `hand-signal.ts` now keeps each change's turn; back from a drop the
+  lowering is sent again every 2 s until it goes, and stops when a newer press or the call's end comes, so a raise
+  pressed meanwhile is never overtaken.
+- **P2-3, a 1:1 flipping to you:** `pipShows` ranks you last, only when alone.
+- **P3s:** only a member's hand or ask is heard (`isMember`, as following-signal.ts); an ask answered at most once a
+  second per asker; `decodeHand` reads own keys only (arrays and `__proto__` payloads let go), tested with a packet
+  naming another identity; `exitPictureInPicture` caught in cleanup; video PiP offered only while the stage has a video
+  (followed with a MutationObserver, only where Document PiP is absent); the hand button keeps one name with
+  `aria-pressed`, as Microphone and Camera do, its tip saying «Lower hand» while raised; the page's root attributes
+  are watched while the window is open, so a theme switch reaches it.
+- The «mini dock closes PiP» limit is now an open question for Luis in `call-picture-in-picture.md`. The
+  landscape-phone note was skipped, as asked.
+- Red on `1425e4787` (tests only): units 4 fail (a guest's hand heard; the second ask from Marco answered; the lowering
+  never sent again, `[hand:true, ask]`; the 1:1 window showing `a`, not `m`); the «raise not overtaken» case passes
+  before the fix and guards it. Browser, 7 new cases fail: the 1:1 window showed «F» (the viewer); two windows asked
+  for; no `close` after leaving while pending; theme `undefined`, expected `light`; the button still offered with the
+  tile hidden; no button named «Raise hand» pressed; hand sends `up, down!, ask` with no retry.
+- Green on `b27b5757f`: units 387/387 (`voice/*.test.ts`), `oxlint --type-aware .`, `tsc`, prettier clean; browser,
+  the room set below plus the new cases: 107/107 (pw-direct, Wow.exe running and no Aion 2, checked before each run).
 
 ## Evidence
 
@@ -63,18 +87,19 @@ Both were open on main: nothing asked for picture in picture or raised a hand.
 - **The leave case** first failed after the fix on the «This meeting» sheet covering Join (not a product fault); the
   test now closes it, as `room-people.spec.ts` does. Folded into the test commit.
 - The fake LiveKit now emits `Reconnected` on `linkLost(false)`; nothing else in it listened for that event.
+- The fake LiveKit's `failHandSends(n)` refuses the next hand sends (recorded with «!»), and `echoHand` now sends as a
+  member, as only a member's hand is heard.
 - My own unpushed commits were rebuilt (reset and cherry-pick) to fold those changes into their pairs; nothing pushed.
 
 ## Remaining limits
 
-- PiP lives while the dock does: going to a view where the mini dock takes over closes it. Switching tabs or apps
-  keeps it. No controls inside the small window; a refused `requestWindow` leaves the page as it was, silently.
+- PiP lives while the dock does (open question for Luis in the plan). No controls inside the small window; a refused `requestWindow` leaves the page as it was, silently.
 - No line said to a screen reader when someone raises a hand (a new line, not approved); the tile's words are read.
 - A guest can't raise a hand (the API's data grant); hands have no order, and none lowers itself when its person
   speaks.
-- A reconnect's ask that can't be sent forgets nothing and isn't retried (`following-signal.ts` retries; this doesn't).
+- A reconnect's ask that can't be sent forgets nothing and isn't retried (the lowering is; the ask isn't).
 
 ## Next bounded action
 
-Independent review of the four commits (two pairs) and this handoff on `room/pip-and-raise-hand`, then batch with the next verified branches
-(the branch is behind origin/main by 58; rebase at batching).
+Merge into the group (the coordinator's; no rebase needed): three test-first pairs and this handoff on
+`room/pip-and-raise-hand`.
