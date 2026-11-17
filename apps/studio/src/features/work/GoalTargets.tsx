@@ -114,15 +114,21 @@ function TargetNote({ note }: { note: Note }) {
 }
 
 /**
- * After a lost reply, what stands says whether the save landed: the goal's owner and date as sent, or not. A read that
- * fails too tells nothing, so today's words stay.
+ * After a lost reply, what stands says whether the save landed: the goal's owner and date as sent, or not; with the
+ * targets read, which the sheet then stands on. A read that fails too tells nothing, so today's words stay.
  */
-async function checked(at: At, goalId: string, sent: Pick<GoalTarget, 'ownerId' | 'targetDate'>): Promise<Note> {
+async function checked(
+  at: At,
+  goalId: string,
+  sent: Pick<GoalTarget, 'ownerId' | 'targetDate'>,
+): Promise<{ note: Note; read?: GoalTargetList }> {
   try {
-    const now = (await getGoalTargets(at.identity.token, at.projectId)).targets.find((t) => t.goalId === goalId)
-    return (now?.ownerId ?? null) === sent.ownerId && (now?.targetDate ?? null) === sent.targetDate ? 'checked' : 'lost'
+    const read = await getGoalTargets(at.identity.token, at.projectId)
+    const now = read.targets.find((t) => t.goalId === goalId)
+    const landed = (now?.ownerId ?? null) === sent.ownerId && (now?.targetDate ?? null) === sent.targetDate
+    return { note: landed ? 'checked' : 'lost', read }
   } catch {
-    return 'failed'
+    return { note: 'failed' }
   }
 }
 
@@ -204,7 +210,12 @@ export function GoalTargetSection({ goalId, at }: { goalId: string; at: At }) {
     setGoalTarget(at.identity.token, at.projectId, goalId, body).then(
       () => said('saved'),
       async (err: unknown) => {
-        if (replyLost(err)) return said(await checked(at, goalId, body))
+        if (replyLost(err)) {
+          const { note, read } = await checked(at, goalId, body)
+          // What was read is what the form stands on before the line is said: a Save pressed at once goes against it.
+          if (read) client.setQueriesData<GoalTargetList>({ queryKey: targetsKey(at) }, read)
+          return said(note)
+        }
         const stale = err instanceof ApiError && err.code === 'stale_revision'
         if (stale) said('stale')
         else setState({ note: 'failed', saving: false })
