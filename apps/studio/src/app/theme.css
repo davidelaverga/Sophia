@@ -4090,11 +4090,12 @@ button.contribution-quote:hover {
 .shell:has(.lobby) .arrival-band {
   display: none;
 }
-/* The keys' tip (keys-tip.md): one line in the bottom-left corner, where the views keep no control, until dismissed. */
+/* The keys' tip (keys-tip.md): one line in the bottom-left corner, clear of the floor band where the room's dock and
+   the composers sit, until dismissed; never shown while its box meets a control (KeysTip measures it unseen). */
 .keys-tip {
   position: fixed;
   left: var(--gutter);
-  bottom: 16px;
+  bottom: calc(var(--floor) + var(--dock-h, 48px) + 16px);
   z-index: 15;
   display: flex;
   align-items: center;
@@ -4110,6 +4111,10 @@ button.contribution-quote:hover {
 }
 .keys-tip p {
   margin: 0;
+}
+.keys-tip-measure {
+  visibility: hidden;
+  pointer-events: none;
 }
 .wait-note {
   position: fixed;
