@@ -111,6 +111,11 @@ export interface ProjectRoom {
   react: (emoji: ReactionEmoji) => void
   /** What this person follows, said to the members in the call (A14, following-signal.ts); null for nothing. */
   setFollowing: (versionId: string | null) => Promise<void>
+  /**
+   * Raise or lower this person's hand in the call (raise-hand.md): read back from `participants`. A send refused puts
+   * it back there; out of a call there is no hand.
+   */
+  setHand: (raised: boolean) => void
   /** How loud each other person is here alone, by identity, full when not listed (people-volume.md). */
   volumes: ReadonlyMap<string, Level>
   setVolume: (identity: string, level: Level) => void
@@ -632,6 +637,7 @@ function useLeave(
  */
 const relaysOf = (calls: CallFence<RoomConnection>) => ({
   setFollowing: (versionId: string | null) => calls.current?.setFollowing(versionId) ?? Promise.resolve(),
+  setHand: (raised: boolean) => void calls.current?.setHand(raised).catch(() => undefined),
   voiceLevel: (identity: string) => calls.current?.voiceLevel(identity) ?? 0,
   sophiaLevel: () => calls.current?.sophiaLevel() ?? 0,
 })

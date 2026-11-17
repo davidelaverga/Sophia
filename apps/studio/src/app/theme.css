@@ -3169,6 +3169,11 @@ button.contribution-quote:hover {
     padding: 0;
     border-radius: var(--r-3);
   }
+  /* The row of seven keeps: picture in picture isn't offered on a phone, where Document Picture-in-Picture doesn't
+     exist and leaving the app is the phone's own (call-picture-in-picture.md). */
+  .dock .round.dock-pip {
+    display: none;
+  }
   .dock .dock-icon {
     position: relative;
     display: grid;
@@ -3879,6 +3884,19 @@ button.contribution-quote:hover {
 .tile-floor {
   color: var(--warm);
 }
+/* A raised hand in the tile's chip (raise-hand.md): after the name and its marks, warm, never cut with the name. */
+.tile-hand {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  color: var(--warm);
+  white-space: nowrap;
+}
+.presence[data-hand] .role {
+  color: var(--warm);
+}
 .video {
   position: absolute;
   inset: 0;
@@ -3925,7 +3943,8 @@ button.contribution-quote:hover {
    mute's corner mark on a phone's strip (muted-on-tiles.md) is one of them. */
 .tile-name,
 .tile-muted-corner,
-.screen-main figcaption {
+.screen-main figcaption,
+.pip-call figcaption {
   --text: #ecebf1;
   --text-2: rgb(236 235 241 / 0.66);
   --warm: #f1dcc7;
@@ -3933,6 +3952,29 @@ button.contribution-quote:hover {
   --halo-text-rgb: 185 168 255;
   background: rgb(0 0 0 / 0.62);
   color: var(--text);
+}
+
+/* Keep the call in view's small window (docs/plans/call-picture-in-picture.md): the stage's one view, whole on black,
+   its caption the stage's dark chip (above). */
+.pip-body {
+  margin: 0;
+  background: #000;
+}
+.pip-call {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  background: #000;
+}
+.pip-call figcaption {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 2px 7px;
+  border-radius: var(--r-1);
+  font-size: 12px;
 }
 
 /* The room from other views: in the header's end cluster on a wide screen (docs/plans/dock-header.md), a small
@@ -5446,6 +5488,17 @@ button.contribution-quote:hover {
   .tile-strip .tile-muted svg {
     display: none;
   }
+  /* A fifth of a phone: the raised hand alone, its words for a screen reader. */
+  .tile-strip .tile-hand {
+    margin-left: 4px;
+  }
+  .tile-strip .tile-hand-words {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
   .tile-strip .tile-muted-corner {
     position: absolute;
     top: 1px;
@@ -5513,7 +5566,8 @@ button.contribution-quote:hover {
   }
   /* Who holds the floor keeps their role under their name: the phone's dock leaves saying it to the room
      (docs/plans/phone-dock.md, docs/plans/room-phone-floor.md). */
-  .presence[data-floor] .role {
+  .presence[data-floor] .role,
+  .presence[data-hand] .role {
     display: block;
   }
   .dock {

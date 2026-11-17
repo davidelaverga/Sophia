@@ -77,6 +77,8 @@ import {
   leaving,
   linkLost,
   reactFrom,
+  echoHand,
+  failHandSends,
   setVoiceLevel,
   sophiaLeaves,
   speakWhileMuted,
@@ -551,6 +553,13 @@ interface Fixture {
   asked: readonly string[]
   /** Someone in the room reacts, by name, with any emoji the check gives (call-reactions.md). */
   reactFrom?: (name: string, emoji: string) => void
+  /**
+   * The last hand this page sent (raised or lowered), delivered as from the `n`th other person: what their page would
+   * receive from them (raise-hand.md).
+   */
+  echoHand?: (n: number) => void
+  /** The next `n` hand sends are refused (raise-hand.md). */
+  failHandSends?: (n: number) => void
   /** The devices the last call opened with (call-devices.md); null before any. */
   readonly devicesOnJoin: Partial<Record<string, string>> | null
   /** The camera background the last call opened with (call-backgrounds.md); null before any. */
@@ -1758,6 +1767,8 @@ window.fixture = {
   floorTo,
   asked,
   reactFrom,
+  echoHand,
+  failHandSends,
   get devicesOnJoin() {
     return joined.devices
   },
