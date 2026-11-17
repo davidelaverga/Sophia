@@ -106,6 +106,7 @@ import {
   installFixtureApi,
   publish,
   type Conversations,
+  type LostSave,
   releaseReports,
   releaseSources,
   releaseTask,
@@ -201,8 +202,13 @@ interface Fixture {
   unmutes: (n: number) => void
   /** The next goal target saved finds someone else's first (goal-owner-date.md). */
   staleTarget: () => void
-  /** The next goal target or role saved loses its reply, after it lands or before (save-reply-lost.md). */
-  loseNextSaveReply: (landed: boolean) => void
+  /**
+   * The next goal target or role saved loses its reply, after it lands or before (save-reply-lost.md); as a proxy's
+   * 5xx with `status`, and with the read that checks it failing too with `failRead`.
+   */
+  loseNextSaveReply: (landed: boolean, options?: { failRead?: boolean; status?: 502 | 503 | 504 }) => void
+  /** While on, goal target and role saves land but their replies wait; off, they answer. */
+  holdSaves: (on: boolean) => void
   /** The next invitation to this address fails, as an unavailable API's (invite-from-projects.md). */
   failInvite: (email: string) => void
   /** While on, host controls land but their replies wait; off, they answer. */
@@ -848,7 +854,9 @@ const project = {
   failHost: false,
   failAfterMuteAll: false,
   staleTarget: false,
-  loseSaveReply: null as 'landed' | 'unlanded' | null,
+  loseSaveReply: null as LostSave | null,
+  failNextCheck: false,
+  savesHeld: null as (() => void)[] | null,
   // `archived=1`: the project is archived (archive-project.md).
   archived: query.get('archived') === '1',
   // `archivedFails=1`: the archived list can't be read (archive-keys-and-work.md).
@@ -1215,8 +1223,13 @@ window.fixture = {
   staleTarget: () => {
     project.staleTarget = true
   },
-  loseNextSaveReply: (landed) => {
-    project.loseSaveReply = landed ? 'landed' : 'unlanded'
+  loseNextSaveReply: (landed, options = {}) => {
+    project.loseSaveReply = { landed, failRead: options.failRead ?? false, status: options.status ?? null }
+  },
+  holdSaves: (on) => {
+    const held = project.savesHeld ?? []
+    project.savesHeld = on ? [] : null
+    if (!on) for (const reply of held) reply()
   },
   failInvite: (email) => {
     project.invitations.failFor = email

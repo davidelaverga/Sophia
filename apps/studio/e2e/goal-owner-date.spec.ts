@@ -75,11 +75,36 @@ test('owner · a save whose reply was lost after it landed says so, and saving a
   await expect(sheet(page).getByRole('status')).toHaveText(CHECKED)
   await expect(sheet(page).getByRole('alert')).toHaveCount(0)
   await expect(sheet(page).getByLabel('Target date')).toHaveValue('2026-11-15')
-  await sheet(page).getByLabel('Target date').fill('2026-11-20')
+  // Pressed as soon as the line shows: the save goes against the revision now stored, never refused as someone else's.
   await sheet(page).getByRole('button', { name: 'Save' }).click()
   await expect(sheet(page).getByRole('status')).toHaveText('Saved')
   await expect(sheet(page).getByRole('alert')).toHaveCount(0)
-  expect((await served(page)).filter((s) => s.startsWith(`target:${MARCO}:`))).toHaveLength(2)
+  expect(await served(page)).toEqual(
+    expect.arrayContaining([`target:${MARCO}:2026-11-15:1`, `target:${MARCO}:2026-11-15:2`]),
+  )
+})
+
+test('owner · a save answered by a proxy’s 502 after it landed is checked and said as saved', async ({ page }) => {
+  await open(page, '&targets=1')
+  await expect(sheet(page).getByRole('combobox', { name: 'Owner' })).toHaveValue(MARCO)
+  await page.evaluate(() => window.fixture?.loseNextSaveReply(true, { status: 502 }))
+  await sheet(page).getByLabel('Target date').fill('2026-11-15')
+  await sheet(page).getByRole('button', { name: 'Save' }).click()
+  await expect(sheet(page).getByRole('status')).toHaveText(CHECKED)
+  await expect(sheet(page).getByRole('alert')).toHaveCount(0)
+})
+
+test('owner · a lost save whose check can’t be read either keeps today’s words and the typed date', async ({
+  page,
+}) => {
+  await open(page, '&targets=1')
+  await expect(sheet(page).getByRole('combobox', { name: 'Owner' })).toHaveValue(MARCO)
+  await page.evaluate(() => window.fixture?.loseNextSaveReply(false, { failRead: true }))
+  await sheet(page).getByLabel('Target date').fill('2026-11-15')
+  await sheet(page).getByRole('button', { name: 'Save' }).click()
+  await expect(sheet(page).getByRole('alert')).toHaveText('Couldn’t save the owner and date. Try again.')
+  await expect(sheet(page).getByRole('status')).toHaveCount(0)
+  await expect(sheet(page).getByLabel('Target date')).toHaveValue('2026-11-15')
 })
 
 test('owner · a save whose reply was lost before it landed says so, keeps the date, and lands again', async ({
