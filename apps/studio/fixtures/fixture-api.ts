@@ -135,6 +135,16 @@ export const served: string[] = []
 export const sinceAsked: string[] = []
 
 /** The project as the API holds it now: the revision moves with each event. */
+/**
+ * A goal target or role save whose reply is lost (save-reply-lost.md): after it is recorded (`landed`) or before it
+ * reaches the API; as a network failure, or as a proxy's 5xx page (`status`); and the read that checks it may fail too.
+ */
+export interface LostSave {
+  landed: boolean
+  failRead: boolean
+  status: 502 | 503 | 504 | null
+}
+
 interface Project {
   revision: number
   /** The project's title once renamed (project-rename.md); absent, the snapshot's own. */
@@ -184,6 +194,12 @@ interface Project {
   goalTargets?: Map<string, { ownerId: string | null; targetDate: string | null; revision: number }>
   /** The next target saved finds someone else's first (`window.fixture.staleTarget`). */
   staleTarget?: boolean
+  /** The next goal target or role saved loses its reply (`window.fixture.loseNextSaveReply`, save-reply-lost.md). */
+  loseSaveReply?: LostSave | null
+  /** The next read of the targets or the members fails as an unavailable API's (`loseNextSaveReply`'s `failRead`). */
+  failNextCheck?: boolean
+  /** While a list, goal target and role saves land but their replies wait in it (`window.fixture.holdSaves`). */
+  savesHeld?: (() => void)[] | null
   /** Members an admin removed (A29), by actor id. */
   removedMembers?: Set<string>
   /** Members' roles as an admin changed them (A27), by actor id. */
@@ -831,6 +847,7 @@ function targetsAnswer(project: Project): Response | Promise<Response> {
 
 /** The goals' targets once let through: refused while they fail, each refusal recorded (`targets-refused`), else read. */
 function targetsNow(project: Project): Response {
+  if (checkFails(project)) return unavailable()
   if (!project.targetsFail) return goalTargetsRead(project)
   served.push('targets-refused')
   return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
@@ -845,7 +862,7 @@ function goalTargetsRead(project: Project): Response {
 /** The project's members (A25): the viewer and the two others the room fixture names, with roles as changed (A27). */
 function membersRead(project: Project): Response {
   // `members=fail` (A37): the read fails, so nobody is offered or named until it is read.
-  if (project.membersFail) return unavailable()
+  if (project.membersFail || checkFails(project)) return unavailable()
   const roleOf = (actorId: string, start: Membership['role']) => project.memberRoles?.get(actorId) ?? start
   const gone = project.removedMembers ?? new Set<string>()
   return json({
@@ -875,8 +892,42 @@ function memberRemoved(project: Project, actorId: string): Response {
   return json({ actorId, cursor: String(project.revision) })
 }
 
-/** The project's own PUTs: a goal's owner and date (A25), a member's role (A27); null for any other path. */
-function projectPut(project: Project, path: string, init: RequestInit | undefined): Response | null {
+/**
+ * The project's own PUTs: a goal's owner and date (A25), a member's role (A27); null for any other path. Its reply may
+ * be lost (`loseSaveReply`), after the save is recorded or before it reaches the API.
+ */
+function projectPut(
+  project: Project,
+  path: string,
+  init: RequestInit | undefined,
+): Response | Promise<Response> | null {
+  const lost = project.loseSaveReply
+  if (!(GOAL_TARGET.test(path) || MEMBER_ROLE.test(path))) return savedPut(project, path, init)
+  if (!lost) return heldPut(project, savedPut(project, path, init))
+  project.loseSaveReply = null
+  project.failNextCheck = lost.failRead
+  if (lost.landed) savedPut(project, path, init)
+  // The page never hears whether it landed: no reply at all, or a proxy's page with no body of the API's.
+  if (lost.status) return new Response('<html>Bad gateway</html>', { status: lost.status })
+  return Promise.reject(new TypeError('Failed to fetch'))
+}
+
+/** A save's reply, held while saves are held (`holdSaves`): it has landed already. */
+function heldPut(project: Project, reply: Response | null): Response | Promise<Response> | null {
+  const held = project.savesHeld
+  if (!held || !reply) return reply
+  return new Promise<Response>((resolve) => held.push(() => resolve(reply)))
+}
+
+/** The next read after a lost save fails (`failRead`): the check can't tell what landed. */
+function checkFails(project: Project): boolean {
+  if (!project.failNextCheck) return false
+  project.failNextCheck = false
+  return true
+}
+
+/** A goal's owner and date (A25), or a member's role (A27), saved and answered; null for any other path. */
+function savedPut(project: Project, path: string, init: RequestInit | undefined): Response | null {
   const target = GOAL_TARGET.exec(path)?.[1]
   if (target) return goalTargetPut(project, target, init)
   const member = MEMBER_ROLE.exec(path)?.[1]
@@ -913,6 +964,33 @@ function rolePut(project: Project, actorId: string, init: RequestInit | undefine
   return json({ actorId, role: next, revision: 2, cursor: String(project.revision) })
 }
 
+const staleTargetRefused = () =>
+  new Response(
+    JSON.stringify({
+      code: 'stale_revision',
+      message: 'The goal’s target changed',
+      requestId: PROJECT,
+      retry: 'never',
+    }),
+    { status: 409, headers: { 'content-type': 'application/json' } },
+  )
+
+/**
+ * A goal target save refused as stale: someone else's saved first (`staleTarget`), or it was sent against a revision no
+ * longer stored (compare-and-set, as the API's).
+ */
+function targetBeaten(project: Project, goalId: string, expected: unknown): Response | null {
+  const targets = (project.goalTargets ??= new Map())
+  const now = targets.get(goalId)
+  if (project.staleTarget) {
+    project.staleTarget = false
+    targets.set(goalId, { ownerId: personId(2), targetDate: '2026-12-01', revision: (now?.revision ?? 0) + 1 })
+    publish(project)
+    return staleTargetRefused()
+  }
+  return expected === (now?.revision ?? 0) ? null : staleTargetRefused()
+}
+
 /** A goal's owner and date set (A25): an editor's or an admin's, compare-and-set on its revision. */
 function goalTargetPut(project: Project, goalId: string, init: RequestInit | undefined): Response {
   if (project.role === 'viewer') return refused('Only editors and admins set a goal’s owner and date')
@@ -921,13 +999,8 @@ function goalTargetPut(project: Project, goalId: string, init: RequestInit | und
   const [ownerId, targetDate, expected] = [field('ownerId'), field('targetDate'), field('expectedRevision')]
   const targets = (project.goalTargets ??= new Map())
   const now = targets.get(goalId)
-  if (project.staleTarget) {
-    project.staleTarget = false
-    targets.set(goalId, { ownerId: personId(2), targetDate: '2026-12-01', revision: (now?.revision ?? 0) + 1 })
-    publish(project)
-    const problem = { code: 'stale_revision', message: 'The goal’s target changed', requestId: PROJECT, retry: 'never' }
-    return new Response(JSON.stringify(problem), { status: 409, headers: { 'content-type': 'application/json' } })
-  }
+  const beaten = targetBeaten(project, goalId, expected)
+  if (beaten) return beaten
   served.push(`target:${String(ownerId)}:${String(targetDate)}:${String(expected)}`)
   const next = {
     ownerId: typeof ownerId === 'string' ? ownerId : null,

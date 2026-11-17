@@ -56,3 +56,65 @@ test('roles · an editor sees who is in the project and their roles, with nothin
   await expect(list.getByRole('combobox')).toHaveCount(0)
   await expect(list.getByRole('listitem').filter({ hasText: 'Marco' })).toContainText('Editor')
 })
+
+// A role change whose reply was lost may have landed: the members are read again and say which
+// (docs/plans/save-reply-lost.md).
+test('roles · a change whose reply was lost after it landed is said as saved, with the new role', async ({ page }) => {
+  const list = await inProject(page)
+  const marco = list.getByRole('combobox', { name: 'Role of Marco' })
+  await expect(marco).toHaveValue('editor')
+  await page.evaluate(() => window.fixture?.loseNextSaveReply(true))
+  await marco.selectOption('viewer')
+  const row = list.getByRole('listitem').filter({ hasText: 'Marco' })
+  await expect(row.getByRole('status')).toHaveText('Saved. The reply was slow, so we checked.')
+  // Read at once, not waited for: the line never shows beside the old role.
+  expect(await marco.inputValue()).toBe('viewer')
+  await expect(list.getByRole('alert')).toHaveCount(0)
+  expect(await served(page)).toContain(`role:${MARCO}:viewer`)
+})
+
+test('roles · a change whose reply was lost before it landed says the role wasn’t changed', async ({ page }) => {
+  const list = await inProject(page)
+  const marco = list.getByRole('combobox', { name: 'Role of Marco' })
+  await expect(marco).toHaveValue('editor')
+  await page.evaluate(() => window.fixture?.loseNextSaveReply(false))
+  await marco.selectOption('viewer')
+  const row = list.getByRole('listitem').filter({ hasText: 'Marco' })
+  await expect(row.getByRole('alert')).toHaveText('The role wasn’t changed. Try again.')
+  await expect(marco).toHaveValue('editor')
+  expect((await served(page)).filter((s) => s.startsWith('role:'))).toEqual([])
+  await marco.selectOption('viewer')
+  await expect.poll(() => served(page)).toContain(`role:${MARCO}:viewer`)
+  await expect(row.getByRole('alert')).toHaveCount(0)
+  await expect(marco).toHaveValue('viewer')
+})
+
+test('roles · a lost change whose check can’t be read either keeps today’s words', async ({ page }) => {
+  const list = await inProject(page)
+  const marco = list.getByRole('combobox', { name: 'Role of Marco' })
+  await expect(marco).toHaveValue('editor')
+  await page.evaluate(() => window.fixture?.loseNextSaveReply(false, { failRead: true }))
+  await marco.selectOption('viewer')
+  const row = list.getByRole('listitem').filter({ hasText: 'Marco' })
+  await expect(row.getByRole('alert')).toHaveText('Couldn’t change the role.')
+  await expect(row.getByRole('status')).toHaveCount(0)
+})
+
+test('roles · one member’s change answered never frees another’s select while its change is on the way', async ({
+  page,
+}) => {
+  const list = await inProject(page)
+  const marco = list.getByRole('combobox', { name: 'Role of Marco' })
+  const lucia = list.getByRole('combobox', { name: 'Role of Lucía' })
+  await page.evaluate(() => window.fixture?.holdSaves(true))
+  await marco.selectOption('viewer')
+  await expect(marco).toBeDisabled()
+  await lucia.selectOption('editor')
+  await expect(lucia).toBeDisabled()
+  await expect(marco).toBeDisabled()
+  await page.evaluate(() => window.fixture?.holdSaves(false))
+  await expect(marco).toBeEnabled()
+  await expect(lucia).toBeEnabled()
+  await expect(marco).toHaveValue('viewer')
+  await expect(lucia).toHaveValue('editor')
+})
