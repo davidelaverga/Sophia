@@ -60,6 +60,18 @@ test('needs you · at phone width the number stands inside its link, and the pag
   expect(count.x + count.width).toBeLessThanOrEqual(link.x + link.width + 0.5)
   expect(count.y).toBeGreaterThanOrEqual(link.y)
   expect(count.y + count.height).toBeLessThanOrEqual(link.y + link.height + 0.5)
+  // What stands past the screen's edge, outside any row that scrolls, is named so a failure says where.
+  const past = await page.evaluate(() => {
+    const scrolls = (el: Element) => /auto|scroll|hidden|clip/.test(getComputedStyle(el).overflowX)
+    const clipped = (el: Element) => {
+      for (let up = el.parentElement; up && up !== document.body; up = up.parentElement) if (scrolls(up)) return true
+      return false
+    }
+    return [...document.querySelectorAll('body *')]
+      .filter((el) => el.getBoundingClientRect().right > 375.5 && !clipped(el))
+      .map((el) => `${el.tagName.toLowerCase()}.${el.className} → ${el.getBoundingClientRect().right.toFixed(1)}`)
+  })
+  expect(past).toEqual([])
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375)
 })
 
