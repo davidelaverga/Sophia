@@ -22,7 +22,7 @@ import { hasTopLayer } from './camera-flip.ts'
 import { TileMenu } from './TileMenu.tsx'
 import { useMirror } from './mirror-preference.ts'
 
-function VideoView({ feed, fit }: { feed: VideoFeed; fit: 'cover' | 'contain' }) {
+export function VideoView({ feed, fit }: { feed: VideoFeed; fit: 'cover' | 'contain' }) {
   const video = useRef<HTMLVideoElement>(null)
   useEffect(() => {
     const el = video.current

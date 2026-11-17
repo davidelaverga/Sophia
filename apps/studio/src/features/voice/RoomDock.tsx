@@ -24,6 +24,7 @@ import { StalePart } from './StalePart.tsx'
 import { useNow } from '../../app/use-now.ts'
 import { PassMenu } from './PassMenu.tsx'
 import { ReactMenu } from './ReactMenu.tsx'
+import { CallPip } from './CallPip.tsx'
 import { Reactions } from './Reactions.tsx'
 import { roomKey } from './room-keys.ts'
 import { shortName, type FloorView, type RoomParticipant } from './room-view.ts'
@@ -417,6 +418,8 @@ function LiveControls(props: Props & { sophiaAllow: boolean }) {
       <MediaToggles room={room} me={me} />
       {/* A guest's token carries media only (livekit.ts): a reaction would reach nobody (guest-reactions.md). */}
       {me?.standing !== 'guest' && <ReactMenu onReact={room.react} />}
+      {/* Keep the call in view (call-picture-in-picture.md): only where the browser has a way. */}
+      <CallPip room={room} />
       <span className="dock-sep" aria-hidden />
       {snapshot && me && (
         <FloorControl floor={floor} me={me.identity} context={{ projectId, identity, snapshot }} onPassed={onPassed} />

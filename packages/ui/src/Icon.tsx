@@ -46,6 +46,7 @@ export type IconName =
   | 'people'
   | 'more'
   | 'flip'
+  | 'pip'
 
 const slash = <path d="M4 4l16 16" />
 const mic = (
@@ -90,6 +91,13 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="M3 9.5A2.5 2.5 0 0 1 5.5 7h2L9 5h6l1.5 2h2A2.5 2.5 0 0 1 21 9.5v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 16.5z" />
       <path d="M8.8 12.6a3.2 3.2 0 0 1 5.6-1.9M14.6 9v1.9h-1.9M15.2 13.4a3.2 3.2 0 0 1-5.6 1.9M9.4 17v-1.9h1.9" />
+    </>
+  ),
+  // Picture in picture: a screen with a small view in its corner (call-picture-in-picture.md).
+  pip: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <rect x="12" y="11.5" width="6" height="4.5" rx="1" fill="currentColor" />
     </>
   ),
   screen: (

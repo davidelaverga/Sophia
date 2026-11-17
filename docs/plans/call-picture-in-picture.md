@@ -26,6 +26,8 @@
   (`requestPictureInPicture`): the shared screen, else the tile of whoever `pipShows` picks, else any video on the
   stage. Without a video on the stage there is nothing to show, and the button isn't offered.
 - **Neither (Firefox, an old Safari):** no button.
+- **On a phone (≤ 600 px)** it isn't offered either: phones have no Document Picture-in-Picture, leaving the app is
+  the phone's own picture in picture, and the dock keeps its one row of seven (`phone-dock.md`).
 - **Ending it** from the small window (its close, or the browser's back to the tab) gives the page back as it was, and
   the button reads as off. **Leaving the call** closes it: the button's unmount closes the window or leaves video
   picture in picture.
