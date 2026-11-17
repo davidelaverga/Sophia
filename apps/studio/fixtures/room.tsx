@@ -21,6 +21,9 @@
 // `qualification=on`: the room token names a voice qualification grant (A45), so the page emits its voice receipts;
 // `window.fixture.voices` attaches Sophia's voice and a member's, `voicesLeave` unsubscribes them (LiveKit keeps one
 // element to attach again), and `grant` says whether the next room tokens name the grant.
+// `window.fixture.screenStoppedByHost`: an admin stops this viewer's screen share from the room's server (A31), and
+// the page stops sharing as the Studio does; `screenEndedInBrowser`: the browser's own «Stop sharing» bar ends it
+// (removed-and-stopped-said.md).
 import { citedReads, releaseCited } from './cited-text-data.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -77,6 +80,8 @@ import {
   sophiaLeaves,
   speakWhileMuted,
   muteByHost,
+  stopScreenByHost,
+  endScreenInBrowser,
   connecting,
   voicesArrive,
   voicesLeave,
@@ -473,6 +478,10 @@ interface Fixture {
   speakMuted: () => void
   /** An admin mutes this viewer from the room's server: this device's own microphone choice is left as it was. */
   mutedByHost: () => void
+  /** An admin stops this viewer's screen share from the room's server (A31): the page stops sharing, as LiveKit's does. */
+  screenStoppedByHost: () => void
+  /** The browser's own «Stop sharing» bar ends this viewer's share: LiveKit unpublishes it, and nobody else acted. */
+  screenEndedInBrowser: () => void
   /** The call's link is lost for a while (true), or back (false), as LiveKit reconnects (reconnecting-on-video.md). */
   linkLost: (lost: boolean) => void
   /**
@@ -1689,6 +1698,8 @@ window.fixture = {
   sophiaLeaves,
   speakMuted: speakWhileMuted,
   mutedByHost: muteByHost,
+  screenStoppedByHost: stopScreenByHost,
+  screenEndedInBrowser: endScreenInBrowser,
   linkLost,
   voices: voicesArrive,
   voicesLeave,

@@ -42,6 +42,8 @@ import { openAcross } from '../work/planning/decision-alert.ts'
 import { useDecisionAlert } from '../work/planning/useDecisionAlert.ts'
 import { MeetingRecapOnLeave } from '../voice/MeetingRecap.tsx'
 import { useProjectRoom, type LeaveHow, type ProjectRoom } from '../voice/useProjectRoom.ts'
+import { CALL_END } from '../voice/call-end.ts'
+import { browserTabs } from '../voice/call-tabs.ts'
 import { useMedia, WIDE } from '../../app/useMedia.ts'
 import { GoalList, type GoalPlan } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
@@ -54,7 +56,15 @@ import { ArrivalSince } from '../updates/ArrivalSince.tsx'
 import { UpdatesView } from '../updates/UpdatesView.tsx'
 import { Connections } from '../connections/Connections.tsx'
 import { ConversationsView } from '../conversations/ConversationsView.tsx'
-import { blockedBy, isStale, readsServedBoard, shownConnection, type Blocked } from './project-door.ts'
+import {
+  blockedBy,
+  callEndedByRemoval,
+  isStale,
+  readsServedBoard,
+  REMOVED_MID_CALL,
+  shownConnection,
+  type Blocked,
+} from './project-door.ts'
 import { PanelCallSwitches, StudioShell, useRoomPanel, type RoomPanel } from './StudioShell.tsx'
 import { lensInAddress } from './viewer-state.ts'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
@@ -79,17 +89,28 @@ const CONNECTION: Record<Connection, string> = {
 
 /**
  * A closed door closes the call too. Signed out or no longer a member, the project's screen gives way to a notice
- * with no dock: the call must not stay open behind it with a microphone nobody can mute.
+ * with no dock: the call must not stay open behind it with a microphone nobody can mute. Whether a removal ended a
+ * call here is read as the door closes, before that leave (callEndedByRemoval), for the notice to say.
  */
-function useLeaveBehindClosedDoor(blocked: Blocked | null, room: ProjectRoom) {
+function useLeaveBehindClosedDoor(blocked: Blocked | null, room: ProjectRoom, projectId: string): boolean {
   const leave = useRef(room.leave)
   useEffect(() => {
     leave.current = room.leave
   })
+  const [door, setDoor] = useState({ blocked, callEnded: false })
+  if (door.blocked !== blocked) {
+    const call = {
+      on: isInCall(room) || room.rejoining,
+      takenOut: room.error === CALL_END.removed.note,
+      left: browserTabs.left(projectId),
+    }
+    setDoor({ blocked, callEnded: callEndedByRemoval(blocked, call) })
+  }
   const closed = blocked === 'expired' || blocked === 'denied'
   useEffect(() => {
     if (closed) void leave.current()
   }, [closed])
+  return door.callEnded
 }
 
 /**
@@ -313,7 +334,8 @@ function useDecisionsWaiting(shown: Snapshot | undefined, plans: ServedWork['pla
 
 /**
  * What the shell does for the rest of the app: its tab title while on screen, its call reported, a join on arrival,
- * and no call kept behind a closed door. What came while the tab was hidden goes to the room's chat.
+ * and no call kept behind a closed door. What came while the tab was hidden goes to the room's chat; whether a removal
+ * ended a call here goes to the notice.
  */
 function useBeyondTheView(
   props: Props,
@@ -322,7 +344,7 @@ function useBeyondTheView(
   blocked: Blocked | null,
   viewer: { me: string | null; plans: ServedWork['plans']; reads: Reads },
 ) {
-  useLeaveBehindClosedDoor(blocked, room)
+  const callEnded = useLeaveBehindClosedDoor(blocked, room, props.projectId)
   const shown = props.background ? undefined : snapshot
   const decisions = useDecisionsWaiting(shown, viewer.plans, props.projectId)
   const reads = props.background ? undefined : viewer.reads
@@ -330,7 +352,7 @@ function useBeyondTheView(
   const looking = lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))
   useReportCall(props.projectId, snapshot?.title, room, looking, props.onCall)
   useJoinOnOpen(room, props.joinOnOpen ?? false, props.onJoinHandled)
-  return whileAway
+  return { whileAway, callEnded }
 }
 
 /** Other words people type for each view (docs/plans/palette-also.md): «what changed» is Updates, «sophia» Conversations. */
@@ -561,7 +583,7 @@ export function ProjectShell(props: Props) {
   const dockAt = useDockPlace(room, snapshot.data, () => onShow('studio'), dockShown(view, blocked))
   const work = useTasksWork(props, feed, membership, blocked, searching)
   const viewer = { me: membership?.actorId ?? null, plans: work.plans, reads: snapshot }
-  const whileAway = useBeyondTheView(props, snapshot.data, room, blocked, viewer)
+  const { whileAway, callEnded } = useBeyondTheView(props, snapshot.data, room, blocked, viewer)
   const at = { view, inviting, mayInvite: !!shown && canInvite(membership), shown: !!shown, blocked: !!blocked }
   useProjectKeys({ onLeave, onWork, invite, search, show: onShow }, at)
   return (
@@ -584,7 +606,7 @@ export function ProjectShell(props: Props) {
         )}
         {blocked ? (
           <AccessNotice
-            blocked={blocked}
+            {...{ blocked, callEnded }}
             identityName={identity.name}
             actions={{ leave: onWork, retry: () => void snapshot.refetch(), signin: onSignOut }}
           />
@@ -1057,15 +1079,18 @@ const ACTION_LABEL: Record<NoticeAction, string> = {
 interface NoticeProps {
   blocked: Blocked
   identityName: string
+  /** A call here ended with the removal: said under the body, politely and never focused (removed-and-stopped-said.md). */
+  callEnded: boolean
   actions: Record<NoticeAction, () => void>
 }
 
-function AccessNotice({ blocked, identityName, actions }: NoticeProps) {
+function AccessNotice({ blocked, identityName, callEnded, actions }: NoticeProps) {
   const notice = NOTICE[blocked]
   return (
     <main className="page notice" data-content>
       <h2>{notice.title}</h2>
       <p>{notice.body(identityName)}</p>
+      {callEnded && <p role="status">{REMOVED_MID_CALL}</p>}
       <button type="button" className="pill" onClick={actions[notice.action]}>
         {ACTION_LABEL[notice.action]}
       </button>

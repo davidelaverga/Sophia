@@ -9,6 +9,7 @@ import { CommandsHost } from '../../app/CommandsHost.tsx'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Place } from '../../app/route.ts'
 import { useCommands } from '../../app/useCommands.ts'
+import { noteRole } from '../voice/call-end.ts'
 import { callCommands } from '../voice/call-commands.ts'
 import { CallSwitches, type Sending } from '../voice/CallSwitches.tsx'
 import { LookingIndicator } from '../voice/SophiaControls.tsx'
@@ -96,8 +97,9 @@ function Switch({
 
 /**
  * In a room: the bar says so. Back to it, and the call's switches and Leave, the same as the mini dock's. Under it, what
- * the call's dock would say: what Sophia is looking at, and what stopped a device. These are the copies a screen reader
- * hears: the dock's own are inside the project kept out of sight.
+ * the call's dock would say: what Sophia is looking at, and what stopped a device (a screen an admin stopped said
+ * politely, noteRole). These are the copies a screen reader hears: the dock's own are inside the project kept out of
+ * sight.
  */
 function RoomPill({ call }: { call: InCall }) {
   return (
@@ -107,7 +109,7 @@ function RoomPill({ call }: { call: InCall }) {
         <div className="room-pill-notes">
           <LookingIndicator text={call.looking} />
           {call.note && (
-            <p className="dock-note" role="alert">
+            <p className="dock-note" role={noteRole(call.note)}>
               {call.note}
             </p>
           )}

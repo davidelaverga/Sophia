@@ -49,3 +49,17 @@ export function readsServedBoard(view: View, blocked: Blocked | null, ownPlans: 
   // The project's search reads it too, from any view: it finds tasks by their words (search-goals.md).
   return (view === 'work' || view === 'goals' || searching) && !blocked && !ownPlans
 }
+
+/** What the No access notice adds when a call here ended with the removal (removed-and-stopped-said.md). */
+export const REMOVED_MID_CALL = 'Your call here ended when you were removed from the project.'
+
+/**
+ * Whether a door closed as `denied` ended a call here, read as it closes, before the shell leaves the call: one on
+ * (live, reconnecting or trying back in), or one the server had just taken this person out of (`takenOut`), as the
+ * API's removal does when its LiveKit word comes before the snapshot's refusal. Any other door says nothing of a call,
+ * nor one this person shut themselves with Leave project in another tab of this browser (`left`, call-tabs.ts).
+ */
+export const callEndedByRemoval = (
+  blocked: Blocked | null,
+  call: { on: boolean; takenOut: boolean; left: boolean },
+): boolean => blocked === 'denied' && !call.left && (call.on || call.takenOut)

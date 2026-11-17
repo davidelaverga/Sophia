@@ -31,6 +31,9 @@ const STILL_ON: Record<Device, string> = {
   screen: 'Screen sharing couldn’t stop. Try again.',
 }
 
+/** An admin stopped this person's screen share (A31, host-more.md): the dock says so, politely (noteRole). */
+export const HOST_STOPPED_SCREEN = 'An admin stopped your screen share.'
+
 /**
  * What stopped a device, and what to do about it, for the way it was going: on (the browser's reasons) or off
  * (STILL_ON). Null when there is nothing to say: cancelling the screen picker is a choice, not an error. The note stays
