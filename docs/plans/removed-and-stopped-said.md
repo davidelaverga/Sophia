@@ -32,11 +32,23 @@
   (never focused, no press of its own):
   - «Your call here ended when you were removed from the project.»
   A plain visit to a project this person isn't in, a sign-out (`expired`) and an unreachable project say nothing new.
+- **Left in another tab is no removal** (review P2, `call-tabs.ts`, `ProjectName.tsx`): the API's Leave project
+  (`leavesTheCall`) also takes this person out of the call in every tab, which reads in tab A just like a removal.
+  Leave project now says so on the browser's existing calls channel (`sophia.calls.v2`, call-rejoin.md) before it
+  asks the API, and takes it back if the API refuses; a tab whose door then closes as `denied` for that project says
+  the plain notice. Every tab in a call has the channel open (its claim), so it hears the leave in time.
 - **A screen an admin stopped** (`livekit-room.ts`, `useProjectRoom.ts`, `call-end.ts`): `stopsWhenHostStops` also
   tells the room (`onHostStoppedScreen`), which puts the line in the dock's note, said politely:
   - «An admin stopped your screen share.»
-  It goes as device notes go: with the next device change that works (sharing again, say) or the call's end. The
+  It is news, not a failure (review P3): said once, for as long as «Reconnected.» is (`REJOINED_FOR_MS`, 4 s), then
+  gone; any note said meanwhile (a device that failed) takes its place at once, and the call's end clears it. While in
+  a call nothing else sets the room's own note (a drop clears the device note first), so it never hides one. The
   places bar, which shows the call's note from Personal, says it with the same role (`noteRole`).
+- **What tells the stops apart** (livekit-client 2.22.3, `dist/livekit-client.esm.mjs`): the server's mute reaches
+  the page as `RemoteMute` (`:24997-24998`), and the room mutes that publication (`pub.mute()`, `:31474-31483`),
+  which emits `TrackMuted`; the browser's «Stop sharing» bar ends the track, and `handleTrackEnded` unpublishes a
+  screen share (`:31385-31388`); `setScreenShareEnabled(false)` unpublishes it too, as «screenshare cannot be muted»
+  (`:31713-31720`). The e2e checks run on the fixture's fake LiveKit, so this separation rests on that reading.
 
 ## Limits
 
@@ -44,7 +56,8 @@
   from call», still a member) whose note still stands when the person is later removed from the project would say it
   too; the note goes with any join or leave, so that window is short in practice.
 - The line is the notice's: a reload, with nothing of the call left, shows the plain notice.
-- The screen line stays in the dock until a device works or the call ends, as every device note does; it is not timed.
+- A Leave project from another browser or device is not heard here (no channel reaches it): that tab would say the
+  line. Only this browser's tabs share the channel.
 
 ## Checks (written first)
 

@@ -56,7 +56,10 @@ export const REMOVED_MID_CALL = 'Your call here ended when you were removed from
 /**
  * Whether a door closed as `denied` ended a call here, read as it closes, before the shell leaves the call: one on
  * (live, reconnecting or trying back in), or one the server had just taken this person out of (`takenOut`), as the
- * API's removal does when its LiveKit word comes before the snapshot's refusal. Any other door says nothing of a call.
+ * API's removal does when its LiveKit word comes before the snapshot's refusal. Any other door says nothing of a call,
+ * nor one this person shut themselves with Leave project in another tab of this browser (`left`, call-tabs.ts).
  */
-export const callEndedByRemoval = (blocked: Blocked | null, call: { on: boolean; takenOut: boolean }): boolean =>
-  blocked === 'denied' && (call.on || call.takenOut)
+export const callEndedByRemoval = (
+  blocked: Blocked | null,
+  call: { on: boolean; takenOut: boolean; left: boolean },
+): boolean => blocked === 'denied' && !call.left && (call.on || call.takenOut)

@@ -6,7 +6,7 @@ import { arriveWithMicrophone, enterCall, switchMicrophone, useTypedChat } from 
 // The room's state for the Studio: join (token from the API, then LiveKit), microphone, camera, screen,
 // leave. Members join their project's room; an admitted guest joins with their lobby entry. Leaving the
 // page leaves the room; nothing here touches goals or work.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { RoomToken, Snapshot } from '@sophia/contracts'
 import { issueRoomToken } from '../../api/client.ts'
 import { newVersion } from '../../app/new-version-early.ts'
@@ -15,7 +15,7 @@ import { CALL_END, joinHeld, keepsTextMode, keptNote, noteFor, type CallEnd } fr
 import { CallFence } from './call-fence.ts'
 import { micToStart, openRoom } from './call-open.ts'
 import { joinMessage } from './part-gone.ts'
-import { LIVE_BEAT_MS, Rejoin, rejoinLine, type RejoinStep } from './call-rejoin.ts'
+import { LIVE_BEAT_MS, Rejoin, REJOINED_FOR_MS, rejoinLine, type RejoinStep } from './call-rejoin.ts'
 import { browserTabs } from './call-tabs.ts'
 import { switchCamera } from './camera-flip.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
@@ -251,6 +251,20 @@ function tellingCamera(
  * choice a person makes is remembered for their next join; the ones made for them are not (on arrival, and
  * off when they start typing to Sophia).
  */
+/**
+ * «An admin stopped your screen share.» is news, not a failure: said once, for as long as «Reconnected.» is
+ * (REJOINED_FOR_MS), then gone, unless a note said since took its place (removed-and-stopped-said.md, review P3).
+ */
+function useHostStoppedNote(setNote: Dispatch<SetStateAction<string | null>>) {
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(timer.current), [])
+  return () => {
+    clearTimeout(timer.current)
+    setNote(HOST_STOPPED_SCREEN)
+    timer.current = setTimeout(() => setNote((note) => (note === HOST_STOPPED_SCREEN ? null : note)), REJOINED_FOR_MS)
+  }
+}
+
 function useDevices(connection: { current: RoomConnection | null }, refresh: () => void) {
   const [mediaError, setMediaError] = useState<string | null>(null)
   /** The microphone choices made, counted as each is asked (before its first wait). */
@@ -275,8 +289,7 @@ function useDevices(connection: { current: RoomConnection | null }, refresh: () 
   return {
     mediaError,
     clearNote: () => setMediaError(null),
-    /** Said as a device note, so it goes as they go: the next device that works, or the call's end. */
-    hostStoppedScreen: () => setMediaError(HOST_STOPPED_SCREEN),
+    hostStoppedScreen: useHostStoppedNote(setMediaError),
     /** The microphone a join turns on, in that join's call: false when text mode began meanwhile and it stayed on. */
     arrive: () => {
       const c = connection.current

@@ -43,6 +43,7 @@ import { useDecisionAlert } from '../work/planning/useDecisionAlert.ts'
 import { MeetingRecapOnLeave } from '../voice/MeetingRecap.tsx'
 import { useProjectRoom, type LeaveHow, type ProjectRoom } from '../voice/useProjectRoom.ts'
 import { CALL_END } from '../voice/call-end.ts'
+import { browserTabs } from '../voice/call-tabs.ts'
 import { useMedia, WIDE } from '../../app/useMedia.ts'
 import { GoalList, type GoalPlan } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
@@ -91,14 +92,18 @@ const CONNECTION: Record<Connection, string> = {
  * with no dock: the call must not stay open behind it with a microphone nobody can mute. Whether a removal ended a
  * call here is read as the door closes, before that leave (callEndedByRemoval), for the notice to say.
  */
-function useLeaveBehindClosedDoor(blocked: Blocked | null, room: ProjectRoom): boolean {
+function useLeaveBehindClosedDoor(blocked: Blocked | null, room: ProjectRoom, projectId: string): boolean {
   const leave = useRef(room.leave)
   useEffect(() => {
     leave.current = room.leave
   })
   const [door, setDoor] = useState({ blocked, callEnded: false })
   if (door.blocked !== blocked) {
-    const call = { on: isInCall(room) || room.rejoining, takenOut: room.error === CALL_END.removed.note }
+    const call = {
+      on: isInCall(room) || room.rejoining,
+      takenOut: room.error === CALL_END.removed.note,
+      left: browserTabs.left(projectId),
+    }
     setDoor({ blocked, callEnded: callEndedByRemoval(blocked, call) })
   }
   const closed = blocked === 'expired' || blocked === 'denied'
@@ -339,7 +344,7 @@ function useBeyondTheView(
   blocked: Blocked | null,
   viewer: { me: string | null; plans: ServedWork['plans']; reads: Reads },
 ) {
-  const callEnded = useLeaveBehindClosedDoor(blocked, room)
+  const callEnded = useLeaveBehindClosedDoor(blocked, room, props.projectId)
   const shown = props.background ? undefined : snapshot
   const decisions = useDecisionsWaiting(shown, viewer.plans, props.projectId)
   const reads = props.background ? undefined : viewer.reads
