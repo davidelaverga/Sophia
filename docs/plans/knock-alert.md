@@ -16,7 +16,8 @@
   - pressing the notification brings the tab back;
   - a viewer hears nothing, since they cannot answer.
 - **The door's panel**, while notifications have never been asked for, offers «Notify me when someone knocks»; the
-  browser asks, and the offer goes either way.
+  browser asks, and the offer goes either way. Blocked, the door says knocks show only on the page
+  (`dictation-and-notify-said.md`).
 - **The fixture:** `window.fixture.knock()` has someone start waiting.
 
 ## Checks
