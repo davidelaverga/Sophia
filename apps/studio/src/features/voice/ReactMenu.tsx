@@ -4,13 +4,24 @@ import { useState } from 'react'
 import { Icon, Menu, MenuItem, Tip, usePopover } from '@sophia/ui'
 import { REACTIONS, type ReactionEmoji } from './reactions.ts'
 
-export function ReactMenu({ onReact }: { onReact: (emoji: ReactionEmoji) => void }) {
+/** This person's hand, where React's menu carries it (a phone's dock, raise-hand.md). */
+interface Hand {
+  raised: boolean
+  onRaise: (raised: boolean) => void
+}
+
+export function ReactMenu({ onReact, hand }: { onReact: (emoji: ReactionEmoji) => void; hand?: Hand | undefined }) {
   const [open, setOpen] = useState(false)
   const menu = usePopover(open, () => setOpen(false))
   const react = (emoji: ReactionEmoji) => {
     menu.opener.current?.focus()
     setOpen(false)
     onReact(emoji)
+  }
+  const raise = (h: Hand) => {
+    menu.opener.current?.focus()
+    setOpen(false)
+    h.onRaise(!h.raised)
   }
   return (
     <div ref={menu.wrap} className="react-menu">
@@ -28,6 +39,7 @@ export function ReactMenu({ onReact }: { onReact: (emoji: ReactionEmoji) => void
       </button>
       {open && (
         <Menu popover={menu} label="React" side="top" align="center" className="react-list">
+          {hand && <MenuItem onClick={() => raise(hand)}>{hand.raised ? 'Lower hand' : 'Raise hand'}</MenuItem>}
           {REACTIONS.map((r) => (
             <MenuItem key={r.emoji} onClick={() => react(r.emoji)}>
               {`${r.emoji} ${r.name}`}

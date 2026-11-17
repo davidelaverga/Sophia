@@ -3884,6 +3884,19 @@ button.contribution-quote:hover {
 .tile-floor {
   color: var(--warm);
 }
+/* A raised hand in the tile's chip (raise-hand.md): after the name and its marks, warm, never cut with the name. */
+.tile-hand {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  color: var(--warm);
+  white-space: nowrap;
+}
+.presence[data-hand] .role {
+  color: var(--warm);
+}
 .video {
   position: absolute;
   inset: 0;
@@ -5445,6 +5458,17 @@ button.contribution-quote:hover {
   .tile-strip .tile-muted svg {
     display: none;
   }
+  /* A fifth of a phone: the raised hand alone, its words for a screen reader. */
+  .tile-strip .tile-hand {
+    margin-left: 4px;
+  }
+  .tile-strip .tile-hand-words {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
   .tile-strip .tile-muted-corner {
     position: absolute;
     top: 1px;
@@ -5512,7 +5536,8 @@ button.contribution-quote:hover {
   }
   /* Who holds the floor keeps their role under their name: the phone's dock leaves saying it to the room
      (docs/plans/phone-dock.md, docs/plans/room-phone-floor.md). */
-  .presence[data-floor] .role {
+  .presence[data-floor] .role,
+  .presence[data-hand] .role {
     display: block;
   }
   .dock {

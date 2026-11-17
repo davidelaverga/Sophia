@@ -33,6 +33,7 @@ import type { SophiaView } from './sophia-view.ts'
 import { SOUND_BLOCKED, soundView } from './sound-view.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
 import { DockWord } from './DockWord.tsx'
+import { useMedia } from '../../app/useMedia.ts'
 
 interface Props {
   room: ProjectRoom
@@ -397,6 +398,41 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
   )
 }
 
+/** Raise hand, then Lower hand while it is raised (raise-hand.md): its name says what a press does. */
+function HandButton({ raised, onRaise }: { raised: boolean; onRaise: (raised: boolean) => void }) {
+  const label = raised ? 'Lower hand' : 'Raise hand'
+  return (
+    <button
+      type="button"
+      className="round has-tip"
+      aria-pressed={raised}
+      aria-label={label}
+      onClick={() => onRaise(!raised)}
+    >
+      <Icon name="handRaise" />
+      <Tip label={label} />
+    </button>
+  )
+}
+
+/** A phone's width, where the dock is one row of seven squares (phone-dock.md). */
+const PHONE = '(max-width: 600px)'
+
+/**
+ * React, and Raise hand beside it (raise-hand.md); on a phone the hand is React's menu's first item instead, so the
+ * dock keeps its one row.
+ */
+function Signals({ room, me }: { room: ProjectRoom; me: RoomParticipant | undefined }) {
+  const phone = useMedia(PHONE)
+  const hand = me ? { raised: !!me.handRaised, onRaise: room.setHand } : undefined
+  return (
+    <>
+      <ReactMenu onReact={room.react} hand={phone ? hand : undefined} />
+      {!phone && hand && <HandButton {...hand} />}
+    </>
+  )
+}
+
 /** How long this person's call has run, before Leave (room-basics.md): its time, and in words for a screen reader. */
 function CallClock({ since }: { since: number | null }) {
   const now = useNow(1000)
@@ -416,8 +452,8 @@ function LiveControls(props: Props & { sophiaAllow: boolean }) {
   return (
     <>
       <MediaToggles room={room} me={me} />
-      {/* A guest's token carries media only (livekit.ts): a reaction would reach nobody (guest-reactions.md). */}
-      {me?.standing !== 'guest' && <ReactMenu onReact={room.react} />}
+      {/* A guest's token carries media only (livekit.ts): a reaction or a hand would reach nobody (guest-reactions.md). */}
+      {me?.standing !== 'guest' && <Signals room={room} me={me} />}
       {/* Keep the call in view (call-picture-in-picture.md): only where the browser has a way. */}
       <CallPip room={room} />
       <span className="dock-sep" aria-hidden />

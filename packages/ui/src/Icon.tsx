@@ -47,6 +47,7 @@ export type IconName =
   | 'more'
   | 'flip'
   | 'pip'
+  | 'handRaise'
 
 const slash = <path d="M4 4l16 16" />
 const mic = (
@@ -168,6 +169,13 @@ const PATHS: Record<IconName, ReactNode> = {
   ),
   hand: (
     <path d="M8 12V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4a1.5 1.5 0 0 1 3 0v6M14 10V5.5a1.5 1.5 0 0 1 3 0V13c0 4-2.5 7-6 7s-5-2-6.5-5l-1.6-3a1.4 1.4 0 0 1 2.4-1.4L8 13" />
+  ),
+  // Raise hand: the hand, and a wave above it, asking for a turn (raise-hand.md); Take the floor's hand has none.
+  handRaise: (
+    <>
+      <path d="M8 13V7.5a1.5 1.5 0 0 1 3 0V12M11 11V6a1.5 1.5 0 0 1 3 0v5M14 11V7.5a1.5 1.5 0 0 1 3 0V14c0 4-2.5 7-6 7s-5-2-6.5-5l-1.6-3a1.4 1.4 0 0 1 2.4-1.4L8 14" />
+      <path d="M18.5 3.5c1 .6 1.7 1.6 2 2.8M4.5 4.5c.4-.8 1-1.4 1.8-1.8" />
+    </>
   ),
   // Sophia's light: a point that shines.
   sophia: (

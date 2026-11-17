@@ -217,6 +217,7 @@ function PersonTile({ person, camera, holds, onPin, onHide, onFlip }: TileProps)
       data-actor={person.identity}
       data-floor={holds || undefined}
       data-speaking={person.speaking || undefined}
+      data-hand={person.handRaised || undefined}
     >
       {camera ? (
         <VideoView feed={camera} fit="cover" />
@@ -229,6 +230,13 @@ function PersonTile({ person, camera, holds, onPin, onHide, onFlip }: TileProps)
         {person.local && <TileMark mark="you" />}
         {person.standing === 'guest' && <TileMark mark="guest" />}
         {holds && <TileMark mark="floor" />}
+        {/* A raised hand (raise-hand.md): on a phone's strip its hand alone, the words for a screen reader. */}
+        {person.handRaised && (
+          <span className="tile-hand">
+            <Icon name="handRaise" size={12} />
+            <span className="tile-hand-words">Hand raised</span>
+          </span>
+        )}
         {/* First in the chip, as Meet's (order in theme.css); heard after the name and its marks. */}
         {mutedMic(person) && (
           <span className="tile-muted">

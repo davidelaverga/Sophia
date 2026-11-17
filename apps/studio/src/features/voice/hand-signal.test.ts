@@ -27,7 +27,6 @@ function setup(sends: 'ok' | 'fail' = 'ok') {
     return sending
   }
   let changes = 0
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a fake of the one method the signal listens with
   const signal = handSignal(room as unknown as Pick<Room, 'on'>, publish, () => (changes += 1))
   const from = (who: object, value: unknown, topic = HAND_TOPIC) =>
     emit(RoomEvent.DataReceived, bytes(value), who, undefined, topic)

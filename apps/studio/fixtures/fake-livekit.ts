@@ -13,6 +13,7 @@ import { chosenDevices, type DeviceKind, type MediaDevice } from '../src/feature
 import type { RoomCallbacks, RoomConnection } from '../src/features/voice/livekit-room.ts'
 import type { RoomParticipant } from '../src/features/voice/room-view.ts'
 import { listenToReactions } from '../src/features/voice/reaction-channel.ts'
+import { HAND_TOPIC, decodeHand, handSignal, type HandSignal } from '../src/features/voice/hand-signal.ts'
 import { REACTION_TOPIC } from '../src/features/voice/reactions.ts'
 import { listenToSophia } from '../src/features/voice/sophia-channel.ts'
 import { watchQualification } from '../src/features/voice/voice-qualification.ts'
@@ -186,6 +187,8 @@ function connected(cb: RoomCallbacks): void {
 export function linkLost(lost: boolean): void {
   linkDown = lost
   callbacks?.onStatus(lost ? 'reconnecting' : 'live')
+  // Back, as LiveKit's Reconnected: the hand signal clears this person's hand and asks the room (raise-hand.md).
+  if (!lost) emit(RoomEvent.Reconnected)
 }
 
 /**
@@ -236,6 +239,27 @@ export function deliverCaption(packet: Parameters<NonNullable<RoomCallbacks['onC
 export function reactFrom(name: string, emoji: string): void {
   const bytes = new TextEncoder().encode(JSON.stringify({ kind: 'reaction', emoji }))
   emit(RoomEvent.DataReceived, bytes, { identity: `person-${name}`, name, metadata: '{}' }, undefined, REACTION_TOPIC)
+}
+
+/** The last hand this page sent, as its bytes (raise-hand.md). */
+let handSent: Uint8Array | null = null
+
+/** A hand packet sent, as the connection records it: `hand:up`, `hand:down` or `hand:ask`, and to whom if named. */
+function sendHand(data: Uint8Array, to?: string[]): Promise<void> {
+  const packet = decodeHand(data)
+  const word = !packet ? 'other' : 'ask' in packet ? 'ask' : packet.hand ? 'up' : 'down'
+  asked.push(`hand:${word}${to ? `:${to.join(',')}` : ''}`)
+  if (packet && 'hand' in packet) handSent = data
+  return Promise.resolve()
+}
+
+/**
+ * What this page last sent of its hand, delivered as from the `n`th other person (`window.fixture.echoHand`): the bytes
+ * their page receives from them, read by the Studio's own listener (hand-signal.ts).
+ */
+export function echoHand(n: number): void {
+  if (!handSent) return
+  emit(RoomEvent.DataReceived, handSent, { identity: personId(n), metadata: '{}' }, undefined, HAND_TOPIC)
 }
 
 /** A reaction sent, as the connection records it. */
@@ -466,11 +490,13 @@ function keptMic(me: RoomParticipant, cb: RoomCallbacks) {
  * A new connection's room, as the Studio's own listeners hear it: Sophia's packets (sophia-channel.ts), reactions and,
  * under a grant, the voice receipts (voice-qualification.ts). Its listeners replace the last connection's.
  */
-function listenAnew(cb: RoomCallbacks, qualification: RoomQualification | undefined): void {
+function listenAnew(cb: RoomCallbacks, qualification: RoomQualification | undefined): HandSignal {
   const room = fakeRoom()
   listenToSophia(room, cb)
   listenToReactions(room, (heard) => cb.onReaction?.(heard))
   watchQualification(room, qualification)
+  handSent = null // a new connection has sent no hand yet
+  return handSignal(room, sendHand, () => cb.onChange())
 }
 
 /** Leaving, as LiveKit leaves: this page's end told first, then the call's tracks go; a slow or failed disconnect too. */
@@ -485,6 +511,12 @@ function leaveRoom(still: () => boolean, cb: RoomCallbacks, done: () => void): P
   return leaving.held ? new Promise<void>((resolve) => leaving.waiting.push(resolve)) : Promise.resolve()
 }
 
+/** Everyone in the call as LiveKit lists them, with the hands the Studio's own signal heard (hand-signal.ts). */
+const everyone = (me: RoomParticipant, hands: HandSignal) => () => [
+  { ...me, speaking: viewerSpeaks(), handRaised: hands.mine() },
+  ...others().map((p) => ({ ...p, handRaised: hands.raised(p.identity) })),
+]
+
 /** The token's server and secret reach no server here; only the grant it may name is read (A45). */
 export function connectRoom(_url: string, _token: string, cb: RoomCallbacks, grant?: Grant): Promise<RoomConnection> {
   if (partGone || refused === 'connect') return notConnected()
@@ -493,7 +525,7 @@ export function connectRoom(_url: string, _token: string, cb: RoomCallbacks, gra
   const me = viewer()
   let textOnly = false
   let open = true
-  listenAnew(cb, grant)
+  const hands = listenAnew(cb, grant)
   const tracks = callTracks()
   // Nothing more is heard from a room this connection left or lost, as LiveKit emits nothing after a disconnect.
   onPeopleChange(() => {
@@ -520,7 +552,7 @@ export function connectRoom(_url: string, _token: string, cb: RoomCallbacks, gra
     textMode: () => textOnly,
     micWas: mic.micWas,
     connected: () => open && !linkDown,
-    participants: () => [{ ...me, speaking: viewerSpeaks() }, ...others()],
+    participants: everyone(me, hands),
     sophia: sophiaSignal,
     audioBlocked: soundBlocked,
     ...voices,
@@ -532,6 +564,7 @@ export function connectRoom(_url: string, _token: string, cb: RoomCallbacks, gra
     switchDevice,
     setBackground,
     sendReaction,
+    setHand: hands.set,
     setIncomingVideo: (on) => {
       asked.push(`incoming:${on ? 'on' : 'off'}`)
       incoming = on

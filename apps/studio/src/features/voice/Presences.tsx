@@ -29,6 +29,7 @@ export function Presences({ people, floor, revision }: Props) {
             data-actor={person.identity}
             data-floor={holds || undefined}
             data-speaking={person.speaking || undefined}
+            data-hand={person.handRaised || undefined}
             style={{ '--row': slot.row }}
           >
             <span className="orbit" data-anchor>

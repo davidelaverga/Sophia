@@ -73,6 +73,7 @@ import {
   leaving,
   linkLost,
   reactFrom,
+  echoHand,
   setVoiceLevel,
   sophiaLeaves,
   speakWhileMuted,
@@ -1732,6 +1733,7 @@ window.fixture = {
   floorTo,
   asked,
   reactFrom,
+  echoHand,
   get devicesOnJoin() {
     return joined.devices
   },
