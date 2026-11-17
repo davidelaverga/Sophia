@@ -32,8 +32,12 @@ function sectionRead(column: HTMLElement, scroller: HTMLElement, count: number):
   return read
 }
 
-/** The section being read, followed on the reading area's scroll, once a frame. */
-function useSectionRead(column: RefObject<HTMLElement | null>, count: number): number {
+/**
+ * The section being read, followed once a frame on the reading area's scroll, and as the text changes size (citations
+ * come with the sources, the pane is enlarged) or the report changes.
+ */
+function useSectionRead(column: RefObject<HTMLElement | null>, sections: readonly IndexSection[]): number {
+  const count = sections.length
   const [read, setRead] = useState(0)
   useEffect(() => {
     const text = column.current
@@ -46,11 +50,14 @@ function useSectionRead(column: RefObject<HTMLElement | null>, count: number): n
     }
     follow()
     scroller.addEventListener('scroll', follow, { passive: true })
+    const sized = new ResizeObserver(follow)
+    sized.observe(text)
     return () => {
       cancelAnimationFrame(frame)
       scroller.removeEventListener('scroll', follow)
+      sized.disconnect()
     }
-  }, [column, count])
+  }, [column, count, sections])
   return read
 }
 
@@ -59,7 +66,7 @@ const plainPress = (e: React.MouseEvent) => e.button === 0 && !e.metaKey && !e.c
 
 export function OnThisPage({ sections, column }: Props) {
   const [open, setOpen] = useState(false)
-  const read = useSectionRead(column, sections.length)
+  const read = useSectionRead(column, sections)
   const list = useId()
   const go = (e: React.MouseEvent, n: number) => {
     const heading = headingAt(column.current, n)

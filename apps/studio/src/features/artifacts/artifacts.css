@@ -346,8 +346,9 @@
   color: var(--text);
 }
 /* Enlarged with a margin for it: the list is sticky at the top of the reading area, left of the measure, and takes
-   no height, so the column keeps its place and its centre. 1100 px leaves a 250 px margin beside the 34rem column. */
-@media (min-width: 1100px) {
+   no height, so the column keeps its place and its centre. Gated in rem, as the measure is: 72rem leaves 17.5rem a side
+   beside the 34rem column, room for the 12.5rem list and its 40 px gap at any default font size. */
+@media (min-width: 72rem) {
   .report-pane[data-size='full'] .report-pane-body > .md-toc {
     position: sticky;
     top: 0;
@@ -365,7 +366,7 @@
     right: calc(50% + var(--measure) / 2 + 40px);
     display: grid;
     gap: 2px;
-    width: min(200px, calc(50% - var(--measure) / 2 - 48px));
+    width: min(12.5rem, calc(50% - var(--measure) / 2 - 48px));
     max-height: calc(100dvh - var(--topbar) - 120px);
     margin: 0;
     overflow-y: auto;

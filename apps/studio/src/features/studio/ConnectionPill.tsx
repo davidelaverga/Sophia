@@ -36,6 +36,8 @@ export function ConnectionPill({ connection, checkedAt }: Props) {
       data-state={connection}
       title={askedAt === null ? CONNECTION[connection] : connectionHelp(connection, checkedAt(), askedAt)}
       onPointerEnter={() => setAskedAt(Date.now())}
+      // Gone, it says its word again: the next pointer reads the time anew.
+      onPointerLeave={() => setAskedAt(null)}
     >
       <span className="connection-dot" aria-hidden />
       <span className="connection-label">{CONNECTION[connection]}</span>
