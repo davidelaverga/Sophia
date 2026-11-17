@@ -143,3 +143,14 @@ test('report index · a report of fewer than four sections has none', async ({ p
   await expect(page.locator('.md')).toContainText('The fixture holds.')
   await expect(index(page)).toHaveCount(0)
 })
+
+test('report index · a report shown on the stage keeps its own Sections, and no On this page', async ({ page }) => {
+  // `history=pilot` gives the shown report seven sections (room-walk.spec.ts).
+  await page.goto('/room.html?call=on&people=2&floor=1&sophia=listening&history=pilot')
+  await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
+  await page.evaluate(() => window.fixture?.show('me'))
+  const shown = page.getByRole('region', { name: /^Fixture report, shown by/ })
+  await expect(shown.getByRole('heading', { name: 'Charging speed in practice' })).toBeVisible()
+  await expect(shown.getByRole('navigation', { name: 'Sections' })).toBeVisible()
+  await expect(index(page)).toHaveCount(0)
+})
