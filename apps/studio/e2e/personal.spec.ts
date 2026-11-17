@@ -1629,9 +1629,8 @@ test('ease · Find matches whatever the accents, and marks the words as written'
 
 const stopped = [
   ['not-allowed', 'Sophia can’t hear you: the microphone is blocked for this site.'],
-  ['service-not-allowed', 'Sophia can’t hear you: the microphone is blocked for this site.'],
   ['no-speech', 'Didn’t catch anything. Try again.'],
-  ['network', 'Dictation needs a connection.'],
+  ['audio-capture', 'Sophia can’t hear you: the microphone isn’t available.'],
 ] as const
 
 for (const [code, line] of stopped) {
@@ -1644,13 +1643,17 @@ for (const [code, line] of stopped) {
   })
 }
 
-test('seams · an error with no reason to give says nothing, as before', async ({ page }) => {
-  await page.goto(`${PAGE}?speechError=audio-capture`)
-  await page.getByRole('button', { name: 'Talk instead' }).click()
-  await expect(page.getByRole('button', { name: 'Talk instead' })).toBeVisible()
-  await page.waitForTimeout(300)
-  await expect(page.locator('.ps-composer .chat-line')).toHaveCount(0)
-})
+// `service-not-allowed` is the browser refusing its speech service, not this site's microphone; `network` can't stop
+// recognition on the device (Luis, 2026-11-16): nothing to say.
+for (const code of ['service-not-allowed', 'network', 'bad-grammar']) {
+  test(`seams · an error with no reason to give (${code}) says nothing, as before`, async ({ page }) => {
+    await page.goto(`${PAGE}?speechError=${code}`)
+    await page.getByRole('button', { name: 'Talk instead' }).click()
+    await expect(page.getByRole('button', { name: 'Talk instead' })).toBeVisible()
+    await page.waitForTimeout(300)
+    await expect(page.locator('.ps-composer .chat-line')).toHaveCount(0)
+  })
+}
 
 test('seams · why dictation stopped goes with the next attempt, and with what you write', async ({ page }) => {
   await page.goto(`${PAGE}?speechError=no-speech`)
