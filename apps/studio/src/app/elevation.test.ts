@@ -98,6 +98,7 @@ const ROOM: Record<string, string[]> = {
   'src/app/theme.css .dock': ['0 16px 48px rgb(0 0 0 / 0.5)'],
   'src/app/theme.css .mini-dock': ['0 12px 40px rgb(0 0 0 / 0.45)'],
   'src/app/theme.css .welcome-band': ['0 12px 32px rgb(0 0 0 / 0.32)'],
+  'src/app/theme.css .keys-tip': ['0 12px 32px rgb(0 0 0 / 0.32)'],
   'src/app/theme.css .new-version': ['0 12px 40px rgb(0 0 0 / 0.5)'],
   'src/app/theme.css .toast': ['0 12px 40px rgb(0 0 0 / 0.5)'],
   'src/app/theme.css .lobby': ['0 16px 48px rgb(0 0 0 / 0.45)'],

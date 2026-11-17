@@ -3,6 +3,7 @@
 // person's voice never leaves the device for a speech service; a browser that can't recognise speech on the device
 // shows no microphone at all.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { dictationTrouble } from './dictation-view.ts'
 
 interface Alternative {
   transcript: string
@@ -66,16 +67,23 @@ const transcriptOf = (e: ResultEvent) =>
     .join(' ')
     .trim()
 
-/** A recognition that listens once, on the device, and says what it heard when it ends. */
-function listenOnce(Recognizer: RecognitionClass, ended: (heard: string) => void): Recognition {
+/**
+ * A recognition that listens once, on the device, and says what it heard when it ends, with why it stopped where the
+ * person can act on it: from its first error, so the `aborted` our own abort brings after it can't replace it.
+ */
+function listenOnce(Recognizer: RecognitionClass, ended: (heard: string, trouble: string | null) => void): Recognition {
   const r = new Recognizer()
   Object.assign(r, { lang: language(), interimResults: false, continuous: false, processLocally: true })
   let heard = ''
+  let failed: { trouble: string | null } | null = null
   r.addEventListener('result', (e) => {
     if (isResult(e)) heard = transcriptOf(e)
   })
-  r.addEventListener('error', () => r.abort())
-  r.addEventListener('end', () => ended(heard))
+  r.addEventListener('error', (e) => {
+    failed ??= { trouble: dictationTrouble(Reflect.get(e, 'error')) }
+    r.abort()
+  })
+  r.addEventListener('end', () => ended(heard, failed?.trouble ?? null))
   return r
 }
 
@@ -84,11 +92,13 @@ function listenOnce(Recognizer: RecognitionClass, ended: (heard: string) => void
  * out of sight: going out of sight stops it, and calls off a start still waiting for the person's language, as does
  * the composer going (signing out). A newer start calls off one still waiting, so one microphone listens at a time.
  * What a recognizer heard lands only while its composer is here: gone (signing out, an erasure, the padlock), nothing
- * of it is said, so no words come back after the draft was let go.
+ * of it is said, so no words come back after the draft was let go. Why the last attempt stopped, where the person can
+ * act on it, is `said` until the next attempt or `quiet()` (dictation-view.ts).
  */
 export function useDictation(onText: (text: string) => void, hidden: boolean) {
   const [available, setAvailable] = useState(false)
   const [listening, setListening] = useState(false)
+  const [said, setSaid] = useState<string | null>(null)
   const current = useRef<Recognition | null>(null)
   // The start waiting for the language: once this holds anything else, it is called off.
   const waiting = useRef<object | null>(null)
@@ -119,14 +129,18 @@ export function useDictation(onText: (text: string) => void, hidden: boolean) {
     if (!Recognizer || current.current) return
     const ticket = {}
     waiting.current = ticket
+    setSaid(null)
     const ready = await languageReady(Recognizer)
     if (waiting.current !== ticket) return
     waiting.current = null
     if (!ready) return
-    const r = listenOnce(Recognizer, (heard) => {
+    const r = listenOnce(Recognizer, (heard, trouble) => {
       current.current = null
       setListening(false)
-      if (heard && !gone.current) deliver.current(heard)
+      if (gone.current) return
+      if (heard) deliver.current(heard)
+      // Words heard tell their own story (where they came from); the error after them is not the person's to fix.
+      setSaid(heard ? null : trouble)
     })
     current.current = r
     setListening(true)
@@ -136,5 +150,12 @@ export function useDictation(onText: (text: string) => void, hidden: boolean) {
     waiting.current = null
     current.current?.stop()
   }
-  return { available, listening, start: () => void start().catch(() => setListening(false)), stop }
+  return {
+    available,
+    listening,
+    said,
+    start: () => void start().catch(() => setListening(false)),
+    stop,
+    quiet: () => setSaid(null),
+  }
 }

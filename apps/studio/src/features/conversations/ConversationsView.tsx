@@ -20,6 +20,7 @@ import {
   type MessageAsk,
 } from '../../api/conversations.ts'
 import { ApiError } from '../../api/client.ts'
+import { useCommands } from '../../app/useCommands.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { modalOnScreen } from '../../app/shortcuts.ts'
@@ -258,14 +259,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
   // The one open, unless the form for a new one is in its place; neither while fenced (its fields kept meanwhile).
   const shown = start.starting ? undefined : open
   useInAddress({ shown, picked, screen: panes.screen, waiting, starting: start.starting }, ask, panes.show)
-  // Opened from the form (the same question), its title takes the focus the form had (Codex on #266).
-  const openOne = (id: string, fromForm = false) => {
-    start.close()
-    erased.clear()
-    choose(id)
-    panes.show()
-    if (fromForm) start.arrive(id)
-  }
+  const openOne = useOpenOne(all, { start, erased, choose, panes })
   return (
     <section
       ref={panes.view}
@@ -302,6 +296,40 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
       {panes.context && <div className="conv-scrim" aria-hidden onClick={panes.closeContext} />}
     </section>
   )
+}
+
+/**
+ * The way to open one: a row, the form's «Already asked here», or the palette. Each conversation the list shows is a
+ * command, «Open conversation: <title>», with no key (palette-conversations.md): offered once what is typed names it,
+ * as projects are, so a long list never crowds the blank palette. None while fenced: the list shown is empty then.
+ */
+function useOpenOne(
+  all: readonly ConversationSummary[],
+  to: {
+    start: ReturnType<typeof useStart>
+    erased: ReturnType<typeof useErased>
+    choose: (id: string) => void
+    panes: ReturnType<typeof usePanes>
+  },
+) {
+  // Opened from the form (the same question), its title takes the focus the form had (Codex on #266).
+  const open = (id: string, fromForm = false) => {
+    to.start.close()
+    to.erased.clear()
+    to.choose(id)
+    to.panes.show()
+    if (fromForm) to.start.arrive(id)
+  }
+  useCommands(
+    all.map((c) => ({
+      id: `conversation:${c.id}`,
+      words: `Open conversation: ${c.title}`,
+      group: 'go' as const,
+      typed: true,
+      run: () => open(c.id),
+    })),
+  )
+  return open
 }
 
 /** The middle pane: the form for a new conversation, or the one open. */

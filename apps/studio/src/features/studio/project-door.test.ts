@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ApiError } from '../../api/client.ts'
-import { blockedBy, isStale, readsServedBoard, shownConnection, STALE_RETRY_MS, staleRetry } from './project-door.ts'
+import {
+  blockedBy,
+  callEndedByRemoval,
+  isStale,
+  readsServedBoard,
+  REMOVED_MID_CALL,
+  shownConnection,
+  STALE_RETRY_MS,
+  staleRetry,
+} from './project-door.ts'
 
 const refused = (status: number) => new ApiError(status, `http_${status}`, 'refused', 'never')
 const outage = new ApiError(503, 'http_503', 'Service Unavailable', 'never')
@@ -78,5 +87,32 @@ describe('the work board Sophia serves', () => {
     assert.equal(readsServedBoard('work', 'denied', false), false)
     assert.equal(readsServedBoard('work', 'unreachable', false), false)
     assert.equal(readsServedBoard('work', null, true), false)
+  })
+})
+
+describe('a call here ended by the removal (removed-and-stopped-said.md)', () => {
+  const off = { on: false, takenOut: false, left: false }
+
+  it('says so when a call here was on as the door closed', () => {
+    assert.equal(callEndedByRemoval('denied', { on: true, takenOut: false, left: false }), true)
+    assert.equal(REMOVED_MID_CALL, 'Your call here ended when you were removed from the project.')
+  })
+
+  it('says so when the server had just taken this person out of the call', () => {
+    assert.equal(callEndedByRemoval('denied', { on: false, takenOut: true, left: false }), true)
+  })
+
+  it('a plain visit to a project this person is not in says nothing of a call', () => {
+    assert.equal(callEndedByRemoval('denied', off), false)
+  })
+
+  it('a Leave project in another tab of this browser is no removal: nothing is said (review P2)', () => {
+    assert.equal(callEndedByRemoval('denied', { on: true, takenOut: false, left: true }), false)
+    assert.equal(callEndedByRemoval('denied', { on: false, takenOut: true, left: true }), false)
+  })
+
+  it('only a removal: a sign-out, an unreachable project or an open door say nothing', () => {
+    for (const blocked of ['expired', 'unreachable', null] as const)
+      assert.equal(callEndedByRemoval(blocked, { on: true, takenOut: true, left: false }), false, String(blocked))
   })
 })

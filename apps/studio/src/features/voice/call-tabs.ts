@@ -3,7 +3,9 @@
 // call or out of it, scoped by the LiveKit room and the person in it (a guest's tab, or another project's call, never
 // counts), and a tab that opens asks who is. A tab that went away without saying so (a crash) is still counted: the try
 // then waits for the person, which errs towards never taking the call. Where the browser has no BroadcastChannel, no
-// other tab is heard of. Other devices aren't: that needs the room's own presence (a follow-up).
+// other tab is heard of. Other devices aren't: that needs the room's own presence (a follow-up). A Leave project goes
+// on the same channel, as it ends the call in every tab: a tab whose door then closes knows the person left, and was
+// not removed (removed-and-stopped-said.md).
 
 const CHANNEL = 'sophia.calls.v2'
 
@@ -41,22 +43,40 @@ const isClaim = (data: unknown): data is Claim =>
 
 /** A message to the other tabs; a BroadcastChannel takes no target origin. */
 // oxlint-disable-next-line unicorn/require-post-message-target-origin -- BroadcastChannel.postMessage has no origin
-const post = (ch: TabChannel, message: Claim | { ask: true }) => ch.postMessage(message)
+const post = (ch: TabChannel, message: Claim | Leaving | { ask: true }) => ch.postMessage(message)
 
 const isAsked = (data: unknown): boolean =>
   typeof data === 'object' && data !== null && 'ask' in data && data.ask === true
+
+/** A Leave project under way in a tab (`on`), or one that failed (not `on`): the tabs of a browser share one sign-in. */
+interface Leaving {
+  leaving: string
+  on: boolean
+}
+
+const isLeaving = (data: unknown): data is Leaving =>
+  typeof data === 'object' &&
+  data !== null &&
+  'leaving' in data &&
+  typeof data.leaving === 'string' &&
+  'on' in data &&
+  typeof data.on === 'boolean'
 
 /** One tab's view: what it says of its rooms, and which calls the other tabs hold. */
 export function callTabs(env: TabsEnv) {
   /** The other tabs' rooms in a call or joining, with their scopes; this tab's own claims. */
   const theirs = new Map<string, string>()
   const mine = new Map<string, Claim>()
+  /** The projects a tab of this browser is leaving, or left. */
+  const left = new Set<string>()
+  const leaving = ({ leaving: projectId, on }: Leaving) => (on ? left.add(projectId) : left.delete(projectId))
   let channel: TabChannel | null | undefined
   const answer = (ch: TabChannel) => {
     for (const claim of mine.values()) post(ch, claim)
   }
   const heard = (data: unknown) => {
     if (isAsked(data) && channel) answer(channel)
+    else if (isLeaving(data)) leaving(data)
     else if (isClaim(data) && data.state) theirs.set(data.room, data.scope)
     else if (isClaim(data)) theirs.delete(data.room)
   }
@@ -82,6 +102,18 @@ export function callTabs(env: TabsEnv) {
       if (state) mine.set(room, claim)
       else mine.delete(room)
       if (ch) post(ch, claim)
+    },
+    /** A Leave project of `projectId` begins here (`on`), or failed: said to the other tabs, and kept here too. */
+    leaving(projectId: string, on: boolean): void {
+      const ch = opened()
+      const said = { leaving: projectId, on }
+      leaving(said)
+      if (ch) post(ch, said)
+    },
+    /** Whether a tab of this browser left `projectId` (or is leaving it): its door closing then is no removal. */
+    left(projectId: string): boolean {
+      opened()
+      return left.has(projectId)
     },
     /** Whether another tab of this browser holds the call `scope`, or is joining it. */
     held(scope: string): boolean {

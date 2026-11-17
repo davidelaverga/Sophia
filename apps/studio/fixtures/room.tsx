@@ -21,6 +21,9 @@
 // `qualification=on`: the room token names a voice qualification grant (A45), so the page emits its voice receipts;
 // `window.fixture.voices` attaches Sophia's voice and a member's, `voicesLeave` unsubscribes them (LiveKit keeps one
 // element to attach again), and `grant` says whether the next room tokens name the grant.
+// `window.fixture.screenStoppedByHost`: an admin stops this viewer's screen share from the room's server (A31), and
+// the page stops sharing as the Studio does; `screenEndedInBrowser`: the browser's own «Stop sharing» bar ends it
+// (removed-and-stopped-said.md).
 import { citedReads, releaseCited } from './cited-text-data.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -59,6 +62,7 @@ import {
   conversations,
   messageId,
   messagesOf,
+  manyQuiet,
   quietConversation,
   type FixtureMessage,
 } from './conversation-data.ts'
@@ -73,10 +77,14 @@ import {
   leaving,
   linkLost,
   reactFrom,
+  echoHand,
+  failHandSends,
   setVoiceLevel,
   sophiaLeaves,
   speakWhileMuted,
   muteByHost,
+  stopScreenByHost,
+  endScreenInBrowser,
   connecting,
   voicesArrive,
   voicesLeave,
@@ -106,6 +114,7 @@ import {
   installFixtureApi,
   publish,
   type Conversations,
+  type LostSave,
   releaseReports,
   releaseSources,
   releaseTask,
@@ -201,6 +210,13 @@ interface Fixture {
   unmutes: (n: number) => void
   /** The next goal target saved finds someone else's first (goal-owner-date.md). */
   staleTarget: () => void
+  /**
+   * The next goal target or role saved loses its reply, after it lands or before (save-reply-lost.md); as a proxy's
+   * 5xx with `status`, and with the read that checks it failing too with `failRead`.
+   */
+  loseNextSaveReply: (landed: boolean, options?: { failRead?: boolean; status?: 502 | 503 | 504 }) => void
+  /** While on, goal target and role saves land but their replies wait; off, they answer. */
+  holdSaves: (on: boolean) => void
   /** The next invitation to this address fails, as an unavailable API's (invite-from-projects.md). */
   failInvite: (email: string) => void
   /** While on, host controls land but their replies wait; off, they answer. */
@@ -465,6 +481,10 @@ interface Fixture {
   speakMuted: () => void
   /** An admin mutes this viewer from the room's server: this device's own microphone choice is left as it was. */
   mutedByHost: () => void
+  /** An admin stops this viewer's screen share from the room's server (A31): the page stops sharing, as LiveKit's does. */
+  screenStoppedByHost: () => void
+  /** The browser's own «Stop sharing» bar ends this viewer's share: LiveKit unpublishes it, and nobody else acted. */
+  screenEndedInBrowser: () => void
   /** The call's link is lost for a while (true), or back (false), as LiveKit reconnects (reconnecting-on-video.md). */
   linkLost: (lost: boolean) => void
   /**
@@ -533,6 +553,13 @@ interface Fixture {
   asked: readonly string[]
   /** Someone in the room reacts, by name, with any emoji the check gives (call-reactions.md). */
   reactFrom?: (name: string, emoji: string) => void
+  /**
+   * The last hand this page sent (raised or lowered), delivered as from the `n`th other person: what their page would
+   * receive from them (raise-hand.md).
+   */
+  echoHand?: (n: number) => void
+  /** The next `n` hand sends are refused (raise-hand.md). */
+  failHandSends?: (n: number) => void
   /** The devices the last call opened with (call-devices.md); null before any. */
   readonly devicesOnJoin: Partial<Record<string, string>> | null
   /** The camera background the last call opened with (call-backgrounds.md); null before any. */
@@ -846,6 +873,9 @@ const project = {
   failHost: false,
   failAfterMuteAll: false,
   staleTarget: false,
+  loseSaveReply: null as LostSave | null,
+  failNextCheck: false,
+  savesHeld: null as (() => void)[] | null,
   // `archived=1`: the project is archived (archive-project.md).
   archived: query.get('archived') === '1',
   // `archivedFails=1`: the archived list can't be read (archive-keys-and-work.md).
@@ -1211,6 +1241,14 @@ window.fixture = {
   unmutes,
   staleTarget: () => {
     project.staleTarget = true
+  },
+  loseNextSaveReply: (landed, options = {}) => {
+    project.loseSaveReply = { landed, failRead: options.failRead ?? false, status: options.status ?? null }
+  },
+  holdSaves: (on) => {
+    const held = project.savesHeld ?? []
+    project.savesHeld = on ? [] : null
+    if (!on) for (const reply of held) reply()
   },
   failInvite: (email) => {
     project.invitations.failFor = email
@@ -1670,6 +1708,8 @@ window.fixture = {
   sophiaLeaves,
   speakMuted: speakWhileMuted,
   mutedByHost: muteByHost,
+  screenStoppedByHost: stopScreenByHost,
+  screenEndedInBrowser: endScreenInBrowser,
   linkLost,
   voices: voicesArrive,
   voicesLeave,
@@ -1727,6 +1767,8 @@ window.fixture = {
   floorTo,
   asked,
   reactFrom,
+  echoHand,
+  failHandSends,
   get devicesOnJoin() {
     return joined.devices
   },
@@ -1883,12 +1925,24 @@ function withdrawAsked(which: string | null): 'slow' | 'feedFirst' | 'thenFail' 
 }
 
 /** The conversations a page asks for (A18), with the brief's context beside them; none when it asks for none. */
+/** The list `conversations=` asks for: none, the three, with a quiet one, or with sixteen quiet ones. */
+function listAsked(which: string) {
+  if (which === 'none') return []
+  if (which === 'quiet') return [...conversations(), quietConversation()]
+  if (which === 'many') return [...conversations(), quietConversation(), ...manyQuiet()]
+  return conversations()
+}
+
 function conversationsAsked(which: string | null, failMessages: boolean) {
   if (which === null) return {}
   return {
     conversations: {
-      list: which === 'none' ? [] : which === 'quiet' ? [...conversations(), quietConversation()] : conversations(),
-      messages: { ...messagesOf(), [CONVERSATION.quiet]: [] },
+      list: listAsked(which),
+      messages: {
+        ...messagesOf(),
+        [CONVERSATION.quiet]: [],
+        ...Object.fromEntries(manyQuiet().map((c) => [c.id, []])),
+      },
       failList: which === 'fail',
       lastShown: DEMO || query.get('last') === '1',
       more: query.get('more') === '1',

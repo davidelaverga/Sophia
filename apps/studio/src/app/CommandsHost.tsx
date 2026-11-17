@@ -2,6 +2,8 @@
 // takes stray typing), each a modal dialog over the page; and the light by a key. Mounted by the project shell and by
 // the places' bar; the one in scope answers a control's ask.
 import { useContext, useEffect, useState, useSyncExternalStore } from 'react'
+import { endKeysTip } from './keys-tip.ts'
+import { KeysTip } from './KeysTip.tsx'
 import { Palette } from './Palette.tsx'
 import { ShortcutScope, useShortcuts } from './shortcuts.ts'
 import { ShortcutIndex } from './ShortcutIndex.tsx'
@@ -73,11 +75,17 @@ export function CommandsHost({ onSearch }: Props) {
   ])
   // The same index on ?, where it can be typed as a key: not listed twice.
   useShortcuts({ '?': index })
+  // The index open, by any way: the tip that names its key has done its work (keys-tip.md).
+  useEffect(() => {
+    if (open === 'index') endKeysTip()
+  }, [open])
   const close = () => setOpen(null)
   return (
     <>
       {open === 'palette' && <Palette onClose={close} onSearch={onSearch} />}
       {open === 'index' && <ShortcutIndex onClose={close} />}
+      {/* The host in scope says it; one kept out of sight for its call says nothing. */}
+      {scoped && <KeysTip />}
     </>
   )
 }

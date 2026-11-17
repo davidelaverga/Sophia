@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { defineConfig } from '@playwright/test'
+import { tipSeenAt } from './e2e/tip-seen.ts'
 
 // The narrow served path (FND-B-C1-SERVED-PATH-01), never the fixture pages: the normal Studio dev server (vite.config.ts,
 // no VITE_SOPHIA_VISION) with saved conversations on (VITE_SOPHIA_CONVERSATIONS=1), Home's needs and Updates on
@@ -61,6 +62,7 @@ export default defineConfig({
   reporter: 'list',
   use: {
     baseURL: 'http://127.0.0.1:5198',
+    storageState: tipSeenAt('http://127.0.0.1:5198'),
     viewport: { width: 1440, height: 900 },
     // SOPHIA_SERVED_GL=swiftshader: Chromium's software GL (ANGLE on SwiftShader) for the page's WebGL, for comparing
     // with the default headless backend; the product's light and its canvas stay as they are.

@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test'
+import { tipSeenAt } from './e2e/tip-seen.ts'
 
 // The project's search and human tasks on the room's fixture page (e2e-search/): built with VITE_SOPHIA_SEARCH=1 and
 // VITE_SOPHIA_TASKS=1 and no vision flag
@@ -13,7 +14,13 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   reporter: process.env.CI ? [['list'], ['github']] : 'list',
-  use: { baseURL: served, browserName: 'chromium', trace: 'retain-on-failure', viewport: { width: 1280, height: 800 } },
+  use: {
+    baseURL: served,
+    browserName: 'chromium',
+    trace: 'retain-on-failure',
+    viewport: { width: 1280, height: 800 },
+    storageState: tipSeenAt(served),
+  },
   webServer: {
     command: 'pnpm exec vite --config vite.search.config.ts',
     url: `${served}/room.html`,

@@ -3,9 +3,9 @@
 // the fixture pages answer, or the attention flag, where A34 serves the digest: the meetings only under the vision flag
 // (ProjectShell decides); elsewhere Updates is still «Coming» (PendingView).
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useId, useState, useSyncExternalStore } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
-import { Button, Icon, Menu, MenuItem, Segmented, usePopover, type SegmentedItem } from '@sophia/ui'
+import { Button, Icon, Menu, MenuItem, Segmented, Tip, usePopover, type SegmentedItem } from '@sophia/ui'
 import { ApiError } from '../../api/client.ts'
 import { getSince, listMeetings, markSeen, type MeetingSummary, type Since } from '../../api/vision.ts'
 import { retryRead } from '../../app/account-cache.ts'
@@ -174,6 +174,12 @@ function useLineGo(): LineGo | undefined {
     : undefined
 }
 
+/**
+ * What Mark as seen clears: Updates' window, and Home's «since you last looked», which reads the same window
+ * (useSinceNews). No tab counts updates, so none is named.
+ */
+const SEEN_HELP = 'Clears these from Updates and from Home’s news.'
+
 function DigestBody({ digest, projectId, identity, me }: Omit<SinceProps, 'cursor'> & { digest: Since }) {
   const nameOf = namers(me, NO_NAMES, digest.names).shown
   const [by, setBy] = useState<Narrowing>({ kind: 'all', person: null })
@@ -200,22 +206,36 @@ function DigestBody({ digest, projectId, identity, me }: Omit<SinceProps, 'curso
       {any && sections.length === 0 && (
         <p className="sheet-lead">Nothing of that kind, or by them, since you last looked.</p>
       )}
-      {markable && (
-        <div className="recap-acts">
-          <button
-            type="button"
-            className="pill"
-            aria-disabled={seen.isPending || undefined}
-            onClick={() => !seen.isPending && seen.mutate(digest.toSequence)}
-          >
-            Mark as seen
-          </button>
-          <span className="recap-said" role="status">
-            {seen.isError ? seenWords(seen.error) : ''}
-          </span>
-        </div>
-      )}
+      {markable && <MarkSeen seen={seen} sequence={digest.toSequence} />}
     </>
+  )
+}
+
+/**
+ * Mark as seen, with what it clears: its tip on hover, and its description for every reader, since a tip hides on touch
+ * and at 760 px or less. The description stands beside the button, so the button's name stays its words.
+ */
+function MarkSeen({ seen, sequence }: { seen: ReturnType<typeof useMarkSeen>; sequence: string }) {
+  const help = useId()
+  return (
+    <div className="recap-acts">
+      <button
+        type="button"
+        className="pill has-tip"
+        aria-describedby={help}
+        aria-disabled={seen.isPending || undefined}
+        onClick={() => !seen.isPending && seen.mutate(sequence)}
+      >
+        Mark as seen
+        <Tip label={SEEN_HELP} align="start" />
+      </button>
+      <span id={help} className="sr-only">
+        {SEEN_HELP}
+      </span>
+      <span className="recap-said" role="status">
+        {seen.isError ? seenWords(seen.error) : ''}
+      </span>
+    </div>
   )
 }
 

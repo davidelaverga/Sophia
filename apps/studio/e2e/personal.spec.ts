@@ -1623,3 +1623,59 @@ test('ease · Find matches whatever the accents, and marks the words as written'
   await finder(page).fill('MANANA')
   await expect(page.locator('.msgs mark.current')).toHaveText('mañana')
 })
+
+// Seams (docs/plans/dictation-and-notify-said.md): dictation that stops on the browser's error says why, in the
+// composer's line, once per attempt; an error with no reason the person can act on says nothing, as before.
+
+const stopped = [
+  ['not-allowed', 'Sophia can’t hear you: the microphone is blocked for this site.'],
+  ['no-speech', 'Didn’t catch anything. Try again.'],
+  ['audio-capture', 'Sophia can’t hear you: the microphone isn’t available.'],
+] as const
+
+for (const [code, line] of stopped) {
+  test(`seams · dictation stopped by the browser (${code}) says why under the field`, async ({ page }) => {
+    await page.goto(`${PAGE}?speechError=${code}`)
+    await page.getByRole('button', { name: 'Talk instead' }).click()
+    await expect(page.locator('.ps-composer [role="status"]')).toHaveText(line)
+    await expect(field(page)).toHaveValue('')
+    await expect(page.getByRole('button', { name: 'Talk instead' })).toBeVisible()
+  })
+}
+
+// `service-not-allowed` is the browser refusing its speech service, not this site's microphone; `network` can't stop
+// recognition on the device (Luis, 2026-11-16): nothing to say.
+for (const code of ['service-not-allowed', 'network', 'bad-grammar']) {
+  test(`seams · an error with no reason to give (${code}) says nothing, as before`, async ({ page }) => {
+    await page.goto(`${PAGE}?speechError=${code}`)
+    await page.getByRole('button', { name: 'Talk instead' }).click()
+    await expect(page.getByRole('button', { name: 'Talk instead' })).toBeVisible()
+    await page.waitForTimeout(300)
+    await expect(page.locator('.ps-composer .chat-line')).toHaveCount(0)
+  })
+}
+
+test('seams · words heard before the error land, and the line says where they came from, not the error', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?speechError=no-speech&heard=${encodeURIComponent('call him on Friday')}`)
+  await page.getByRole('button', { name: 'Talk instead' }).click()
+  await expect(field(page)).toHaveValue('call him on Friday')
+  await expect(page.locator('.ps-composer .chat-line')).toHaveText('From your voice · edit it or send')
+})
+
+test('seams · why dictation stopped goes with the next attempt, and with what you write', async ({ page }) => {
+  await page.goto(`${PAGE}?speechError=no-speech`)
+  const line = page.locator('.ps-composer .chat-line', { hasText: 'Didn’t catch anything' })
+  await page.getByRole('button', { name: 'Talk instead' }).click()
+  await expect(line).toBeVisible()
+  await page.getByRole('button', { name: 'Talk instead' }).click()
+  await expect(page.locator('.ps-composer .c3-wave')).toBeVisible()
+  await expect(line).toHaveCount(0)
+  await page.getByRole('button', { name: 'Stop listening' }).click()
+  await page.goto(`${PAGE}?speechError=no-speech`)
+  await page.getByRole('button', { name: 'Talk instead' }).click()
+  await expect(line).toBeVisible()
+  await field(page).fill('I’ll write it')
+  await expect(line).toHaveCount(0)
+})

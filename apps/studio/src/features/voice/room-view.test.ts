@@ -130,6 +130,7 @@ describe('what sets someone apart', () => {
 
   it('says one thing about a person, or nothing', () => {
     assert.equal(presenceRole(davide, true), 'has the floor')
+    assert.equal(presenceRole({ ...davide, handRaised: true, speaking: true }, true), 'Hand raised')
     assert.equal(presenceRole({ ...davide, speaking: true }, false), 'speaking')
     assert.equal(presenceRole({ ...davide, standing: 'viewer' }, false), 'listening')
     assert.equal(presenceRole(davide, false), null)
