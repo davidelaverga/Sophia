@@ -9,7 +9,6 @@ const dock = (page: Page) => page.getByRole('navigation', { name: 'Room controls
 const room = (page: Page) => page.getByRole('list', { name: 'In the room' })
 const asked = (page: Page) => page.evaluate(() => [...(window.fixture?.asked ?? [])])
 const raise = (page: Page) => dock(page).getByRole('button', { name: 'Raise hand', exact: true })
-const lower = (page: Page) => dock(page).getByRole('button', { name: 'Lower hand', exact: true })
 /** A person's place in the room, by the name it shows: a seat around the light, or a tile. */
 const seat = (page: Page, name: string) => room(page).getByRole('listitem').filter({ hasText: name })
 
@@ -29,13 +28,15 @@ async function enter(page: Page, query = 'people=2') {
   await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
 }
 
-test('hand · raised from the dock it is sent, reads «Lower hand», and shows on your tile and in another’s view; lowered, it clears', async ({
+test('hand · raised from the dock it is sent, reads as pressed with «Lower hand» as its tip, and shows on your tile and in another’s view; lowered, it clears', async ({
   page,
 }) => {
   await enter(page)
   await expect(seat(page, 'you')).not.toContainText('Hand raised')
   await raise(page).click()
-  await expect(lower(page)).toHaveAttribute('aria-pressed', 'true')
+  // One name, as the dock's other toggles keep theirs; pressed says it is up, and the tip what a press does now.
+  await expect(raise(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect(raise(page).locator('.tip')).toHaveText('Lower hand')
   await expect.poll(() => asked(page)).toContain('hand:up')
   await expect(seat(page, 'you')).toContainText('Hand raised')
   // What was sent, as Marco's page would receive it from him: his place says it.
@@ -43,8 +44,9 @@ test('hand · raised from the dock it is sent, reads «Lower hand», and shows o
   await expect(seat(page, 'Marco')).toContainText('Hand raised')
   await expect(seat(page, 'Lucía')).not.toContainText('Hand raised')
 
-  await lower(page).click()
+  await raise(page).click()
   await expect(raise(page)).toHaveAttribute('aria-pressed', 'false')
+  await expect(raise(page).locator('.tip')).toHaveText('Raise hand')
   await expect.poll(() => asked(page)).toContain('hand:down')
   await expect(seat(page, 'you')).not.toContainText('Hand raised')
   await page.evaluate(() => window.fixture?.echoHand?.(1))
@@ -71,6 +73,20 @@ test('hand · back from a dropped link, your hand is down, for you and said down
   await expect
     .poll(async () => (await asked(page)).filter((a) => a.startsWith('hand:')))
     .toEqual(['hand:up', 'hand:down', 'hand:ask'])
+})
+
+test('hand · back from a dropped link, a lowering the room refused is sent again until it goes', async ({ page }) => {
+  await enter(page)
+  await raise(page).click()
+  await expect.poll(() => asked(page)).toContain('hand:up')
+  // The first send after the link is back is refused, as a data channel still coming back refuses it.
+  await page.evaluate(() => window.fixture?.failHandSends?.(1))
+  await page.evaluate(() => window.fixture?.linkLost(true))
+  await page.evaluate(() => window.fixture?.linkLost(false))
+  await expect(seat(page, 'you')).not.toContainText('Hand raised')
+  await expect
+    .poll(async () => (await asked(page)).filter((a) => a.startsWith('hand:')), { timeout: 8000 })
+    .toEqual(['hand:up', 'hand:down!', 'hand:ask', 'hand:down'])
 })
 
 test('hand · leaving lowers it: joined again, the hand is down', async ({ page }) => {

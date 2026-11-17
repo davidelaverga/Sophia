@@ -6,10 +6,16 @@ import { HAND_TOPIC, decodeHand, encodeHand, handSignal } from './hand-signal.ts
 const SOPHIA = { identity: 'sophia', metadata: JSON.stringify({ sophia: true }) }
 const marco = { identity: 'm', name: 'Marco', metadata: JSON.stringify({ role: 'editor' }) }
 const lucia = { identity: 'l', name: 'Lucía', metadata: JSON.stringify({ role: 'viewer' }) }
+const guest = { identity: 'g', name: 'Noor', metadata: JSON.stringify({ guest: true }) }
 const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
 
-/** A room as the signal uses it: what it listens for, emitted by the check; what it sends, recorded. */
-function setup(sends: 'ok' | 'fail' = 'ok') {
+/**
+ * A room as the signal uses it: what it listens for, emitted by the check; what it sends, recorded. `sends`: every send
+ * refused (`fail`), or the first `n` refused and the rest sent. The clock is the check's (`tick`).
+ */
+function setup(sends: 'ok' | 'fail' | number = 'ok') {
+  let refusals = sends === 'fail' ? Infinity : sends === 'ok' ? 0 : sends
+  let clock = 0
   const listeners = new Map<string, ((...args: unknown[]) => void)[]>()
   const room = {
     on: (event: string, fn: (...args: unknown[]) => void) => {
@@ -20,17 +26,37 @@ function setup(sends: 'ok' | 'fail' = 'ok') {
     for (const fn of listeners.get(event) ?? []) fn(...args)
   }
   const sent: { packet: unknown; to: string[] | undefined }[] = []
+  /** What was sent and taken, in order: a refused send isn't here. */
+  const taken: unknown[] = []
   let sending: Promise<void> = Promise.resolve()
   const publish = (data: Uint8Array, to?: string[]) => {
-    sent.push({ packet: JSON.parse(new TextDecoder().decode(data)), to })
-    sending = sends === 'ok' ? Promise.resolve() : Promise.reject(new Error('data channel closed'))
+    const packet: unknown = JSON.parse(new TextDecoder().decode(data))
+    sent.push({ packet, to })
+    const refused = refusals > 0
+    refusals -= 1
+    if (!refused) taken.push(packet)
+    sending = refused ? Promise.reject(new Error('data channel closed')) : Promise.resolve()
     return sending
   }
   let changes = 0
-  const signal = handSignal(room as unknown as Pick<Room, 'on'>, publish, () => (changes += 1))
+  const options = { retryMs: 5, now: () => clock }
+  const signal = handSignal(room as unknown as Pick<Room, 'on'>, publish, () => (changes += 1), options)
   const from = (who: object, value: unknown, topic = HAND_TOPIC) =>
     emit(RoomEvent.DataReceived, bytes(value), who, undefined, topic)
-  return { signal, emit, from, sent, changes: () => changes, settled: () => sending.catch(() => undefined) }
+  const tick = (ms: number) => (clock += ms)
+  /** The next `n` sends are refused, as a data channel still coming back refuses them. */
+  const refuse = (n: number) => (refusals = n)
+  return {
+    signal,
+    emit,
+    from,
+    sent,
+    taken,
+    tick,
+    refuse,
+    changes: () => changes,
+    settled: () => sending.catch(() => undefined),
+  }
 }
 
 describe('decodeHand', () => {
@@ -41,6 +67,10 @@ describe('decodeHand', () => {
     for (const other of [{ hand: 'yes' }, { ask: false }, { emoji: '👍' }, null, 3])
       assert.equal(decodeHand(bytes(other)), undefined)
     assert.equal(decodeHand(new TextEncoder().encode('not json')), undefined)
+    // An array, or a hand only through a prototype, is not a packet.
+    assert.equal(decodeHand(bytes([true])), undefined)
+    assert.equal(decodeHand(new TextEncoder().encode('{"__proto__":{"hand":true}}')), undefined)
+    assert.equal(decodeHand(new TextEncoder().encode('{"__proto__":{"ask":true}}')), undefined)
   })
 })
 
@@ -70,6 +100,37 @@ describe('handSignal', () => {
     assert.equal(signal.raised('l'), false)
     from(marco, { hand: false })
     assert.equal(signal.raised('m'), false)
+  })
+
+  it('a packet names nobody but its sender: Marco’s, naming Lucía, raises only Marco’s', () => {
+    const { signal, from } = setup()
+    from(marco, { hand: true, identity: 'l' })
+    assert.equal(signal.raised('m'), true)
+    assert.equal(signal.raised('l'), false)
+  })
+
+  it('only a member’s hand is heard: a guest’s token can’t send one, so one that says it is let go', () => {
+    const { signal, from, sent } = setup()
+    from(guest, { hand: true })
+    assert.equal(signal.raised('g'), false)
+    void signal.set(true)
+    from(guest, { ask: true })
+    assert.equal(sent.length, 1)
+  })
+
+  it('asks are answered at most once a second from each person', async () => {
+    const { signal, from, sent, tick } = setup()
+    await signal.set(true)
+    from(marco, { ask: true })
+    from(marco, { ask: true })
+    from(lucia, { ask: true })
+    assert.deepEqual(
+      sent.slice(1).map((s) => s.to),
+      [['m'], ['l']],
+    )
+    tick(1000)
+    from(marco, { ask: true })
+    assert.deepEqual(sent.at(-1)?.to, ['m'])
   })
 
   it('whoever joins is told, to them alone, only while the hand is raised', async () => {
@@ -114,6 +175,27 @@ describe('handSignal', () => {
     ])
     assert.equal(signal.raised('m'), false)
     assert.equal(signal.raised('l'), true)
+  })
+
+  it('back from a drop, a lowering refused is tried again until it is sent', async () => {
+    const { signal, emit, taken, refuse } = setup()
+    await signal.set(true)
+    refuse(1)
+    emit(RoomEvent.Reconnected)
+    assert.equal(signal.mine(), false)
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    assert.deepEqual(taken, [{ hand: true }, { ask: true }, { hand: false }])
+  })
+
+  it('a raise pressed while that lowering waits to be tried again is not overtaken by it', async () => {
+    const { signal, emit, taken, refuse } = setup()
+    await signal.set(true)
+    refuse(1)
+    emit(RoomEvent.Reconnected)
+    await signal.set(true)
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    assert.equal(signal.mine(), true)
+    assert.deepEqual(taken, [{ hand: true }, { ask: true }, { hand: true }])
   })
 
   it('an ask that can’t be sent forgets nothing; a raise that can’t be sent goes back down', async () => {

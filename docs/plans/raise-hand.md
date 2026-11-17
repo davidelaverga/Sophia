@@ -23,17 +23,20 @@
   authenticated, so nobody raises another's hand; nothing touches attributes or metadata. Packets: `{hand: true}`,
   `{hand: false}`, and `{ask: true}`. Anything else, or anything from Sophia's participant, is let go.
 - **«Raise hand»** in the dock, after React, for members (a guest's token can't send: not offered, as React). Pressed,
-  it is sent to everyone in the call and the button reads «Lower hand» (`aria-pressed`). No key: the plans name none.
+  it is sent to everyone in the call; the button keeps its name and reads as pressed (`aria-pressed`), as the dock's
+  other toggles do, and its tip says «Lower hand». No key: the plans name none.
 - **On a phone (≤ 600 px)** the dock keeps its one row of seven (`phone-dock.md`): «Raise hand» / «Lower hand» is the
   first item of React's menu instead, as Meet's phone has it.
 - **«Hand raised»** on the person's tile, for everyone in the call, the host among them: in the gallery's chip after
   the name (on a phone's strip, its hand alone, the words for a screen reader), and in the light's seats as their line,
   before any other.
+- **Only a member's hand is heard,** as only a member's token can send one; an ask is answered at most once a second
+  for each person (review P3).
 - **Whoever joins later is told** by each raised hand, to them alone.
 - **Leaving lowers it:** the hand lives in the connection, so a new call starts lowered, and the others forget a hand
   whose person left.
 - **A reconnect clears it, the same for everyone:** back from a drop, this person's own hand is lowered and said so to
-  the room, what was heard before the drop is forgotten once the room is asked, and the members still raised answer
+  the room, sent again until it goes (review P2; a raise pressed meanwhile is never overtaken by it), what was heard before the drop is forgotten once the room is asked, and the members still raised answer
   the asker alone. An ask that can't be sent (a guest's) forgets nothing.
 - A hand sent and refused (the data channel failed) goes back down here.
 
@@ -44,7 +47,7 @@
   a leaver forgotten; a reconnect lowers mine, says so, asks, and forgets only what came before; a refused send goes
   back down.
 - `call-raise-hand.spec.ts`, over the fake LiveKit (its connection runs the real `hand-signal.ts`):
-  - «Raise hand» sends it, reads «Lower hand», and your tile says «Hand raised»; the bytes sent, delivered as from
+  - «Raise hand» sends it, reads as pressed with «Lower hand» as its tip, and your tile says «Hand raised»; the bytes sent, delivered as from
     Marco, raise «Hand raised» on his tile (what a second participant sees); lowering clears both;
   - in the gallery, the chip after the name says it;
   - after a reconnect, the hand is down for you and said down to the room;

@@ -19,12 +19,16 @@
 - **Where the browser has Document Picture-in-Picture (Chromium),** the small window shows the stage's one view, chosen
   by `pipShows` (`pip-view.ts`, pure):
   - a shared screen (the newest), captioned as the stage captions it («Marco’s screen»);
-  - else the one speaking, another before you; else another with a camera; else another; else you;
+  - else another who speaks; else another with a camera; else another; you last, only when alone (review P2: in a
+    call of two the window never flips to you when you talk);
   - their camera, or their initial, with their name (« · you» for your own).
   It follows the call as it moves: the window is a portal of the dock's own render. The page's styles go with it.
+- **Pressed again while the browser is still opening it,** nothing more is asked; **left while it opens,** the window
+  that comes is closed at once (review P2). A theme changed while it is open reaches it.
 - **Elsewhere, where only video picture in picture exists,** the stage's main video goes into it
   (`requestPictureInPicture`): the shared screen, else the tile of whoever `pipShows` picks, else any video on the
-  stage. Without a video on the stage there is nothing to show, and the button isn't offered.
+  stage. Without a video on the stage there is nothing to show (your own camera with your tile hidden included), and
+  the button isn't offered.
 - **Neither (Firefox, an old Safari):** no button.
 - **On a phone (≤ 600 px)** it isn't offered either: phones have no Document Picture-in-Picture, leaving the app is
   the phone's own picture in picture, and the dock keeps its one row of seven (`phone-dock.md`).
@@ -46,6 +50,7 @@ No new words beyond the two approved lines: the window's caption uses the stage'
 
 ## Not here
 
-- PiP survives only while the dock is mounted: a person who goes to another project's page (where the mini dock takes
-  over) closes it. Switching tabs or apps, its use, keeps it.
+- **Open question for Luis:** PiP lives only while the room's dock is mounted, so going to a view where the mini dock
+  takes over closes it. Switching tabs or apps, its main use, keeps it. Should it outlive the dock (held by the call
+  instead), so it stays while the person works elsewhere in the Studio?
 - No controls inside the small window (mute, leave): Chromium's own back-to-tab is the way back.

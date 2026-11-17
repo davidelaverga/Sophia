@@ -8,6 +8,8 @@ import { expect, test, type Page } from '@playwright/test'
 declare global {
   interface Window {
     pipAsked?: string[]
+    /** A held request for the small window is answered (`held`). */
+    pipRelease?: () => void
   }
 }
 
@@ -30,7 +32,8 @@ test.afterEach(async ({ page }) => {
 })
 
 /** The browser's picture in picture as this check says: Document PiP (stubbed), video PiP (stubbed), or neither. */
-async function browserHas(page: Page, has: { document: boolean; video: boolean }) {
+/** `held`: the browser answers a request for the small window only once the check lets it (`window.pipRelease`). */
+async function browserHas(page: Page, has: { document: boolean; video: boolean; held?: boolean }) {
   await page.addInitScript((h) => {
     window.pipAsked = []
     const asked = window.pipAsked
@@ -42,21 +45,32 @@ async function browserHas(page: Page, has: { document: boolean; video: boolean }
         value: {
           requestWindow: (options: { width: number; height: number }) => {
             asked.push(`window:${String(options.width)}x${String(options.height)}`)
-            const frame = document.createElement('iframe')
-            frame.dataset.pip = ''
-            document.body.append(frame)
-            const small = frame.contentWindow
-            if (!small) throw new Error('no frame')
-            // Closed, as Chromium closes it: the window's pagehide, then it is gone.
-            small.close = () => {
-              asked.push('close')
-              small.dispatchEvent(new Event('pagehide'))
-              frame.remove()
-            }
-            return Promise.resolve(small)
+            if (!h.held) return Promise.resolve(made())
+            return new Promise<Window>((resolve) => {
+              const before = window.pipRelease
+              window.pipRelease = () => {
+                before?.()
+                resolve(made())
+              }
+            })
           },
         },
       })
+    }
+    /** The small window, as Chromium opens it: a frame on the page stands in for it. */
+    function made(): Window {
+      const frame = document.createElement('iframe')
+      frame.dataset.pip = ''
+      document.body.append(frame)
+      const small = frame.contentWindow
+      if (!small) throw new Error('no frame')
+      // Closed, as Chromium closes it: the window's pagehide, then it is gone.
+      small.close = () => {
+        asked.push('close')
+        small.dispatchEvent(new Event('pagehide'))
+        frame.remove()
+      }
+      return small
     }
     Object.defineProperty(Document.prototype, 'pictureInPictureEnabled', { configurable: true, get: () => h.video })
     HTMLVideoElement.prototype.requestPictureInPicture = function (this: HTMLVideoElement) {
@@ -76,15 +90,17 @@ test('pip · with Document Picture-in-Picture, the call goes into a small window
   page,
 }) => {
   await browserHas(page, { document: true, video: true })
-  await enter(page, 'people=2&speaking=1')
+  // Lucía speaks; Marco, listed before her, doesn't.
+  await enter(page, 'people=2&speaking=2')
   await expect(keep(page)).toHaveAttribute('aria-pressed', 'false')
   // Its help, under the pointer.
   await expect(keep(page).locator('.tip')).toHaveText('Picture in picture')
   await keep(page).click()
   await expect.poll(() => pipAsked(page)).toEqual([expect.stringMatching(/^window:\d+x\d+$/)])
   await expect(keep(page)).toHaveAttribute('aria-pressed', 'true')
-  // Marco speaks: he is what the small window shows.
-  await expect.poll(() => pipText(page)).toContain('Marco')
+  // Lucía speaks: she is what the small window shows.
+  await expect.poll(() => pipText(page)).toContain('Lucía')
+  expect(await pipText(page)).not.toContain('Marco')
   // Closed from the small window (its own close, or back to the tab): the button reads as off, the stage untouched.
   await page.evaluate(() => {
     const frame = document.querySelector<HTMLIFrameElement>('iframe[data-pip]')
@@ -122,5 +138,68 @@ test('pip · where the browser has neither, the dock offers no picture in pictur
   await browserHas(page, { document: false, video: false })
   await enter(page, 'people=2&video=camera')
   await expect(dock(page).getByRole('button', { name: 'React', exact: true })).toBeVisible()
+  await expect(keep(page)).toHaveCount(0)
+})
+
+test('pip · in a call of two, you speaking, the small window keeps showing the other', async ({ page }) => {
+  await browserHas(page, { document: true, video: true })
+  await enter(page, 'people=1&speaking=0')
+  await keep(page).click()
+  await expect.poll(() => pipText(page)).toContain('Marco')
+  expect(await pipText(page)).not.toContain('you')
+})
+
+test('pip · pressed twice while the browser opens it, one window is asked for and kept', async ({ page }) => {
+  await browserHas(page, { document: true, video: true, held: true })
+  await enter(page, 'people=2')
+  await keep(page).click()
+  await keep(page).click()
+  await page.evaluate(() => window.pipRelease?.())
+  await expect(keep(page)).toHaveAttribute('aria-pressed', 'true')
+  expect((await pipAsked(page)).filter((a) => a.startsWith('window:'))).toHaveLength(1)
+  await expect(page.locator('iframe[data-pip]')).toHaveCount(1)
+})
+
+test('pip · leaving while the browser opens it: the window that comes is closed', async ({ page }) => {
+  await browserHas(page, { document: true, video: true, held: true })
+  await enter(page, 'people=2')
+  await keep(page).click()
+  await dock(page).getByRole('button', { name: 'Leave the room' }).click()
+  await page.evaluate(() => window.pipRelease?.())
+  await expect.poll(() => pipAsked(page)).toContain('close')
+  await expect(page.locator('iframe[data-pip]')).toHaveCount(0)
+})
+
+test('pip · a theme changed while the small window is open reaches it', async ({ page }) => {
+  await browserHas(page, { document: true, video: true })
+  await enter(page, 'people=2')
+  await keep(page).click()
+  await expect(page.locator('iframe[data-pip]')).toHaveCount(1)
+  const theme = () =>
+    page.evaluate(
+      () =>
+        document.querySelector<HTMLIFrameElement>('iframe[data-pip]')?.contentDocument?.documentElement.dataset.theme,
+    )
+  const next = await page.evaluate(() => {
+    const now = document.documentElement.dataset.theme
+    const other = now === 'light' ? 'dark' : 'light'
+    document.documentElement.dataset.theme = other
+    return other
+  })
+  await expect.poll(theme).toBe(next)
+})
+
+test('pip · with video picture in picture only, your camera alone with your tile hidden offers nothing', async ({
+  page,
+}) => {
+  await browserHas(page, { document: false, video: true })
+  await enter(page, 'people=1')
+  await dock(page).getByRole('button', { name: 'Camera', exact: true }).click()
+  const mine = page.getByRole('list', { name: 'In the room' }).locator('.tile', { hasText: 'you' })
+  await expect(mine.locator('video')).toHaveCount(1)
+  await expect(keep(page)).toBeVisible()
+  await mine.hover()
+  await mine.getByRole('button', { name: 'Hide my tile' }).click()
+  await expect(page.locator('.room-stage video')).toHaveCount(0)
   await expect(keep(page)).toHaveCount(0)
 })

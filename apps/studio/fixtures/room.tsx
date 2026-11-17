@@ -74,6 +74,7 @@ import {
   linkLost,
   reactFrom,
   echoHand,
+  failHandSends,
   setVoiceLevel,
   sophiaLeaves,
   speakWhileMuted,
@@ -539,6 +540,8 @@ interface Fixture {
    * receive from them (raise-hand.md).
    */
   echoHand?: (n: number) => void
+  /** The next `n` hand sends are refused (raise-hand.md). */
+  failHandSends?: (n: number) => void
   /** The devices the last call opened with (call-devices.md); null before any. */
   readonly devicesOnJoin: Partial<Record<string, string>> | null
   /** The camera background the last call opened with (call-backgrounds.md); null before any. */
@@ -1734,6 +1737,7 @@ window.fixture = {
   asked,
   reactFrom,
   echoHand,
+  failHandSends,
   get devicesOnJoin() {
     return joined.devices
   },

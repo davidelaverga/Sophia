@@ -36,8 +36,13 @@ describe('pipShows', () => {
     assert.equal(shown?.caption, 'Lucía')
   })
 
-  it('you, speaking alone, said as you', () => {
-    const shown = pipShows([{ ...ana, speaking: true }, marco], [])
+  it('you last: speaking with another in the call, the other shows (a 1:1 never flips to you)', () => {
+    assert.equal(pipShows([{ ...ana, speaking: true }, marco], [])?.person.identity, 'm')
+    assert.equal(pipShows([{ ...ana, speaking: true }, marco], [feed('a', 'camera')])?.person.identity, 'm')
+  })
+
+  it('you alone, said as you', () => {
+    const shown = pipShows([{ ...ana, speaking: true }], [])
     assert.equal(shown?.person.identity, 'a')
     assert.equal(shown?.feed, undefined)
     assert.equal(shown?.caption, 'Ana · you')

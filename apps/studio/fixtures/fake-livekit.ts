@@ -248,9 +248,21 @@ let handSent: Uint8Array | null = null
 function sendHand(data: Uint8Array, to?: string[]): Promise<void> {
   const packet = decodeHand(data)
   const word = !packet ? 'other' : 'ask' in packet ? 'ask' : packet.hand ? 'up' : 'down'
-  asked.push(`hand:${word}${to ? `:${to.join(',')}` : ''}`)
+  // A refused send is recorded with a «!» and goes nowhere (`failHandSends`).
+  const turnedDown = handRefusals > 0
+  handRefusals -= 1
+  asked.push(`hand:${word}${turnedDown ? '!' : ''}${to ? `:${to.join(',')}` : ''}`)
+  if (turnedDown) return Promise.reject(new Error('Data channel not ready'))
   if (packet && 'hand' in packet) handSent = data
   return Promise.resolve()
+}
+
+/** How many of the next hand sends are refused (`window.fixture.failHandSends`). */
+let handRefusals = 0
+
+/** The next `n` hand sends are refused, as a data channel still coming back after a reconnect refuses them. */
+export function failHandSends(n: number): void {
+  handRefusals = n
 }
 
 /**
@@ -259,7 +271,9 @@ function sendHand(data: Uint8Array, to?: string[]): Promise<void> {
  */
 export function echoHand(n: number): void {
   if (!handSent) return
-  emit(RoomEvent.DataReceived, handSent, { identity: personId(n), metadata: '{}' }, undefined, HAND_TOPIC)
+  // A member, as the API signs the others here (fake-people.ts): only a member can send a hand.
+  const member = { identity: personId(n), metadata: JSON.stringify({ role: 'editor' }) }
+  emit(RoomEvent.DataReceived, handSent, member, undefined, HAND_TOPIC)
 }
 
 /** A reaction sent, as the connection records it. */
