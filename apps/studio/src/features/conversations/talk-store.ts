@@ -3,10 +3,11 @@
 // and coming back finds it all. Each draft; each message on its way, or sent with no reply (its key and its words);
 // a refusal that answered one meanwhile; since when Sophia was asked; and the start's words and intent. Forgotten on
 // signing out or switching identity (App), as the cached reads are. Each message on its way or sent with no reply is
-// also kept in the tab (held-in-tab.ts), so a reload offers it again under its key (reliability-held-on-reload.md).
+// also kept in the tab (held-in-tab.ts), so a reload offers it again under its key (reliability-held-on-reload.md);
+// each draft with words, and its «Ask Sophia», too, so a reload finds it in its composer (drafts-survive-reload.md).
 import { useMemo, useSyncExternalStore } from 'react'
 import type { ConversationAsk, ConversationStarted, ConversationSummary, MessageAsk } from '../../api/conversations.ts'
-import { keepHeld, readHeld, type HeldAt } from '../../app/held-in-tab.ts'
+import { DRAFT_MOST, keepHeld, keepTabDrafts, readHeld, readTabDrafts, type HeldAt } from '../../app/held-in-tab.ts'
 import type { DecisionAsk, ProposedMark } from './decide.ts'
 import type { Held } from './held-write.ts'
 
@@ -197,14 +198,48 @@ function keepInTab(place: string, holds: Kept['holds']): void {
   keepHeld(tabOf(place), now.length > 0 ? Object.fromEntries(now) : null)
 }
 
-/** What is kept for a place: in this page's memory, or the messages the tab kept held for it, read back once. */
+/** The most conversations whose drafts a place keeps in the tab: the first with words, in the order first written. */
+const DRAFTS_MOST = 20
+
+/** A draft as the tab keeps it: its words, and whether Sophia is asked. */
+function tabDraftFrom(value: unknown): { text: string; askSophia: boolean } | null {
+  if (!isRecord(value) || typeof value.text !== 'string' || value.text === '') return null
+  return typeof value.askSophia === 'boolean' ? { text: value.text, askSophia: value.askSophia } : null
+}
+
+/** The drafts the tab keeps for a place (a reload), each with its «Ask Sophia»; null for none. */
+function draftsInTab(place: string): Pick<Kept, 'drafts' | 'asks'> | null {
+  const value = readTabDrafts(tabOf(place))
+  if (!isRecord(value)) return null
+  const back = Object.entries(value).flatMap(([id, draft]) => {
+    const words = tabDraftFrom(draft)
+    return words ? [[id, words] as const] : []
+  })
+  if (back.length === 0) return null
+  return {
+    drafts: Object.fromEntries(back.map(([id, d]) => [id, d.text])),
+    asks: Object.fromEntries(back.map(([id, d]) => [id, d.askSophia])),
+  }
+}
+
+/** A place's drafts with words, none too long, kept in the tab with their «Ask Sophia»; none, and the tab keeps none. */
+function keepDraftsInTab(place: string, k: Kept): void {
+  const now = Object.entries(k.drafts)
+    .filter(([, text]) => text.trim() !== '' && text.length <= DRAFT_MOST)
+    .slice(0, DRAFTS_MOST)
+    .map(([id, text]) => [id, { text, askSophia: k.asks[id] ?? true }] as const)
+  keepTabDrafts(tabOf(place), now.length > 0 ? Object.fromEntries(now) : null)
+}
+
+/** What is kept for a place: in this page's memory, or what the tab kept for it (held messages, drafts), read once. */
 function placeAt(place: string): Kept | undefined {
   const was = kept.get(place)
   if (was || looked.has(place)) return was
   looked.add(place)
   const holds = heldInTab(place)
-  if (!holds) return undefined
-  const back = { ...EMPTY, holds }
+  const drafts = draftsInTab(place)
+  if (!holds && !drafts) return undefined
+  const back = { ...EMPTY, ...drafts, holds: holds ?? EMPTY.holds }
   kept.set(place, back)
   return back
 }
@@ -225,6 +260,7 @@ export function changeKept(place: string, change: (was: Kept) => Kept): void {
   const now = retired(change(was))
   kept.set(place, now)
   if (now.holds !== was.holds) keepInTab(place, now.holds)
+  if (now.drafts !== was.drafts || now.asks !== was.asks) keepDraftsInTab(place, now)
   for (const listener of listeners) listener()
 }
 
@@ -240,9 +276,9 @@ export function changeIfCurrent(place: string, born: number, change: (was: Kept)
 export const keptAt = (place: string): Kept | undefined => placeAt(place)
 
 /**
- * Everything kept in this page's memory goes (signing out, another identity). The tab's messages held stay: the App
- * forgets them itself (heldOnlyOf, forgetHeld), since this runs too as every page load finds out who is in, and there
- * it would lose exactly what a reload must find.
+ * Everything kept in this page's memory goes (signing out, another identity). The tab's messages held and drafts stay:
+ * the App forgets them itself (heldOnlyOf, tabDraftsOnlyOf), since this runs too as every page load finds out who is
+ * in, and there it would lose exactly what a reload must find.
  */
 export function forgetKept(): void {
   generation += 1
@@ -397,14 +433,16 @@ export const withHome = (k: Kept, messageId: string, conversationId: string): Ke
 const heldBackFor = (k: Kept): string[] => (k.start.heldBack ? [k.start.heldBack.receipt.conversation.id] : [])
 
 /**
- * The conversations a whole list read now no longer holds, of those seen listed here, with an erasure held here or in
- * doubt, with a start's receipt held back for them or landed after it (`reached`): gone (erased, here or by anyone
- * else). Only a whole list says so: call it with nothing else.
+ * The conversations a whole list read now no longer holds, of those seen listed here or with a draft, with an erasure
+ * held here or in doubt, with a start's receipt held back for them or landed after it (`reached`): gone (erased, here
+ * or by anyone else). Only a whole list says so: call it with nothing else.
  */
 export function goneFrom(k: Kept, now: readonly string[]): string[] {
   const here = new Set(now)
   const knew = new Set([
     ...Object.keys(k.listed),
+    // A draft with words, read back after a reload before any list was seen (drafts-survive-reload.md).
+    ...Object.keys(k.drafts).filter((id) => (k.drafts[id] ?? '').trim() !== ''),
     ...Object.keys(k.erasures),
     ...Object.keys(k.doubted),
     ...Object.keys(k.reached),

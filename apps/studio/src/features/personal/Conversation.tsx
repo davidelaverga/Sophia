@@ -4,6 +4,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type { PersonalSuggestion, PersonalTurn } from '@sophia/contracts'
 import { Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
+import { shownOf } from '../../app/rich-text.ts'
 import { onScreen } from '../../app/shortcuts.ts'
 import { UMBRAL } from '../light/threshold.ts'
 import type { Way } from './arrive.ts'
@@ -211,7 +212,8 @@ const tapShowsTime = () => matchMedia('(hover: none), (max-width: 860px)').match
 /** What a turn offers beside its time: Note this on yours (not while its form is open), Copy on hers. */
 function TurnAct({ row, noting, onNote }: TurnProps) {
   if (!row.turn) return null
-  if (row.author !== 'person') return <Copy text={row.text} />
+  // What it says, as shown: its words without their marks (personal-replies-formatted.md).
+  if (row.author !== 'person') return <Copy text={shownOf(row.text)} />
   if (noting) return null
   return (
     <button className="ghost note-this" type="button" data-note-turn={row.turn.id} onClick={onNote}>

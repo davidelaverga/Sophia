@@ -326,8 +326,9 @@ function useDecisionsWaiting(shown: Snapshot | undefined, plans: ServedWork['pla
 
 /**
  * What the shell does for the rest of the app: its tab title while on screen, its call reported, a join on arrival,
- * and no call kept behind a closed door. What came while the tab was hidden goes to the room's chat; whether a removal
- * ended a call here goes to the notice.
+ * and no call kept behind a closed door. What came while the tab was hidden goes to the room's chat; what waits on this
+ * person, by the view where it is answered, to the views' row (needs-you-in-project.md); whether a removal ended a call
+ * here goes to the notice.
  */
 function useBeyondTheView(
   props: Props,
@@ -340,11 +341,12 @@ function useBeyondTheView(
   const shown = props.background ? undefined : snapshot
   const decisions = useDecisionsWaiting(shown, viewer.plans, props.projectId)
   const reads = props.background ? undefined : viewer.reads
-  const whileAway = useTabTitle(shown, viewer.me, (props.resourcesWaiting ?? 0) + decisions, reads)
+  const tools = shown ? (props.resourcesWaiting ?? 0) : 0
+  const whileAway = useTabTitle(shown, viewer.me, tools + decisions, reads)
   const looking = lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))
   useReportCall(props.projectId, snapshot?.title, room, looking, props.onCall)
   useJoinOnOpen(room, props.joinOnOpen ?? false, props.onJoinHandled)
-  return { whileAway, callEnded }
+  return { whileAway, callEnded, waiting: { work: decisions, resources: tools } }
 }
 
 /** Other words people type for each view (docs/plans/palette-also.md): «what changed» is Updates, «sophia» Conversations. */
@@ -575,7 +577,7 @@ export function ProjectShell(props: Props) {
   const dockAt = useDockPlace(room, snapshot.data, () => onShow('studio'), dockShown(view, blocked))
   const work = useTasksWork(props, feed, membership, blocked, searching)
   const viewer = { me: membership?.actorId ?? null, plans: work.plans, reads: snapshot }
-  const { whileAway, callEnded } = useBeyondTheView(props, snapshot.data, room, blocked, viewer)
+  const { whileAway, callEnded, waiting } = useBeyondTheView(props, snapshot.data, room, blocked, viewer)
   const at = { view, inviting, mayInvite: !!shown && canInvite(membership), shown: !!shown, blocked: !!blocked }
   useProjectKeys({ onLeave, onWork, invite, search, show: onShow }, at)
   return (
@@ -584,7 +586,7 @@ export function ProjectShell(props: Props) {
         <ProjectHeader
           title={<ShellTitle {...{ snapshot, membership, projectId, identity, room, onWork }} />}
           connection={{ state: shownConnection(connection, blocked, isStale(snapshot.error, loaded)), checkedAt }}
-          nav={blocked ? null : <ViewNav projectId={projectId} view={view} onShow={onShow} />}
+          nav={blocked ? null : <ViewNav projectId={projectId} view={view} onShow={onShow} waiting={waiting} />}
           dock={dockAt.inHeader}
           share={shown && <HeadActions may={canInvite(membership)} projectId={projectId} go={{ invite, search }} />}
           account={account}

@@ -21,7 +21,7 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
 import { Mark } from '../../app/Mark.tsx'
-import { Button } from '@sophia/ui'
+import { Button, Icon } from '@sophia/ui'
 import {
   continuesRun,
   contributorsLine,
@@ -261,9 +261,7 @@ function Head(props: {
         aria-label="All conversations"
         onClick={props.onBack}
       >
-        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
-          <path d="M9 2L4 7l5 5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
+        <Icon name="back" />
       </Button>
       <div className="conv-head-words">
         <h3 ref={props.head} tabIndex={-1}>
@@ -324,10 +322,7 @@ export function ContextToggle({ context }: { context: Props['context'] }) {
       aria-controls="conv-context"
       onClick={context.toggle}
     >
-      <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden>
-        <rect x="1.5" y="2.5" width="13" height="11" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
-        <path d="M10 2.5v11" stroke="currentColor" strokeWidth="1.3" />
-      </svg>
+      <Icon name="panel" />
     </Button>
   )
 }

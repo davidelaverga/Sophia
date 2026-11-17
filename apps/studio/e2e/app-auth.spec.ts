@@ -1374,6 +1374,85 @@ test('reliability · a message held with no reply is offered again as the page l
   expect(await unexpectedOf(page)).toEqual([])
 })
 
+// --- Unsent words kept in the tab across a reload, and only for the account in (docs/plans/drafts-survive-reload.md). ---
+
+/** What the tab keeps of unsent words, by its keys. */
+const draftsInTab = (page: Page) =>
+  page.evaluate(() => Object.keys(sessionStorage).filter((k) => k.startsWith('sophia.drafts.v1:')))
+const composer = (page: Page) => page.getByLabel('Continue this question with the team')
+
+/** Davide in the project's conversations (`work=lost`), the first one open, his words written in it. */
+async function davideWrote(context: BrowserContext, words: string) {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.goto(`${APP}/p/${WORK_PROJECT}/conversations?work=lost`)
+  await rows(page).first().click()
+  await composer(page).fill(words)
+  await expect.poll(() => draftsInTab(page)).toHaveLength(1)
+  return page
+}
+
+test('drafts · words written come back after a reload, and Sign out leaves none in the tab', async ({ context }) => {
+  const page = await davideWrote(context, 'Check the March figures')
+  await page.reload()
+  await rows(page).first().click()
+  await expect(composer(page)).toHaveValue('Check the March figures')
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
+  await expect(page.locator('input[type="email"]')).toBeVisible()
+  expect(await draftsInTab(page)).toEqual([])
+  expect(await unexpectedOf(page)).toEqual([])
+})
+
+test('drafts · another account coming into the tab finds none of the last one’s words', async ({ context }) => {
+  const page = await davideWrote(context, 'Check the March figures')
+  await anotherTab(context, session(LUIS))
+  await expect.poll(() => draftsInTab(page)).toEqual([])
+  await page.reload()
+  await rows(page).first().click()
+  await expect(composer(page)).toBeVisible()
+  await expect(composer(page)).toHaveValue('')
+})
+
+/** Davide in the project's room, in the call, the chat open. */
+async function inTheRoomsChat(page: Page) {
+  await page
+    .getByRole('navigation', { name: 'Room controls' })
+    .getByRole('button', { name: /^Join the room/ })
+    .click()
+  await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
+  await page.getByRole('button', { name: /^Chat/ }).first().click()
+  await expect(page.locator('#converse-draft')).toBeVisible()
+}
+
+test('drafts · a sign-out that fails leaves the person in with the room chat’s words, there after a reload too', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.goto(`${APP}/p/${WORK_PROJECT}/studio?work=lost`)
+  await inTheRoomsChat(page)
+  await page.locator('#converse-draft').fill('Half a thought for the room')
+  await expect.poll(() => draftsInTab(page)).toHaveLength(1)
+  // The browser's storage refuses to let the session go: the sign-out fails, the session stays (as above, #410).
+  // Only the session's key refuses: every other removal, from either storage, goes through to its own storage.
+  await page.evaluate((key) => {
+    const removeItem: unknown = Reflect.get(Storage.prototype, 'removeItem')
+    Storage.prototype.removeItem = function (this: Storage, name: string) {
+      if (name === key) throw new Error('Storage refused')
+      if (typeof removeItem === 'function') Reflect.apply(removeItem, this, [name])
+    }
+  }, SESSION_KEY)
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
+  await expect(page.locator('.toast')).toContainText('Couldn’t sign out: this device is still signed in.')
+  await expect(page.locator('#converse-draft')).toHaveValue('Half a thought for the room')
+  expect(await draftsInTab(page)).toHaveLength(1)
+  await page.reload()
+  await inTheRoomsChat(page)
+  await expect(page.locator('#converse-draft')).toHaveValue('Half a thought for the room')
+})
+
 test('legal · a sign-out in another tab forgets the views’ unsent words here too (Codex P1 on #366)', async ({
   context,
 }) => {

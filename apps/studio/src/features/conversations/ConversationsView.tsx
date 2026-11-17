@@ -8,7 +8,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import type { Membership } from '@sophia/contracts'
-import { Button } from '@sophia/ui'
+import { Button, Icon } from '@sophia/ui'
 import {
   getConversationMessages,
   listConversations,
@@ -546,9 +546,7 @@ function StartButton({ start }: { start: ReturnType<typeof useStart> }) {
       aria-pressed={start.starting}
       onClick={start.toggle}
     >
-      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
-        <path d="M7 1.5v11M1.5 7h11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
+      <Icon name="plus" />
     </Button>
   )
 }

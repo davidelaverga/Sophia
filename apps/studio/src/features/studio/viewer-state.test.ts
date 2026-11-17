@@ -7,6 +7,7 @@ import {
   lensesShown,
   lensInAddress,
   lensKept,
+  ownedBy,
   readLensWrite,
   readViewerState,
   shownLens,
@@ -116,5 +117,29 @@ describe('the lenses shown (docs/plans/prod-honesty.md)', () => {
     assert.equal(shownLens('build', false), 'converse')
     assert.equal(shownLens('converse', false), 'converse')
     assert.equal(shownLens('build', true), 'build')
+  })
+})
+
+describe('ownedBy: a state is kept only under the key it was loaded for (drafts-survive-reload.md)', () => {
+  const DAVIDE = viewerKey('davide', 'p1')
+  const LUIS = viewerKey('luis', 'p1')
+  const his = viewerReducer(INITIAL_VIEWER_STATE, { type: 'draft', lens: 'converse', text: 'Davide’s words' })
+  const theirs = viewerReducer(INITIAL_VIEWER_STATE, { type: 'draft', lens: 'converse', text: 'Luis’s words' })
+
+  it('keeps the state it was loaded for, and every change after', () => {
+    assert.deepEqual(ownedBy({ key: DAVIDE, loaded: null }, DAVIDE, his), { key: DAVIDE, loaded: null })
+  })
+
+  it('never keeps one viewer’s state under another’s key, loaded or not', () => {
+    assert.equal(ownedBy({ key: DAVIDE, loaded: null }, LUIS, his), null, 'the key moved, nothing loaded for it')
+    assert.equal(ownedBy({ key: LUIS, loaded: theirs }, LUIS, his), null, 'loaded, but still the last viewer’s shown')
+  })
+
+  it('keeps the loaded state once it is the one rendered, and what changes from it after', () => {
+    const owner = ownedBy({ key: LUIS, loaded: theirs }, LUIS, theirs)
+    assert.deepEqual(owner, { key: LUIS, loaded: null })
+    assert.ok(owner)
+    const typed = viewerReducer(theirs, { type: 'draft', lens: 'converse', text: 'more' })
+    assert.deepEqual(ownedBy(owner, LUIS, typed), owner)
   })
 })

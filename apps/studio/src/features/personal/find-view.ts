@@ -1,6 +1,8 @@
-// What finding in the conversation sees (personal-moments.md §3): the turns' words, a match wherever the query stands,
-// whatever its case or accents, as the notes' own search (find-accents.md, places-view.ts).
+// What finding in the conversation sees (personal-moments.md §3): the turns' words as shown, without their marks
+// (personal-replies-formatted.md), a match wherever the query stands, whatever its case or accents, as the notes' own
+// search (find-accents.md, places-view.ts).
 import { foldCharacter as plainOf } from '../../app/search-fold.ts'
+import { shownOf } from '../../app/rich-text.ts'
 import type { Row } from './conversation-view.ts'
 
 /** Where a match stands: its turn's row, and which of that turn's matches it is. */
@@ -56,9 +58,14 @@ export function pieces(text: string, query: string): Array<{ text: string; n: nu
   return out
 }
 
-/** Every match in the conversation's turns, in reading order. */
-export function foundIn(rows: readonly Row[], query: string): Found[] {
+/**
+ * Every match in the conversation's turns as they are shown (no marks: `shownOf`), in reading order. `shown` reads a
+ * turn's words as shown; Find passes its own memo, kept with the conversation and never module-wide.
+ */
+export function foundIn(rows: readonly Row[], query: string, shown: (text: string) => string = shownOf): Found[] {
   return rows.flatMap((r) =>
-    r.kind === 'turn' ? pieces(r.text, query).flatMap((p) => (p.n === null ? [] : [{ key: r.key, n: p.n }])) : [],
+    r.kind === 'turn'
+      ? pieces(shown(r.text), query).flatMap((p) => (p.n === null ? [] : [{ key: r.key, n: p.n }]))
+      : [],
   )
 }

@@ -15,7 +15,7 @@
 // - a review of the lead's that proposes a change: a pill in the bar, its card in the decisions' slot, one or the
 //   other (ReviewResult.tsx). The review is the goal's own read, beside the view (review.ts), never part of the plan.
 // Everything the viewer did here (commands, drafts, questions, the lens) is theirs: another viewer starts afresh.
-import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { EmptyState, Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
 import { saveBlob } from '../../artifacts/download.ts'
 import { boardCsv, boardFileName, boardMarkdown, type ExportRow } from './board-export.ts'
@@ -131,9 +131,14 @@ const shownLanes = (rows: readonly PlanRow[]) =>
 /** How many tiles a lane shows before it keeps the rest one press away. */
 const SHOWN = 5
 
+/** A lane that folds (Complete beside Blocked): whether it is folded now, and the press that turns it. */
+type Fold = { folded: boolean; turn: () => void }
+
 interface LaneProps extends Omit<TileProps, 'row' | 'index' | 'flags'> {
   lane: LaneView
   rows: PlanRow[]
+  /** Complete while five lanes stand in one row (docs/plans/board-fold-complete.md); absent, the lane never folds. */
+  fold?: Fold | undefined
   /** Every row of the plan: what a blocked lane's rows wait on is among them. */
   all: readonly PlanRow[]
   flags: (row: PlanRow) => TileFlags
@@ -197,18 +202,43 @@ const WHY_SHOWN = 3
 /** What the focus held stands for when it was on «and N more»: no task's id. */
 const WHY_MORE = '\u0000why-more'
 
-/** A lane: its head and count, its first tiles, and the rest one press away. */
-function LaneSection({ lane, rows, flags, ...tile }: LaneProps) {
+/** What it stands for when it was on a lane's fold: no task's id either. */
+const FOLD = '\u0000fold'
+
+/** A lane's head: its mark, name and count; a lane that folds wears them on the press that folds it. */
+function LaneHead({ lane, count, fold }: { lane: LaneView; count: number; fold: Fold | undefined }) {
+  const words = (
+    <>
+      <span className="plan-mark" data-mark={lane.mark} aria-hidden />
+      <span className="field-label">{lane.label}</span>
+      <span className="count">{count}</span>
+    </>
+  )
+  if (!fold) return <h4 className="lane-head">{words}</h4>
+  return (
+    <h4 className="lane-head">
+      <button type="button" className="ghost lane-fold" aria-expanded={!fold.folded} onClick={fold.turn}>
+        {words}
+        <Icon name="chevron" size={12} />
+      </button>
+    </h4>
+  )
+}
+
+/** A lane: its head and count, its first tiles, and the rest one press away; folded, its head alone. */
+function LaneSection({ lane, rows, flags, fold, ...tile }: LaneProps) {
   const [all, setAll] = useState(false)
   const shown = all ? rows : rows.slice(0, SHOWN)
   const kept = rows.length - SHOWN
+  if (fold?.folded)
+    return (
+      <section className="lane" data-lane={lane.key} data-folded aria-label={lane.label}>
+        <LaneHead lane={lane} count={rows.length} fold={fold} />
+      </section>
+    )
   return (
     <section className="lane" data-lane={lane.key} aria-label={lane.label}>
-      <h4 className="lane-head">
-        <span className="plan-mark" data-mark={lane.mark} aria-hidden />
-        <span className="field-label">{lane.label}</span>
-        <span className="count">{rows.length}</span>
-      </h4>
+      <LaneHead lane={lane} count={rows.length} fold={fold} />
       {lane.key === 'blocked' && <LaneWhy rows={rows} all={tile.all} plan={tile.plan} onOpen={tile.onOpen} />}
       {rows.length === 0 ? (
         <EmptyState slot className="lane-empty">
@@ -568,24 +598,53 @@ function useBoard(rows: readonly PlanRow[], viewerId: string | null, changed: Re
   return { lit, setLit, open, setOpen, lens, setLens, waited, flags, step }
 }
 
+/** What a focused element stands for, so the focus can follow it when it is mounted anew or gone. */
+function heldOf(at: Element | null): string | null {
+  // «and N more» stands for the line: gone with it shortened (or the lane), the focus goes to the line's last press,
+  // else the lane's first tile, never the page (Codex on #244).
+  if (at?.closest('.board .lane-why-more')) return WHY_MORE
+  // A lane's fold, gone when the board narrows under five in a row: the focus goes to that lane's first tile.
+  if (at?.closest('.board .lane-fold')) return FOLD
+  // A blocker's press stands for its task: gone with the Blocked lane (the blocker done), the focus goes to the
+  // blocker's own tile (Codex on #244).
+  const why = at?.closest<HTMLElement>('.board [data-blocker]')
+  const tile = at?.closest<HTMLElement>('.board [data-task]')
+  return why?.dataset['blocker'] ?? tile?.dataset['task'] ?? null
+}
+
+/** Where the focus goes for what it stood for, when what held it is gone. */
+function refocus(id: string, rows: readonly PlanRow[]) {
+  if (id === WHY_MORE || id === FOLD) {
+    const last =
+      id === FOLD
+        ? document.querySelector<HTMLElement>('.board .lane[data-lane="complete"] [data-task]')
+        : [...document.querySelectorAll<HTMLElement>('.board .lane-why [data-blocker]')].at(-1)
+    ;(last ?? document.querySelector<HTMLElement>('.board [data-task]'))?.focus({ preventScroll: true })
+    return
+  }
+  const tile = [...document.querySelectorAll<HTMLElement>('.board [data-task]')].find((el) => el.dataset['task'] === id)
+  if (tile) {
+    tile.focus({ preventScroll: true })
+    return
+  }
+  // Moved into a lane past the tiles it shows (five, the rest one press away): the focus goes to that press, so the
+  // keyboard can reveal it; into a folded lane, to its fold; never to the page (Codex on #236).
+  const row = rows.find((r) => r.item.id === id)
+  const lane = row ? document.querySelector(`.board .lane[data-lane="${laneOf(row, rows)}"]`) : null
+  const press = lane?.querySelector<HTMLElement>('.lane-more') ?? lane?.querySelector<HTMLElement>('.lane-fold')
+  press?.focus({ preventScroll: true })
+}
+
 /**
  * A tile with the focus that moves lanes (its blocker complete, in a live update) is mounted anew in the other lane:
  * the focus follows it there, by its task, instead of falling to the page (Codex on #236). A focus moved elsewhere, or
  * a tile left on purpose, is not followed.
  */
-function useTileFocus(rows: readonly PlanRow[]) {
+function useTileFocus(rows: readonly PlanRow[], folds: boolean) {
   const held = useRef<string | null>(null)
   useEffect(() => {
     const into = (e: FocusEvent) => {
-      const at = e.target instanceof Element ? e.target : null
-      // A blocker's press stands for its task: gone with the Blocked lane (the blocker done), the focus goes to the
-      // blocker's own tile (Codex on #244).
-      const why = at?.closest<HTMLElement>('.board [data-blocker]')
-      const tile = at?.closest<HTMLElement>('.board [data-task]')
-      // «and N more» stands for the line: gone with it shortened (or the lane), the focus goes to the line's last
-      // press, else the lane's first tile, never the page (Codex on #244).
-      const more = at?.closest('.board .lane-why-more') ? WHY_MORE : null
-      held.current = more ?? why?.dataset['blocker'] ?? tile?.dataset['task'] ?? null
+      held.current = heldOf(e.target instanceof Element ? e.target : null)
     }
     // Left on purpose (the tile still there once the moment passes): not followed. Removed with the focus in it (the
     // browser blurs it while still connected, then removes it): followed. Read after the commit that removes it.
@@ -605,25 +664,42 @@ function useTileFocus(rows: readonly PlanRow[]) {
   }, [])
   useLayoutEffect(() => {
     const id = held.current
-    if (id === null || document.activeElement !== document.body) return
-    if (id === WHY_MORE) {
-      const last = [...document.querySelectorAll<HTMLElement>('.board .lane-why [data-blocker]')].at(-1)
-      ;(last ?? document.querySelector<HTMLElement>('.board [data-task]'))?.focus({ preventScroll: true })
-      return
-    }
-    const tile = [...document.querySelectorAll<HTMLElement>('.board [data-task]')].find(
-      (el) => el.dataset['task'] === id,
-    )
-    if (tile) {
-      tile.focus({ preventScroll: true })
-      return
-    }
-    // Moved into a lane past the tiles it shows (five, the rest one press away): the focus goes to that press, so the
-    // keyboard can reveal it; never to the page (Codex on #236).
-    const row = rows.find((r) => r.item.id === id)
-    const lane = row ? document.querySelector(`.board .lane[data-lane="${laneOf(row, rows)}"]`) : null
-    lane?.querySelector<HTMLElement>('.lane-more')?.focus({ preventScroll: true })
-  }, [rows])
+    if (id !== null && document.activeElement === document.body) refocus(id, rows)
+  }, [rows, folds])
+}
+
+/**
+ * Over this width (`.board`'s, as its container query reads it) five lanes stand in one row: board.css's line, which
+ * also holds the folded row to it.
+ */
+const FIVE_IN_A_ROW = 1148
+
+/** An element's content width, unrounded, as `@container board` reads the board's. */
+const contentWidth = (el: Element) => {
+  const style = getComputedStyle(el)
+  const edges = [style.paddingLeft, style.paddingRight, style.borderLeftWidth, style.borderRightWidth]
+  return el.getBoundingClientRect().width - edges.reduce((sum, edge) => sum + parseFloat(edge), 0)
+}
+
+/**
+ * Complete folds while five lanes stand in one row: beside Blocked, five equal lanes wrap the tasks' titles, and the
+ * board is never wider than the page (`--content`, 1280 px) at any window (docs/plans/board-fold-complete.md). Folded
+ * until opened, for the board's moment; under the line (three and two, the phone) it never folds.
+ */
+function useFold(lanes: RefObject<HTMLDivElement | null>, count: number): Fold | undefined {
+  const [wide, setWide] = useState(false)
+  const [open, setOpen] = useState(false)
+  useLayoutEffect(() => {
+    const board = lanes.current?.closest('.board')
+    if (!board) return undefined
+    setWide(contentWidth(board) > FIVE_IN_A_ROW)
+    const watch = new ResizeObserver(([entry]) => {
+      if (entry) setWide(entry.contentRect.width > FIVE_IN_A_ROW)
+    })
+    watch.observe(board)
+    return () => watch.disconnect()
+  }, [lanes])
+  return count === 5 && wide ? { folded: !open, turn: () => setOpen(!open) } : undefined
 }
 
 /** The lanes side by side (four; five while something is blocked), moved through by the arrows, with the threads drawn over them. */
@@ -638,20 +714,29 @@ function Lanes({
 }) {
   const lanes = useRef<HTMLDivElement>(null)
   const shown = shownLanes(rows)
-  useTileFocus(rows)
+  const fold = useFold(lanes, shown.length)
+  useTileFocus(rows, fold !== undefined)
   return (
     <div
       ref={lanes}
       className="board-lanes"
       style={{ '--lanes': shown.length }}
       data-lanes={shown.length}
+      data-folded={fold?.folded || undefined}
       data-threading={board.waited.length > 0 || undefined}
       onKeyDown={(e) => {
         if (lanes.current && moveOnBoard(lanes.current, e.key)) e.preventDefault()
       }}
     >
       {shown.map((lane) => (
-        <LaneSection key={lane.key} lane={lane} rows={inLane(rows, lane.key)} {...tile} all={rows} />
+        <LaneSection
+          key={lane.key}
+          lane={lane}
+          rows={inLane(rows, lane.key)}
+          {...tile}
+          all={rows}
+          fold={lane.key === 'complete' ? fold : undefined}
+        />
       ))}
       <Threads box={lanes} to={board.lit} from={board.waited} lanes={shown.length} />
     </div>
