@@ -10,7 +10,7 @@ nothing deployed, no remote touched.
 Runtime unit: Luis's Windows host (Playwright through the session's guard, `pw-gentle.ps1`; never `pw-direct`, as
 Wow.exe was not running).
 Existing authority: Luis 2026-11-16 approved lote 18's lines («aprobados»), in English as written.
-Ending commit: the branch's last commit; code last changed at `4a753558a`. Against `9495c87fc`:
+Ending commit: the branch's last commit; code last changed at `18ad93714` (review round). Against `9495c87fc`:
 `apps/studio/src/features/studio/ProjectShell.tsx`, `project-door.ts` (+ test),
 `apps/studio/src/features/voice/livekit-room.ts`, `useProjectRoom.ts`, `call-end.ts` (+ test), `room-view.ts`,
 `apps/studio/src/features/personal/PlacesBar.tsx`, `apps/studio/fixtures/room.tsx`, `fake-livekit.ts`,
@@ -50,10 +50,29 @@ Ending commit: the branch's last commit; code last changed at `4a753558a`. Again
 - Whole-repo `oxlint --type-aware`, `tsc --noEmit -p apps/studio`, Prettier on every touched non-docs file: clean.
   `node --test` on `features/voice/*.test.ts` and `features/studio/*.test.ts`: 435/435.
 
+## Review round (no P1; one P2, two P3)
+
+- **P2, written first** `dc382c66d`, fixed `18ad93714`: Leave project in tab B (same browser) took tab A out of the
+  call and out of the project, and A's notice said «…when you were removed from the project», untrue. Leave project
+  now says so on the existing calls channel (`call-tabs.ts`, `sophia.calls.v2`: `leaving`/`left`) before the API
+  call, taking it back on a refusal; `callEndedByRemoval` skips the line for a project this browser left. Check: two
+  pages in one context, Leave project in B, then the server's removal and the 403 in A: the plain notice, no line.
+- **P3 (a)**, same pair: the host screen line now goes after `REJOINED_FOR_MS` (4 s, «Reconnected.»'s), and any later
+  note replaces it; checks for both. **(b)** the spec header and the plan cite livekit-client 2.22.3's lines.
+- **Unit red** at `dc382c66d`: 3 failed, «a.calls.left is not a function», «a.calls.leaving is not a function», and
+  `callEndedByRemoval` returned true with `left: true`. **Green** at `18ad93714`: voice and studio units 438/438;
+  oxlint, tsc, Prettier clean.
+- **E2E not run for this round:** the guard refused for about two hours (free RAM 2.2 to 7.7 GB, under its 8 GB
+  floor for a gentle run), and once stopped a run that had started (`GUARD: stopping the run: free RAM down to 5.8
+  GB`). Wow.exe was not running, so pw-direct was not allowed. Still to run: `removed-mid-call` and
+  `host-stopped-screen` detached at `dc382c66d` (expected red: the P2 check and the timed-out host line), then those
+  two plus host-controls, dock-header, arrival-since, project-leave, room-dock and room at the branch.
+
 ## Remaining
 
 - The plan note's Limits: a call taken out by an admin's «Remove from call» whose note still stands when the person is
-  later removed from the project says the line too; the line is the notice's, so a reload shows the plain notice; the
-  screen line stays in the dock like any device note (until a device works or the call ends), it is not timed.
+  later removed from the project says the line too; the line is the notice's, so a reload shows the plain notice; a
+  Leave project from another browser or device isn't heard, so that tab would say the line.
+- The review round's e2e runs (above).
 - The fixture's LiveKit stands in for `livekit-room.ts`, so the host-mute-to-callback step there is covered by reading
   and types, not by a browser check against a real LiveKit server.
