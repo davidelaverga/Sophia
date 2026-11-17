@@ -62,14 +62,18 @@ test('needs you · at phone width the number stands inside its link, and the pag
   expect(count.y + count.height).toBeLessThanOrEqual(link.y + link.height + 0.5)
   // What stands past the screen's edge, outside any row that scrolls, is named so a failure says where.
   const past = await page.evaluate(() => {
-    const scrolls = (el: Element) => /auto|scroll|hidden|clip/.test(getComputedStyle(el).overflowX)
-    const clipped = (el: Element) => {
-      for (let up = el.parentElement; up && up !== document.body; up = up.parentElement) if (scrolls(up)) return true
-      return false
+    const out: string[] = []
+    for (const el of document.querySelectorAll('body *')) {
+      const right = el.getBoundingClientRect().right
+      let up = el.parentElement
+      while (up && up !== document.body && !/auto|scroll|hidden|clip/.test(getComputedStyle(up).overflowX)) {
+        up = up.parentElement
+      }
+      if (right > 375.5 && (!up || up === document.body)) {
+        out.push(`${el.tagName.toLowerCase()}.${el.className} → ${right.toFixed(1)}`)
+      }
     }
-    return [...document.querySelectorAll('body *')]
-      .filter((el) => el.getBoundingClientRect().right > 375.5 && !clipped(el))
-      .map((el) => `${el.tagName.toLowerCase()}.${el.className} → ${el.getBoundingClientRect().right.toFixed(1)}`)
+    return out
   })
   expect(past).toEqual([])
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375)
