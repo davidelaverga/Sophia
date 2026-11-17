@@ -94,6 +94,8 @@ test.beforeEach(async ({ page }) => {
 
 const alerts = (page: Page) => page.evaluate(() => window.alerts)
 const BLOCKED = 'Notifications are blocked in this browser, so knocks show only here.'
+/** Where the door says notifications are blocked: a polite live region, there (empty) before it has anything to say. */
+const blockedLine = (page: Page) => door(page).locator('p[aria-live="polite"]')
 
 test('knock · someone starts waiting: an admin hears it; with the tab shown, no notification', async ({ page }) => {
   await standIns(page, { permission: 'granted', hidden: false })
@@ -134,9 +136,8 @@ test('knock · the door offers notifications once; the browser asks, and the off
   const offer = door(page).getByRole('button', { name: 'Notify me when someone knocks' })
   await offer.click()
   await expect(offer).toHaveCount(0)
-  expect((await alerts(page))?.asked).toBe(1)
-  // Granted: nothing to say.
-  await page.waitForTimeout(300)
+  // Granted: nothing to say, once the browser has been asked.
+  await expect.poll(async () => (await alerts(page))?.asked).toBe(1)
   await expect(door(page).getByText(BLOCKED)).toHaveCount(0)
 })
 
@@ -157,8 +158,8 @@ test('knock · a prompt dismissed is not offered again, here or after a reload (
   const offer = door(page).getByRole('button', { name: 'Notify me when someone knocks' })
   await offer.click()
   await expect(offer).toHaveCount(0)
-  // Dismissed, the choice is unmade: nothing is blocked, nothing to say.
-  await page.waitForTimeout(300)
+  // Dismissed, the choice is unmade: nothing is blocked, nothing to say, once the browser has been asked.
+  await expect.poll(async () => (await alerts(page))?.asked).toBe(1)
   await expect(door(page).getByText(BLOCKED)).toHaveCount(0)
   await page.reload()
   await expect(door(page).getByRole('status')).toContainText('At the door')
@@ -171,7 +172,7 @@ test('knock · notifications blocked at the prompt: the door says knocks show on
   await standIns(page, { permission: 'default', hidden: false, answer: 'denied' })
   await page.goto('/room.html?lobby=waiting')
   await door(page).getByRole('button', { name: 'Notify me when someone knocks' }).click()
-  await expect(door(page).getByRole('status').filter({ hasText: BLOCKED })).toHaveText(BLOCKED)
+  await expect(blockedLine(page)).toHaveText(BLOCKED)
   expect((await alerts(page))?.asked).toBe(1)
 })
 
@@ -182,5 +183,18 @@ test('knock · notifications blocked after the door opened: the press says so to
   await expect(offer).toBeVisible()
   await page.evaluate(() => window.blockNotifications?.())
   await offer.click()
-  await expect(door(page).getByRole('status').filter({ hasText: BLOCKED })).toHaveText(BLOCKED)
+  await expect(blockedLine(page)).toHaveText(BLOCKED)
+})
+
+test('knock · the blocked line is heard: its live region waits before the press, and focus stays on the door', async ({
+  page,
+}) => {
+  await standIns(page, { permission: 'default', hidden: false, answer: 'denied' })
+  await page.goto('/room.html?lobby=waiting')
+  await expect(blockedLine(page)).toHaveText('')
+  await door(page).getByRole('button', { name: 'Notify me when someone knocks' }).press('Enter')
+  await expect(blockedLine(page)).toHaveText(BLOCKED)
+  // The offer it replaced had the focus: it goes to the door's title, not to the page.
+  const focused = () => page.evaluate(() => document.activeElement?.className ?? '')
+  await expect.poll(focused).toContain('lobby-title')
 })
