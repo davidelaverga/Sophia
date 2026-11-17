@@ -17,7 +17,7 @@ export interface PipShown<F extends Feed> {
 
 /**
  * The stage's one view: a shared screen (the newest, as the stage shows it); else the one speaking, another before you;
- * else another with a camera; else another; else you. Null with nobody in the call.
+ * else another with a camera; else another; you last, only when alone. Null with nobody in the call.
  */
 export function pipShows<F extends Feed>(people: readonly RoomParticipant[], feeds: readonly F[]): PipShown<F> | null {
   const screen = feeds.findLast((f) => f.source === 'screen')
@@ -25,12 +25,8 @@ export function pipShows<F extends Feed>(people: readonly RoomParticipant[], fee
   if (screen && presenter) return { person: presenter, feed: screen, caption: screenCaption(presenter) }
   const camera = (p: RoomParticipant) => feeds.find((f) => f.identity === p.identity && f.source === 'camera')
   const others = people.filter((p) => !p.local)
-  const person =
-    others.find((p) => p.speaking) ??
-    people.find((p) => p.speaking) ??
-    others.find((p) => camera(p)) ??
-    others[0] ??
-    people[0]
+  // You last, only when alone: in a call of two the window never flips to you when you talk.
+  const person = others.find((p) => p.speaking) ?? others.find((p) => camera(p)) ?? others[0] ?? people[0]
   if (!person) return null
   const name = shortName(person.name)
   return { person, feed: camera(person), caption: person.local ? `${name} · you` : name }

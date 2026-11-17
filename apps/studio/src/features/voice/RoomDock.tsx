@@ -398,19 +398,21 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
   )
 }
 
-/** Raise hand, then Lower hand while it is raised (raise-hand.md): its name says what a press does. */
+/**
+ * Raise hand (raise-hand.md): one name and pressed while raised, as the dock's other toggles keep theirs; its tip says
+ * what a press does now, «Lower hand» while raised.
+ */
 function HandButton({ raised, onRaise }: { raised: boolean; onRaise: (raised: boolean) => void }) {
-  const label = raised ? 'Lower hand' : 'Raise hand'
   return (
     <button
       type="button"
       className="round has-tip"
       aria-pressed={raised}
-      aria-label={label}
+      aria-label="Raise hand"
       onClick={() => onRaise(!raised)}
     >
       <Icon name="handRaise" />
-      <Tip label={label} />
+      <Tip label={raised ? 'Lower hand' : 'Raise hand'} />
     </button>
   )
 }
