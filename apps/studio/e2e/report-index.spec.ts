@@ -36,6 +36,13 @@ test.afterEach(async ({ page }) => {
   expect((await fixture(page)).unexpected, 'requests the fixture did not expect').toEqual([])
 })
 
+/**
+ * No scroll anchoring, as in a browser without it (Safari): Chromium's anchoring would make up for a fold that takes
+ * the list's height away after the heading is placed, and hide it (review P2 on the fold's landing).
+ */
+const noAnchoring = (page: Page) =>
+  page.addStyleTag({ content: '.report-pane-body, .report-pane-body * { overflow-anchor: none !important; }' })
+
 async function openReading(page: Page) {
   await page.goto(`/room.html?report=${READING}`)
   await expect(page.locator('.md')).toContainText('Recovery windows differ more than prices do')
@@ -104,6 +111,7 @@ test('report index · enlarged at 1280: On this page in the margin, the column i
 
 test('report index · in the side pane it folds under one button, opened and used by keyboard', async ({ page }) => {
   await openReading(page)
+  await noAnchoring(page)
   const toggle = index(page).getByRole('button', { name: 'On this page' })
   await expect(toggle).toHaveAttribute('aria-expanded', 'false')
   await expect(index(page).getByRole('link')).toHaveCount(0)
@@ -124,6 +132,7 @@ test('report index · in the side pane it folds under one button, opened and use
 
 test('report index @phone · folded under one button, and the page never scrolls sideways', async ({ page }) => {
   await openReading(page)
+  await noAnchoring(page)
   const toggle = index(page).getByRole('button', { name: 'On this page' })
   await expect(toggle).toBeVisible()
   await toggle.click()
