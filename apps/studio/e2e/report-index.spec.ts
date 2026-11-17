@@ -115,6 +115,8 @@ test('report index · in the side pane it folds under one button, opened and use
   await expect(index(page).getByRole('link', { name: 'Executive summary' })).toBeFocused()
   await index(page).getByRole('link', { name: 'Background and question' }).click()
   await expect.poll(() => headingTop(page, 'md-background-and-question')).toBeLessThanOrEqual(40)
+  // At the top, not past it: the list folding as the section is brought up doesn't throw it above the reading area.
+  expect(await headingTop(page, 'md-background-and-question')).toBeGreaterThanOrEqual(-2)
   await expect(page.locator('#md-background-and-question')).toBeFocused()
   // Chosen, it folds again: the text is what is read now.
   await expect(toggle).toHaveAttribute('aria-expanded', 'false')
@@ -133,6 +135,7 @@ test('report index @phone · folded under one button, and the page never scrolls
   expect(wide).toBe(0)
   await index(page).getByRole('link', { name: 'Findings' }).click()
   await expect.poll(() => headingTop(page, 'md-findings')).toBeLessThanOrEqual(40)
+  expect(await headingTop(page, 'md-findings')).toBeGreaterThanOrEqual(-2)
 })
 
 test('report index · a report of fewer than four sections has none', async ({ page }) => {
