@@ -684,10 +684,12 @@
   gap: 6px;
   white-space: nowrap;
 }
-/* Four lenses on one line on a phone too: a label never breaks in two. */
+/* Four lenses on one line on a phone too: a label never breaks in two. At 9 px a side Linux's fonts drew the row to
+   377 px on a 375 screen (needs-you-nav.spec), so the count sits 4 px from its label and the sides are 8. */
 @media (max-width: 420px) {
   .board-lens button {
-    padding: 0 9px;
+    gap: 4px;
+    padding: 0 8px;
   }
 }
 
