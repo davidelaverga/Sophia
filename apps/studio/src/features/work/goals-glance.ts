@@ -99,12 +99,15 @@ export function stateLine(goal: Goal, glance: GoalGlance | undefined): string {
   return LINE[goal.status](goal, total > 0 ? `${String(done)} of ${String(total)} done` : null, total)
 }
 
+/** «1 waiting on you»: a goal's asks here, and a project view's count in its name (needs-you-in-project.md). */
+export const waitingOnYou = (n: number) => `${String(n)} waiting on you`
+
 /** Why a goal needs attention: what waits on the viewer, then a difficulty written on it or what stands in its way. */
 function attentionLine(plan: Glanced | undefined): string {
   const asks = plan?.asks?.length ?? 0
   const note = plan?.note
   const way = note?.kind === 'blocker' ? note.said : wayLine(plan?.glance)
-  return [asks > 0 ? `${String(asks)} waiting on you` : null, way].filter(Boolean).join(' · ')
+  return [asks > 0 ? waitingOnYou(asks) : null, way].filter(Boolean).join(' · ')
 }
 
 /**

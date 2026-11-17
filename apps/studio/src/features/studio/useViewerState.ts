@@ -1,6 +1,8 @@
 // React binding for viewer-state.ts. Storage is a per-device convenience: when it is unavailable
-// (private mode, blocked site data) the state still works for this page and is simply not kept.
+// (private mode, blocked site data) the state still works for this page and is simply not kept. The chat's draft is
+// kept in the tab instead (held-in-tab.ts), so a reload finds it and nothing else does (drafts-survive-reload.md).
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
+import { DRAFT_MOST, keepTabDrafts, readTabDrafts, type HeldAt } from '../../app/held-in-tab.ts'
 import { ADDRESS_MOVED, pathIsFor } from '../../app/route.ts'
 import { VISION } from '../../app/vision.ts'
 import {
@@ -14,7 +16,10 @@ import {
   viewerKey,
   viewerReducer,
   withLensInAddress,
+  ownedBy,
   type Lens,
+  type StateOwner,
+  type ViewerState,
 } from './viewer-state.ts'
 
 function stored(key: string) {
@@ -57,34 +62,55 @@ function useAddressMoves() {
  * the Studio view is the one shown and the lens is this viewer's to read (`addressLensFor`); a shell kept out of
  * sight for its call reads nothing from another view's address.
  */
-function load(key: string, inAddress: boolean) {
-  const was = stored(key)
+function load(key: string, chat: HeldAt, inAddress: boolean) {
+  const was = withChatDraft(stored(key), readTabDrafts(chat))
   const named = inAddress ? addressLensFor(key, window.location, wroteFor()) : null
   return named ? { ...was, lens: named } : was
+}
+
+/** Where the tab keeps the chat's draft: the viewer's (accountOf), in this project's room. */
+const chatAt = (viewer: string, projectId: string): HeldAt => ({ account: viewer, part: 'room', project: projectId })
+
+/** The chat's draft the tab kept for this viewer and project (a reload), in the state read: words, none too long. */
+function withChatDraft(state: ViewerState, kept: unknown): ViewerState {
+  if (typeof kept !== 'string' || kept.trim() === '' || kept.length > DRAFT_MOST) return state
+  return { ...state, drafts: { ...state.drafts, converse: kept } }
+}
+
+/** The chat's draft kept in the tab as it is now: its words, none too long; none, and the tab keeps none. */
+function keepChatDraft(chat: HeldAt, text: string | undefined) {
+  keepTabDrafts(chat, text !== undefined && text.trim() !== '' && text.length <= DRAFT_MOST ? text : null)
 }
 
 /** `inAddress`: this Studio view is the one shown, so the address is its to read and write (Codex on #242). */
 export function useViewerState(viewer: string, projectId: string, inAddress = true) {
   const key = viewerKey(viewer, projectId)
-  const [state, dispatch] = useReducer(viewerReducer, key, (k) => load(k, inAddress))
+  const [state, dispatch] = useReducer(viewerReducer, key, (k) => load(k, chatAt(viewer, projectId), inAddress))
   // The lens shown: a stored or linked one this Studio doesn't offer opens as Converse, the stored choice kept.
   const shown = shownLens(state.lens, VISION)
   // Another subject (or project) at the same page: their own stored state, and not the lens the address kept for the
   // last one (the address is then rewritten from theirs, below).
-  const loadedFor = useRef(key)
+  const owner = useRef<StateOwner>({ key, loaded: null })
   useEffect(() => {
-    if (loadedFor.current === key) return
-    loadedFor.current = key
-    dispatch({ type: 'load', state: load(key, false) })
-  }, [key])
+    if (owner.current.key === key) return
+    const loaded = load(key, chatAt(viewer, projectId), false)
+    owner.current = { key, loaded }
+    dispatch({ type: 'load', state: loaded })
+  }, [key, viewer, projectId])
 
+  // Kept only once the state rendered is this key's: never the last viewer's under the new key (ownedBy).
   useEffect(() => {
+    const owns = ownedBy(owner.current, key, state)
+    if (!owns) return
+    owner.current = owns
     try {
       localStorage.setItem(key, JSON.stringify(storedViewerState(state)))
     } catch {
       /* storage unavailable: the view lasts for this page only */
     }
-  }, [key, state])
+    // The chat's draft, kept in the tab (drafts-survive-reload.md); the other lenses' stay on the device.
+    keepChatDraft(chatAt(viewer, projectId), state.drafts.converse)
+  }, [key, state, viewer, projectId])
   // The lens in the address, no history entry, Converse too (docs/plans/studio-lens-address.md). `moves`: the address
   // moved under a mounted shell (the view already shown, pressed again) is written again (Codex on #242).
   const moves = useAddressMoves()

@@ -6,7 +6,7 @@ import { draftsOnlyOf, forgetDrafts } from '../features/personal/draft.ts'
 import { cacheFor, cacheOf } from './account-cache.ts'
 import { accountOf } from './auth-callback.ts'
 import { forgetKept } from '../features/conversations/talk-store.ts'
-import { forgetHeld, heldOnlyOf } from './held-in-tab.ts'
+import { forgetHeld, heldOnlyOf, putTabDraftsBack, tabDraftsOnlyOf, takeTabDrafts } from './held-in-tab.ts'
 import { forgetProposals, proposalsKeptFor, proposalsOnlyOf } from '../features/work/planning/review-proposal.ts'
 import { setSignedIn } from './signed-in.ts'
 import { useAuth, type AuthState } from './auth.ts'
@@ -51,8 +51,10 @@ function useDraftsOnlyOfWhoIsIn(state: AuthState): boolean | undefined {
     const drafts = draftsOnlyOf(who)
     // Signed out, here or in another tab: the views' unsent words go too (Codex P1 on #366).
     const views = who === null && forgetViewerDrafts()
+    // The tab's composers' words, anyone else's (drafts-survive-reload.md).
+    const tab = tabDraftsOnlyOf(who)
     // Run again for the same person (React's strict check), it finds nothing left: what went the first time still went.
-    setWent((was) => ({ who, words: (was.who === who && was.words) || drafts || views }))
+    setWent((was) => ({ who, words: (was.who === who && was.words) || drafts || views || tab }))
   }, [who])
   return who === null && went.who === null ? went.words : undefined
 }
@@ -165,10 +167,14 @@ function useOwnPage(state: AuthState) {
   return { joinPage, legal }
 }
 
-/** Every unsent word this device keeps: Personal's, and each project view's (terms-privacy.md). */
-const forgetAllDrafts = () => {
+/**
+ * Every unsent word this device keeps: Personal's, each project view's (terms-privacy.md), and this tab's composers',
+ * these taken into `taken` as they last stood, so a sign-out that fails keeps them again (drafts-survive-reload.md).
+ */
+const forgetAllDrafts = (taken: Record<string, string>) => () => {
   forgetDrafts()
   forgetViewerDrafts()
+  Object.assign(taken, takeTabDrafts())
 }
 
 /**
@@ -186,10 +192,12 @@ const leaving =
     forgetUnderWay()
     forgetPendingUnlock()
     // A sign-out that fails leaves the person in: their writes are theirs again, and SignedIn says so (false).
+    const taken: Record<string, string> = {}
     try {
-      await signOutForgetting(end, forgetAllDrafts)
+      await signOutForgetting(end, forgetAllDrafts(taken))
       return true
     } catch {
+      putTabDraftsBack(taken)
       setSignedIn(signedInAs)
       return false
     }
