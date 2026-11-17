@@ -19,7 +19,7 @@ import type { Acts } from '../../resources/SessionActs.tsx'
 import { sheetKeys, type SheetKeys } from './actions.ts'
 import { AskSophia, type Asks } from './AskSophia.tsx'
 import type { GoalView } from './board-view.ts'
-import { MARK_TONE, open, waitsOn, type PlanRow, type WaitRow, type WorkPlan } from './plan.ts'
+import { laneOf, MARK_TONE, open, waitsOn, type PlanRow, type WaitRow, type WorkPlan } from './plan.ts'
 import type { ReadResult } from './results.ts'
 import { TaskActions } from './TaskActions.tsx'
 import { TaskResult } from './TaskResult.tsx'
@@ -273,11 +273,13 @@ function Closed({ row }: { row: PlanRow }) {
 
 /**
  * Where the focus goes when what opened the sheet is gone (a blocker's press, its blocker completed meanwhile, so the
- * Blocked lane went): the task's own tile, else the board's first (Codex on #244).
+ * Blocked lane went): the task's own tile; in a folded lane, its fold (board-fold-complete.md); else the board's first
+ * (Codex on #244).
  */
-function backTo(id: string): HTMLElement | null {
+function backTo(id: string, lane: string): HTMLElement | null {
   const tiles = [...document.querySelectorAll<HTMLElement>('.board [data-task]')]
-  return tiles.find((el) => el.dataset['task'] === id) ?? tiles[0] ?? null
+  const fold = document.querySelector<HTMLElement>(`.board .lane[data-lane="${lane}"][data-folded] .lane-fold`)
+  return tiles.find((el) => el.dataset['task'] === id) ?? fold ?? tiles[0] ?? null
 }
 
 /** The sheet's foot: the plan it belongs to, and the keys that do something here (informe-25 DL-12). */
@@ -315,7 +317,7 @@ export function TaskSheet(props: Props) {
       id={`task-${item.id}`}
       title={item.purpose}
       onClose={onClose}
-      returnTo={() => backTo(item.id)}
+      returnTo={() => backTo(item.id, laneOf(row, rows))}
       actions={<CopyLink key={item.id} href={() => addressOf(item.id, TASK)} />}
     >
       <div className="task-sheet">

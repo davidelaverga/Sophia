@@ -240,6 +240,56 @@
   gap: 12px;
   align-items: start;
 }
+/* Complete beside Blocked folds while five lanes stand in one row (docs/plans/board-fold-complete.md): a narrow column
+   as tall as the lanes, its head the press, written down it. Opened, the head lies across its lane as any head does,
+   the press the same, its chevron turned as Closed work's. The folded row is the container's to allow, over the same
+   1148 px as the three-and-two rule below (PlanBoard's FIVE_IN_A_ROW), so a fold never squeezes a narrower board. */
+@container board (width > 1148px) {
+  .board-lanes[data-folded] {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  }
+}
+.lane-head:has(.lane-fold) {
+  padding: 0;
+}
+.lane-head .lane-fold {
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+  height: auto;
+  padding: 0 4px;
+  color: inherit;
+  font: inherit;
+}
+.lane-fold .icon {
+  flex: none;
+  color: var(--text-3);
+  transition: transform var(--base) var(--ease);
+}
+.lane-fold[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+.lane[data-folded] {
+  grid-template-rows: minmax(0, 1fr);
+  align-self: stretch;
+}
+.lane[data-folded] .lane-head {
+  align-items: stretch;
+}
+.lane[data-folded] .lane-fold {
+  justify-content: flex-start;
+  padding: 10px 6px;
+  border-radius: var(--r-2);
+  background: rgb(var(--ink-rgb) / 0.03);
+  writing-mode: vertical-rl;
+}
+.lane[data-folded] .lane-fold:hover {
+  background: rgb(var(--ink-rgb) / 0.06);
+}
+.lane[data-folded] .count {
+  margin: 0;
+  writing-mode: horizontal-tb;
+}
 .lane {
   display: grid;
   gap: 10px;
