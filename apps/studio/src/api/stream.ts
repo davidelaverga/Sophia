@@ -21,6 +21,8 @@ export interface FollowOptions {
   signal: AbortSignal
   onOpen: () => void
   onFrame: (frame: Frame) => void
+  /** Bytes came from the project: as the stream opens and with every chunk, its pings included. */
+  onHeard?: (() => void) | undefined
   idleTimeoutMs?: number
 }
 
@@ -58,13 +60,19 @@ class StallWatch {
   }
 }
 
-async function readFrames(body: NonNullable<Response['body']>, watch: StallWatch, onFrame: (f: Frame) => void) {
+async function readFrames(
+  body: NonNullable<Response['body']>,
+  watch: StallWatch,
+  onFrame: (f: Frame) => void,
+  onHeard: () => void,
+) {
   const reader = body.pipeThrough(new TextDecoderStream()).getReader()
   let rest = ''
   for (;;) {
     const { value, done } = await reader.read()
     if (done) return
     watch.alive() // any bytes, including heartbeats, prove the stream is alive
+    onHeard()
     const parsed = parseSse(rest + value)
     rest = parsed.rest
     for (const frame of parsed.frames) onFrame(frame)
@@ -80,9 +88,11 @@ export async function followEvents(opts: FollowOptions): Promise<void> {
       signal: watch.signal,
     })
     if (!res.ok || !res.body) throw await toError(res, 'read')
+    const heard = opts.onHeard ?? (() => undefined)
     opts.onOpen()
+    heard()
     watch.alive()
-    await readFrames(res.body, watch, opts.onFrame)
+    await readFrames(res.body, watch, opts.onFrame, heard)
   } catch (err: unknown) {
     throw watch.stalled ? new StreamStalled('No data or heartbeat from the project stream') : err
   } finally {

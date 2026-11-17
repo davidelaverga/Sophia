@@ -73,19 +73,11 @@ import { useServedWork, type ServedWork } from '../work/planning/ServedWork.tsx'
 import type { Feed } from '../../projectors/projection.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { ProjectName } from './ProjectName.tsx'
+import { ConnectionPill } from './ConnectionPill.tsx'
 import { ViewFailed } from './ViewFailed.tsx'
 
 // The Invite sheet (and its QR encoder) loads the first time someone opens it.
 const InviteSheet = lazy(() => import('../access/InviteSheet.tsx').then((m) => ({ default: m.InviteSheet })))
-
-/** The project feed, not the call: "Live" read as a call in progress, so it says whether the view is current. */
-const CONNECTION: Record<Connection, string> = {
-  connecting: 'Connecting',
-  live: 'Up to date',
-  reconnecting: 'Reconnecting',
-  resyncing: 'Catching up',
-  denied: 'No access',
-}
 
 /**
  * A closed door closes the call too. Signed out or no longer a member, the project's screen gives way to a notice
@@ -420,10 +412,10 @@ function useProjectKeys(
 
 /** What the shell reads of the project: its feed, its room and the viewer's membership. */
 function useProject(projectId: string, identity: Props['identity']) {
-  const { snapshot, feed, connection } = useProjectFeed(projectId, identity.name, identity.token)
+  const { snapshot, feed, connection, checkedAt } = useProjectFeed(projectId, identity.name, identity.token)
   const room = useProjectRoom(projectId, identity.token, snapshot.data)
   const membership = useProjectMembership(projectId, identity.name, identity.token, snapshot.dataUpdatedAt).data
-  return { snapshot, feed, connection, room, membership }
+  return { snapshot, feed, connection, checkedAt, room, membership }
 }
 
 /** The two sheets the shell opens itself: inviting, and the project's search. */
@@ -577,7 +569,7 @@ function ShellTitle(p: {
 
 export function ProjectShell(props: Props) {
   const { projectId, view, identity, account, onShow, onLeave, onWork, onSignOut } = props
-  const { snapshot, feed, connection, room, membership } = useProject(projectId, identity)
+  const { snapshot, feed, connection, checkedAt, room, membership } = useProject(projectId, identity)
   const { inviting, setInviting, searching, setSearching, invite, search } = useShellSheets()
   const { loaded, blocked, shown } = doorOf(snapshot)
   const dockAt = useDockPlace(room, snapshot.data, () => onShow('studio'), dockShown(view, blocked))
@@ -591,7 +583,7 @@ export function ProjectShell(props: Props) {
       <div className="shell" data-view={view}>
         <ProjectHeader
           title={<ShellTitle {...{ snapshot, membership, projectId, identity, room, onWork }} />}
-          connection={shownConnection(connection, blocked, isStale(snapshot.error, loaded))}
+          connection={{ state: shownConnection(connection, blocked, isStale(snapshot.error, loaded)), checkedAt }}
           nav={blocked ? null : <ViewNav projectId={projectId} view={view} onShow={onShow} />}
           dock={dockAt.inHeader}
           share={shown && <HeadActions may={canInvite(membership)} projectId={projectId} go={{ invite, search }} />}
@@ -639,8 +631,11 @@ export function ProjectShell(props: Props) {
 interface HeaderProps {
   /** The project's title: words, or for an admin a press that opens the project's menu (ProjectName). */
   title: React.ReactNode
-  /** The feed's state; null while the project can't be shown, where the notice below says why. */
-  connection: Connection | null
+  /**
+   * The feed's state, null while the project can't be shown, where the notice below says why; and when the feed last
+   * heard from the project, for the pill's help (useProjectFeed).
+   */
+  connection: { state: Connection | null; checkedAt: () => number | null }
   nav: React.ReactNode
   /** The room from this view (MiniDock), first in the end cluster: off the page, never over it (docs/plans/dock-header.md). */
   dock: React.ReactNode
@@ -681,8 +676,9 @@ function LazyInvite({ from, onClose }: { from: InviteFrom; onClose: () => void }
  * The path to the project, as the places name it: the mark goes home, Work to the projects. Both keep a call going:
  * the places' bar shows the room, with Leave one tap away.
  */
-function ProjectHeader({ title, connection, nav, dock, share, account, onLeave, onWork }: HeaderProps) {
+function ProjectHeader({ title, connection: feed, nav, dock, share, account, onLeave, onWork }: HeaderProps) {
   const home = 'Home'
+  const connection = feed.state
   return (
     <header className="topbar">
       <button type="button" className="mark has-tip" onClick={onLeave} aria-label={home}>
@@ -704,12 +700,7 @@ function ProjectHeader({ title, connection, nav, dock, share, account, onLeave, 
       {nav}
       <div className="topbar-end">
         {dock}
-        {connection && (
-          <span role="status" className="connection" data-state={connection} title={CONNECTION[connection]}>
-            <span className="connection-dot" aria-hidden />
-            <span className="connection-label">{CONNECTION[connection]}</span>
-          </span>
-        )}
+        {connection && <ConnectionPill connection={connection} checkedAt={feed.checkedAt} />}
         {share}
         {account}
       </div>

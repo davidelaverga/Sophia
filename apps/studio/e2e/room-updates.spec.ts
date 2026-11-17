@@ -44,6 +44,25 @@ test('updates · Mark as seen writes the digest’s sequence once, and then noth
   expect((await served(page)).filter((s) => s.startsWith('seen:'))).toEqual(['seen:1'])
 })
 
+/** What Mark as seen does, said on hover and to a screen reader (tips hide on touch and at 760 px or less). */
+const SEEN_HELP = 'Clears these from Updates and from Home’s news.'
+
+test('updates · Mark as seen says what it clears: its tip on hover, its description for every reader', async ({
+  page,
+}) => {
+  const mark = since(page).getByRole('button', { name: 'Mark as seen' })
+  await expect(mark).toHaveAccessibleDescription(SEEN_HELP)
+  await mark.hover()
+  await expect(mark.locator('.tip')).toHaveText(SEEN_HELP)
+  await expect(mark.locator('.tip')).toBeVisible()
+})
+
+test('updates @phone · Mark as seen keeps what it clears as its description, with no tip to hover', async ({
+  page,
+}) => {
+  await expect(since(page).getByRole('button', { name: 'Mark as seen' })).toHaveAccessibleDescription(SEEN_HELP)
+})
+
 // What Updates shows is kept, line by line, for this account and project, so Home doesn't then say it as news
 // (docs/plans/home-since-you-looked.md); after Mark as seen, the window it shows holds nothing.
 test('updates · keeps the lines it shows, so Home won’t say them; after Mark as seen, the empty window', async ({
