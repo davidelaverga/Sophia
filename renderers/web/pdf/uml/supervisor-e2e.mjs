@@ -12,7 +12,8 @@
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import http from 'node:http'
-import { runOnce } from '../supervisor.mjs'
+import { arch, release } from 'node:os'
+import { bootDiagnosticJson, diagnosticProvenance, runOnce } from '../supervisor.mjs'
 
 // Match the protected production startup: credentials stay private while the guest must read its own input disk.
 process.umask(0o077)
@@ -46,6 +47,38 @@ async function identity(file) {
   for (const name of ARTIFACTS) artifacts[name] = await identity(`/opt/uml/${name}`)
   process.stdout.write(
     `${JSON.stringify({ event: 'UML_E2E_ARTIFACTS', qualification: false, root: '/opt/uml', artifacts })}\n`,
+  )
+}
+
+// Fixed host-side metadata only: no environment, argv, token file or user payload is inspected.
+{
+  let manifest = null
+  try {
+    const file = '/opt/uml/build-provenance.json'
+    if (fs.statSync(file).size <= 8192) manifest = fs.readFileSync(file, 'utf8')
+  } catch {
+    // An older image has no manifest; absence is unknown, never synthetic build facts.
+  }
+  const sources = {}
+  for (const name of ['../supervisor.mjs', './supervisor-e2e.mjs']) {
+    const id = await identity(new URL(name, import.meta.url).pathname)
+    sources[name] = id.sha256
+  }
+  const provenance = {
+    event: 'UML_E2E_PROVENANCE',
+    qualification: false,
+    host: {
+      kernelRelease: release()
+        .slice(0, 256)
+        .replaceAll(/[^\x20-\x7e]/gu, '?'),
+      arch: arch(),
+    },
+    sources,
+    build: diagnosticProvenance(manifest),
+  }
+  const json = JSON.stringify(provenance)
+  process.stdout.write(
+    `${Buffer.byteLength(json) <= 12 * 1024 ? json : JSON.stringify({ event: 'UML_E2E_PROVENANCE', qualification: false, diagnostic_error: 'oversize' })}\n`,
   )
 }
 
@@ -212,6 +245,8 @@ const server = http.createServer((req, res) => {
 await new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(null)))
 const address = server.address()
 fs.writeFileSync(TOKEN_FILE, TOKEN, { mode: 0o400 })
+/** @type {{ current: import('../supervisor.mjs').BootEvidence | null }} */
+const bootEvidence = { current: null }
 const cfg = {
   apiUrl: `http://127.0.0.1:${String(typeof address === 'object' && address ? address.port : 0)}`,
   token: TOKEN,
@@ -223,7 +258,7 @@ const cfg = {
     root: '/opt/uml',
     // Only this synthetic check sets the diagnostic: the supervisor bounds what it is given (BOOT_EVIDENCE).
     diagnostics: (/** @type {import('../supervisor.mjs').BootEvidence} */ evidence) => {
-      process.stdout.write(`${JSON.stringify({ ...evidence, event: 'UML_E2E_BOOT_EVIDENCE' })}\n`)
+      bootEvidence.current = evidence
     },
   },
   log: (/** @type {string} */ line) => {
@@ -274,7 +309,9 @@ async function handOver(id, spec, stopAt = Infinity) {
   seen.settles = []
   seen.beats = 0
   const started = performance.now()
+  bootEvidence.current = null
   const run = await runOnce(cfg)
+  publishBootEvidence()
   return { outcome: run.claimed ? run.outcome : 'unclaimed', ms: Math.round(performance.now() - started) }
 }
 
@@ -368,3 +405,8 @@ try {
 const ok = results.length === 3 && results.every(Boolean)
 process.stdout.write(`${JSON.stringify({ event: 'UML_E2E_DONE', ok, qualification: false })}\n`)
 process.exit(ok ? 0 : 1)
+
+// Read after runOnce: callback mutation is deliberately outside the claim/outcome path.
+function publishBootEvidence() {
+  if (bootEvidence.current) process.stdout.write(`${bootDiagnosticJson(bootEvidence.current, true)}\n`)
+}
