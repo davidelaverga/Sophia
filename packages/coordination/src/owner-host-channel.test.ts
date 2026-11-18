@@ -309,3 +309,73 @@ describe("a run observation's reported models (INC04-S03b B2, 0108)", () => {
     assert.equal(checkObservation({ kind: 'no_active_run', reportedModels: collected }, 'stop'), null)
   })
 })
+
+import { collectionExchangeRequest, checkCollection } from './owner-host-channel.ts'
+import { sha256Hex } from './runner-port.ts'
+const collectRequest = { v: 1 as const, maxPages: 3, maxBytes: 100 }
+function collectionAnswer(e = envelope()) {
+  const identity = { envelope: e, digest: digestOf(e), journalId: JOURNAL }
+  const native = deriveIdentity(e, 'client:test')
+  const content = {
+    v: 1 as const,
+    kind: 'collected' as const,
+    operationId: e.operationId,
+    bindingId: e.bindingId,
+    journalId: JOURNAL,
+    envelopeDigest: identity.digest,
+    threadId: native.threadId,
+    runId: 'accepted-run',
+    inputMessageId: native.messageId,
+    messageId: 'final-message',
+    itemId: 'final-item',
+    text: 'Useful 🧭',
+    textSha256: sha256Hex('Useful 🧭'),
+    byteLength: Buffer.byteLength('Useful 🧭'),
+    pages: 2,
+    coverageDigest: 'a'.repeat(64),
+    lastPosition: 2,
+  }
+  return { identity, native, content: { ...content, resultDigest: digestOf(content) } }
+}
+describe('versioned owner-host result reads', () => {
+  it('keeps v1 unchanged and requires exact v2 collection options', () => {
+    const { identity } = collectionAnswer()
+    const request = collectionExchangeRequest(identity, collectRequest)
+    assert.equal(checkExchangeRequest(request).ok, true)
+    assert.equal(request.v, 2)
+    assert.equal(request.digest, identity.digest)
+    assert.equal(exchangeRequest('observe', identity.envelope, JOURNAL).v, 1)
+    for (const value of [
+      { ...request, v: 1 },
+      { ...request, collection: undefined },
+      { ...request, collection: { ...collectRequest, maxBytes: 8193 } },
+      { ...request, digest: '0'.repeat(64) },
+      { ...request, collection: { ...collectRequest, threadId: 'foreign' } },
+    ])
+      assert.equal(checkExchangeRequest(value).ok, false)
+  })
+  it('checks exact operation, UTF-8 bytes, bounds and both content/provenance hashes', () => {
+    const { identity, native, content } = collectionAnswer()
+    assert.deepEqual(checkCollection(content, identity, collectRequest, native), content)
+    assert.equal(checkCollection({ ...content, resultDigest: '0'.repeat(64) }, identity, collectRequest, native), null)
+    for (const fields of [
+      { operationId: JOURNAL },
+      { bindingId: JOURNAL },
+      { journalId: envelope().ownerId },
+      { threadId: 'foreign' },
+      { inputMessageId: 'foreign' },
+      { messageId: native.messageId },
+      { runId: '' },
+      { text: 'different' },
+      { byteLength: content.text.length },
+      { pages: 4 },
+      { lastPosition: -1 },
+      { textSha256: '0'.repeat(64) },
+    ]) {
+      const changed = { ...content, ...fields }
+      const { resultDigest: _, ...body } = changed
+      const redigested = { ...changed, resultDigest: digestOf(body) }
+      assert.equal(checkCollection(redigested, identity, collectRequest, native), null, JSON.stringify(fields))
+    }
+  })
+})

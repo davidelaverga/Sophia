@@ -24,6 +24,8 @@
 import { randomUUID } from 'node:crypto'
 import {
   checkObservation,
+  checkCollection,
+  collectionExchangeRequest,
   checkReceipt,
   checkRunnerAnswer,
   EXCHANGE_DEADLINE_MAX_MS,
@@ -37,6 +39,12 @@ import {
 } from './owner-host-channel.ts'
 import {
   digestOf,
+  checkEnvelope,
+  snapshotCollectionRequest,
+  snapshotCollectionIdentity,
+  collectionUnavailable,
+  type RunnerCollection,
+  type RunnerCollectionRequest,
   type RunnerAnswer,
   type RunnerEnvelope,
   type RunnerIdentity,
@@ -182,6 +190,47 @@ export class OwnerHostPortProxy implements SophiaRunnerPort {
     const answer = checkRunnerAnswer(raw)
     if (!answer) return { kind: 'unknown', identity: null, reason: 'the owner host answered malformed' }
     return checkReceipt(identity.envelope, this.withBoundIdentity(identity.envelope, answer))
+  }
+
+  /** No collection transport capability means unavailable before enqueue, never a send fallback. */
+  async collect(identity: RunnerIdentity, request: RunnerCollectionRequest): Promise<RunnerCollection> {
+    if (this.o.store.collectionVersion !== 1) return collectionUnavailable('unsupported')
+    const limits = snapshotCollectionRequest(request)
+    if (!limits) return collectionUnavailable('invalid_request')
+    const captured = snapshotCollectionIdentity(identity)
+    if (!captured || !this.collectionScope(captured)) return collectionUnavailable('scope')
+    const namespace = this.o.namespace
+    try {
+      const queued = await this.o.store.enqueue({
+        ownerId: this.o.ownerId,
+        environmentRef: this.o.environmentRef,
+        journalId: this.o.journalId,
+        key: readKey('collect', captured.envelope.operationId, randomUUID()),
+        // The store receives a disposable wire value, never the private response-checking snapshot.
+        request: collectionExchangeRequest(structuredClone(captured), { ...limits }),
+        deadlineMs: this.deadlineMs,
+      })
+      if (queued.result !== 'queued' && queued.result !== 'existing') return collectionUnavailable('unavailable')
+      const view = await this.await(queued.exchangeId)
+      if (view?.state !== 'answered') return collectionUnavailable('unavailable')
+      return (
+        checkCollection(view.answer, captured, limits, deriveIdentity(captured.envelope, namespace)) ??
+        collectionUnavailable('invalid_result')
+      )
+    } catch {
+      return collectionUnavailable('unavailable')
+    }
+  }
+
+  private collectionScope(identity: RunnerIdentity): boolean {
+    const checked = checkEnvelope(identity.envelope)
+    if (!checked.ok || checked.envelope.kind === 'stop') return false
+    return (
+      identity.journalId === this.o.journalId &&
+      digestOf(identity.envelope) === identity.digest &&
+      identity.envelope.ownerId === this.o.ownerId &&
+      identity.envelope.environmentRef === this.o.environmentRef
+    )
   }
 
   async observe(identity: RunnerIdentity): Promise<RunObservation> {

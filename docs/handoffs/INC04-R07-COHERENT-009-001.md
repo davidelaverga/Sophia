@@ -8,8 +8,8 @@ components and testing their composition. It is not INC-04 product acceptance.
 - the published C2 dimension-bound core and 0094 registry (`90a0af7e`).
 
 Human owner / executor resource: Davide (repository owner); a Claude Code cloud session (Routing17,
-`https://claude.ai/code/session_01FGXfrGsUA6jNm3sxRoSro2`) as integration worker.  
-Native session: not applicable to this session. The Native component was committed by Native1 (its own trailer).  
+`https://claude.ai/code/session_01FGXfrGsUA6jNm3sxRoSro2`) as integration worker.\
+Native session: not applicable to this session. The Native component was committed by Native1 (its own trailer).\
 Starting worktree/commit: new `/home/user/sophia-r121-coherent-009` on new `refs/heads/inc04-r07-coherent-009-001` at
 `90a0af7eb3d4d376e9a0d63c0e05def18ee79b36` (tree `c2c2b887`).
 

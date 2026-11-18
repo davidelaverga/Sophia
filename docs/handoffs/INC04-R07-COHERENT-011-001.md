@@ -4,8 +4,8 @@ Goal and attempt: INC04-R07-COHERENT-011-001, attempt 1 (Root130, StageA). A LOC
 migration fixture on the frozen coherent-010 source. It is not acceptance of coherent-010 or of INC-04.
 
 Human owner / executor resource: Davide (repository owner); a Claude Code cloud session (Routing17,
-`https://claude.ai/code/session_01FGXfrGsUA6jNm3sxRoSro2`) as the one implementation writer.  
-Native session: not applicable to this session.  
+`https://claude.ai/code/session_01FGXfrGsUA6jNm3sxRoSro2`) as the one implementation writer.\
+Native session: not applicable to this session.\
 Starting worktree/commit: new `/home/user/sophia-r130-coherent-011` on new `refs/heads/inc04-r07-coherent-011-001` at
 `90a0af7eb3d4d376e9a0d63c0e05def18ee79b36`.
 

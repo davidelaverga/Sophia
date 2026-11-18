@@ -26,6 +26,8 @@ interface FakeThread {
   projectId: string
   runs: FakeRun[]
   messages: FakeMessage[]
+  /** Synthetic pinned-public timeline records for collection tests only. */
+  collectionItems?: Record<string, unknown>[]
   /** What the launch asked for, as given: the pin keeps both on the thread. */
   workspaceStrategy: unknown
   modelSelection: unknown
@@ -232,7 +234,44 @@ export class FakeT3 implements T3Transport {
     }
   }
 
+  /** Synthetic public-schema output, explicitly separate from the old status-only fake. */
+  private readCollection(thread: FakeThread, a: T3Call['args'], foreign: boolean): T3Reply {
+    const inputs = thread.messages.map((m, position) => ({
+      position,
+      visibility: 'local',
+      sourceThreadId: thread.threadId,
+      itemId: `input-${position}`,
+      messageId: m.messageId,
+      runId: m.runId,
+      type: 'user_message',
+      status: 'completed',
+      title: null,
+      text: null,
+      textTruncated: false,
+      nextTextOffset: null,
+    }))
+    const items = [...inputs, ...(thread.collectionItems ?? [])]
+    const after = typeof a.afterPosition === 'number' ? a.afterPosition : -1
+    const page = items.filter((i) => Number(i.position) > after).slice(0, this.pageSize)
+    const last = page.at(-1)?.position ?? null
+    return {
+      kind: 'ok',
+      body: {
+        thread: {
+          threadId: foreign ? 'foreign' : thread.threadId,
+          activeRunId: thread.runs.filter((r) => T3_ACTIVE.includes(r.status)).at(-1)?.runId ?? null,
+          runCount: thread.runs.length,
+        },
+        recentRuns: thread.runs.toReversed().slice(0, 50),
+        items: page,
+        hasMore: items.some((i) => Number(i.position) > Number(last)),
+        nextPosition: last,
+      },
+    }
+  }
+
   private read(thread: FakeThread, a: T3Call['args'], foreign = false): T3Reply {
+    if (a.maxCharsPerItem !== undefined) return this.readCollection(thread, a, foreign)
     const after = typeof a.afterPosition === 'number' ? a.afterPosition : 0
     const runLimit = typeof a.runLimit === 'number' ? a.runLimit : 50
     const items = thread.messages.map((m, position) => ({ position, messageId: m.messageId, runId: m.runId }))

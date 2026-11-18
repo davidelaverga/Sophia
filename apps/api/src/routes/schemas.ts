@@ -28,3 +28,37 @@ export const idempotencyHeader = {
   properties: { 'idempotency-key': { type: 'string', minLength: 1, maxLength: 160 } },
   required: ['idempotency-key'],
 } as const
+
+/** A60 server-owned identities only; opaque paging never selects a native cursor or run. */
+export const runnerWorkParams = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    projectId: { type: 'string', pattern: UUID_PATTERN },
+    goalId: { type: 'string', pattern: UUID_PATTERN },
+  },
+  required: ['projectId', 'goalId'],
+} as const
+export const runnerResultParams = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    projectId: { type: 'string', pattern: UUID_PATTERN },
+    resultId: { type: 'string', pattern: UUID_PATTERN },
+  },
+  required: ['projectId', 'resultId'],
+} as const
+export const runnerWorkPageQuery = {
+  type: 'object',
+  additionalProperties: false,
+  properties: { after: { type: 'string', pattern: UUID_PATTERN } },
+} as const
+export const runnerWorkLookupQuery = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    key: { type: 'string', minLength: 1, maxLength: 160 },
+    kind: { type: 'string', enum: ['operation', 'collection'] },
+  },
+  required: ['key', 'kind'],
+} as const

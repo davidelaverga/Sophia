@@ -23,7 +23,15 @@ import {
   type HostHello,
 } from './owner-host-channel.ts'
 import type { RunnerJournal } from './runner-journal.ts'
-import type { RunnerAnswer, RunObservation, SophiaRunnerPort } from './runner-port.ts'
+import {
+  collectionUnavailable,
+  collectRunnerResult,
+  type RunnerCollection,
+  type RunnerCollectionRequest,
+  type RunnerAnswer,
+  type RunObservation,
+  type SophiaRunnerPort,
+} from './runner-port.ts'
 
 export interface OwnerHostAgentOptions {
   readonly channel: HostChannel
@@ -138,9 +146,10 @@ export class OwnerHostAgent {
     }
     const { envelope, digest } = checked.request
     const identity = { envelope, digest, journalId }
-    let answer: RunnerAnswer | RunObservation
+    let answer: RunnerAnswer | RunObservation | RunnerCollection
     if (exchange.kind === 'reconcile') answer = await this.o.gateway.reconcile(identity)
     else if (exchange.kind === 'observe') answer = await this.o.gateway.observe(identity)
+    else if (exchange.kind === 'collect') answer = await this.collect(identity, checked.request.collection)
     else {
       const sent = await this.sendWithGo(exchange.exchangeId, identity)
       if (sent === null) return 'skipped'
@@ -149,6 +158,13 @@ export class OwnerHostAgent {
     const stored = await this.o.channel.answer(exchange.exchangeId, answer)
     if (stored.result === 'conflict') this.log(`owner host: exchange ${exchange.exchangeId}: another answer was kept`)
     return answer.kind === 'refused' ? 'refused' : 'answered'
+  }
+
+  private async collect(
+    identity: Parameters<SophiaRunnerPort['observe']>[0],
+    request: RunnerCollectionRequest | undefined,
+  ): Promise<RunnerCollection> {
+    return request ? collectRunnerResult(this.o.gateway, identity, request) : collectionUnavailable('invalid_request')
   }
 
   /** GO, then the gateway; or, GO denied, what the journal proves. null: nothing honest to answer. */

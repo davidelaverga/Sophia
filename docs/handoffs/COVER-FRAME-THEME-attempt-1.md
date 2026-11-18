@@ -1,10 +1,10 @@
 # Handoff: Knowledge · a designed page's frames wait in the theme's surface, not white
 
-Goal and attempt: `informe-ui-premium.md` (evaluacion-2026-10-11), the designed page's white flash, attempt 1  
+Goal and attempt: `informe-ui-premium.md` (evaluacion-2026-10-11), the designed page's white flash, attempt 1\
 Human owner / executor resource: Luis (owner, «es imposible que no se pueda avanzar mucho»); the Claude Code session
-that built it  
+that built it\
 Starting worktree/commit: `D:/Descargas/SophiaV4/Sophia-paper-6`, local branch `artifacts/cover-frame-theme` from main
-`9495c87fc` (through #513)  
+`9495c87fc` (through #513)\
 Changed files: `apps/studio/src/features/artifacts/artifacts.css`, `apps/studio/e2e/knowledge-library.spec.ts`,
 `docs/plans/cover-frame-theme.md`, this file.
 

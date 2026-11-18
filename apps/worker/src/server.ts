@@ -1,11 +1,15 @@
 // Entry point: `node src/server.ts` (Node 24 strips types; no build step).
 import { createPrivateKey } from 'node:crypto'
 import { hostname } from 'node:os'
-import { checkRoleSafety, createPool } from '@sophia/persistence'
+import { checkRoleSafety, createPool, requireRunnerResults } from '@sophia/persistence'
 import { CoordinationDispatcher, httpPaperclipClient } from './coordination-dispatch.ts'
 import { liveKitRemover, RemovalReconciler } from './room-removals.ts'
 import { assemblyConfig, RuntimeDispatcher } from './runtime-dispatch.ts'
 import { runnerDispatchFromEnv } from './runner-dispatch.ts'
+import { ownerRunnerResultsFromEnv } from './runner-results-config.ts'
+import { RunnerResultsController } from './runner-results.ts'
+
+const ownerRunnerResults = ownerRunnerResultsFromEnv(process.env.SOPHIA_OWNER_RUNNER_RESULTS)
 
 const url = process.env.SOPHIA_WORKER_DATABASE_URL?.trim()
 if (!url) throw new Error('SOPHIA_WORKER_DATABASE_URL is required (a login granted sophia_worker; see .env.example)')
@@ -15,6 +19,7 @@ if (!url) throw new Error('SOPHIA_WORKER_DATABASE_URL is required (a login grant
 runnerDispatchFromEnv(process.env)
 
 const pool = createPool(url, { max: 4 })
+if (ownerRunnerResults) await requireRunnerResults(pool)
 await checkRoleSafety(pool, 'sophia_worker') // refuse to run as an owner, superuser or BYPASSRLS login
 
 const log = (line: string) => console.log(`[sophia-worker] ${line}`)
@@ -22,7 +27,8 @@ const workerId = `${hostname()}:${process.pid}`
 // Optional: a login admitted to the conversation assembler role (Q13), or the fixed assembly through this worker's own
 // login (0084, SOPHIA_CONVERSATION_ASSEMBLY=fixed). Without either no reply context is recorded here.
 const assembly = assemblyConfig({ ...process.env, workerUrl: url })
-const dispatcher = new RuntimeDispatcher(pool, { workerId, log, ...assembly })
+const runnerResults = new RunnerResultsController(pool, { enabled: ownerRunnerResults, log })
+const dispatcher = new RuntimeDispatcher(pool, { workerId, log, runnerResults, ...assembly })
 dispatcher.start()
 log('runtime dispatch started')
 log('owner-runner dispatch: off (no qualified owner-host transport)')
@@ -67,9 +73,11 @@ log(
 )
 
 const shutdown = async () => {
+  const resultsStopped = runnerResults.stop()
   removals?.stop()
   await coordination?.stop()
   await dispatcher.stop()
+  await resultsStopped
   await pool.end()
   process.exit(0)
 }

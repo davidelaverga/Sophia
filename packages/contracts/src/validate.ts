@@ -82,6 +82,12 @@ import {
   validateSelectionView,
   validatePersonalAnswerReceipt,
   validatePersonalAnswerDecisionList,
+  validateOwnerRunnerCollection,
+  validateOwnerRunnerResultDescriptor,
+  validateOwnerRunnerRetainedResult,
+  validateOwnerRunnerWorkPage,
+  validateOwnerRunnerWorkLookup,
+  validateOwnerRunnerWorkAvailability,
 } from './generated/validators.js'
 import type { CursorAdvance, Error as ErrorBody, Event } from './generated-types.ts'
 
@@ -217,3 +223,17 @@ export function parseFrame(value: unknown): Event | CursorAdvance {
 export function isCursorAdvance(frame: Event | CursorAdvance): frame is CursorAdvance {
   return frame.type === 'cursor.advanced'
 }
+
+/** A60 owner-private current-authority responses; ordinary tolerant-reader semantics. */
+export const parseOwnerRunnerCollection = parser('OwnerRunnerCollection', validateOwnerRunnerCollection)
+export const parseOwnerRunnerResultDescriptor = parser(
+  'OwnerRunnerResultDescriptor',
+  validateOwnerRunnerResultDescriptor,
+)
+export const parseOwnerRunnerRetainedResult = parser('OwnerRunnerRetainedResult', validateOwnerRunnerRetainedResult)
+export const parseOwnerRunnerWorkPage = parser('OwnerRunnerWorkPage', validateOwnerRunnerWorkPage)
+export const parseOwnerRunnerWorkLookup = parser('OwnerRunnerWorkLookup', validateOwnerRunnerWorkLookup)
+export const parseOwnerRunnerWorkAvailability = parser(
+  'OwnerRunnerWorkAvailability',
+  validateOwnerRunnerWorkAvailability,
+)

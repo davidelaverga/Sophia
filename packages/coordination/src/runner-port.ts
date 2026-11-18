@@ -218,6 +218,8 @@ export interface SophiaRunnerPort {
   send(envelope: RunnerEnvelope, digest: string, journalId: string, payload?: string): Promise<RunnerAnswer>
   reconcile(identity: RunnerIdentity): Promise<RunnerAnswer>
   observe(identity: RunnerIdentity): Promise<RunObservation>
+  /** Optional, read-only result capability. Absence is unavailable, never an input/send fallback. */
+  collect?(identity: RunnerIdentity, request: RunnerCollectionRequest): Promise<RunnerCollection>
 }
 
 /** SHA-256 over the canonical JSON of a value: Sophia's admission digest and the envelope's send digest. */
@@ -475,4 +477,105 @@ export function checkPayload(
     return { ok: false, reason: 'a create has its title and an input none' }
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- its keys and types were checked above
   return { ok: true, payload: value as unknown as RunnerPayload }
+}
+
+/** Separate read-result version; it changes neither the send envelope nor journal records. */
+export const RUNNER_COLLECTION_VERSION = 1
+export const RUNNER_COLLECTION_PAGES_MAX = 8
+export const RUNNER_COLLECTION_BYTES_MAX = 8192
+export const RUNNER_COLLECTION_RESPONSE_BYTES_MAX = 65_536
+/** Await bound per read; it cannot cancel an already issued transport read. */
+export const RUNNER_COLLECTION_READ_TIMEOUT_MS = 2500
+export interface RunnerCollectionRequest {
+  readonly v: 1
+  readonly maxPages: number
+  readonly maxBytes: number
+}
+export type CollectionUnavailable =
+  'unsupported' | 'invalid_request' | 'unavailable' | 'scope' | 'unaccepted' | 'incomplete' | 'invalid_result'
+export interface CollectedContent {
+  readonly v: 1
+  readonly kind: 'collected'
+  readonly operationId: string
+  readonly bindingId: string
+  readonly journalId: string
+  readonly envelopeDigest: string
+  readonly threadId: string
+  readonly runId: string
+  readonly inputMessageId: string
+  readonly messageId: string
+  readonly itemId: string
+  readonly text: string
+  readonly textSha256: string
+  readonly byteLength: number
+  readonly pages: number
+  readonly lastPosition: number
+  /** Digest of every preceding field, including exact UTF-8 content and provenance. */
+  readonly coverageDigest: string
+  readonly resultDigest: string
+}
+export type RunnerCollection =
+  CollectedContent | { readonly v: 1; readonly kind: 'collection_unavailable'; readonly reason: CollectionUnavailable }
+export const collectionUnavailable = (reason: CollectionUnavailable): RunnerCollection => ({
+  v: 1,
+  kind: 'collection_unavailable',
+  reason,
+})
+
+/** Caller limits only narrow fixed ceilings; they grant no source/read authority. */
+export function collectionRequestValid(value: unknown): value is RunnerCollectionRequest {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const v = Object.getOwnPropertyDescriptors(value)
+  if (Object.keys(v).toSorted().join(',') !== 'maxBytes,maxPages,v' || Object.values(v).some((d) => !('value' in d)))
+    return false
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- exact own data properties checked, no accessors
+  const r = value as Record<string, unknown>
+  return (
+    r.v === 1 &&
+    Number.isSafeInteger(r.maxPages) &&
+    Number(r.maxPages) >= 1 &&
+    Number(r.maxPages) <= RUNNER_COLLECTION_PAGES_MAX &&
+    Number.isSafeInteger(r.maxBytes) &&
+    Number(r.maxBytes) >= 1 &&
+    Number(r.maxBytes) <= RUNNER_COLLECTION_BYTES_MAX
+  )
+}
+
+/** Detached validated scalar limits, captured synchronously before any asynchronous collection work. */
+export function snapshotCollectionRequest(value: unknown): RunnerCollectionRequest | null {
+  if (!collectionRequestValid(value)) return null
+  return { v: 1, maxPages: value.maxPages, maxBytes: value.maxBytes }
+}
+
+/** Deep value copy, then validate that exact copy: nested v2 settings never alias the caller. */
+export function snapshotCollectionIdentity(identity: RunnerIdentity): RunnerIdentity | null {
+  try {
+    if (!checkEnvelope(identity.envelope).ok) return null
+    const value: unknown = JSON.parse(canonicalJson(identity))
+    if (!isRecord(value) || !sameKeys(value, ['envelope', 'digest', 'journalId'])) return null
+    if (!matches(value.journalId, UUID) || !matches(value.digest, HEX64)) return null
+    const checked = checkEnvelope(value.envelope)
+    if (!checked.ok || digestOf(checked.envelope) !== value.digest) return null
+    return { envelope: checked.envelope, digest: value.digest, journalId: String(value.journalId) }
+  } catch {
+    return null
+  }
+}
+
+/** Optional capability boundary for new callers: old ports explicitly return unavailable without any fallback. */
+export async function collectRunnerResult(
+  port: SophiaRunnerPort,
+  identity: RunnerIdentity,
+  request: RunnerCollectionRequest,
+): Promise<RunnerCollection> {
+  const limits = snapshotCollectionRequest(request)
+  if (!limits) return collectionUnavailable('invalid_request')
+  if (!port.collect) return collectionUnavailable('unsupported')
+  const captured = snapshotCollectionIdentity(identity)
+  if (!captured) return collectionUnavailable('scope')
+  try {
+    return await port.collect(captured, limits)
+  } catch {
+    return collectionUnavailable('unavailable')
+  }
 }

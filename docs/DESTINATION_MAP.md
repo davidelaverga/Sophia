@@ -101,3 +101,24 @@ a path updates its row in the same commit.
 | `docs/` | built | S1-01 | Pack, source map, this map, runtime-unit guide, evidence, handoffs |
 | `docs/releases/` | unbuilt | S1-14 | Release records |
 | `planning/` | unbuilt | S1-02 | Versioned goal definitions (no private runtime logs) |
+
+## Owner-private native results (S-001, A60 / 0116)
+
+| Path | State | Goal | Contents / purpose |
+|---|---|---|---|
+| `db/migrations/0116_owner_runner_results.sql` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Additive result retention boundary and targeted SQL verification; local candidate, not release |
+| `db/tests/0116_owner_runner_results.sql` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Targeted 0116 role and schema checks; local candidate, not release |
+| `packages/contracts/amendments/A60-owner-runner-results.json` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Closed A60 owner-private result/discovery wire contract; local candidate, not release |
+| `packages/persistence/src/runner-results.ts` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Owner-private result retention and scoped channel/controller consumption; local candidate, not release |
+| `packages/persistence/src/runner-results.db.test.ts` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Synthetic focused verification; no real owner/native qualification; local candidate, not release |
+| `apps/worker/src/runner-results.ts` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Owner-private result retention and scoped channel/controller consumption; local candidate, not release |
+| `apps/worker/src/runner-results.test.ts` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Synthetic focused verification; no real owner/native qualification; local candidate, not release |
+| `apps/worker/src/runner-results.db.test.ts` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Synthetic focused verification; no real owner/native qualification; local candidate, not release |
+| `apps/worker/src/runner-results-config.ts` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Exact raw default-OFF result switch; local candidate, not release |
+| `apps/worker/src/runner-results-config.test.ts` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Synthetic focused verification; no real owner/native qualification; local candidate, not release |
+| `apps/worker/src/runner-results-entry.test.ts` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Synthetic focused verification; no real owner/native qualification; local candidate, not release |
+| `apps/api/src/runner-results.db.test.ts` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Synthetic focused verification; no real owner/native qualification; local candidate, not release |
+| `apps/api/src/runner-results-entry.test.ts` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Synthetic focused verification; no real owner/native qualification; local candidate, not release |
+| `apps/api/src/native-result-config.ts` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Exact raw default-OFF result switch; local candidate, not release |
+| `apps/api/src/native-result-config.test.ts` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Synthetic focused verification; no real owner/native qualification; local candidate, not release |
+| `docs/handoffs/INC-COORD-1118-CODEX-NATIVE-RESULT-S-001.md` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Local source candidate, actual evidence and independent review HOLD; local candidate, not release |

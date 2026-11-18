@@ -1,10 +1,10 @@
 # Handoff: API · runner operation ids in any declared spelling; a non-owner's Answer refused for good
 
-Goal and attempt: integration review of #513 (evaluacion-2026-11-16/revision-513.md), P3s 6 and 7, attempt 1  
+Goal and attempt: integration review of #513 (evaluacion-2026-11-16/revision-513.md), P3s 6 and 7, attempt 1\
 Human owner / executor resource: Luis («Debemos poder ir avanzando en otra cosa», 2026-11-16); the Claude Code session
-that built it  
+that built it\
 Starting worktree/commit: `D:/Descargas/SophiaV4/Sophia-paper-4`, local branch `api/runner-ids-and-answer-refusal`
-from main `9495c87fc` (through #513 and #501)  
+from main `9495c87fc` (through #513 and #501)\
 Changed files: `apps/api/src/routes/runner-operations.ts`, `schemas.ts`, `personal-answers.ts`, the new unit tests
 `routes/runner-operations.test.ts` and `routes/personal-answers.test.ts`, `runner-operations.db.test.ts`,
 `personal-answers.db.test.ts`, `docs/plans/runner-ids-and-answer-refusal.md`, this file.

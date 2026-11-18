@@ -76,6 +76,8 @@ export interface PassResult {
 export interface DispatcherOptions {
   /** A stable name for this worker process; it appears on every lease it takes. */
   workerId: string
+  /** Nonblocking finite result controller; never awaited by dispatch/Stop progress. */
+  runnerResults?: { pass(): void; stop(): Promise<void> }
   batchSize?: number
   leaseSeconds?: number
   log?: (line: string) => void
@@ -222,6 +224,12 @@ export class RuntimeDispatcher {
   private async run(): Promise<void> {
     await Promise.race([this.listener.listening, this.halted])
     while (!this.stopped) {
+      // Before the progress continue and before legacy failure: neither can starve result maintenance.
+      try {
+        this.options.runnerResults?.pass()
+      } catch {
+        this.options.log?.('runner result pass failed')
+      }
       try {
         const pass = await dispatchOnce(this.pool, this.options)
         // A held row is not progress: a pass that only held new work waits like an idle one, never spins on it.
@@ -243,10 +251,12 @@ export class RuntimeDispatcher {
 
   async stop(): Promise<void> {
     this.stopped = true
+    const resultsStopped = this.options.runnerResults?.stop()
     this.halt()
     this.wake?.()
     // The listener first: it may still be retrying its first LISTEN, and its retries must end for the process to.
     await this.listener.stop()
     await this.loop
+    await resultsStopped
   }
 }

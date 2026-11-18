@@ -4,6 +4,7 @@ import type pg from 'pg'
 import { componentSchemas, type Error as ApiError } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import {
+  OWNER_RUNNER_RESULTS_SCHEMA,
   ATOMIC_ADMISSION_SCHEMA,
   BOUND_OUTPUT_V1,
   checkRoleSafety,
@@ -152,6 +153,8 @@ export interface AppDeps {
    * admission still needs an operator-recorded qualification of the owner's route, which no request can create.
    */
   ownerRunnerAdmissions?: OwnerRunnerAdmissions
+  /** Gates fresh A60 capture only. Retained reads remain mounted. */
+  ownerRunnerResults?: boolean
   /**
    * Member API contributions (A48, migration 0094): the owner's account and connection metadata, selected-project grants,
    * admin narrowing, a member's funding pin and task funding. Stock server.ts leaves it off with
@@ -437,7 +440,11 @@ const boundOutputOf = (deps: AppDeps) => (deps.boundOutput === true ? BOUND_OUTP
  * served whatever new owner-runner work admits.
  */
 function registerNativeRunner(app: FastifyInstance, deps: AppDeps): void {
-  runnerOperationRoutes(app, { pool: deps.pool, admissions: deps.ownerRunnerAdmissions ?? 'off' })
+  runnerOperationRoutes(app, {
+    pool: deps.pool,
+    admissions: deps.ownerRunnerAdmissions ?? 'off',
+    results: deps.ownerRunnerResults === true,
+  })
   projectResourceRoutes(app, { pool: deps.pool })
   // INC04-S01b (A56): the read-only selection preview; installation (0104) is its boundary, no flag. INC04-R07 C4/C5
   // W1: the default-off capacityExposure switch adds 0114's restrictive exposure (and its installation) to it.
@@ -669,6 +676,7 @@ interface Health {
   companion: Companion | null
   voice: boolean
   ownerRunners: boolean
+  ownerRunnerResults: boolean
   apiContributions: boolean
   capacityExposure: boolean
   boundOutput: boolean
@@ -683,6 +691,7 @@ const healthOf = (deps: AppDeps): Health => ({
   companion: deps.companion ?? null,
   voice: deps.voiceQualification === true,
   ownerRunners: deps.ownerRunnerAdmissions === 'admit',
+  ownerRunnerResults: deps.ownerRunnerResults === true,
   apiContributions: deps.apiContributions === true,
   capacityExposure: deps.capacityExposure === true,
   boundOutput: deps.boundOutput === true,
@@ -699,6 +708,7 @@ async function schemaReady(
     personalAnswers,
     voice,
     ownerRunners,
+    ownerRunnerResults,
     apiContributions,
     capacityExposure,
     boundOutput,
@@ -725,7 +735,7 @@ async function schemaReady(
     (await part(conversationInputs, CONVERSATION_INPUTS_SCHEMA)) &&
     (await part(personalAnswers, PERSONAL_ANSWERS_SCHEMA)) &&
     (await part(voice, VOICE_SCHEMA)) &&
-    (await part(ownerRunners, OWNER_RUNNER_SCHEMA)) &&
+    (await ownerRuntimeReady(part, ownerRunners, ownerRunnerResults)) &&
     // Member API contributions on (A48, A56): the routes' own installation predicate (0094, 0100's rebuild funding
     // guard, 0104's owner protection and account qualification, 0105, 0106's viewer boundary; R2, F02). Off, the
     // default: nothing more of them is required, so a database with 0105 and without 0106 is ready with them off.
@@ -735,6 +745,14 @@ async function schemaReady(
 }
 
 /** INC04-R07's default-off switches: never core requirements, each part only when its switch is on. */
+async function ownerRuntimeReady(
+  part: (on: boolean, sql: string) => Promise<boolean>,
+  runners: boolean,
+  results: boolean,
+): Promise<boolean> {
+  return (await part(runners, OWNER_RUNNER_SCHEMA)) && (await part(results, OWNER_RUNNER_RESULTS_SCHEMA))
+}
+
 async function inc04Ready(
   part: (on: boolean, sql: string) => Promise<boolean>,
   capacityExposure: boolean,
