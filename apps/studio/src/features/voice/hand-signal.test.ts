@@ -7,6 +7,8 @@ const SOPHIA = { identity: 'sophia', metadata: JSON.stringify({ sophia: true }) 
 const marco = { identity: 'm', name: 'Marco', metadata: JSON.stringify({ role: 'editor' }) }
 const lucia = { identity: 'l', name: 'Lucía', metadata: JSON.stringify({ role: 'viewer' }) }
 const guest = { identity: 'g', name: 'Noor', metadata: JSON.stringify({ guest: true }) }
+/** The last hand packet taken (asks aside): what others were last told of this person's hand. */
+const lastHand = (taken: unknown[]) => taken.findLast((p) => JSON.stringify(p).startsWith('{"hand"')) ?? null
 const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
 
 /**
@@ -203,6 +205,39 @@ describe('handSignal', () => {
     assert.equal(signal.mine(), false)
     await new Promise((resolve) => setTimeout(resolve, 40))
     assert.deepEqual(taken, [{ hand: true }, { ask: true }, { hand: false }])
+  })
+
+  it('a lowering still unsent when the call drops again is sent after that reconnect too (Codex P2 on #523)', async () => {
+    const { signal, emit, taken, refuse } = setup()
+    await signal.set(true)
+    // The first reconnect's lowering and ask are both refused; a second reconnect comes before the retry.
+    refuse(2)
+    emit(RoomEvent.Reconnected)
+    emit(RoomEvent.Reconnected)
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    assert.equal(signal.mine(), false)
+    assert.deepEqual(lastHand(taken), { hand: false })
+  })
+
+  it('a call that ends while a lowering waits sends nothing more', async () => {
+    const { signal, emit, taken, refuse } = setup()
+    await signal.set(true)
+    refuse(2)
+    emit(RoomEvent.Reconnected)
+    emit(RoomEvent.Disconnected)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    assert.ok(!taken.some((p) => JSON.stringify(p) === '{"hand":false}'))
+  })
+
+  it('a raise refused while a lowering waits keeps that lowering going', async () => {
+    const { signal, emit, taken, refuse } = setup()
+    await signal.set(true)
+    refuse(3)
+    emit(RoomEvent.Reconnected)
+    await assert.rejects(signal.set(true))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    assert.equal(signal.mine(), false)
+    assert.deepEqual(lastHand(taken), { hand: false })
   })
 
   it('a raise pressed while that lowering waits to be tried again is not overtaken by it', async () => {
