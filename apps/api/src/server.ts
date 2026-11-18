@@ -1,3 +1,4 @@
+import { ownerHostEnrollmentFromEnv } from './owner-host-config.ts'
 // Entry point: `node src/server.ts` (Node 24 strips types; no build step).
 import { checkRoleSafety, createPool } from '@sophia/persistence'
 import { buildApp } from './app.ts'
@@ -19,6 +20,7 @@ function required(name: string): string {
   return v
 }
 
+const ownerHostEnrollment = ownerHostEnrollmentFromEnv(process.env.SOPHIA_OWNER_HOST_ENROLLMENT)
 const ownerRunnerResults = ownerRunnerResultsFromEnv(process.env.SOPHIA_OWNER_RUNNER_RESULTS)
 const apiContributions = apiContributionsFromEnv(process.env.SOPHIA_API_CONTRIBUTIONS)
 const pool = createPool(required('SOPHIA_API_DATABASE_URL'), { connectionTimeoutMillis: RENDER_BODY_MS })
@@ -102,6 +104,7 @@ function boundOutputFromEnv(): boolean {
 }
 const app = buildApp({
   pool,
+  ownerHostEnrollment,
   logger: true,
   corsOrigins,
   ...(invites ? { invites } : {}),

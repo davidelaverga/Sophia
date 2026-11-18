@@ -20902,6 +20902,1227 @@
           }
         }
       }
+    },
+    "/api/v1/owner-host-pairings": {
+      "post": {
+        "operationId": "ownerHostOwner-Host-Pairings",
+        "description": "Default-OFF enrollment; owner JWT management and dedicated capability channel are disjoint. All responses no-store; 65536 UTF8 byte limits and fixed safe errors. Declaration is not qualification.",
+        "responses": {
+          "200": {
+            "description": "Bounded channel response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostPairing"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerHostPairingRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/owner-host-pairings/{pairingId}/revoke": {
+      "post": {
+        "operationId": "ownerHostOwner-Host-PairingsPairingidRevoke",
+        "description": "Default-OFF enrollment; owner JWT management and dedicated capability channel are disjoint. All responses no-store; 65536 UTF8 byte limits and fixed safe errors. Declaration is not qualification.",
+        "responses": {
+          "200": {
+            "description": "Bounded channel response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostPairingRevocation"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pairingId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/owner-hosts": {
+      "get": {
+        "operationId": "ownerHostOwner-Hosts",
+        "description": "Default-OFF enrollment; owner JWT management and dedicated capability channel are disjoint. All responses no-store; 65536 UTF8 byte limits and fixed safe errors. Declaration is not qualification.",
+        "responses": {
+          "200": {
+            "description": "Bounded channel response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostList"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/owner-hosts/{hostId}/retire": {
+      "post": {
+        "operationId": "ownerHostOwner-HostsHostidRetire",
+        "description": "Default-OFF enrollment; owner JWT management and dedicated capability channel are disjoint. All responses no-store; 65536 UTF8 byte limits and fixed safe errors. Declaration is not qualification.",
+        "responses": {
+          "200": {
+            "description": "Bounded channel response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostRevocation"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "hostId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/owner-hosts/{hostId}/revoke": {
+      "post": {
+        "operationId": "ownerHostOwner-HostsHostidRevoke",
+        "description": "Default-OFF enrollment; owner JWT management and dedicated capability channel are disjoint. All responses no-store; 65536 UTF8 byte limits and fixed safe errors. Declaration is not qualification.",
+        "responses": {
+          "200": {
+            "description": "Bounded channel response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostRevocation"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "hostId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/owner-host/redeem": {
+      "post": {
+        "operationId": "ownerHostOwner-HostRedeem",
+        "description": "Default-OFF enrollment; owner JWT management and dedicated capability channel are disjoint. All responses no-store; 65536 UTF8 byte limits and fixed safe errors. Declaration is not qualification.",
+        "responses": {
+          "200": {
+            "description": "Bounded channel response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostRedeemResult"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerHostRedeemRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/owner-host/hello": {
+      "post": {
+        "operationId": "ownerHostOwner-HostHello",
+        "description": "Default-OFF enrollment; owner JWT management and dedicated capability channel are disjoint. All responses no-store; 65536 UTF8 byte limits and fixed safe errors. Declaration is not qualification.",
+        "responses": {
+          "200": {
+            "description": "Bounded channel response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostHelloResult"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ownerHostCapability": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerHostHello"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/owner-host/poll": {
+      "post": {
+        "operationId": "ownerHostOwner-HostPoll",
+        "description": "Default-OFF enrollment; owner JWT management and dedicated capability channel are disjoint. All responses no-store; 65536 UTF8 byte limits and fixed safe errors. Declaration is not qualification.",
+        "responses": {
+          "200": {
+            "description": "Bounded channel response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostPollResponse"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ownerHostCapability": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerHostPollRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/owner-host/exchanges/{exchangeId}/go": {
+      "post": {
+        "operationId": "ownerHostOwner-HostExchangesExchangeidGo",
+        "description": "Default-OFF enrollment; owner JWT management and dedicated capability channel are disjoint. All responses no-store; 65536 UTF8 byte limits and fixed safe errors. Declaration is not qualification.",
+        "responses": {
+          "200": {
+            "description": "Bounded channel response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostGoResult"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ownerHostCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "exchangeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerHostEmpty"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/owner-host/exchanges/{exchangeId}/answer": {
+      "post": {
+        "operationId": "ownerHostOwner-HostExchangesExchangeidAnswer",
+        "description": "Default-OFF enrollment; owner JWT management and dedicated capability channel are disjoint. All responses no-store; 65536 UTF8 byte limits and fixed safe errors. Declaration is not qualification.",
+        "responses": {
+          "200": {
+            "description": "Bounded channel response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostAnswerResult"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Fixed safe refusal or uncertain response. Same original key/capability after ambiguity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerHostError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ownerHostCapability": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerHostAnswer"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "exchangeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -20930,6 +22151,11 @@
         "type": "http",
         "scheme": "bearer",
         "description": "The Paperclip dsh adapter's credential: an opaque secret held by the Paperclip service, stored by Sophia only as SHA-256, bound to one Paperclip company. It is not a member identity and not a Paperclip token."
+      },
+      "ownerHostCapability": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Host generated capability, authenticating only the exact hello/poll/GO/answer routes. Never actor JWT or native credentials."
       }
     },
     "schemas": {
@@ -47524,6 +48750,1920 @@
           "managedContinuation",
           "observedAt",
           "resultsEnabled"
+        ]
+      },
+      "OwnerHostModelReport": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "threadId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "runId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "collectedAt": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "collected"
+                ]
+              },
+              "activeAttemptId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "attemptPolicy": {
+                "type": "string",
+                "enum": [
+                  "latest_by_attempt_ordinal"
+                ]
+              },
+              "attemptLimit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 8
+              },
+              "attemptsOwned": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "attemptsOmitted": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "attempts": {
+                "type": "array",
+                "maxItems": 8,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "attemptId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1000
+                    },
+                    "attemptOrdinal": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "reason": {
+                      "type": "string",
+                      "enum": [
+                        "initial",
+                        "steering_restart",
+                        "retry",
+                        "provider_recovery"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "running",
+                        "completed",
+                        "interrupted",
+                        "failed",
+                        "cancelled",
+                        "superseded"
+                      ]
+                    },
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "providerInstanceId": {
+                      "type": "string",
+                      "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+                    },
+                    "rootTurns": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "terminalRootTurns": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "reportingRootTurns": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "unboundTurns": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "modelsOmitted": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "excludedModelValues": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "modelEvidence": {
+                      "type": "string",
+                      "enum": [
+                        "reported",
+                        "unknown"
+                      ]
+                    },
+                    "models": {
+                      "type": "array",
+                      "maxItems": 8,
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      }
+                    }
+                  },
+                  "required": [
+                    "attemptId",
+                    "attemptOrdinal",
+                    "reason",
+                    "status",
+                    "active",
+                    "providerInstanceId",
+                    "rootTurns",
+                    "terminalRootTurns",
+                    "reportingRootTurns",
+                    "unboundTurns",
+                    "modelsOmitted",
+                    "excludedModelValues",
+                    "modelEvidence",
+                    "models"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "threadId",
+              "runId",
+              "collectedAt",
+              "state",
+              "activeAttemptId",
+              "attemptPolicy",
+              "attemptLimit",
+              "attemptsOwned",
+              "attemptsOmitted",
+              "attempts"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "threadId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "runId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "collectedAt": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "unavailable"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "attempts_not_loaded",
+                  "provider_turns_not_loaded",
+                  "provider_turns_load_failed"
+                ]
+              }
+            },
+            "required": [
+              "threadId",
+              "runId",
+              "collectedAt",
+              "state",
+              "reason"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "malformed"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "invalid",
+                  "oversize"
+                ]
+              }
+            },
+            "required": [
+              "state",
+              "reason"
+            ]
+          }
+        ]
+      },
+      "OwnerHostEmpty": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      },
+      "OwnerHostPairingRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "connectionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "ttlSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 600
+          }
+        },
+        "required": [
+          "connectionId",
+          "ttlSeconds"
+        ]
+      },
+      "OwnerHostPairingParams": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "pairingId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "pairingId"
+        ]
+      },
+      "OwnerHostParams": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "hostId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "hostId"
+        ]
+      },
+      "OwnerHostExchangeParams": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "exchangeId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "exchangeId"
+        ]
+      },
+      "OwnerHostRedeemRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          },
+          "capability": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          }
+        },
+        "required": [
+          "code",
+          "capability"
+        ]
+      },
+      "OwnerHostHello": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "v": {
+            "type": "integer",
+            "const": 1
+          },
+          "journalId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "environmentRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "adapterPin": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{40}$"
+          },
+          "profileId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "profileRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "accountKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "t3Namespace": {
+            "type": "string",
+            "pattern": "^client:[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$"
+          }
+        },
+        "required": [
+          "v",
+          "journalId",
+          "environmentRef",
+          "adapterPin",
+          "profileId",
+          "profileRevision",
+          "accountKey",
+          "t3Namespace"
+        ]
+      },
+      "OwnerHostPollRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "redeliverSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60
+          }
+        },
+        "required": [
+          "limit",
+          "redeliverSeconds"
+        ]
+      },
+      "OwnerHostAnswer": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "received"
+              },
+              "identity": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "namespace": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 207
+                  },
+                  "commandId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "messageId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "threadId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "namespace",
+                  "commandId",
+                  "messageId",
+                  "threadId"
+                ]
+              },
+              "runId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "delivery": {
+                "type": "string",
+                "enum": [
+                  "started",
+                  "queued",
+                  "stop_requested",
+                  "no_active_run",
+                  "already_ended"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "identity",
+              "runId",
+              "delivery"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "rejected"
+              },
+              "identity": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "namespace": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 207
+                  },
+                  "commandId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "messageId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "threadId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "namespace",
+                  "commandId",
+                  "messageId",
+                  "threadId"
+                ]
+              },
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "kind",
+              "identity",
+              "code",
+              "reason"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "refused"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "kind",
+              "reason"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "conflict"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "kind",
+              "reason"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "unknown"
+              },
+              "identity": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "namespace": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 207
+                      },
+                      "commandId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      },
+                      "messageId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 1000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "threadId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      }
+                    },
+                    "required": [
+                      "namespace",
+                      "commandId",
+                      "messageId",
+                      "threadId"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "violation": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "required": [
+              "kind",
+              "identity",
+              "reason"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "settled"
+              },
+              "identity": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "namespace": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 207
+                      },
+                      "commandId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      },
+                      "messageId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 1000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "threadId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      }
+                    },
+                    "required": [
+                      "namespace",
+                      "commandId",
+                      "messageId",
+                      "threadId"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "kind",
+              "identity",
+              "reason"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "run"
+              },
+              "status": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "terminal": {
+                "type": "boolean"
+              },
+              "reportedModels": {
+                "$ref": "#/components/schemas/OwnerHostModelReport"
+              }
+            },
+            "required": [
+              "kind",
+              "status",
+              "terminal"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "no_active_run"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "unknown"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "kind",
+              "reason"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "v": {
+                "type": "integer",
+                "const": 1
+              },
+              "kind": {
+                "type": "string",
+                "const": "collected"
+              },
+              "operationId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "bindingId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "journalId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "envelopeDigest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "textSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "coverageDigest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "resultDigest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "threadId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "runId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "inputMessageId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "messageId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "itemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8192
+              },
+              "byteLength": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 8192
+              },
+              "pages": {
+                "type": "integer",
+                "minimum": 2,
+                "maximum": 8
+              },
+              "lastPosition": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "v",
+              "kind",
+              "operationId",
+              "bindingId",
+              "journalId",
+              "envelopeDigest",
+              "textSha256",
+              "coverageDigest",
+              "resultDigest",
+              "threadId",
+              "runId",
+              "inputMessageId",
+              "messageId",
+              "itemId",
+              "text",
+              "byteLength",
+              "pages",
+              "lastPosition"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "v": {
+                "type": "integer",
+                "const": 1
+              },
+              "kind": {
+                "type": "string",
+                "const": "collection_unavailable"
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "unsupported",
+                  "invalid_request",
+                  "unavailable",
+                  "scope",
+                  "unaccepted",
+                  "incomplete",
+                  "invalid_result"
+                ]
+              }
+            },
+            "required": [
+              "v",
+              "kind",
+              "reason"
+            ]
+          }
+        ],
+        "description": "Exact N answer vocabulary, plus final S identity/current-rights/budget validation. Total UTF8 wire <=65536 bytes; no generic settle bypass."
+      },
+      "OwnerHostPairing": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "pairingId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expiresAt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          }
+        },
+        "required": [
+          "pairingId",
+          "expiresAt",
+          "code"
+        ]
+      },
+      "OwnerHostRedeemResult": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "const": "bound",
+                "type": "string"
+              },
+              "hostId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "ownerId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "connectionId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "replayed": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "result",
+              "hostId",
+              "ownerId",
+              "connectionId",
+              "replayed"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "const": "refused",
+                "type": "string"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "result",
+              "reason"
+            ]
+          }
+        ]
+      },
+      "OwnerHostError": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "owner_host_refused",
+              "unavailable"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "retry": {
+            "type": "string",
+            "enum": [
+              "never",
+              "same_admission_key"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retry"
+        ]
+      },
+      "OwnerHostHelloResult": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "type": "string",
+                "const": "ok"
+              },
+              "hostId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "retired",
+                  "bound"
+                ]
+              },
+              "first": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "result",
+              "hostId",
+              "state",
+              "first"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "type": "string",
+                "const": "conflict"
+              },
+              "hostId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "changed": {
+                "type": "array",
+                "maxItems": 7,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "journalId",
+                    "environmentRef",
+                    "adapterPin",
+                    "profileId",
+                    "profileRevision",
+                    "accountKey",
+                    "t3Namespace"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "result",
+              "hostId",
+              "changed"
+            ]
+          }
+        ]
+      },
+      "OwnerHostEnvelope": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "projectId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "ownerId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "resourceId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "bindingId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "goalId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "qualificationId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "qualificationRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "profileRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "authorityEpoch": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "environmentRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "nativeProjectRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "profileId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "accountKey": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "adapterPin": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{40}$"
+              },
+              "targetOperationId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "nativeThreadId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "v": {
+                "type": "integer",
+                "const": 1
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "input",
+                  "stop"
+                ]
+              },
+              "message": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "operationId",
+              "projectId",
+              "ownerId",
+              "resourceId",
+              "bindingId",
+              "goalId",
+              "qualificationId",
+              "qualificationRevision",
+              "profileRevision",
+              "authorityEpoch",
+              "environmentRef",
+              "nativeProjectRef",
+              "profileId",
+              "accountKey",
+              "adapterPin",
+              "targetOperationId",
+              "nativeThreadId",
+              "v",
+              "kind",
+              "message",
+              "title"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "projectId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "ownerId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "resourceId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "bindingId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "goalId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "qualificationId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "qualificationRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "profileRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "authorityEpoch": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "environmentRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "nativeProjectRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "profileId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "accountKey": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "adapterPin": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{40}$"
+              },
+              "targetOperationId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "nativeThreadId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "v": {
+                "type": "integer",
+                "const": 2
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "input"
+                ]
+              },
+              "payloadSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "manifestSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "baseCommit": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{40}$"
+              },
+              "writeScope": {
+                "type": "string",
+                "const": "read_only"
+              },
+              "settings": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "instanceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "options": {
+                    "type": "array",
+                    "maxItems": 20,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "value": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            {
+                              "type": "boolean"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "value"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "instanceId",
+                  "model",
+                  "options"
+                ]
+              }
+            },
+            "required": [
+              "operationId",
+              "projectId",
+              "ownerId",
+              "resourceId",
+              "bindingId",
+              "goalId",
+              "qualificationId",
+              "qualificationRevision",
+              "profileRevision",
+              "authorityEpoch",
+              "environmentRef",
+              "nativeProjectRef",
+              "profileId",
+              "accountKey",
+              "adapterPin",
+              "targetOperationId",
+              "nativeThreadId",
+              "v",
+              "kind",
+              "payloadSha256",
+              "manifestSha256",
+              "baseCommit",
+              "writeScope",
+              "settings"
+            ]
+          }
+        ]
+      },
+      "OwnerHostExchangeRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "journalId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "projectId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "operationId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "envelope": {
+                "$ref": "#/components/schemas/OwnerHostEnvelope"
+              },
+              "v": {
+                "type": "integer",
+                "const": 1
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "send",
+                  "reconcile",
+                  "observe"
+                ]
+              }
+            },
+            "required": [
+              "journalId",
+              "projectId",
+              "operationId",
+              "digest",
+              "envelope",
+              "v",
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "journalId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "projectId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "operationId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "envelope": {
+                "$ref": "#/components/schemas/OwnerHostEnvelope"
+              },
+              "v": {
+                "type": "integer",
+                "const": 2
+              },
+              "kind": {
+                "type": "string",
+                "const": "collect"
+              },
+              "collection": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "v": {
+                    "type": "integer",
+                    "const": 1
+                  },
+                  "maxPages": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 8
+                  },
+                  "maxBytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 8192
+                  }
+                },
+                "required": [
+                  "v",
+                  "maxPages",
+                  "maxBytes"
+                ]
+              }
+            },
+            "required": [
+              "journalId",
+              "projectId",
+              "operationId",
+              "digest",
+              "envelope",
+              "v",
+              "kind",
+              "collection"
+            ]
+          }
+        ]
+      },
+      "OwnerHostDelivered": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "exchangeId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "send",
+              "reconcile",
+              "observe",
+              "collect"
+            ]
+          },
+          "request": {
+            "$ref": "#/components/schemas/OwnerHostExchangeRequest"
+          },
+          "deadlineAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "exchangeId",
+          "kind",
+          "request",
+          "deadlineAt"
+        ]
+      },
+      "OwnerHostPollResponse": {
+        "type": "array",
+        "maxItems": 5,
+        "items": {
+          "$ref": "#/components/schemas/OwnerHostDelivered"
+        }
+      },
+      "OwnerHostGoResult": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "type": "string",
+                "const": "go"
+              },
+              "payload": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000
+              }
+            },
+            "required": [
+              "result"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "type": "string",
+                "const": "denied"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "grantedBefore": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "result",
+              "reason",
+              "grantedBefore"
+            ]
+          }
+        ]
+      },
+      "OwnerHostAnswerResult": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "type": "string",
+                "const": "ok"
+              }
+            },
+            "required": [
+              "result"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "type": "string",
+                "const": "conflict"
+              }
+            },
+            "required": [
+              "result"
+            ]
+          }
+        ]
+      },
+      "OwnerHostRevocation": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "type": "string",
+                "const": "revoked"
+              },
+              "fenced": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "result",
+              "fenced"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "type": "string",
+                "const": "retired"
+              },
+              "fenced": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "result",
+              "fenced"
+            ]
+          }
+        ]
+      },
+      "OwnerHostPairingRevocation": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "type": "string",
+                "const": "revoked"
+              }
+            },
+            "required": [
+              "result"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "type": "string",
+                "const": "consumed"
+              },
+              "hostId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "result",
+              "hostId"
+            ]
+          }
+        ]
+      },
+      "OwnerHostList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "hosts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "hostId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "connectionId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "bound",
+                    "active",
+                    "retired",
+                    "revoked"
+                  ]
+                },
+                "environmentRef": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "profileId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "profileRevision": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "helloOk": {
+                  "type": "boolean"
+                },
+                "helloConflict": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "createdAt": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "boundAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lastSeenAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "hostId",
+                "connectionId",
+                "state",
+                "environmentRef",
+                "profileId",
+                "profileRevision",
+                "helloOk",
+                "helloConflict",
+                "createdAt",
+                "boundAt",
+                "lastSeenAt"
+              ]
+            }
+          },
+          "pairings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "pairingId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "connectionId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "expiresAt": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "consumed": {
+                  "type": "boolean"
+                },
+                "revoked": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "pairingId",
+                "connectionId",
+                "expiresAt",
+                "consumed",
+                "revoked"
+              ]
+            }
+          }
+        },
+        "required": [
+          "hosts",
+          "pairings"
         ]
       }
     }
