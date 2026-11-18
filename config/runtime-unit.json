@@ -18,11 +18,11 @@
     ],
     "artifact_kind": "pnpm deploy --prod of runtime/dsh (@sophia/dsh-runtime) from pnpm-lock.yaml",
     "artifact_primary_platform": "linux-x64",
-    "artifact_digest": "sophia-tree-v2:sha256:10edf4f49258efd52c47f0b4389aadf6575f0be18d5e1e1874f175b638daadf7",
+    "artifact_digest": "sophia-tree-v2:sha256:521275dc787057cf90190e8c0e186052e81f15d1f5884331298a2d33abbc0a3c",
     "artifacts_by_platform": {
       "linux-x64": {
-        "digest": "sophia-tree-v2:sha256:10edf4f49258efd52c47f0b4389aadf6575f0be18d5e1e1874f175b638daadf7",
-        "entries": 27747
+        "digest": "sophia-tree-v2:sha256:521275dc787057cf90190e8c0e186052e81f15d1f5884331298a2d33abbc0a3c",
+        "entries": 27749
       },
       "darwin-arm64": {
         "digest": "sophia-tree-v2:sha256:5536c97a464deccc5bbefb2ce1f716352893f34d5aa2615fa09745d68416c197",
