@@ -18,6 +18,8 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { FastifyInstance } from 'fastify'
 import pg from 'pg'
+import { SignJWT } from 'jose'
+import { OwnerHostFixtureResources } from '../../../tests/helpers/owner-host-fixture-resources.ts'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import { createPool, readSnapshot, withActor } from '@sophia/persistence'
@@ -27,6 +29,7 @@ import { createActorVerifier } from './auth.ts'
 import { memoryByteStore } from './byte-store.ts'
 
 const MIGRATIONS = fileURLToPath(new URL('../../../db/migrations', import.meta.url))
+const HOST_ADMISSION = '0118_owner_host_admission.sql'
 const DELIVERY = '0043_design_delivery.sql'
 const WRITE_ONCE = '0044_object_write_once.sql'
 const DISCUSSION_NAMES = '0048_discussion_author_name.sql'
@@ -154,13 +157,182 @@ async function answers(api: FastifyInstance, url: string): Promise<unknown[]> {
   return [res.statusCode, res.json()]
 }
 
+// The host service is always mounted: enrollment and new-work switches do not remove its 0118 dependency.
+describe('readiness across 0118 (the always-served host channel)', () => {
+  const resources = new OwnerHostFixtureResources()
+  const key = 'synthetic-readiness-host-jwt-key-at-least-32-bytes'
+  const issuer = 'https://readiness-fixture.invalid/auth'
+  let admissionDir: string
+  let admissionDb: TestDatabase
+  let admissionPool: pg.Pool
+  const apis: FastifyInstance[] = []
+
+  before(async () =>
+    resources.setup(async () => {
+      admissionDir = mkdtempSync(join(tmpdir(), 'sophia-0117-readiness-'))
+      for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql') && f < HOST_ADMISSION))
+        copyFileSync(join(MIGRATIONS, file), join(admissionDir, file))
+      admissionDb = resources.database(await createTestDatabase(admissionDir))
+      admissionPool = resources.pool(createPool(admissionDb.apiUrl, { max: 2 }))
+      const verifyActor = createActorVerifier({ issuer, audience: 'authenticated', secret: key })
+      for (const ownerHostEnrollment of [false, true])
+        apis.push(
+          resources.app(
+            buildApp({
+              pool: admissionPool,
+              verifyActor,
+              ownerHostEnrollment,
+              ownerRunnerAdmissions: 'off',
+              ownerRunnerResults: false,
+            }),
+          ),
+        )
+    }),
+  )
+  after(async () => {
+    await resources.close()
+    if (admissionDir) rmSync(admissionDir, { recursive: true, force: true })
+  })
+  async function owner(sql: string, values: unknown[] = []): Promise<void> {
+    const c = new pg.Client({ connectionString: admissionDb.ownerUrl })
+    await c.connect()
+    try {
+      await c.query(sql, values)
+    } finally {
+      await c.end()
+    }
+  }
+  async function expectReady(installed: boolean): Promise<void> {
+    for (const api of apis) {
+      assert.deepEqual(
+        await answers(api, '/ready'),
+        installed ? [200, { ready: true }] : [503, { ready: false, reason: 'schema' }],
+      )
+      assert.deepEqual(await answers(api, '/health'), [200, { ok: true, commit: null }])
+    }
+  }
+  const install = () => owner(readFileSync(join(MIGRATIONS, HOST_ADMISSION), 'utf8'))
+
+  it('requires the exact helper with enrollment OFF or ON and runner/results OFF; the real migration restores readiness', async () => {
+    assert.equal(
+      (await admissionPool.query("SELECT to_regprocedure('sophia.owner_host_admission_allowed(bytea)') AS fn")).rows[0]
+        ?.fn,
+      null,
+    )
+    await expectReady(false)
+    await install()
+    await expectReady(true)
+  })
+
+  it('requires API EXECUTE and schema USAGE in both enrollment states; restored grants restore readiness', async () => {
+    // Apply only if the preceding test was filtered out: each case has a valid installed positive baseline.
+    if (
+      (await admissionPool.query("SELECT to_regprocedure('sophia.owner_host_admission_allowed(bytea)') AS fn")).rows[0]
+        ?.fn === null
+    )
+      await install()
+    await expectReady(true)
+    const signature = 'sophia.owner_host_admission_allowed(bytea)'
+    await owner(`REVOKE EXECUTE ON FUNCTION ${signature} FROM sophia_api`)
+    try {
+      await expectReady(false)
+    } finally {
+      await owner(`GRANT EXECUTE ON FUNCTION ${signature} TO sophia_api`)
+    }
+    await expectReady(true)
+    await owner('REVOKE USAGE ON SCHEMA sophia FROM sophia_api')
+    try {
+      await expectReady(false)
+    } finally {
+      await owner('GRANT USAGE ON SCHEMA sophia TO sophia_api')
+    }
+    await expectReady(true)
+  })
+
+  it('keeps ordinary existing-host hello/poll and owner maintenance working with enrollment OFF', async () => {
+    if (
+      (await admissionPool.query("SELECT to_regprocedure('sophia.owner_host_admission_allowed(bytea)') AS fn")).rows[0]
+        ?.fn === null
+    )
+      await install()
+    await expectReady(true)
+    const actor = randomUUID(),
+      connection = randomUUID(),
+      capability = 'r'.repeat(43)
+    await owner(
+      "INSERT INTO sophia.execution_connections(id,owner_id,upstream_origin,upstream_subject,state) VALUES($1,$2,'synthetic-readiness','fixture','linked')",
+      [connection, actor],
+    )
+    const token = await new SignJWT({ role: 'authenticated' })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuer(issuer)
+      .setAudience('authenticated')
+      .setSubject(actor)
+      .setExpirationTime('5m')
+      .sign(new TextEncoder().encode(key))
+    const headers = { authorization: `Bearer ${token}` }
+    const off = apis[0],
+      on = apis[1]
+    assert.ok(off && on)
+    const payload = { connectionId: connection, ttlSeconds: 60 }
+    assert.equal(
+      (await off.inject({ method: 'POST', url: '/api/v1/owner-host-pairings', headers, payload })).statusCode,
+      403,
+    )
+    const pair = await on.inject({ method: 'POST', url: '/api/v1/owner-host-pairings', headers, payload })
+    assert.equal(pair.statusCode, 200)
+    const bound = await on.inject({
+      method: 'POST',
+      url: '/api/v1/owner-host/redeem',
+      payload: { code: pair.json().code, capability },
+    })
+    assert.equal(bound.statusCode, 200)
+    assert.equal(bound.json().result, 'bound')
+    const hostHeaders = { authorization: `Bearer ${capability}` }
+    const hello = await off.inject({
+      method: 'POST',
+      url: '/api/v1/owner-host/hello',
+      headers: hostHeaders,
+      payload: {
+        v: 1,
+        journalId: randomUUID(),
+        environmentRef: 'fixture-env',
+        adapterPin: 'ade473018d32003658b7d38693e083ee2e314bd8',
+        profileId: 'fixture-profile',
+        profileRevision: 1,
+        accountKey: 'fixture-account',
+        t3Namespace: 'client:fixture',
+      },
+    })
+    assert.equal(hello.statusCode, 200)
+    assert.equal(hello.json().result, 'ok')
+    const poll = await off.inject({
+      method: 'POST',
+      url: '/api/v1/owner-host/poll',
+      headers: hostHeaders,
+      payload: { limit: 1, redeliverSeconds: 15 },
+    })
+    assert.equal(poll.statusCode, 200)
+    assert.deepEqual(poll.json(), [])
+    assert.equal((await off.inject({ url: '/api/v1/owner-hosts', headers })).statusCode, 200)
+    const retired = await off.inject({
+      method: 'POST',
+      url: `/api/v1/owner-hosts/${bound.json().hostId}/retire`,
+      headers,
+    })
+    assert.equal(retired.statusCode, 200)
+    await expectReady(true)
+  })
+})
+
 // Codex review 5911393845 (P1, app.ts): every maintained model-call wrapper sends a tracked_v1 reserve and refuses a
 // reply without its binding, which only 0109 adds (research_call_ack, folded into the reply by research_call_reply).
 // The research and runtime routes are served whatever the switches say, so /ready requires 0109 like 0105: on a
 // database migrated through 0108, 0105 included, no switch makes this API ready. Codex review 5916589022 (P1, app.ts):
 // a qualified research or review call also opts into observed facts (`facts: observed_v1`) and refuses a binding without
-// `facts`, which only 0110's research_call_ack echoes; so through 0109 it is still not ready, and with 0110 applied as
-// written, it is (nothing of 0111 or later). Removing either of 0110's own objects, in this database only, makes it not
+// `facts`, which only 0110's research_call_ack echoes; with the independent 0118 host prerequisite installed, through
+// 0109 it is still not ready and adding 0110 restores readiness. No optional 0111-0117 requirement is added here.
+// Removing either of 0110's own objects, in this database only, makes it not
 // ready again. It runs before the 0043 walk: its own database installs 0070, which refuses a second installation in the
 // cluster while another database holds one (0070's Q13 check), so it is made and dropped while the file's database is at
 // 0042.
@@ -181,6 +353,8 @@ describe('readiness across 0109 and 0110', () => {
     for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql') && f < TRACKED_CALLS))
       copyFileSync(join(MIGRATIONS, file), join(trackedDir, file))
     trackedDb = await createTestDatabase(trackedDir)
+    // Isolate0109/0110: the independent always-served host prerequisite is installed as written.
+    await applyTracked(HOST_ADMISSION)
     trackedPool = createPool(trackedDb.apiUrl, { max: 2 })
     const verifyActor = createActorVerifier({
       issuer: 'https://synthetic.supabase.test/auth/v1',
@@ -234,7 +408,7 @@ describe('readiness across 0109 and 0110', () => {
     }
   }
 
-  it('is not ready through 0108 with 0105, nor through 0109, whatever the switches; ready once 0110 is applied', async () => {
+  it('is not ready through 0108 with 0105, nor through 0109, whatever the switches; with the host prerequisite installed, ready once 0110 is applied', async () => {
     assert.ok(readdirSync(trackedDir).includes('0105_contribution_atomic_admission.sql'), 'migrated with 0105')
     assert.ok(readdirSync(trackedDir).includes('0108_owner_runner_model_reports.sql'), 'migrated through 0108')
     assert.ok(!readdirSync(trackedDir).includes(TRACKED_CALLS), 'without 0109')
@@ -281,6 +455,8 @@ describe('readiness across 0114 (the capacityExposure switch)', () => {
     for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql') && f < EXPOSURE))
       copyFileSync(join(MIGRATIONS, file), join(exposureDir, file))
     exposureDb = await createTestDatabase(exposureDir)
+    //0118 needs only0093's existing host table; it does not install optional0114.
+    await asExposureOwner(readFileSync(join(MIGRATIONS, HOST_ADMISSION), 'utf8'))
     exposurePool = createPool(exposureDb.apiUrl, { max: 2 })
     const verifyActor = createActorVerifier({
       issuer: 'https://synthetic.supabase.test/auth/v1',
@@ -370,6 +546,8 @@ describe('readiness across 0115 (the boundOutput switch)', () => {
     for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql') && f < BOUND))
       copyFileSync(join(MIGRATIONS, file), join(boundDir, file))
     boundDb = await createTestDatabase(boundDir)
+    // Keep the independent host prerequisite valid without installing optional0115.
+    await asBoundOwner(readFileSync(join(MIGRATIONS, HOST_ADMISSION), 'utf8'))
     boundPool = createPool(boundDb.apiUrl, { max: 2 })
     const verifyActor = createActorVerifier({
       issuer: 'https://synthetic.supabase.test/auth/v1',

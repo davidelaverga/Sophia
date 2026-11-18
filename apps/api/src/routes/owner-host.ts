@@ -17,6 +17,14 @@ import {
 } from '@sophia/persistence'
 import type { RunnerAnswer, RunObservation, RunnerCollection } from '@sophia/coordination/runner-port'
 
+// Shared by the always-mounted host authentication query and readiness, independent of enrollment/new-work flags.
+const ADMISSION_FUNCTION = 'sophia.owner_host_admission_allowed'
+const ADMISSION_SIGNATURE = `${ADMISSION_FUNCTION}(bytea)`
+export const OWNER_HOST_SCHEMA = `SELECT CASE WHEN has_schema_privilege('sophia', 'USAGE') THEN
+  to_regprocedure('${ADMISSION_SIGNATURE}') IS NOT NULL
+  AND coalesce(has_function_privilege(to_regprocedure('${ADMISSION_SIGNATURE}'), 'EXECUTE'), false)
+  ELSE false END AS ok`
+
 export const REDEEM_ROUTE = '/api/v1/owner-host/redeem'
 export const HOST_ROUTES: ReadonlySet<string> = new Set([
   '/api/v1/owner-host/hello',
@@ -45,8 +53,7 @@ export async function authenticateOwnerHost(
   if (!token) throw new DomainError('forbidden', 'Owner host refused')
   const { rows } = await withService(
     pool,
-    (c) =>
-      c.query<{ allowed: boolean }>('SELECT sophia.owner_host_admission_allowed($1) AS allowed', [secretDigest(token)]),
+    (c) => c.query<{ allowed: boolean }>(`SELECT ${ADMISSION_FUNCTION}($1::bytea) AS allowed`, [secretDigest(token)]),
     control,
   )
   if (rows.length !== 1 || typeof rows[0]?.allowed !== 'boolean')

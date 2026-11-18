@@ -1062,6 +1062,16 @@ describe('the real migrator on a ledger that already records 0106, without 0105 
 
     // The same instances, never restarted: ready, served, and the viewer still answered role first.
     assert.deepEqual([await ready(on), await ready(off)], [200, 200])
+    // The ordinary upgrade installed0118 too: this always-served prerequisite is required with contributions OFF/ON.
+    const hostHelper = 'sophia.owner_host_admission_allowed(bytea)'
+    assert.equal(second.get('0118'), files.get('0118'), 'the actual0118 migration is recorded')
+    await owner.query(`REVOKE EXECUTE ON FUNCTION ${hostHelper} FROM sophia_api`)
+    try {
+      assert.deepEqual([await ready(on), await ready(off)], [503, 503])
+    } finally {
+      await owner.query(`GRANT EXECUTE ON FUNCTION ${hostHelper} TO sophia_api`)
+    }
+    assert.deepEqual([await ready(on), await ready(off)], [200, 200], 'restored without restarting either API')
     assert.equal((await http(on, p.EDIT, 'GET /api/v1/me/api-resources')).status, 200)
     const viewer = await http(off, p.VIEW, previewUrl(p.projectId))
     assert.equal(viewer.status, 200, viewer.body)
