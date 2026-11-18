@@ -144,6 +144,8 @@ All destinations below remain partial. Local source/software evidence does not e
 | `apps/worker/src/runtime-dispatch.test.ts` | partial | S1-03 | Stock dispatch lifecycle verification with controlled resources |
 | `packages/persistence/src/owner-host-route.ts` | partial | S1-02 / S1-09 | Additive exact-journal metadata lookup; no replacement routing or qualification writes |
 | `packages/persistence/src/owner-host-route.db.test.ts` | partial | S1-02 / S1-09 | Owned SCRAM metadata-route and Stop crossing; no real native account acceptance |
+| `db/migrations/0118_owner_host_admission.sql` | partial | S1-02 / HQUOTA-F01 | Boolean-only restricted API capability precheck for bounded HTTP admission; operations retain current authorization |
+| `db/tests/0118_owner_host_admission.sql` | partial | S1-02 / HQUOTA-F01 | Local structural privilege checks; no deployed auth or native qualification |
 | `db/migrations/0117_owner_host_route.sql` | partial | S1-02 / S1-09 | Worker-only exact owner/journal metadata lookup; no schema authority or qualification grant |
 | `db/tests/0117_owner_host_route.sql` | partial | S1-02 | Owning structural least-privilege checks; not full SQL-corpus verification |
 | `packages/contracts/amendments/A61-owner-host-channel.json` | partial | S1-02 | Exact Sophia-owned host-channel admission vocabulary; generated destinations remain canonical |

@@ -2,7 +2,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest, RouteShorthandOptions } from 'fastify'
 import type pg from 'pg'
 import { DomainError } from '@sophia/domain'
-import { isSecret, helloRefusal, type HostHello } from '@sophia/coordination/owner-host-channel'
+import { isSecret, helloRefusal, secretDigest, type HostHello } from '@sophia/coordination/owner-host-channel'
 import {
   createOwnerHostPairing,
   revokeOwnerHostPairing,
@@ -36,9 +36,22 @@ export const isOwnerHostRoute = (req: FastifyRequest): boolean => {
   return route === REDEEM_ROUTE || HOST_ROUTES.has(route) || OWNER_ROUTES.has(route)
 }
 const capabilities = new WeakMap<FastifyRequest, string>()
-export function authenticateOwnerHost(req: FastifyRequest): void {
+export async function authenticateOwnerHost(
+  req: FastifyRequest,
+  pool: pg.Pool,
+  control: ServiceControl,
+): Promise<void> {
   const token = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization ?? '')?.[1]
   if (!token) throw new DomainError('forbidden', 'Owner host refused')
+  const { rows } = await withService(
+    pool,
+    (c) =>
+      c.query<{ allowed: boolean }>('SELECT sophia.owner_host_admission_allowed($1) AS allowed', [secretDigest(token)]),
+    control,
+  )
+  if (rows.length !== 1 || typeof rows[0]?.allowed !== 'boolean')
+    throw new DomainError('unavailable', 'Owner host request refused')
+  if (!rows[0].allowed) throw new DomainError('forbidden', 'Owner host refused')
   capabilities.set(req, token)
 }
 
@@ -63,31 +76,69 @@ export function ownerHostError(err: unknown, reply: FastifyReply): FastifyReply 
     })
 }
 
+type Lane = 'public' | 'verify' | 'owner' | 'host'
 interface Admission {
+  lane: Lane
   control: ServiceControl
   expired: boolean
   handling: boolean
   release(): void
+  settled(): void
+  responded(): void
   abandon(): void
 }
-/** Per-app bounded concurrency and fixed-window per-address rate; no code/token is a rate key. */
+type Unverified = 'public' | 'verify'
+type Rates = Record<Unverified, Map<string, { epoch: number; count: number }>>
+function closeUnfinishedBody(req: FastifyRequest, reply: FastifyReply): void {
+  const close = () => {
+    if (!req.raw.complete) req.raw.destroy()
+  }
+  reply.raw.once('finish', close)
+  reply.raw.once('close', close)
+}
+function expireRates(rates: Rates, epoch: number): void {
+  for (const map of Object.values(rates)) for (const [ip, entry] of map) if (entry.epoch !== epoch) map.delete(ip)
+}
+function takeRate(rates: Rates, lane: Unverified, ip: string): void {
+  const epoch = Math.floor(Date.now() / 60_000)
+  expireRates(rates, epoch)
+  const map = rates[lane],
+    entry = map.get(ip) ?? { epoch, count: 0 }
+  const total = (rates.public.get(ip)?.count ?? 0) + (rates.verify.get(ip)?.count ?? 0)
+  if (total >= 120 || (lane === 'public' && entry.count >= 16) || (!map.has(ip) && map.size >= 512))
+    throw new DomainError('unavailable', 'Owner host request refused')
+  entry.count++
+  map.set(ip, entry)
+}
+/** Fixed disjoint capacity. Authentication is work, not proof of an authenticated reservation. */
 export function ownerHostAdmission() {
   const admitted = new WeakMap<FastifyRequest, Admission>()
-  const addresses = new Map<string, { until: number; count: number }>()
-  let active = 0
+  const active = { public: 0, verify: 0, owner: 0, host: 0 }
+  const limits = { public: 4, verify: 4, owner: 12, host: 12 }
+  const live = { public: new Map<string, number>(), verify: new Map<string, number>() }
+  const rates = {
+    public: new Map<string, { epoch: number; count: number }>(),
+    verify: new Map<string, { epoch: number; count: number }>(),
+  }
   const begin = (req: FastifyRequest, reply: FastifyReply) => {
     if (!isOwnerHostRoute(req)) return
     reply.header('cache-control', 'no-store')
-    const now = Date.now()
-    for (const [ip, entry] of addresses) if (entry.until <= now) addresses.delete(ip)
-    const entry = addresses.get(req.ip) ?? { until: now + 60_000, count: 0 }
-    if (active >= 32 || entry.count >= 120 || (!addresses.has(req.ip) && addresses.size >= 1024))
+    // Includes refused bodies; these must not form an uncounted waiting queue.
+    closeUnfinishedBody(req, reply)
+    const lane = req.routeOptions.url === REDEEM_ROUTE ? 'public' : 'verify'
+    if (active[lane] >= limits[lane] || (live[lane].get(req.ip) ?? 0) >= 2)
       throw new DomainError('unavailable', 'Owner host request refused')
-    entry.count++
-    addresses.set(req.ip, entry)
-    active++
-    const state = admissionState(req, reply, () => {
-      active--
+    takeRate(rates, lane, req.ip)
+    active[lane]++
+    live[lane].set(req.ip, (live[lane].get(req.ip) ?? 0) + 1)
+    const state = admissionState(req, reply, lane, () => {
+      active[state.lane]--
+      if (state.lane === 'public' || state.lane === 'verify') {
+        const ips = live[state.lane],
+          left = (ips.get(req.ip) ?? 1) - 1
+        if (left) ips.set(req.ip, left)
+        else ips.delete(req.ip)
+      }
       admitted.delete(req)
       capabilities.delete(req)
       req.body = undefined
@@ -95,43 +146,73 @@ export function ownerHostAdmission() {
     admitted.set(req, state)
     if (req.raw.destroyed || reply.raw.destroyed) state.abandon()
   }
-  return { begin, ...admissionMethods(admitted) }
+  const methods = admissionMethods(admitted)
+  const promote = (req: FastifyRequest, lane: 'owner' | 'host') => {
+    methods.assert(req)
+    const state = admitted.get(req)
+    if (!state || state.lane !== 'verify' || active[lane] >= limits[lane])
+      throw new DomainError('unavailable', 'Owner host request refused')
+    active[lane]++
+    active.verify--
+    const left = (live.verify.get(req.ip) ?? 1) - 1
+    if (left) live.verify.set(req.ip, left)
+    else live.verify.delete(req.ip)
+    state.lane = lane
+  }
+  return { begin, promote, ...methods }
 }
 /** Own disconnects at admission, including before body parsing. Running work retains the slot until its finally. */
-function admissionState(req: FastifyRequest, reply: FastifyReply, released: () => void): Admission {
+function admissionState(req: FastifyRequest, reply: FastifyReply, lane: Lane, released: () => void): Admission {
   const controller = new AbortController()
   let releasing = false
   let finished = false
+  let responseDone = false
   const finish = () => {
-    if (finished) return
+    if (
+      finished ||
+      !releasing ||
+      state.handling ||
+      !(req.raw.complete || req.raw.readableEnded || req.raw.destroyed) ||
+      !(responseDone || reply.raw.writableFinished || reply.raw.destroyed)
+    )
+      return
     finished = true
     clearTimeout(timer)
     unwatch()
     req.raw.removeListener('end', finish)
     req.raw.removeListener('close', finish)
+    reply.raw.removeListener('finish', responseFinished)
+    reply.raw.removeListener('close', responseFinished)
     released()
   }
   const state: Admission = {
+    lane,
     control: { signal: controller.signal, deadline: performance.now() + 10_000 },
     expired: false,
     handling: false,
     abandon() {
       state.expired = true
       controller.abort()
-      if (!state.handling) state.release()
+      state.release()
     },
     release() {
-      if (releasing) return
       releasing = true
-      if (req.raw.complete || req.raw.destroyed) finish()
-      else {
-        req.raw.once('end', finish)
-        req.raw.once('close', finish)
-      }
+      finish()
+    },
+    settled: finish,
+    responded() {
+      responseDone = true
+      state.release()
     },
   }
+  const responseFinished = () => state.responded()
+  req.raw.on('end', finish)
+  req.raw.on('close', finish)
+  reply.raw.on('finish', responseFinished)
+  reply.raw.on('close', responseFinished)
   const timer = setTimeout(() => {
     state.abandon()
+    if (reply.sent && !reply.raw.writableFinished) reply.raw.destroy()
     if (!reply.sent) ownerHostError(undefined, reply)
     if (!req.raw.complete) req.raw.destroy()
   }, 10_000)
@@ -157,12 +238,14 @@ function watchDisconnect(req: FastifyRequest, reply: FastifyReply, abandon: () =
 }
 function admissionMethods(admitted: WeakMap<FastifyRequest, Admission>) {
   const assert = (req: FastifyRequest) => {
-    if (isOwnerHostRoute(req) && admitted.get(req)?.expired !== false)
+    if (!isOwnerHostRoute(req)) return
+    const state = admitted.get(req)
+    if (!state || state.expired || state.control.signal.aborted || performance.now() >= state.control.deadline)
       throw new DomainError('unavailable', 'Owner host request refused')
   }
   const finish = (req: FastifyRequest) => {
     const state = admitted.get(req)
-    if (state && !state.handling) state.release()
+    state?.responded()
   }
   const authorize = async <T>(req: FastifyRequest, call: () => Promise<T>): Promise<T> => {
     const state = admitted.get(req)
@@ -172,6 +255,7 @@ function admissionMethods(admitted: WeakMap<FastifyRequest, Admission>) {
     } finally {
       if (state) {
         state.handling = false
+        state.settled()
         if (state.expired) state.release()
       }
     }
@@ -184,6 +268,7 @@ function admissionMethods(admitted: WeakMap<FastifyRequest, Admission>) {
     try {
       return await call()
     } finally {
+      state.handling = false
       state.release()
     }
   }
