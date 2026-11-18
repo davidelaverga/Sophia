@@ -25,8 +25,8 @@
         "entries": 27747
       },
       "darwin-arm64": {
-        "digest": "sophia-tree-v2:sha256:172c23e29a8807a62a3c6c90f4a03124d92600b03fa07a4d0fea138c7113f1ff",
-        "entries": 28427
+        "digest": "sophia-tree-v2:sha256:5536c97a464deccc5bbefb2ce1f716352893f34d5aa2615fa09745d68416c197",
+        "entries": 28429
       }
     },
     "artifact_digest_scheme": "sophia-tree-v2: SHA-256 over sorted (type, path, exec bit, SHA-256 or link target) lines for files and symlinks only (directories are implied; empty ones are install-script scratch); excludes node_modules/.bin shims and pnpm bookkeeping that records install time or the checkout location, including the deploy-local pnpm-lock.yaml (scripts/lib/tree-digest.mjs)",
