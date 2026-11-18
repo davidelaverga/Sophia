@@ -1,122 +1,172 @@
 # Sophia
 
-The space where the project of your dreams becomes reality.
+**Think together. Explore possibilities. Build with context.**
 
-This is Sophia's new product repository: a shared creation and engineering
-workspace built on the official DeepSeek Harness (`dsh`) launcher and a Sophia
-profile bundle. The implementation pack calls it `sophia-next`. It is a
-separate repository from
-[Sophia-Agent](https://github.com/davidelaverga/Sophia-Agent), which stays the
-live application. That repository and its outstanding obligations are not
-modified by this one.
+Sophia is a shared AI workspace for conversations, research and project work.
+It brings the discussion, the work it produces and the decisions around it into
+one place—so a promising idea can become something the team can inspect,
+improve and build on.
 
-**Status:** S1-01 is done (merged). S1-02 is in review: the first product
-slice (shared project, command admission, snapshot and live events, with a
-minimal Studio view) works against PostgreSQL and Supabase Auth; see its
-[handoff](docs/handoffs/S1-02-attempt-1.md). S1-03 is in progress on a
-development model route: the control bridge, role presets and the
-execution-host runtime supervisor are built and pass their acceptance and
-adverse checks against the real pinned dsh loop, a LABELLED fixture Sophia
-service and a keyless mock model. Real S1-02 admission and a live-model steer
-check are still to come (see
-[docs/RUNTIME_UNIT.md](docs/RUNTIME_UNIT.md#control-bridge-s1-03)). Without a
-Sophia service binding the runtime reports `readiness=not_ready` by design.
+[Open Sophia](https://studio.sophia-ei.com/) · [Inside the workspace](#inside-the-workspace) · [What comes next](#what-comes-next) · [Run locally](#run-locally) · [Documentation](docs/README.md)
 
-## Read first
+![Sophia's dark project room, with its central light, Join the room control and optional Chat, People and Brief panels.](docs/readme-assets/current-room.jpg)
 
-- [AGENTS.md](AGENTS.md): the coding-agent contract.
-- [docs/execution/2026-10-01-unified/00_START_HERE.md](docs/execution/2026-10-01-unified/00_START_HERE.md):
-  the v2.0 continuation, the forward plan. Its
-  [goals](docs/execution/2026-10-01-unified/goals/INDEX.md) and
-  [sequence](docs/execution/2026-10-01-unified/04_SEQUENCE_AND_OWNERSHIP.md)
-  say what starts next; [LFE-00 progress](docs/progress/LFE-00.md) records
-  where the source and the deployments stand.
-- [docs/pack/00_START_HERE.md](docs/pack/00_START_HERE.md): the v0.4
-  implementation pack, history since v2.0.
-- [docs/RUNTIME_UNIT.md](docs/RUNTIME_UNIT.md): what is pinned, how it is
-  identified and how to reproduce it.
-- [docs/DESTINATION_MAP.md](docs/DESTINATION_MAP.md): every planned source
-  path, marked built or unbuilt.
-- [docs/SOURCE_MAP.md](docs/SOURCE_MAP.md): which documents and upstream
-  sources govern which files.
+*Current app · the project room at rest, captured 18 November 2026.*
 
-## Toolchain
+**In active development.** The tour shows the deployed interface. Prepared UI
+is labelled separately; the complete connected-resource workflow described
+below is being delivered incrementally.
 
-| Tool | Version | Where it is pinned |
+## Inside the workspace
+
+### A room for thinking together
+
+The room puts the conversation at the centre. Join when you want to meet;
+open **Chat**, **People** or **Brief** when you need them. Project navigation
+keeps the room within reach while you inspect work elsewhere.
+
+**Personal** is your private space for notes and conversations. **Project
+Conversations** keep shared discussions together, with their contributors and
+project context visible. Carrying something into shared work is a deliberate
+action. Sophia's ability to answer or act depends on the route enabled for
+that space.
+
+### Work you can open, question and keep
+
+**Knowledge** collects research outputs as readable work: document previews,
+versions, descriptions and available formats. Open a report to inspect its
+content, sources, limitations and history in one viewer.
+
+![Sophia Knowledge beside an open research report, with Document, Sources, History and Tasks tabs and a Download control.](docs/readme-assets/current-artifact.jpg)
+
+*Current app · an existing research report and its supporting context. The
+library includes public-topic research and an explicitly fictional test brief.*
+
+Reports can have Markdown, HTML and PDF outputs; the interface offers the
+formats actually available for that item. A new version keeps the earlier work
+available for comparison.
+
+<details>
+<summary>See the Knowledge library</summary>
+
+![Sophia's Knowledge library with report previews, version labels, format filters, search and history controls.](docs/readme-assets/current-knowledge.jpg)
+
+*Current app · browse the collection before opening a particular result.*
+
+</details>
+
+### A clear place for each kind of work
+
+| Surface | What it helps you do |
+|---|---|
+| **Conversations** | Return to a discussion and see the project context around it. |
+| **Goals** | Understand the intended outcome, current state and decisions that need attention. |
+| **Tasks** | Follow execution and open the work Sophia produces. |
+| **Knowledge** | Find retained outputs and inspect their sources and versions. |
+| **Updates** | Catch up on project activity and changes. |
+
+These are views of the same project. The interface is designed to keep the
+selected work prominent and reveal supporting detail when it is useful.
+
+## What comes next
+
+Sophia is evolving towards **three connected lenses over one project**:
+
+| Lens | Intended experience |
+|---|---|
+| **Converse** | Think with Sophia and the team through text or voice. |
+| **Explore** | Research, compare directions and develop artifacts or prototypes. |
+| **Build** | Take an agreed direction into repository work, review and verified delivery. |
+
+Converse is the current room experience. Research and artifacts are already
+accessible through the work and Knowledge surfaces; the dedicated Explore and
+Build lenses and their complete handover are still being connected.
+
+### Your resources, with understandable limits
+
+The next iteration connects **owner-operated Codex and Claude Code resources**
+for repository work and **explicitly funded API routes** for exploration.
+API funding and native subscription usage remain separate.
+
+![Prepared Sophia Resources catalog showing Codex and Claude Code cards, resource owners, recorded connection states and unknown capacity.](docs/readme-assets/prepared-resources.png)
+
+*Prepared UI · controlled fixture. This implemented resource catalog uses
+synthetic records. It shows ownership and recorded connection information;
+live activity, remaining quota and execution controls are not reported here.*
+
+The programme is connecting this foundation to:
+
+- **Natural input:** write what you need, with optional mentions; Sophia routes
+  it without a mandatory action selector.
+- **Sophia's project manager and agents:** one accountable project manager
+  coordinates implementation, review and verification.
+- **Editable resource choices:** automatic selection for new assignments, with
+  supported model and reasoning-effort settings, user preferences and pins.
+- **Bounded team contributions:** owners choose which projects may use their
+  resources and under what limits. Unknown capacity stays unknown.
+- **Continuity into delivery:** retain the chosen sources, decisions and
+  artifact versions as exploration becomes repository work.
+
+<details>
+<summary>See the prepared resource sheet on a narrow screen</summary>
+
+<img src="docs/readme-assets/prepared-resource-detail-narrow.png" width="390" alt="Prepared narrow resource sheet showing a recorded Codex connection, its observation time and expandable capability evidence." />
+
+*Prepared UI · controlled fixture. Recorded connection information is distinct
+from live account readiness; technical evidence stays expandable.*
+
+</details>
+
+See the [current implementation programme](docs/execution/2026-11-08-incremental/README.md)
+for scope and delivery criteria. [Image provenance](docs/readme-assets/README.md)
+records which views are deployed captures and which are prepared examples.
+
+## How it fits together
+
+Sophia keeps project state, decisions, permissions and results in the
+application layer. Execution adapters connect the capabilities used for a
+particular task; the Studio remains the user's workspace.
+
+| Part | Responsibility | Source |
 |---|---|---|
-| Node.js | 24.21.0 | `.node-version`, `.nvmrc`, `package.json#engines`, `config/runtime-unit.json` |
-| pnpm | 11.7.0 | `package.json#packageManager` and `#engines` (strict) |
-| dsh | 0.1.7-rc.1 = `46a7f68b0922371ce7144b668b90e377d8e799f4` (tag `dsh-v0.1.7-rc.1`) | `runtime/dsh/package.json`, `pnpm-lock.yaml`, `config/runtime-unit.json` |
-| TypeScript | 6.0.3 | root and `packages/dsh-bundle/package.json` |
+| **Studio** | React/Vite interface and shared UI components | [`apps/studio`](apps/studio), [`packages/ui`](packages/ui) |
+| **API and state** | Fastify, authenticated commands, PostgreSQL records, Supabase Auth and replayable event streams | [`apps/api`](apps/api), [`packages/contracts`](packages/contracts), [`packages/persistence`](packages/persistence), [`db`](db) |
+| **Execution** | Background work, a supervised DeepSeek Harness (`dsh`) runtime and Sophia's role/tool bundle | [`apps/worker`](apps/worker), [`apps/execution-host`](apps/execution-host), [`packages/dsh-bundle`](packages/dsh-bundle) |
+| **Voice and presence** | LiveKit rooms and a separate media bridge | [`apps/media-bridge`](apps/media-bridge) |
+| **Coordination and outputs** | Bounded coordination adapters, research reports, HTML design and PDF rendering | [`packages/coordination`](packages/coordination), [`packages/report`](packages/report), [`packages/design`](packages/design), [`renderers`](renderers) |
 
-## Reproduce the runtime unit
+Paperclip has a [bounded operational role](deploy/paperclip/README.md). Native
+runner integrations are being qualified behind Sophia's contracts. Runtime
+versions and artifact identities live in the [runtime unit](docs/RUNTIME_UNIT.md).
 
-```bash
-pnpm install --frozen-lockfile   # the only install mode; lock is committed
-pnpm check                       # toolchain → typecheck → unit tests → artifacts → integration tests
-```
+## Run locally
 
-`pnpm check` rebuilds the runtime artifact and bundle archive, then fails
-unless every identity recorded in `config/runtime-unit.json` and
-`config/dsh/profile/pnpm-lock.yaml` is reproduced. It then installs the
-`sophia-runtime` profile into throwaway Harness homes and runs the positive
-and adverse composition checks against the real pinned launcher.
-
-Individual steps:
+Use **Node.js 24.21.0**, **pnpm 11.7.0**, a running **Docker** installation and
+`curl`.
 
 ```bash
-pnpm toolchain:check                          # exact Node/pnpm or fail
-pnpm artifacts                                # build + compare with recorded identities
-pnpm artifacts:record                         # build + write identities (reviewed change)
-pnpm profile:install --force --boot 10        # isolated install, gate, bounded boot
-pnpm profile:verify                           # gate an existing install
-pnpm dsh:source --verify-release              # pinned source outside the tree + release provenance
-pnpm live:steer                               # real-route steer check; needs OPENAI_API_KEY (exits 2 without it)
-pnpm live:steer --rehearse                    # the same check against the keyless mock (never live evidence)
+git clone https://github.com/davidelaverga/Sophia.git
+cd Sophia
+pnpm install --frozen-lockfile
+pnpm build
+pnpm dev
 ```
 
-## Product slice (S1-02)
+Open **http://localhost:5173**. The development stack starts the API on
+**8787**, local PostgreSQL and LiveKit services, and synthetic development
+identities. Personal replies use a scripted rehearsal companion. Live model
+execution and Sophia's voice bridge require explicit configuration; the basic
+start does not enable them.
 
-The API, Studio and packages are TypeScript run directly by Node (type
-stripping, no build step). Suites that need a database or Supabase run apart
-from `pnpm test`; with Docker they start what they need:
+Run `pnpm check` for the repository's ordinary gate. Database, browser and
+hosted checks have additional prerequisites described in the
+[contributor guide](CONTRIBUTING.md) and [runtime documentation](docs/RUNTIME_UNIT.md).
+Keep credentials outside Git; use [.env.example](.env.example) and the
+[Supabase setup guide](deploy/supabase/README.md).
 
-```bash
-pnpm test:sql                 # migrations + SQL test on a throwaway postgres:16 (--source pack: the pack's own)
-pnpm test:db                  # persistence, race and HTTP suites on a throwaway postgres:16
-pnpm supabase:local           # local Supabase (Auth + Postgres) with the migrations applied
-pnpm test:supabase            # real Supabase tokens through the API
-pnpm dev                      # API :8787 + Studio :5173 with synthetic identities (--supabase, --hosted <env file>)
-```
+## Contributing
 
-Secrets never enter the repository: env files live outside it or are
-gitignored (`.env.*`). See [.env.example](.env.example) and
-[deploy/supabase/README.md](deploy/supabase/README.md).
-
-The development model route is `openai/gpt-6-luna` at `high` reasoning
-through the pinned `@deepseek-ai/dsh-llm-pi-ai` adapter. The credential is
-passed by reference (`OPENAI_API_KEY`), never stored. The D13 release
-baseline is unchanged.
-
-## Layout (built so far)
-
-```text
-package.json / pnpm-lock.yaml / pnpm-workspace.yaml   exact workspace resolution
-runtime/dsh/                 @sophia/dsh-runtime: the pinned dsh launcher release
-packages/dsh-bundle/         @sophia/dsh-bundle: profile bundle, control bridge, role presets
-apps/execution-host/         @sophia/execution-host: runtime supervisor (one dsh per project home)
-config/runtime-unit.json     runtime unit: pins and recorded artifact identities
-config/dsh/profile/          sophia-runtime profile manifest, lock and literal [] patch
-config/{models,roles,supervision}.json   design specimens from the pack (not installed)
-packages/contracts, domain, persistence, test-support, ui   S1-02 packages
-apps/api/                    Fastify API: auth, projects, commands, snapshot, SSE
-apps/studio/                 React/Vite Studio: sign-in and the S1-02 work view
-db/migrations/, db/tests/    pack 0001–0004 verbatim + 0005–0007; the SQL test
-supabase/, deploy/supabase/  local Supabase config; hosted project runbook and CA
-scripts/                     toolchain, artifact, profile and gate tooling; database and dev-stack scripts
-tests/unit, tests/integration
-tests/support/               LABELLED fixture Sophia service, keyless mock model, test harness
-docs/pack/                   v0.4 Part 2 implementation pack (byte-identical import)
-docs/evidence/S1-01/, S1-02/ evidence retained from actual runs (S1-03 live evidence pending)
-docs/handoffs/               session handoffs per goal attempt
-```
+Start with [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
+The [documentation index](docs/README.md) leads to the architecture, current
+programme and retained implementation evidence. Older packs remain historical
+references; they are not a statement of today's deployed capabilities.
