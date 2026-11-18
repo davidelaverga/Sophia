@@ -15,6 +15,12 @@
 // 0107 adds one fact to each API candidate: the operator-recorded capacity reading that speaks for its exact scope at
 // the snapshot's instant, or null when none does. It carries no value, evidence, channel or reflection. A full snapshot
 // whose API candidates lack it (an older helper body) is not guessed: it is unavailable.
+//
+// 0114 (INC04-R07 C4/C5 W1; docs/plans/capacity-exposure-wiring.md) adds, ONLY when the caller asks for it (the API's
+// default-off capacityExposure switch), one more server-internal fact per API candidate: the exposure custody of its
+// current reading (`exposure`). Asked for, every API candidate must carry it (null, or a state), else the snapshot is
+// unavailable; not asked for, nothing about it is requested, read or required, exactly as before 0114. It holds private
+// capacity numbers and ids: like the rest of the snapshot it never leaves the server.
 import type pg from 'pg'
 import { DomainError } from '@sophia/domain'
 import { classifyDbError } from './errors.ts'
@@ -107,6 +113,125 @@ export interface SelectionApiFacts {
   protection: SelectionProtection
   /** 0107: the reading for this candidate's exact scope, or null when none was observed and recorded by then. */
   observation: SelectionObservation | null
+  /**
+   * 0114, only when exposure was asked for: the exposure custody of the current recorded reading (null when there is no
+   * recorded reading). Absent when it was not asked for.
+   */
+  exposure?: SelectionExposure | null
+}
+
+/** One reading of a bound window's partition (0114): the reading's own as-of, freshness, value and measurement. */
+export interface ExposureObservationFacts {
+  id: string
+  issuerId: string
+  asOf: number
+  freshUntil: number
+  value: number | null
+  measurementId: string | null
+  current: boolean
+}
+
+/** One reported truth row of an effect (0109/0110), as read; never a money fact. */
+export interface ExposureTruthFacts {
+  report: string
+  noncachedInputClass: string
+  noncachedInput: number | null
+  cacheReadClass: string
+  cacheRead: number | null
+  outputClass: string
+  output: number | null
+  rawInputTotal: number | null
+  rawCacheRead: number | null
+  rawOutput: number | null
+  conflict: boolean
+  historyFull: boolean
+  historyConflict: boolean
+}
+
+/** One finality payload of an effect (0114), in append order. */
+export interface ExposureFinalityFacts {
+  payloadDigest: string
+  basis: 'provider_terminal_known' | 'never_left_release'
+  finalAt: number
+  countKind: 'final_total' | 'none'
+  finalCount: number | null
+  evidenceDigest: string
+  approvalRefDigest: string
+  issuerId: string
+  issuerQualRevision: number
+}
+
+/** One effect on the window scope's account (any project): its start, identity, reported truth and finality. */
+export interface ExposureEffectFacts {
+  projectId: string
+  reservationId: string
+  createdAt: number
+  provider: string
+  routeId: string | null
+  contract: string
+  truth: ExposureTruthFacts | null
+  finality: ExposureFinalityFacts[]
+}
+
+/** One attribution witness of a partition reading (0114). */
+export interface ExposureAttributionFacts {
+  observationId: string
+  projectId: string
+  reservationId: string
+  coverage: 'reflected' | 'not_reflected'
+  q: number | null
+  n1: string | null
+  evidenceDigest: string
+  issuerQualified: boolean
+  conflict: boolean
+}
+
+/** One registered dimension mapping applicable to the window's dimension (0114). */
+export interface ExposureMappingFacts {
+  provider: string
+  routeId: string
+  contract: string
+  sourceField: string
+  conflict: boolean
+}
+
+/** One bound window of the current reading (0114): everything the API's pure adapter needs, nothing it may show. */
+export interface ExposureWindowFacts {
+  windowRef: string
+  kind: 'remaining_at' | 'consumed_in_window' | 'verdict_only'
+  registration: {
+    windowKey: string
+    scopeId: string
+    qualRevision: number
+    dimension: string
+    unit: string
+    start: number
+    end: number
+    semantics: string
+    measurementBasis: string
+  }
+  observations: ExposureObservationFacts[]
+  partitionConflict: boolean
+  effects: ExposureEffectFacts[]
+  truncated: boolean
+  unrepresented: boolean
+  attributions: ExposureAttributionFacts[]
+  mappings: ExposureMappingFacts[]
+}
+
+/**
+ * The exposure custody of one API candidate's current reading (0114). never_bound: none of its windows was ever bound
+ * (the 0107 baseline). restricted: a binding was revoked, conflicted or is no longer backed by its registration and
+ * issuer. bound: the facts of each bound window, at the snapshot's instant in microseconds.
+ */
+export type SelectionExposure =
+  | { v: 1; state: 'never_bound' }
+  | { v: 1; state: 'restricted' }
+  | { v: 1; state: 'bound'; now: number; windows: ExposureWindowFacts[] }
+
+/** How a snapshot is read: with the exposure facts (0114, the capacityExposure switch) or without (the default). */
+export interface SelectionSnapshotOptions {
+  exposure?: boolean
 }
 
 export interface SelectionNativeFacts {
@@ -170,11 +295,53 @@ const field = (v: unknown, key: string): unknown =>
  * full snapshot for anyone else is never evaluated (a second line behind 0106's role-first return). The other fields
  * are the function's own output, as before.
  */
-function isSnapshot(v: unknown): v is SelectionSnapshot {
+function isSnapshot(v: unknown, exposure: boolean): v is SelectionSnapshot {
   const evaluation = field(v, 'evaluation')
   const role = field(field(v, 'member'), 'role')
   if (evaluation === 'restricted') return role === 'viewer'
-  return evaluation === 'full' && (role === 'admin' || role === 'editor') && observed(field(v, 'candidates'))
+  const candidates = field(v, 'candidates')
+  const full = evaluation === 'full' && (role === 'admin' || role === 'editor') && observed(candidates)
+  return full && (!exposure || exposed(candidates))
+}
+
+const isArray = (v: unknown): boolean => Array.isArray(v)
+
+/** A bound window's facts carry every closed part the adapter reads (their values the pure module checks again). */
+function isExposureWindow(w: unknown): boolean {
+  const parts = ['observations', 'effects', 'attributions', 'mappings'].every((k) => isArray(field(w, k)))
+  const flags = ['partitionConflict', 'truncated', 'unrepresented'].every((k) => typeof field(w, k) === 'boolean')
+  return (
+    parts &&
+    flags &&
+    typeof field(w, 'windowRef') === 'string' &&
+    typeof field(field(w, 'registration'), 'windowKey') === 'string'
+  )
+}
+
+/** Whether one candidate's exposure is null or one of 0114's closed states. */
+function isExposure(e: unknown): boolean {
+  if (e === null) return true
+  if (field(e, 'v') !== 1) return false
+  const state = field(e, 'state')
+  if (state === 'never_bound' || state === 'restricted') return true
+  const windows = field(e, 'windows')
+  return (
+    state === 'bound' &&
+    typeof field(e, 'now') === 'number' &&
+    Array.isArray(windows) &&
+    windows.every(isExposureWindow)
+  )
+}
+
+/**
+ * Whether every API candidate carries 0114's exposure fact. Asked for and missing (an older helper body, or the switch
+ * not honoured), nothing is guessed: the snapshot is unavailable.
+ */
+function exposed(candidates: unknown): boolean {
+  return (
+    Array.isArray(candidates) &&
+    candidates.every((c: unknown) => field(c, 'kind') !== 'api' || isExposure(field(c, 'exposure')))
+  )
 }
 
 /**
@@ -195,14 +362,19 @@ function observed(candidates: unknown): boolean {
  * restricted for any other current member), or null when the caller is not a current member or there is no such
  * project (the two are not told apart). `sourceIds` are the request's exact,
  * distinct named sources (at most 8; none is an expressly context-free request). Call inside withActor(..., 'read').
+ * With `exposure` (0114), this read transaction asks the candidate helper for the exposure facts too; the database still
+ * decides the role first, so a viewer's snapshot is restricted before any of it is read.
  */
 export async function readSelectionSnapshot(
   c: pg.PoolClient,
   projectId: string,
   sourceIds: readonly string[],
+  options: SelectionSnapshotOptions = {},
 ): Promise<SelectionSnapshot | null> {
+  const exposure = options.exposure === true
   let snapshot: unknown
   try {
+    if (exposure) await c.query(`SELECT set_config('sophia.capacity_exposure', 'w1', true)`)
     const { rows } = await c.query<{ snapshot: unknown }>(
       'SELECT sophia.selection_snapshot($1, $2::uuid[]) AS snapshot',
       [projectId, [...sourceIds]],
@@ -214,7 +386,7 @@ export async function readSelectionSnapshot(
   if (snapshot === null) return null
   // A form without the 0106 discriminant (an older body), or a full form for a non-evaluator, is never guessed to be
   // either: it is unavailable.
-  if (!isSnapshot(snapshot))
+  if (!isSnapshot(snapshot, exposure))
     throw new DomainError('projection_unavailable', 'The selection preview is not installed on this database')
   return snapshot
 }

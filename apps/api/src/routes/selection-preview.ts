@@ -17,6 +17,11 @@
 // snapshot before it reads the pool, budget, Pin or sources (R2, 0106), so a healthy viewer's answer depends on none of
 // them. Nothing promises constant time, and a database failure still answers unavailable. For a current admin or editor,
 // a pool larger than one evaluation may hold (200) is projection_unavailable too, rather than a ranked subset.
+//
+// INC04-R07 C4/C5 W1 (0114; docs/plans/capacity-exposure-wiring.md): with the API's default-off capacityExposure switch,
+// the installation also needs 0114's custody (CAPACITY_EXPOSURE_SCHEMA: without it, projection_unavailable for every
+// role, before any snapshot), the snapshot is read with each API candidate's exposure facts, and the assembler may only
+// restrict a candidate's capacity further. Off (the default), nothing of 0114 is asked for, read or required.
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import { DomainError } from '@sophia/domain'
@@ -39,10 +44,21 @@ export const SELECTION_CAPACITY_OBSERVATIONS = `to_regprocedure('sophia.selectio
  * What the boundary calls: the snapshot (0104), with the role decided first (0106), over the ledger 0105 makes atomic
  * (the shared catalog proof of persistence's contribution-installation), with each API candidate's scoped reading (0107).
  */
-export const SELECTION_PREVIEW_SCHEMA = `SELECT to_regprocedure('sophia.selection_snapshot(uuid,uuid[])') IS NOT NULL
+const PREVIEW_INSTALLED = `to_regprocedure('sophia.selection_snapshot(uuid,uuid[])') IS NOT NULL
   AND ${ATOMIC_ADMISSION_INSTALLED}
   AND ${SELECTION_VIEWER_BOUNDARY}
-  AND ${SELECTION_CAPACITY_OBSERVATIONS} AS ok`
+  AND ${SELECTION_CAPACITY_OBSERVATIONS}`
+export const SELECTION_PREVIEW_SCHEMA = `SELECT ${PREVIEW_INSTALLED} AS ok`
+
+/**
+ * Whether 0114's capacity-exposure custody is installed: its private marker and its window registrations (0114 is one
+ * transaction, so two of its own objects prove it). Required only with the capacityExposure switch, here and by /ready.
+ */
+export const CAPACITY_EXPOSURE_INSTALLED = `to_regprocedure('sophia.selection_capacity_exposure_0114()') IS NOT NULL
+  AND to_regclass('sophia.capacity_window_registrations') IS NOT NULL`
+
+/** /ready's part for the capacityExposure switch: 0114's own objects, nothing else. */
+export const CAPACITY_EXPOSURE_SCHEMA = `SELECT ${CAPACITY_EXPOSURE_INSTALLED} AS ok`
 
 const UUID = '[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}'
 
@@ -86,13 +102,16 @@ const notFound = (requestId: string) => ({
  * Whether 0104, 0105, 0106 and 0107 are installed: remembered once seen (a migration is never undone under a running API);
  * a missing one is asked again on the next request, so the same API serves once the migration has run.
  */
-function installation(pool: pg.Pool): () => Promise<void> {
+function installation(pool: pg.Pool, exposure: boolean): () => Promise<void> {
   let installed = false
+  const sql = exposure
+    ? `SELECT ${PREVIEW_INSTALLED}\n  AND ${CAPACITY_EXPOSURE_INSTALLED} AS ok`
+    : SELECTION_PREVIEW_SCHEMA
   return async () => {
     if (installed) return
     let ok = false
     try {
-      const { rows } = await pool.query<{ ok: boolean }>(SELECTION_PREVIEW_SCHEMA)
+      const { rows } = await pool.query<{ ok: boolean }>(sql)
       ok = rows[0]?.ok === true
     } catch (err) {
       throw new DomainError('unavailable', 'Database unavailable', { cause: err })
@@ -102,8 +121,12 @@ function installation(pool: pg.Pool): () => Promise<void> {
   }
 }
 
-export function selectionPreviewRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool }): void {
-  const requireInstalled = installation(pool)
+export function selectionPreviewRoutes(
+  app: FastifyInstance,
+  { pool, capacityExposure = false }: { pool: pg.Pool; capacityExposure?: boolean },
+): void {
+  const requireInstalled = installation(pool, capacityExposure)
+  const options = { exposure: capacityExposure }
 
   app.get<{ Params: { projectId: string }; Querystring: { operation: 'research'; sourceIds?: string } }>(
     '/api/v1/projects/:projectId/selection-preview',
@@ -112,7 +135,9 @@ export function selectionPreviewRoutes(app: FastifyInstance, { pool }: { pool: p
       await requireInstalled()
       const projectId = canonicalId(req.params.projectId)
       const sourceIds = sourceIdsOf(req.query.sourceIds)
-      const snapshot = await withActor(pool, req.actorId, 'read', (c) => readSelectionSnapshot(c, projectId, sourceIds))
+      const snapshot = await withActor(pool, req.actorId, 'read', (c) =>
+        readSelectionSnapshot(c, projectId, sourceIds, options),
+      )
       void reply.header('cache-control', 'no-store')
       if (snapshot === null) return reply.status(404).send(notFound(req.id))
       // A viewer's snapshot is restricted in SQL before the pool is read (R2); an evaluator's larger pool is

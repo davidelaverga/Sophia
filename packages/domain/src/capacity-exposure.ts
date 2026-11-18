@@ -821,14 +821,14 @@ function projectRegistered(o: RegisteredObservation, w: WindowRegistration, inpu
   })
 }
 
+/**
+ * Equivalence of tied projections is identity of the WHOLE projection: every field in key order, reasons and flags
+ * compared exactly (their `#n` positions index each observation's own effects, so they are not normalized). Equal
+ * numbers with different coverage, diagnostics, flags, exposure interval, lower-bound or conflict knowledge are not
+ * equivalent: such a tie is bounded, so the id order never selects the more complete reading (Codex review 5920809739).
+ */
 const projectionSignature = (p: Projection): string =>
-  JSON.stringify([
-    p.status,
-    p.effectiveFloor ?? null,
-    p.effectiveCeiling ?? null,
-    p.attributed ?? null,
-    p.unattributed ?? null,
-  ])
+  JSON.stringify(Object.entries(p).toSorted(([a], [b]) => byText(a, b)))
 
 const nullableExtreme = (values: readonly (number | null | undefined)[], pick: 'min' | 'max'): number | null => {
   const nums = values.filter((v): v is number => typeof v === 'number')
@@ -841,7 +841,7 @@ function selectTop(top: readonly string[], projections: Record<string, Projectio
   const first = all[0]
   if (first === undefined) return { status: 'unknown', reason: 'no_current' }
   if (new Set(all.map(projectionSignature)).size === 1) {
-    // ADDENDUM boundary: equal numbers keep every candidate and the union of diagnostics; never an upgrade.
+    // ADDENDUM boundary: identical projections keep every candidate and the union of diagnostics; never an upgrade.
     const reasons = [...new Set(top.flatMap((id) => (projections[id]?.reasons ?? []).map((r) => `${id}:${r}`)))]
     const coverageComplete = all.every((p) => p.coverageComplete !== false)
     return {

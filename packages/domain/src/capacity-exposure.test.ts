@@ -1286,3 +1286,225 @@ describe('R1 purity addendum: caller-owned finality state is never frozen or cha
     assert.equal(appendFinality(state, R2_4000).state, state)
   })
 })
+
+// ---- Equal-as-of ties are known only when their projections are identical (Codex review 5920809739, Root120) --------
+// Inline synthetic fixtures (synthetic-not-AC-evidence) for the review's two inert witnesses and a flag-only case. The
+// frozen vectors above are unchanged; P-TIE-EQUIVALENT remains their truly equal positive.
+
+const TIE_DIGEST = 'a'.repeat(64)
+
+/** The one effect "t" of every tie case: created at 100, inside the window. */
+function tieItem(count: Count, finality: EffectItem['finality'], bound: number | null = null): EffectItem {
+  return {
+    key: 't',
+    projectId: 'P',
+    reservationId: 'R',
+    dimension: DIM,
+    createdAt: 100,
+    count,
+    finality,
+    bound,
+    n1: null,
+  }
+}
+
+const tieAttribution = (observationId: string, q: number): Attribution => ({
+  itemKey: 't',
+  observationId,
+  coverage: 'reflected',
+  q,
+  n1: null,
+  conflict: false,
+  issuerQualified: true,
+  evidenceDigest: TIE_DIGEST,
+})
+
+/** Two current readings of 800 at the same as-of from different issuers and measurements (comparable to neither). */
+const tieReading = (id: string, kind: RegisteredObservation['kind']): RegisteredObservation => ({
+  id,
+  issuerId: id === 'A' ? 'I1' : 'I2',
+  windowKey: 'W',
+  qualRevision: 1,
+  kind,
+  asOf: 600,
+  freshUntil: 800,
+  value: 800,
+  measurementId: `M${id}`,
+})
+
+type TieEffects = { readonly items: readonly EffectItem[]; readonly attributions: readonly Attribution[] }
+const TIE_KINDS = { remaining: 'remaining_at', consumed: 'consumed_in_window' } as const
+
+function reconcileTie(
+  kind: RegisteredObservation['kind'],
+  effects: Record<string, TieEffects>,
+  order: readonly string[],
+) {
+  return reconcileObservations({
+    observations: order.map((id) => tieReading(id, kind)),
+    registry: new Map([['W', registration('W', 0, 1440)]]),
+    now: 700,
+    scopeQualified: true,
+    perObservation: new Map(Object.entries(effects)),
+  })
+}
+
+/** The per-observation projection computed directly, without reconciliation. */
+function directTieProjection(id: string, kind: RegisteredObservation['kind'], e: TieEffects): Projection {
+  return projectObservation({
+    observation: {
+      id,
+      kind,
+      value: 800,
+      window: { start: 0, end: 1440 },
+      asOf: 600,
+      freshUntil: 800,
+      semantics: 'fixed_epoch',
+      dimension: DIM,
+    },
+    items: e.items,
+    attributions: e.attributions,
+    now: 700,
+    scopeQualified: true,
+  })
+}
+
+interface MixedTie {
+  readonly kind: RegisteredObservation['kind']
+  /** The two readings' effects, given for the id that comes first and the id that comes second. */
+  readonly effects: (first: string, second: string) => Record<string, TieEffects>
+  readonly bounds: readonly [number | null, number | null]
+}
+
+const OPEN_1000 = tieItem({ kind: 'so_far', value: 1000 }, null)
+const FINAL_COUNT: Count = { kind: 'final_total', value: 1000 }
+const FINAL_AT_120: EffectItem['finality'] = { basis: 'provider_terminal_known', finalAt: 120 }
+const FINAL_1000 = tieItem(FINAL_COUNT, FINAL_AT_120)
+
+// Remaining witness: one reading has qualified q 1000, the other no attribution; same numbers, different coverage.
+const REMAINING_WITNESS: MixedTie = {
+  kind: TIE_KINDS.remaining,
+  effects: (complete, missing) => ({
+    [complete]: { items: [OPEN_1000], attributions: [tieAttribution(complete, 1000)] },
+    [missing]: { items: [OPEN_1000], attributions: [] },
+  }),
+  bounds: [null, 800],
+}
+
+// Consumed witness: explicit q 0 (X 1000..1000, complete) against missing q (X 0..unknown, lower bound).
+const CONSUMED_WITNESS: MixedTie = {
+  kind: TIE_KINDS.consumed,
+  effects: (complete, missing) => ({
+    [complete]: { items: [FINAL_1000], attributions: [tieAttribution(complete, 0)] },
+    [missing]: { items: [FINAL_1000], attributions: [] },
+  }),
+  bounds: [null, null],
+}
+
+// Flag-only difference: the same complete numbers, but one reading's effect exceeds its enforced bound.
+const FLAG_ONLY: MixedTie = {
+  kind: TIE_KINDS.remaining,
+  effects: (plain, flagged) => ({
+    [plain]: { items: [FINAL_1000], attributions: [tieAttribution(plain, 1000)] },
+    [flagged]: { items: [tieItem(FINAL_COUNT, FINAL_AT_120, 900)], attributions: [tieAttribution(flagged, 1000)] },
+  }),
+  bounds: [800, 800],
+}
+
+const MIXED_TIES: Readonly<Record<string, MixedTie>> = {
+  'remaining: complete q 1000 against missing q': REMAINING_WITNESS,
+  'consumed: complete q 0 against missing q': CONSUMED_WITNESS,
+  'remaining: equal exact numbers, a flag on only one reading': FLAG_ONLY,
+}
+
+describe('Root120: an equal-as-of tie is known only when its projections are identical', () => {
+  for (const [label, tie] of Object.entries(MIXED_TIES)) {
+    it(`${label}: a bounded tie for both id assignments and both input orders, every projection retained`, () => {
+      const outcomes: unknown[] = []
+      for (const [first, second] of [
+        ['A', 'B'],
+        ['B', 'A'],
+      ] as const) {
+        const effects = tie.effects(first, second)
+        const direct = Object.fromEntries(
+          Object.entries(effects).map(([id, e]) => [id, directTieProjection(id, tie.kind, e)]),
+        )
+        assert.notDeepEqual(direct['A'], direct['B'], `${label}: the two readings differ in what they know`)
+        for (const order of permutations(['A', 'B'])) {
+          const r = reconcileTie(tie.kind, effects, order)
+          assert.deepEqual([r.conflicts, r.regressions], [[], []], `${label}: no conflict or regression`)
+          const c = r.current
+          assert.equal(
+            c.status,
+            'tie_bounded',
+            `${label} (${first} first, order ${order.join('')}): not one known reading`,
+          )
+          assert.ok(c.status === 'tie_bounded')
+          assert.deepEqual([...c.observations], ['A', 'B'])
+          assert.deepEqual([c.effectiveFloor, c.effectiveCeiling], tie.bounds, `${label}: conservative bounds`)
+          assert.deepEqual(c.eachProjectionRetained, direct, `${label}: each reading's own projection is retained`)
+          outcomes.push([c.status, c.reason, c.effectiveFloor, c.effectiveCeiling])
+        }
+      }
+      // Renaming which evidence sorts first, and permuting the input, never changes what is known.
+      assert.equal(new Set(outcomes.map((o) => JSON.stringify(o))).size, 1, `${label}: id- and order-independent`)
+    })
+  }
+
+  it('the remaining witness keeps the incomplete reading incomplete: no canonical projection claims more than it', () => {
+    const r = reconcileTie(TIE_KINDS.remaining, REMAINING_WITNESS.effects('A', 'B'), ['B', 'A'])
+    assert.ok(r.current.status === 'tie_bounded')
+    assert.equal(r.current.eachProjectionRetained['A']?.coverageComplete, true)
+    assert.equal(r.current.eachProjectionRetained['B']?.coverageComplete, false)
+    assert.deepEqual(r.current.eachProjectionRetained['B']?.reasons, ['coverage_unknown:#0'])
+  })
+
+  it('the consumed witness keeps both exposure intervals and the lower bound: none is selected as complete', () => {
+    const r = reconcileTie(TIE_KINDS.consumed, CONSUMED_WITNESS.effects('A', 'B'), ['A', 'B'])
+    assert.ok(r.current.status === 'tie_bounded')
+    const a = r.current.eachProjectionRetained['A']
+    const b = r.current.eachProjectionRetained['B']
+    assert.deepEqual(
+      [a?.xFloor, a?.xCeiling, a?.attributedIsLowerBound, a?.coverageComplete],
+      [1000, 1000, false, true],
+    )
+    assert.deepEqual([b?.xFloor, b?.xCeiling, b?.attributedIsLowerBound, b?.coverageComplete], [0, null, true, false])
+    assert.deepEqual([a?.unattributed, b?.unattributed], [800, 800])
+  })
+
+  it('truly identical tied projections stay one known reading with complete diagnostics', () => {
+    const effects = {
+      A: { items: [OPEN_1000], attributions: [tieAttribution('A', 1000)] },
+      B: { items: [OPEN_1000], attributions: [tieAttribution('B', 1000)] },
+    }
+    for (const order of permutations(['A', 'B'])) {
+      const r = reconcileTie(TIE_KINDS.remaining, effects, order)
+      assert.ok(r.current.status === 'known', 'identical projections are equivalent')
+      assert.deepEqual([...r.current.observations], ['A', 'B'])
+      assert.deepEqual(r.current.eachProjectionRetained['A'], r.current.eachProjectionRetained['B'])
+      assert.deepEqual(r.current.projection, directTieProjection('A', TIE_KINDS.remaining, effects.A))
+      assert.deepEqual(r.current.diagnostics, {
+        reasons: ['A:ceiling_unknown:#0', 'B:ceiling_unknown:#0'],
+        coverageComplete: true,
+      })
+    }
+  })
+
+  it('a tie neither mutates its inputs nor returns anything unfrozen', () => {
+    for (const tie of Object.values(MIXED_TIES)) {
+      const effects = tie.effects('A', 'B')
+      const observations = ['B', 'A'].map((id) => tieReading(id, tie.kind))
+      const before = JSON.stringify([effects, observations])
+      const r = reconcileObservations({
+        observations,
+        registry: new Map([['W', registration('W', 0, 1440)]]),
+        now: 700,
+        scopeQualified: true,
+        perObservation: new Map(Object.entries(effects)),
+      })
+      assert.equal(JSON.stringify([effects, observations]), before)
+      assert.equal(deeplyFrozen(effects), false)
+      assert.ok(deeplyFrozen(r))
+    }
+  })
+})

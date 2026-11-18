@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { PersonalSpace } from '@sophia/contracts'
 import { exportPersonalSpace } from '../../api/personal.ts'
+import { tokenSubject } from '../../app/auth-callback.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { useMounted } from '../../app/useMounted.ts'
@@ -14,11 +15,11 @@ import {
   CopyStillWriting,
   CopyUnconfirmed,
   eraseAfterWrites,
-  ErasureWaits,
+  forgetAnswered,
 } from './copy.ts'
 import { confirmsErasure, DATA, exportText, factsOf, factWords } from './data-view.ts'
 import { focusSoon } from './focus.ts'
-import { NOTICE } from './notice-view.ts'
+import { erasureRefused, NOTICE } from './notice-view.ts'
 import { ReadNotes, type Read } from './ReadNotes.tsx'
 import { personalFailure } from './write-words.ts'
 
@@ -227,6 +228,29 @@ function useCopy(props: Props, calledOff: CalledOff, erasingNow: RefObject<boole
   return { copy, busy }
 }
 
+/**
+ * Who hears that the browser answered a copy an erasure was refused for: this sheet, for the account it was refused
+ * for. Closed, signed out or another account in, the answer is forgotten (copy.ts's forgetAnswered) and never said.
+ */
+function useAnswered(token: string, toast: ShowToast) {
+  const account = tokenSubject(token)
+  // One per account the sheet is open for; none once it went.
+  const hearing = useRef<object | null>(null)
+  useEffect(() => {
+    hearing.current = {}
+    return () => {
+      hearing.current = null
+      forgetAnswered()
+    }
+  }, [account])
+  return () => {
+    const refusedFor = hearing.current
+    return () => {
+      if (refusedFor && hearing.current === refusedFor) toast(NOTICE.copyAnswered)
+    }
+  }
+}
+
 export function DataSheet(props: Props) {
   const { space, read, locked, epoch, onClose, returnTo, onUnlock, onErase, toast } = props
   const [erased, setErased] = useState(false)
@@ -236,19 +260,21 @@ export function DataSheet(props: Props) {
   const [erasing, setErasing] = useState(false)
   const erasingNow = useRef(false)
   const { copy, busy } = useCopy(props, calledOff, erasingNow)
+  const answered = useAnswered(props.token, toast)
   const erase = async () => {
     erasingNow.current = true
     setErasing(true)
     calledOff.all() // what is being copied goes with what is erased
     try {
       // And every Personal clipboard write already handed to the browser (this sheet's, an earlier one's, a reply's)
-      // is answered first: one still unanswered after the browser's wait may yet land, so nothing is erased.
-      await eraseAfterWrites(onErase)
+      // is answered first: one still unanswered after the browser's wait may yet land, so nothing is erased. Once it
+      // is answered the toast says so, while this sheet is open for the same account.
+      await eraseAfterWrites(onErase, answered())
       setErased(true)
       focusSoon('#c-data-h ~ button') // the form goes with what it deleted: the focus goes to the sheet's Close
       toast(NOTICE.erased)
     } catch (err: unknown) {
-      toast(err instanceof ErasureWaits ? NOTICE.eraseAfterCopy : personalFailure(err))
+      toast(erasureRefused(err) ?? personalFailure(err))
     } finally {
       erasingNow.current = false
       setErasing(false)

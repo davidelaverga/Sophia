@@ -107,6 +107,12 @@ const SCHEMAS = [
   'RuntimeConversationSettlement',
   'RuntimeConversationAcknowledgedRequest',
   'RuntimeConversationAcknowledgement',
+  'BoundApplyRequest',
+  'BoundApplyReceipt',
+  'BoundClaimRequest',
+  'BoundClaimReply',
+  'BoundOutcomeRequest',
+  'BoundOutcomeReceipt',
 ] as const
 /** What the bridge validates at runtime: every reply it reads, each command, and what it sends. */
 const VALIDATED = [
@@ -165,6 +171,12 @@ const VALIDATED = [
   'RuntimeConversationSettlement',
   'RuntimeConversationAcknowledgedRequest',
   'RuntimeConversationAcknowledgement',
+  'BoundApplyRequest',
+  'BoundApplyReceipt',
+  'BoundClaimRequest',
+  'BoundClaimReply',
+  'BoundOutcomeRequest',
+  'BoundOutcomeReceipt',
 ] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')

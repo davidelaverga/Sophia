@@ -19759,6 +19759,906 @@
           }
         }
       }
+    },
+    "/v1/runtime/research/bound/apply": {
+      "post": {
+        "operationId": "runtimeResearchBoundApply",
+        "summary": "Commit the emitter's final outbound preimage of an opted dispatch (a receipt, never permission). Served only by an API built with the bound-output option (A59, default off); the database also requires its transaction-local selection.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BoundApplyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The step's receipt (or its replay)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoundApplyReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "Not this runtime's call, scope or operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused in the dispatch's current state (feature off, profile or policy not active, revoked, Hold or Stop, conflict)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A closed request that does not match",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/runtime/research/bound/claim": {
+      "post": {
+        "operationId": "runtimeResearchBoundClaim",
+        "summary": "Claim an applied dispatch: the single at-most-once send permission. Served only by an API built with the bound-output option (A59, default off); the database also requires its transaction-local selection.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BoundClaimRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The step's receipt (or its replay)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoundClaimReply"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "Not this runtime's call, scope or operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused in the dispatch's current state (feature off, profile or policy not active, revoked, Hold or Stop, conflict)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A closed request that does not match",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/runtime/research/bound/outcome": {
+      "post": {
+        "operationId": "runtimeResearchBoundOutcome",
+        "summary": "Record what the emitter observed after its claim (informational). Served only by an API built with the bound-output option (A59, default off); the database also requires its transaction-local selection.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BoundOutcomeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The step's receipt (or its replay)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoundOutcomeReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "Not this runtime's call, scope or operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused in the dispatch's current state (feature off, profile or policy not active, revoked, Hold or Stop, conflict)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A closed request that does not match",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/runtime/design/bound/apply": {
+      "post": {
+        "operationId": "runtimeDesignBoundApply",
+        "summary": "Commit the emitter's final outbound preimage of an opted dispatch (a receipt, never permission). Served only by an API built with the bound-output option (A59, default off); the database also requires its transaction-local selection.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BoundApplyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The step's receipt (or its replay)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoundApplyReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "Not this runtime's call, scope or operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused in the dispatch's current state (feature off, profile or policy not active, revoked, Hold or Stop, conflict)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A closed request that does not match",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/runtime/design/bound/claim": {
+      "post": {
+        "operationId": "runtimeDesignBoundClaim",
+        "summary": "Claim an applied dispatch: the single at-most-once send permission. Served only by an API built with the bound-output option (A59, default off); the database also requires its transaction-local selection.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BoundClaimRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The step's receipt (or its replay)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoundClaimReply"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "Not this runtime's call, scope or operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused in the dispatch's current state (feature off, profile or policy not active, revoked, Hold or Stop, conflict)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A closed request that does not match",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/runtime/design/bound/outcome": {
+      "post": {
+        "operationId": "runtimeDesignBoundOutcome",
+        "summary": "Record what the emitter observed after its claim (informational). Served only by an API built with the bound-output option (A59, default off); the database also requires its transaction-local selection.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BoundOutcomeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The step's receipt (or its replay)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoundOutcomeReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "Not this runtime's call, scope or operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused in the dispatch's current state (feature off, profile or policy not active, revoked, Hold or Stop, conflict)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A closed request that does not match",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/runtime/source-review/bound/apply": {
+      "post": {
+        "operationId": "runtimeSourceReviewBoundApply",
+        "summary": "Commit the emitter's final outbound preimage of an opted dispatch (a receipt, never permission). Served only by an API built with the bound-output option (A59, default off); the database also requires its transaction-local selection.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BoundApplyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The step's receipt (or its replay)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoundApplyReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "Not this runtime's call, scope or operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused in the dispatch's current state (feature off, profile or policy not active, revoked, Hold or Stop, conflict)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A closed request that does not match",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/runtime/source-review/bound/claim": {
+      "post": {
+        "operationId": "runtimeSourceReviewBoundClaim",
+        "summary": "Claim an applied dispatch: the single at-most-once send permission. Served only by an API built with the bound-output option (A59, default off); the database also requires its transaction-local selection.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BoundClaimRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The step's receipt (or its replay)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoundClaimReply"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "Not this runtime's call, scope or operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused in the dispatch's current state (feature off, profile or policy not active, revoked, Hold or Stop, conflict)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A closed request that does not match",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/runtime/source-review/bound/outcome": {
+      "post": {
+        "operationId": "runtimeSourceReviewBoundOutcome",
+        "summary": "Record what the emitter observed after its claim (informational). Served only by an API built with the bound-output option (A59, default off); the database also requires its transaction-local selection.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BoundOutcomeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The step's receipt (or its replay)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoundOutcomeReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "Not this runtime's call, scope or operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused in the dispatch's current state (feature off, profile or policy not active, revoked, Hold or Stop, conflict)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A closed request that does not match",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -27966,6 +28866,26 @@
               "observed_v1"
             ],
             "description": "Opt a tracked model reservation into observed facts (C2B, A58). Omitted: v1, byte-identical."
+          },
+          "boundProfile": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "C2 (A59): opt this NEW tracked model reservation into its qualified per-reservation dimension bounds, by profile reference only. Never a bound, a ceiling or maxTokens: the service derives every bound from the registered profile and policies. Accepted only by an API built with the bound-output option; otherwise refused before any effect, never downgraded.",
+            "properties": {
+              "profileId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "revision": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,9}$",
+                "description": "A decimal string (the 0113 parser refuses a JSON number)."
+              }
+            },
+            "required": [
+              "profileId",
+              "revision"
+            ]
           }
         },
         "required": [
@@ -28095,6 +29015,147 @@
                   "observed_v1"
                 ],
                 "description": "Echoed only when the reservation opted in to observed facts at reserve (A58)."
+              },
+              "bounds": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Echoed only for a reservation that opted in with boundProfile (A59): the STORED server-derived bounds of its one dispatch, exactly as recorded at reserve (0113), never recomputed. A digest is consistency, never authority.",
+                "properties": {
+                  "dispatchId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "profileId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "profileRevision": {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]{0,9}$"
+                  },
+                  "authorizeSetDigest": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "originalGeneration": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "items": {
+                    "type": "array",
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "dimension": {
+                          "type": "string",
+                          "enum": [
+                            "openai.input_cached_tokens",
+                            "openai.input_tokens",
+                            "openai.model_requests",
+                            "openai.output_tokens"
+                          ]
+                        },
+                        "unit": {
+                          "type": "string",
+                          "enum": [
+                            "tokens",
+                            "requests"
+                          ]
+                        },
+                        "boundKind": {
+                          "type": "string",
+                          "enum": [
+                            "authorized",
+                            "unsupported"
+                          ]
+                        },
+                        "bound": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^(0|[1-9][0-9]{0,9})$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "enforcementKind": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "output_parameter",
+                                "dispatch_count"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "policySetDigest": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{64}$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "unsupportedReason": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "input_estimate_only",
+                                "no_enforcing_mechanism",
+                                "route_not_qualified"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "authorizeDigest": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      },
+                      "required": [
+                        "dimension",
+                        "unit",
+                        "boundKind",
+                        "bound",
+                        "enforcementKind",
+                        "policySetDigest",
+                        "unsupportedReason",
+                        "authorizeDigest"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "dispatchId",
+                  "profileId",
+                  "profileRevision",
+                  "authorizeSetDigest",
+                  "originalGeneration",
+                  "items"
+                ]
               }
             },
             "required": [
@@ -45171,6 +46232,368 @@
           "maxProperties": 3
         },
         "description": "The kernel's viewer-safe projection of one advisory preview, for the verified actor only. `restricted`: a viewer not permitted to see this request's summary gets exactly {contract, policyVersion, disclosure}, no counts and no empty lists. `shared`: every field. Never an admission, reservation or binding; existing admission rechecks everything before any effect."
+      },
+      "BoundApplyRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "C2 apply (A59): the emitter's commitment to its final outbound preimage. The service takes the project, runtime and attempt from the authenticated scope, never from the body.",
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "apply": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "reservationId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "dispatchId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "callId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$"
+              },
+              "originalGeneration": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "emitterIdentityDigest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "outboundParamsDigest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$",
+                "description": "The emitter's digest of its FINAL outbound preimage (0113 sophia.c2.dispatch.outbound.v1)."
+              },
+              "authorizeSetDigest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "reservationId",
+              "dispatchId",
+              "callId",
+              "originalGeneration",
+              "emitterIdentityDigest",
+              "outboundParamsDigest",
+              "authorizeSetDigest"
+            ]
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "apply"
+        ]
+      },
+      "BoundApplyReceipt": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "dispatchId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "applyReceiptDigest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "phase": {
+                "type": "string",
+                "enum": [
+                  "authorized",
+                  "applied",
+                  "claimed"
+                ]
+              },
+              "replay": {
+                "type": "boolean"
+              },
+              "sendPermitted": {
+                "const": false
+              }
+            },
+            "required": [
+              "dispatchId",
+              "applyReceiptDigest",
+              "phase",
+              "replay",
+              "sendPermitted"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "dispatchId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "conflict": {
+                "const": true
+              },
+              "applyConflicted": {
+                "const": true
+              },
+              "phase": {
+                "type": "string",
+                "enum": [
+                  "authorized",
+                  "applied",
+                  "claimed"
+                ]
+              },
+              "firstDigest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "competingDigest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "sendPermitted": {
+                "const": false
+              }
+            },
+            "required": [
+              "dispatchId",
+              "conflict",
+              "applyConflicted",
+              "phase",
+              "firstDigest",
+              "competingDigest",
+              "sendPermitted"
+            ]
+          }
+        ],
+        "description": "A receipt, never permission: sendPermitted is always false. A different apply of the same dispatch is a sticky conflict."
+      },
+      "BoundClaimRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "C2 claim (A59): the single at-most-once consumption of an applied dispatch.",
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "claim": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "reservationId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "dispatchId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "originalGeneration": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "applyReceiptDigest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "reservationId",
+              "dispatchId",
+              "originalGeneration",
+              "applyReceiptDigest"
+            ]
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "claim"
+        ]
+      },
+      "BoundClaimReply": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "sendPermitted is true ONLY in the reply of the call that performed the transition; every replay is history without permission.",
+        "properties": {
+          "dispatchId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sendPermitted": {
+            "type": "boolean"
+          },
+          "history": {
+            "const": "claimed"
+          },
+          "claimSeq": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,18}$"
+          },
+          "applyReceiptDigest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "claimedAt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "replay": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "dispatchId",
+          "sendPermitted",
+          "history",
+          "claimSeq",
+          "applyReceiptDigest",
+          "claimedAt",
+          "replay"
+        ]
+      },
+      "BoundOutcomeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "C2 outcome (A59): informational emitter evidence from the claim owner only; never money, uncertainty or a re-arm.",
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "outcome": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "reservationId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "dispatchId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "outcomeKind": {
+                "type": "string",
+                "enum": [
+                  "not_sent_after_claim",
+                  "sent",
+                  "send_error_before_response"
+                ]
+              },
+              "evidenceDigest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "observedAt": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{6}Z$"
+              }
+            },
+            "required": [
+              "reservationId",
+              "dispatchId",
+              "outcomeKind",
+              "evidenceDigest",
+              "observedAt"
+            ]
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "outcome"
+        ]
+      },
+      "BoundOutcomeReceipt": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "dispatchId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "outcomeDigest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "replay": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "dispatchId",
+              "outcomeDigest",
+              "replay"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "dispatchId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "conflict": {
+                "const": true
+              },
+              "firstDigest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "competingDigest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "dispatchId",
+              "conflict",
+              "firstDigest",
+              "competingDigest"
+            ]
+          }
+        ]
       }
     }
   }

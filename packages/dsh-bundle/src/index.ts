@@ -16,10 +16,10 @@ import { homedir } from 'node:os'
 import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
-import { ControlBridge } from './control-bridge.js'
+import { boundProfileProblem, ControlBridge } from './control-bridge.js'
 import { ClosureUnverifiable, executorClosure, loadedClosureInputs } from './executor-identity.js'
 import type { ClosureInputs } from './executor-identity.js'
-import type { BridgeReadiness, EvidenceContract, RouteConfig, RoutePrices } from './control-bridge.js'
+import type { BridgeReadiness, EvidenceContract, QualifiedBoundProfile, RouteConfig, RoutePrices } from './control-bridge.js'
 import type { ReplyServiceSettings } from './reply-service.js'
 import type { ResearchSources } from './research-tools.js'
 import { roleOf } from './role-registry.js'
@@ -86,6 +86,13 @@ export interface ControlBridgeConfig {
    * to the digest the grant was pinned with (0067). Unset or unpriced, the mode is unavailable and nothing dispatches.
    */
   readonly replies: { readonly mode: 'service'; readonly routeId: string; readonly executorDigestEnv: string } | null
+  /**
+   * C2 bound output (A59, Root81): a route's qualified bound profile reference, by route id; absent or empty (the
+   * default, and the committed row) means NONE: no call opts in and no bound capability is provided. A named route must
+   * be one of `routes`; the bridge additionally opts a route in only where its loaded producer observes (C2B) and its own
+   * verified service executor runs on that route (the emitter identity is never configured: the closure covers the row).
+   */
+  readonly boundProfiles: Readonly<Record<string, QualifiedBoundProfile>>
 }
 
 const ENV_NAME = /^[A-Z][A-Z0-9_]*$/
@@ -93,7 +100,7 @@ const ENV_NAME = /^[A-Z][A-Z0-9_]*$/
 const ROUTE_ID = /^[a-z][a-z0-9-]{0,62}[a-z0-9]$/
 const ROUTE_PART = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/
 const EFFORT = /^[a-z]{1,16}$/
-const CONFIG_KEYS = new Set(['protocolVersion', 'serviceUrlEnv', 'tokenEnv', 'runtimeUnitEnv', 'workspaceEnv', 'routes', 'roleRoutes', 'sources', 'replies'])
+const CONFIG_KEYS = new Set(['protocolVersion', 'serviceUrlEnv', 'tokenEnv', 'runtimeUnitEnv', 'workspaceEnv', 'routes', 'roleRoutes', 'sources', 'replies', 'boundProfiles'])
 const PRICE_KEYS = ['input', 'cacheRead', 'cacheWrite', 'output'] as const
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -294,7 +301,23 @@ export function parseConfig(config: unknown): ControlBridgeConfig {
     roleRoutes: parseRoleRoutes(raw.roleRoutes, routes),
     sources: parseSources(raw.sources),
     replies: parseReplies(raw.replies, routes),
+    boundProfiles: parseBoundProfiles(raw.boundProfiles, routes),
   }
+}
+
+/** The bound profile references (default none): each closed, each on one of this row's named routes. */
+function parseBoundProfiles(value: unknown, routes: Readonly<Record<string, RouteConfig>>): Record<string, QualifiedBoundProfile> {
+  if (value === undefined) return {}
+  if (!isRecord(value)) throw new TypeError(`${name}: boundProfiles must be an object`)
+  const out: Record<string, QualifiedBoundProfile> = {}
+  for (const [id, profile] of Object.entries(value)) {
+    if (!Object.hasOwn(routes, id)) throw new TypeError(`${name}: boundProfiles.${id} is not one of this row's routes`)
+    const problem = boundProfileProblem(profile)
+    if (problem !== null) throw new TypeError(`${name}: boundProfiles.${id} is not a bound profile reference (${problem})`)
+    const p = profile as QualifiedBoundProfile
+    out[id] = Object.freeze({ profileId: p.profileId, revision: p.revision, endpoint: p.endpoint, settingsDigest: p.settingsDigest })
+  }
+  return out
 }
 
 /** This process's executor closure inputs (executor-identity.ts): its runtime, this installed bundle, its profile and overlays. */
@@ -315,19 +338,22 @@ const loadedClosure = (): string => executorClosure(loadedInputs()).digest
  * pinned dsh with the C1P-patched pi-ai and dsh-llm-pi-ai), by platform. It is the closure's `runtime` component alone,
  * which the Sophia bundle does not change; a runtime under the same unit label with other bytes is not qualified.
  * INC04-R07-C2B-PRODUCER-001 requalifies it on the tree whose two patches also carry the C2B producer (the C1P usage
- * rule is unchanged in them).
+ * rule is unchanged in them). INC04-R07-C2-MAINTAINED-BOUND-OUTPUT-001 (Root81) requalifies it on the tree whose
+ * dsh-llm-pi-ai patch additionally forwards the bound hook (C1P and C2B code byte-unchanged; pi-ai patch unchanged).
  */
 export const C1P_RUNTIMES: Readonly<Record<string, string>> = {
-  'linux-x64': 'sophia-tree-v2:sha256:874b64ead9ba60c7c1abfa18a504023bb1ae7ff191ca3fc462ada040a1bd6d30',
+  'linux-x64': 'sophia-tree-v2:sha256:10edf4f49258efd52c47f0b4389aadf6575f0be18d5e1e1874f175b638daadf7',
 }
 
 /**
  * C2B (INC04-R07-C2B-PRODUCER-001): the qualified runtime whose patched pi-ai and dsh-llm-pi-ai carry the private call
  * observation producer, by platform. Only a route on it may opt in to observed facts and only then is the observation
- * capability provided; any other runtime (the C1P-only tree included) emits and opts in to nothing.
+ * capability provided; any other runtime (the C1P-only tree included) emits and opts in to nothing. Root81: the same
+ * tree also carries the bound hook forwarding, so a bound route (which must be observed) runs only on a runtime whose
+ * adapter takes the bound capability.
  */
 export const C2B_RUNTIMES: Readonly<Record<string, string>> = {
-  'linux-x64': 'sophia-tree-v2:sha256:874b64ead9ba60c7c1abfa18a504023bb1ae7ff191ca3fc462ada040a1bd6d30',
+  'linux-x64': 'sophia-tree-v2:sha256:10edf4f49258efd52c47f0b4389aadf6575f0be18d5e1e1874f175b638daadf7',
 }
 
 /** The routes whose C1P Responses decoder reports usage only when complete (INC04-S03A-R07-C1P), by route id. */
@@ -500,6 +526,7 @@ export function apply(ctx: Context, config: unknown): void {
     research: researchSources(settings.sources),
     evidenceContracts: evidenceContracts(settings.routes),
     observedRoutes: observedRoutes(settings.routes),
+    boundProfiles: settings.boundProfiles,
     replies: null, // The native child composition is not qualified; only service mode may run, when configured.
     replyService: replyServiceSettings(settings.replies, settings.routes, process.env, log, loadedClosure),
     log,

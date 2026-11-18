@@ -496,8 +496,47 @@ export {
   type SelectionProtection,
   type SelectionRouteState,
   type SelectionSnapshot,
+  type SelectionSnapshotOptions,
   type SelectionSourceState,
+  type SelectionExposure,
+  type ExposureAttributionFacts,
+  type ExposureEffectFacts,
+  type ExposureFinalityFacts,
+  type ExposureMappingFacts,
+  type ExposureObservationFacts,
+  type ExposureTruthFacts,
+  type ExposureWindowFacts,
 } from './selection-snapshot.ts'
+// INC04-R07 C4/C5 W1 (0114): operator custody of capacity exposure (migration owner only).
+export {
+  appendCapacityAttribution,
+  appendCapacityFinality,
+  bindCapacityObservation,
+  CapacityCustodyRefused,
+  registerCapacityIssuer,
+  registerCapacityMapping,
+  registerCapacityScope,
+  registerCapacityWindow,
+  revokeCapacityBinding,
+  type CapacityAttributionInput,
+  type CapacityBindingInput,
+  type CapacityBindingRevocation,
+  type CapacityCustodyReceipt,
+  type CapacityDimension,
+  type CapacityFinalityInput,
+  type CapacityIssuerRegistration,
+  type CapacityMappingInput,
+  type CapacityScopeInput,
+  type CapacityWindowRegistration,
+} from './capacity-exposure-custody.ts'
+// INC04-R07 C2 bound output (A59, 0115): what a server built with the boundOutput switch passes to its runtime route
+// factories. The selection it sets is transaction-local feature selection, never authority (0113 runs every check).
+export {
+  BOUND_OUTPUT_V1,
+  runtimeBoundOutput,
+  type BoundOutputOperation,
+  type BoundOutputStep,
+} from './research-dimension-bounds.ts'
 // INC04-S03a (0107): operator custody of scoped capacity readings (migration owner only).
 export {
   recordCapacityObservation,

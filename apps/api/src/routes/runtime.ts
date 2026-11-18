@@ -47,7 +47,13 @@ import {
   type RuntimeCaller,
 } from '@sophia/persistence'
 import type { NotificationHub } from '../notification-hub.ts'
-import { DESIGN_ROUTES } from './design.ts'
+import {
+  boundStepRoutes,
+  DESIGN_ROUTES,
+  refuseUnservedBound,
+  type BoundOutput,
+  type BoundOutputOption,
+} from './design.ts'
 
 /** The routes a runtime capability may call, and nothing else may: checked by exact route in app.ts. */
 export const RUNTIME_ROUTES: ReadonlySet<string> = new Set([
@@ -70,6 +76,10 @@ export const RUNTIME_ROUTES: ReadonlySet<string> = new Set([
   '/v1/runtime/research/submit',
   '/v1/runtime/research/render',
   '/v1/runtime/research/render-result',
+  // Root81 (A59, 0115): registered only when the server is built with the bound-output option.
+  '/v1/runtime/research/bound/apply',
+  '/v1/runtime/research/bound/claim',
+  '/v1/runtime/research/bound/outcome',
   ...DESIGN_ROUTES,
 ])
 
@@ -194,7 +204,11 @@ export function runtimeRoutes(app: FastifyInstance, { pool, hub }: Deps): void {
 }
 
 /** The research tools' operations (SMC-M03 S4, A11): authenticated like observations, then fenced in SQL. */
-export function researchRoutes(app: FastifyInstance, pool: pg.Pool): void {
+export function researchRoutes(
+  app: FastifyInstance,
+  pool: pg.Pool,
+  { boundOutput = false }: { boundOutput?: BoundOutputOption } = {},
+): void {
   const research = (body: string, response: string) => ({
     bodyLimit: RESEARCH_BODY_LIMIT,
     schema: { headers: runtimeHeaders, body: { $ref: `${body}#` }, response: { 200: { $ref: `${response}#` } } },
@@ -207,7 +221,12 @@ export function researchRoutes(app: FastifyInstance, pool: pg.Pool): void {
   app.post<{ Body: ResearchReserveRequest }>(
     '/v1/runtime/research/reserve',
     research('ResearchReserveRequest', 'ResearchReservation'),
-    async (req) => withService(pool, (c) => runtimeResearchReserve(c, callerOf(req), req.body)),
+    async (req) => {
+      const who = callerOf(req)
+      // Root81: a boundProfile without the server's option is refused here, before any effect; never downgraded.
+      refuseUnservedBound(req.body, boundOutput)
+      return withService(pool, (c) => runtimeResearchReserve(c, who, req.body))
+    },
   )
   app.post<{ Body: ResearchSettleRequest }>(
     '/v1/runtime/research/settle',
@@ -240,6 +259,12 @@ export function researchRoutes(app: FastifyInstance, pool: pg.Pool): void {
     research('ResearchRenderResultRequest', 'ResearchRender'),
     async (req) => withService(pool, (c) => runtimeResearchRenderResult(c, callerOf(req), req.body)),
   )
+  if (boundOutput) researchBoundRoutes(app, pool, boundOutput)
+}
+
+/** Root81 (A59, 0115): the research operation's three bound steps (its own maintained scope in the database). */
+export function researchBoundRoutes(app: FastifyInstance, pool: pg.Pool, boundOutput: BoundOutput): void {
+  boundStepRoutes(app, pool, boundOutput, 'research', '/v1/runtime/research/bound')
 }
 
 /** CON reply-only service calls; each is authenticated/fenced again by its PostgreSQL entrypoint. */

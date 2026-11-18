@@ -4,8 +4,12 @@
 // Payloads are the closed snake_case domains the SQL validates (integers as decimal strings, digests as lowercase hex,
 // typed null as JSON null). An authority record is an operator binding of scope and evidence references, never a live
 // qualification; a digest is consistency, never authority or outbound truth. R1 (CORE-R1-001) adds the design and
-// source-review reserves with the same opt-in.
+// source-review reserves with the same opt-in. Root81 (MAINTAINED-BOUND-OUTPUT-001, 0115) adds, at the end, the one
+// entry the API role executes: the nine PUBLIC wrappers behind the transaction-local selection, injected into the route
+// factories as `BOUND_OUTPUT_V1` by a server built with the option (exported through the package index; coherent-010).
 import type pg from 'pg'
+import { DomainError } from '@sophia/domain'
+import { pgError } from './errors.ts'
 import type { RuntimeCaller } from './runtime.ts'
 
 /** A migration-owner connection or pool. */
@@ -279,3 +283,56 @@ export const runtimeSourceReviewReserveWithBounds = (
     ...caller(who),
     JSON.stringify(request),
   ])
+
+/**
+ * Root81 (INC04-R07-C2-MAINTAINED-BOUND-OUTPUT-001, migration 0115, amendment A59): the nine PUBLIC bound-output
+ * wrappers, one per operation and step, which the API role executes. Each runs only when this transaction carries the
+ * feature selection `sophia.bound_output = v1`, which ONLY this function sets (transaction-local, so a pooled
+ * connection never keeps it) and which only a route built with the server's bound-output option calls. The selection
+ * is never authority: the wrapper resolves the caller's own maintained scope, requires an opted dispatch, and the
+ * private 0113 entry runs every check. The body is A59's closed camelCase request; the database takes the project,
+ * runtime and (apply) attempt from the authenticated scope.
+ */
+export type BoundOutputOperation = 'research' | 'design' | 'source_review'
+export type BoundOutputStep = 'apply' | 'claim' | 'outcome'
+const PUBLIC_ENTRY: Readonly<Record<BoundOutputOperation, Readonly<Record<BoundOutputStep, string>>>> = {
+  research: {
+    apply: 'SELECT sophia.runtime_bound_output_apply($1, $2, $3, $4) AS r',
+    claim: 'SELECT sophia.runtime_bound_output_claim($1, $2, $3, $4) AS r',
+    outcome: 'SELECT sophia.runtime_bound_output_outcome($1, $2, $3, $4) AS r',
+  },
+  design: {
+    apply: 'SELECT sophia.runtime_bound_output_apply_design($1, $2, $3, $4) AS r',
+    claim: 'SELECT sophia.runtime_bound_output_claim_design($1, $2, $3, $4) AS r',
+    outcome: 'SELECT sophia.runtime_bound_output_outcome_design($1, $2, $3, $4) AS r',
+  },
+  source_review: {
+    apply: 'SELECT sophia.runtime_bound_output_apply_review($1, $2, $3, $4) AS r',
+    claim: 'SELECT sophia.runtime_bound_output_claim_review($1, $2, $3, $4) AS r',
+    outcome: 'SELECT sophia.runtime_bound_output_outcome_review($1, $2, $3, $4) AS r',
+  },
+}
+/** The fixed refusal codes 0113 and 0115 raise in a dispatch's state (55000): typed as invalid_state, never an outage. */
+const BOUND_STATE_REFUSAL = /^(bound|dispatch)_[a-z_]{1,60}$/
+
+/** One step of one operation's opted dispatch, through its public wrapper, with the transaction-local selection. */
+export async function runtimeBoundOutput<T = Record<string, unknown>>(
+  c: pg.ClientBase,
+  op: BoundOutputOperation,
+  step: BoundOutputStep,
+  who: RuntimeCaller,
+  request: unknown,
+): Promise<T> {
+  await c.query(`SELECT set_config('sophia.bound_output', 'v1', true)`)
+  try {
+    return await call<T>(c, PUBLIC_ENTRY[op][step], [...caller(who), JSON.stringify(request)])
+  } catch (err) {
+    const { code, message } = pgError(err)
+    if (code === '55000' && BOUND_STATE_REFUSAL.test(message))
+      throw new DomainError('invalid_state', message, { cause: err })
+    throw err
+  }
+}
+
+/** What a server built with the bound-output option passes to its runtime route factories (A59, version v1). */
+export const BOUND_OUTPUT_V1 = Object.freeze({ version: 'v1' as const, step: runtimeBoundOutput })

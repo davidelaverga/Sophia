@@ -16,6 +16,8 @@
  *   POST {base}/v1/runtime/design/{context,record,source,patch,render,render-result,capture,reserve,settle,submit}  (SDD-01, A12)
  *   POST {base}/v1/runtime/review/{context,capture,submit}  (SDD-01, A12)
  *   POST {base}/v1/runtime/source-review/{context,reserve,settle,submit}  (WBC-02, A13)
+ *   POST {base}/v1/runtime/{research,design,source-review}/bound/{apply,claim,outcome}  (C2 bound output, A59; only an
+ *        API built with the bound-output option serves them)
  *
  * Every reply is validated against the contract before the bridge reads it,
  * and every body is validated before it is sent: a reply that breaks the
@@ -33,6 +35,12 @@ import { describeFailure } from './protocol.js'
 import { wire } from './runtime-wire.generated.js'
 import type { WireValidator } from './runtime-wire.generated.js'
 import type {
+  BoundApplyReceipt,
+  BoundApplyRequest,
+  BoundClaimReply,
+  BoundClaimRequest,
+  BoundOutcomeReceipt,
+  BoundOutcomeRequest,
   RuntimeConversationClaimRequest,
   RuntimeConversationClaimReply,
   RuntimeConversationGoRequest,
@@ -101,6 +109,9 @@ export type Observation = RuntimeObservation
 
 /** A binding reconciliation could not restore; its commands are refused until a Resume succeeds. */
 export type UnrecoveredBinding = RuntimeReady['unrecovered'][number]
+
+/** The route family of a bound step: the operation whose maintained scope the service resolves (A59). */
+export type BoundFamily = 'research' | 'design' | 'source-review'
 
 /** Where and how to reach the service; resolved from environment references. */
 export interface TransportOptions {
@@ -391,5 +402,27 @@ export class ServiceTransport {
   async sourceReviewSubmit(body: SourceReviewSubmitRequest, signal?: AbortSignal): Promise<SourceReviewSubmission> {
     checked('review submit request', wire.SourceReviewSubmitRequest, body)
     return checked('review submission', wire.SourceReviewSubmission, await this.request('POST', '/v1/runtime/source-review/submit', body, signal))
+  }
+
+  // C2 bound output (A59): the three steps of an opted model call's one dispatch, under the operation's own route
+  // family. Each is sent ONCE: a lost answer is a refusal of the call (an apply or claim whose answer is unknown never
+  // lets the call leave; a claim replay is history, never permission), and an outcome is informational.
+
+  /** The emitter's commitment to its final outbound preimage: a receipt (or a conflict), never permission. */
+  async boundApply(family: BoundFamily, body: BoundApplyRequest, signal?: AbortSignal): Promise<BoundApplyReceipt> {
+    checked('bound apply request', wire.BoundApplyRequest, body)
+    return checked('bound apply receipt', wire.BoundApplyReceipt, await this.request('POST', `/v1/runtime/${family}/bound/apply`, body, signal))
+  }
+
+  /** The single at-most-once claim: only the transitioning reply carries sendPermitted true. */
+  async boundClaim(family: BoundFamily, body: BoundClaimRequest, signal?: AbortSignal): Promise<BoundClaimReply> {
+    checked('bound claim request', wire.BoundClaimRequest, body)
+    return checked('bound claim reply', wire.BoundClaimReply, await this.request('POST', `/v1/runtime/${family}/bound/claim`, body, signal))
+  }
+
+  /** What the emitter observed after its claim (claim owner only). */
+  async boundOutcome(family: BoundFamily, body: BoundOutcomeRequest, signal?: AbortSignal): Promise<BoundOutcomeReceipt> {
+    checked('bound outcome request', wire.BoundOutcomeRequest, body)
+    return checked('bound outcome receipt', wire.BoundOutcomeReceipt, await this.request('POST', `/v1/runtime/${family}/bound/outcome`, body, signal))
   }
 }

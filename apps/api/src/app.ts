@@ -5,6 +5,7 @@ import { componentSchemas, type Error as ApiError } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import {
   ATOMIC_ADMISSION_SCHEMA,
+  BOUND_OUTPUT_V1,
   checkRoleSafety,
   claimObjectWrite,
   RUNTIME_COMMANDS_CHANNEL,
@@ -51,7 +52,7 @@ import { RUNTIME_ROUTES, conversationRuntimeRoutes, researchRoutes, runtimeRoute
 import { OWNER_RUNNER_SCHEMA, runnerOperationRoutes, type OwnerRunnerAdmissions } from './routes/runner-operations.ts'
 import { API_CONTRIBUTIONS_SCHEMA, apiContributionRoutes } from './routes/api-contributions.ts'
 import { projectResourceRoutes } from './routes/project-resources.ts'
-import { selectionPreviewRoutes } from './routes/selection-preview.ts'
+import { CAPACITY_EXPOSURE_SCHEMA, selectionPreviewRoutes } from './routes/selection-preview.ts'
 import { sourceRoutes } from './routes/sources.ts'
 import type { LiveKitConfig } from './livekit.ts'
 import { NotificationHub } from './notification-hub.ts'
@@ -158,6 +159,22 @@ export interface AppDeps {
    * research admission and the runtime's paid reservation, which /ready and their own guard require 0105 for anyway.
    */
   apiContributions?: boolean
+  /**
+   * C4/C5 W1 capacity exposure (INC04-R07, migration 0114): off unless set; server.ts does not set it. Off, nothing of
+   * 0114 is asked for, read or required: the preview, its route guard and /ready are exactly as before. On, the preview
+   * reads each API candidate's exposure custody and may only restrict its capacity (the kernel's existing
+   * capacity_unproven or capacity_exhausted; no new code, number or field on the wire), and both the preview's guard
+   * and /ready require 0114 (CAPACITY_EXPOSURE_SCHEMA). It is never a core requirement.
+   */
+  capacityExposure?: boolean
+  /**
+   * C2 bound output (INC04-R07, A59, migration 0115): off unless set; server.ts sets it only with SOPHIA_BOUND_OUTPUT=on.
+   * Off, a reserve naming a `boundProfile` is refused before any database call, the nine bound steps are not served and
+   * /ready requires nothing of 0115. On, the research, design and source-review runtime routes get the production
+   * BOUND_OUTPUT_V1 (never a caller's object) and /ready requires 0115's nine wrappers (BOUND_OUTPUT_SCHEMA). Not a core
+   * requirement, not activation of any profile: each opted call still needs a qualified, active profile in 0113.
+   */
+  boundOutput?: boolean
 }
 
 /**
@@ -387,10 +404,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   conversationRoutes(app, { pool: deps.pool, voice })
   missionRoutes(app, { pool: deps.pool })
   runtimeRoutes(app, { pool: deps.pool, hub: runtimeHub })
-  researchRoutes(app, deps.pool)
+  researchRoutes(app, deps.pool, { boundOutput: boundOutputOf(deps) })
   // The reply runtime's routes call 0064's functions: served, and checked by /ready, only with conversations on.
   if (deps.conversations) conversationRuntimeRoutes(app, deps.pool)
-  designRoutes(app, { pool: deps.pool, store })
+  designRoutes(app, { pool: deps.pool, store, boundOutput: boundOutputOf(deps) })
   roomRoutes(app, { pool: deps.pool, livekit: deps.livekit, voice })
   exchangeRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   const fences = new CallFences(deps.callFenceSessions ?? CALL_FENCE_SESSIONS)
@@ -401,7 +418,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   knowledgeRoutes(app, { pool: deps.pool })
   searchRoutes(app, { pool: deps.pool })
   humanTaskRoutes(app, { pool: deps.pool })
-  coordinationRoutes(app, { pool: deps.pool })
+  coordinationRoutes(app, { pool: deps.pool, boundOutput: boundOutputOf(deps) })
   eventRoutes(app, { pool: deps.pool, hub, heartbeatMs: deps.eventPollMs ?? 10_000 })
   registerPersonal(app, deps)
   registerConversationWrites(app, deps)
@@ -411,6 +428,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   return app
 }
 
+/** The production bound-output operations for the three runtime route factories when the switch is on; else false. */
+const boundOutputOf = (deps: AppDeps) => (deps.boundOutput === true ? BOUND_OUTPUT_V1 : false)
+
 /**
  * Owner-runner operations (A47), as before, and the native resource catalog (A51, 0097): the catalog is a read, always
  * served whatever new owner-runner work admits.
@@ -418,8 +438,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 function registerNativeRunner(app: FastifyInstance, deps: AppDeps): void {
   runnerOperationRoutes(app, { pool: deps.pool, admissions: deps.ownerRunnerAdmissions ?? 'off' })
   projectResourceRoutes(app, { pool: deps.pool })
-  // INC04-S01b (A56): the read-only selection preview; installation (0104) is its boundary, no flag.
-  selectionPreviewRoutes(app, { pool: deps.pool })
+  // INC04-S01b (A56): the read-only selection preview; installation (0104) is its boundary, no flag. INC04-R07 C4/C5
+  // W1: the default-off capacityExposure switch adds 0114's restrictive exposure (and its installation) to it.
+  selectionPreviewRoutes(app, { pool: deps.pool, capacityExposure: deps.capacityExposure === true })
 }
 
 /**
@@ -626,6 +647,18 @@ const OBSERVED_FACTS_SCHEMA = `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_attrib
     WHERE attrelid = to_regclass('sophia.research_call_identities') AND attname = 'facts_version' AND NOT attisdropped)
   AND to_regprocedure('sophia.research_call_facts_version(jsonb)') IS NOT NULL AS ok`
 
+/**
+ * 0115's bound output (INC04-R07-C2, A59), required only with the boundOutput switch on: the nine public wrappers the
+ * bound steps call, each present under its exact signature and executable by this login. Each lookup is false, never an
+ * error, when missing.
+ */
+const BOUND_OUTPUT_WRAPPERS = ['apply', 'claim', 'outcome'].flatMap((step) =>
+  ['', '_design', '_review'].map((op) => `sophia.runtime_bound_output_${step}${op}(bytea,text,text,jsonb)`),
+)
+export const BOUND_OUTPUT_SCHEMA = `SELECT ${BOUND_OUTPUT_WRAPPERS.map(
+  (f) => `(to_regprocedure('${f}') IS NOT NULL AND has_function_privilege(to_regprocedure('${f}'), 'EXECUTE'))`,
+).join('\n  AND ')} AS ok`
+
 /** What /health and /ready answer for: the schema parts this API's switches require, its companion and its commit. */
 interface Health {
   stores: boolean
@@ -636,6 +669,8 @@ interface Health {
   voice: boolean
   ownerRunners: boolean
   apiContributions: boolean
+  capacityExposure: boolean
+  boundOutput: boolean
   commit: string | null
 }
 
@@ -648,13 +683,25 @@ const healthOf = (deps: AppDeps): Health => ({
   voice: deps.voiceQualification === true,
   ownerRunners: deps.ownerRunnerAdmissions === 'admit',
   apiContributions: deps.apiContributions === true,
+  capacityExposure: deps.capacityExposure === true,
+  boundOutput: deps.boundOutput === true,
   commit: deps.commit ?? null,
 })
 
 /** Whether the database has every function and column this API's switches call (each part only when it is on). */
 async function schemaReady(
   pool: pg.Pool,
-  { stores, conversations, conversationInputs, personalAnswers, voice, ownerRunners, apiContributions }: Health,
+  {
+    stores,
+    conversations,
+    conversationInputs,
+    personalAnswers,
+    voice,
+    ownerRunners,
+    apiContributions,
+    capacityExposure,
+    boundOutput,
+  }: Health,
 ): Promise<boolean> {
   const part = async (on: boolean, sql: string) => !on || (await pool.query<{ ok: boolean }>(sql)).rows[0]?.ok === true
   return (
@@ -681,7 +728,23 @@ async function schemaReady(
     // Member API contributions on (A48, A56): the routes' own installation predicate (0094, 0100's rebuild funding
     // guard, 0104's owner protection and account qualification, 0105, 0106's viewer boundary; R2, F02). Off, the
     // default: nothing more of them is required, so a database with 0105 and without 0106 is ready with them off.
-    (await part(apiContributions, API_CONTRIBUTIONS_SCHEMA))
+    (await part(apiContributions, API_CONTRIBUTIONS_SCHEMA)) &&
+    (await inc04Ready(part, capacityExposure, boundOutput))
+  )
+}
+
+/** INC04-R07's default-off switches: never core requirements, each part only when its switch is on. */
+async function inc04Ready(
+  part: (on: boolean, sql: string) => Promise<boolean>,
+  capacityExposure: boolean,
+  boundOutput: boolean,
+): Promise<boolean> {
+  return (
+    // C4/C5 W1 capacity exposure on: 0114's custody, which the preview then reads. Off, the default: nothing of 0114 is
+    // required, so a database without it stays ready.
+    (await part(capacityExposure, CAPACITY_EXPOSURE_SCHEMA)) &&
+    // C2 bound output on (A59): 0115's nine wrappers. Off, the default: nothing of 0115 is required.
+    (await part(boundOutput, BOUND_OUTPUT_SCHEMA))
   )
 }
 

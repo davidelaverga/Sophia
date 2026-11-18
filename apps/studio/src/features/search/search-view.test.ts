@@ -126,7 +126,44 @@ describe('goals and tasks in the search (docs/plans/search-goals.md)', () => {
     )
   })
 
+  it('finds by words as the API does: each one beginning a word, in any order (caza-main 1)', () => {
+    const tasks = {
+      g1: { tasksFound: [{ id: 't1', purpose: 'Translate the checklist for the second region', doer: 'Marco' }] },
+    }
+    for (const q of ['checklist region', 'region checklist', 'transl reg', 'marco checklist']) {
+      assert.deepEqual(
+        localHits(goals, tasks, q, health)
+          .filter((h) => h.kind === 'task')
+          .map((h) => h.id),
+        ['t1'],
+        q,
+      )
+    }
+    assert.deepEqual(localHits(goals, tasks, 'checklist zebra', health), [], 'every word is required')
+    assert.deepEqual(localHits(goals, tasks, 'hecklist', health), [], 'a word is found by its beginning')
+    assert.deepEqual(localHits(goals, tasks, '--', health), [], 'nothing to search')
+  })
+
+  it('finds a goal by words split between its title and a criterion, and shows the criterion (review P3)', () => {
+    const hits = localHits(goals, undefined, 'admin checklist', health)
+    assert.deepEqual(
+      hits.map((h) => [h.id, h.words]),
+      [['g2', 'The checklist opens on its first step']],
+    )
+    assert.deepEqual(localHits(goals, undefined, 'admin zebra', health), [], 'a word neither says finds nothing')
+  })
+
+  it('finds a task by words split between its doer and its purpose (review P3)', () => {
+    assert.deepEqual(
+      localHits(goals, plans, 'translate marco', health).map((h) => [h.kind, h.id, h.doer]),
+      [['task', 't1', 'Marco’s Claude Code']],
+    )
+    assert.deepEqual(localHits(goals, plans, 'marco zebra', health), [])
+  })
+
   it('counts the query as typed, not as lowercased: one İ (two code points once lowercased) finds nothing, two letters find', () => {
+    // Only the count is the point here. «İz» finds «İzmir» because the shared rule (searchWords) splits both at the
+    // combining dot İ lowercases to; «izmir» would not: a limit of the API's rule (search-words-like-the-api.md).
     const turkish = [goal('i1', 'İzmir plan')]
     assert.deepEqual(localHits(turkish, undefined, 'İ', health), [])
     assert.deepEqual(
@@ -145,6 +182,29 @@ describe('the words marked, and a long text cut around them', () => {
       { text: 'checklist', mark: true },
     ])
     assert.deepEqual(marked('Nothing here', 'checklist'), [{ text: 'Nothing here', mark: false }])
+  })
+
+  it('marks each word the query begins, in any order, as the API finds them (caza-main 1)', () => {
+    assert.deepEqual(marked('Release REL-2026-07 ships', '2026 07'), [
+      { text: 'Release REL-', mark: false },
+      { text: '2026', mark: true },
+      { text: '-', mark: false },
+      { text: '07', mark: true },
+      { text: ' ships', mark: false },
+    ])
+    assert.deepEqual(marked('Translate the checklist for the second region', 'region check'), [
+      { text: 'Translate the ', mark: false },
+      { text: 'check', mark: true },
+      { text: 'list for the second ', mark: false },
+      { text: 'region', mark: true },
+    ])
+  })
+
+  it('cuts a long text around the first word found when the phrase isn’t there (caza-main 1)', () => {
+    const long = `${'a '.repeat(100)}the checklist ${'b '.repeat(100)}region`
+    const cut = around(long, 'region checklist', 80)
+    assert.ok(cut.startsWith('…'), cut)
+    assert.ok(cut.includes('the checklist'), cut)
   })
 
   it('cuts a long text around the first match', () => {

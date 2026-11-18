@@ -18,6 +18,7 @@ import {
   withService,
   type RuntimeCaller,
 } from '@sophia/persistence'
+import { boundStepRoutes, refuseUnservedBound, type BoundOutput, type BoundOutputOption } from '../design.ts'
 
 /** The review routes a runtime capability may call; app.ts adds them to the runtime routes. */
 export const REVIEW_RUNTIME_ROUTES: readonly string[] = [
@@ -25,6 +26,10 @@ export const REVIEW_RUNTIME_ROUTES: readonly string[] = [
   '/v1/runtime/source-review/reserve',
   '/v1/runtime/source-review/settle',
   '/v1/runtime/source-review/submit',
+  // Root81 (A59, 0115): registered only when the server is built with the bound-output option.
+  '/v1/runtime/source-review/bound/apply',
+  '/v1/runtime/source-review/bound/claim',
+  '/v1/runtime/source-review/bound/outcome',
 ]
 
 const runtimeHeaders = {
@@ -50,7 +55,11 @@ const review = (body: string, response: string) => ({
   schema: { headers: runtimeHeaders, body: { $ref: `${body}#` }, response: { 200: { $ref: `${response}#` } } },
 })
 
-export function reviewRuntimeRoutes(app: FastifyInstance, pool: pg.Pool): void {
+export function reviewRuntimeRoutes(
+  app: FastifyInstance,
+  pool: pg.Pool,
+  { boundOutput = false }: { boundOutput?: BoundOutputOption } = {},
+): void {
   app.post<{ Body: SourceReviewContextRequest }>(
     '/v1/runtime/source-review/context',
     review('SourceReviewContextRequest', 'SourceReviewContextReply'),
@@ -59,7 +68,12 @@ export function reviewRuntimeRoutes(app: FastifyInstance, pool: pg.Pool): void {
   app.post<{ Body: ResearchReserveRequest }>(
     '/v1/runtime/source-review/reserve',
     review('ResearchReserveRequest', 'ResearchReservation'),
-    async (req) => withService(pool, (c) => runtimeSourceReviewReserve(c, callerOf(req), req.body)),
+    async (req) => {
+      const who = callerOf(req)
+      // Root81: a boundProfile without the server's option is refused here, before any effect; never downgraded.
+      refuseUnservedBound(req.body, boundOutput)
+      return withService(pool, (c) => runtimeSourceReviewReserve(c, who, req.body))
+    },
   )
   app.post<{ Body: ResearchSettleRequest }>(
     '/v1/runtime/source-review/settle',
@@ -71,4 +85,10 @@ export function reviewRuntimeRoutes(app: FastifyInstance, pool: pg.Pool): void {
     review('SourceReviewSubmitRequest', 'SourceReviewSubmission'),
     async (req) => withService(pool, (c) => runtimeSourceReviewSubmit(c, callerOf(req), req.body)),
   )
+  if (boundOutput) reviewBoundRoutes(app, pool, boundOutput)
+}
+
+/** Root81 (A59, 0115): the source review's three bound steps (its own maintained scope in the database). */
+export function reviewBoundRoutes(app: FastifyInstance, pool: pg.Pool, boundOutput: BoundOutput): void {
+  boundStepRoutes(app, pool, boundOutput, 'source_review', '/v1/runtime/source-review/bound')
 }

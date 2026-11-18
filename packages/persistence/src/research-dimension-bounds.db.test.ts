@@ -69,6 +69,10 @@ import {
   runtimeDesignReserveWithBounds,
   runtimeReserveWithBounds,
   runtimeSourceReviewReserveWithBounds,
+  runtimeBoundOutput,
+  BOUND_OUTPUT_V1,
+  type BoundOutputOperation,
+  type BoundOutputStep,
   type ApplyPayload,
   type BoundDimension,
   type BoundOperation,
@@ -2824,5 +2828,336 @@ describe('R2 C2R1B-F01: design and source-review apply and claim through their O
       assert.match(await waiting, /dispatch_profile_inactive/)
     })
     assert.equal(await countIn('research_bound_claims', y.w.projectId), 0)
+  })
+})
+
+// --- Root81 (INC04-R07-C2-MAINTAINED-BOUND-OUTPUT-001, 0115, A59): the PUBLIC wrappers, as the API role -------------
+// Every call below runs as sophia_api through withService (its own transaction) and the persistence entry that sets the
+// transaction-local selection; the raw controls call the wrappers WITHOUT it. Authority stays the private core's.
+
+/** A59's closed camelCase bodies from a conforming emitter's 0113 payloads (project and runtime are never named). */
+const publicApply = (a: ApplyPayload) => ({
+  reservationId: a.reservation_id,
+  dispatchId: a.dispatch_id,
+  callId: a.call_id,
+  originalGeneration: a.original_generation,
+  emitterIdentityDigest: a.emitter_identity_digest,
+  outboundParamsDigest: a.outbound_params_digest,
+  authorizeSetDigest: a.authorize_set_digest,
+})
+const publicClaim = (a: ApplyPayload, receipt: string) => ({
+  reservationId: a.reservation_id,
+  dispatchId: a.dispatch_id,
+  originalGeneration: a.original_generation,
+  applyReceiptDigest: receipt,
+})
+const publicOutcome = (a: ApplyPayload, kind: 'sent' | 'not_sent_after_claim' = 'sent') => ({
+  reservationId: a.reservation_id,
+  dispatchId: a.dispatch_id,
+  outcomeKind: kind,
+  evidenceDigest: H('synthetic emitter evidence'),
+  observedAt: '2026-11-16T06:00:00.000000Z',
+})
+type Reply = Record<string, unknown>
+/** One public step as the API role: in its own service transaction, or on `c` (a transaction the caller holds). */
+const pub = (
+  op: BoundOutputOperation,
+  step: BoundOutputStep,
+  by: { who: RuntimeCaller; at: At },
+  body: unknown,
+  c?: pg.ClientBase,
+) =>
+  c
+    ? runtimeBoundOutput<Reply>(c, op, step, by.who, { ...by.at, [step]: body })
+    : service((x) => runtimeBoundOutput<Reply>(x, op, step, by.who, { ...by.at, [step]: body }))
+/** The same wrapper as the API role WITHOUT the selection (the raw database call, no persistence entry). */
+const rawPublic = (fn: string, who: RuntimeCaller, request: unknown) =>
+  service(
+    async (c) =>
+      (
+        await c.query<{ r: unknown }>(`SELECT sophia.${fn}($1, $2, $3, $4) AS r`, [
+          who.tokenSha256,
+          who.runtimeUnitId,
+          who.bridgeInstanceId,
+          JSON.stringify(request),
+        ])
+      ).rows[0],
+  )
+const PUBLIC_FN: Record<BoundOutputOperation, string> = {
+  research: 'runtime_bound_output',
+  design: 'runtime_bound_output',
+  source_review: 'runtime_bound_output',
+}
+const fnOf = (op: BoundOutputOperation, step: BoundOutputStep) =>
+  `${PUBLIC_FN[op]}_${step}${op === 'design' ? '_design' : op === 'source_review' ? '_review' : ''}`
+
+describe('Root81 0115: the nine public bound-output wrappers as the API role (default off, scope, operation, races)', () => {
+  it('BOUND_OUTPUT_V1 is the persistence entry a server injects (version v1)', () => {
+    assert.equal(BOUND_OUTPUT_V1.version, 'v1')
+    assert.equal(BOUND_OUTPUT_V1.step, runtimeBoundOutput)
+    assert.ok(Object.isFrozen(BOUND_OUTPUT_V1))
+  })
+
+  it('research positive: apply receipt -> exactly one claim permission -> owner outcome; replays are history; the body never names project or runtime', async () => {
+    const w = await world()
+    const s = await started(w)
+    const p = await profileOf({ scope: accountScope(w) })
+    const r = await reserve(w.who, s.at, 'r81-pub-research', p)
+    const a = await applyFor(w, s.at, r)
+    const receipt = await pub('research', 'apply', { who: w.who, at: s.at }, publicApply(a))
+    // The wrapper supplied the scope's project, runtime and attempt: the receipt is the 0113 digest of the full payload.
+    assert.deepEqual([receipt.phase, receipt.sendPermitted, receipt.replay], ['applied', false, false])
+    assert.equal(receipt.applyReceiptDigest, digestOf('sophia.c2.dispatch.apply.v1', Object.values(a)))
+    const claimed = await pub('research', 'claim', { who: w.who, at: s.at }, publicClaim(a, receipt.applyReceiptDigest))
+    assert.deepEqual([claimed.sendPermitted, claimed.replay], [true, false])
+    const replay = await pub('research', 'claim', { who: w.who, at: s.at }, publicClaim(a, receipt.applyReceiptDigest))
+    assert.deepEqual([replay.sendPermitted, replay.replay], [false, true], 'a replay is history, never permission')
+    const o = await pub('research', 'outcome', { who: w.who, at: s.at }, publicOutcome(a))
+    assert.equal(o.replay, false)
+    assert.deepEqual(await pub('research', 'outcome', { who: w.who, at: s.at }, publicOutcome(a)), {
+      ...o,
+      replay: true,
+    })
+    assert.equal(await countIn('research_bound_claims', w.projectId), 1)
+    assert.equal((await boundStatus(owner, w.projectId, r.reservationId)).phase, 'claimed')
+  })
+
+  it('design and source-review positive through their OWN public wrappers; a research wrapper never steps them', async () => {
+    const d = await designWorld()
+    const dr = await designReserve(d.w.who, d.at, 'r81-pub-design', d.p)
+    const da = await applyFor(d.w, d.at, dr)
+    assert.match(
+      await refusal(pub('research', 'apply', { who: d.w.who, at: d.at }, publicApply(da))),
+      /forbidden|invalid_state|invalid_request/,
+    )
+    assert.match(
+      await refusal(pub('source_review', 'apply', { who: d.w.who, at: d.at }, publicApply(da))),
+      /forbidden|invalid_state|invalid_request/,
+    )
+    const dReceipt = await pub('design', 'apply', { who: d.w.who, at: d.at }, publicApply(da))
+    const dClaim = await pub(
+      'design',
+      'claim',
+      { who: d.w.who, at: d.at },
+      publicClaim(da, String(dReceipt.applyReceiptDigest)),
+    )
+    assert.equal(dClaim.sendPermitted, true)
+    assert.equal((await pub('design', 'outcome', { who: d.w.who, at: d.at }, publicOutcome(da))).replay, false)
+
+    const v = await reviewWorld()
+    const vr = await reviewReserve(v.who, v.at, 'r81-pub-review', v.p)
+    const va = await applyFor(v.w, v.at, vr, REVIEW_APPLY)
+    assert.match(
+      await refusal(pub('design', 'apply', { who: v.who, at: v.at }, publicApply(va))),
+      /forbidden|invalid_state|invalid_request/,
+    )
+    const vReceipt = await pub('source_review', 'apply', { who: v.who, at: v.at }, publicApply(va))
+    const vClaim = await pub(
+      'source_review',
+      'claim',
+      { who: v.who, at: v.at },
+      publicClaim(va, String(vReceipt.applyReceiptDigest)),
+    )
+    assert.equal(vClaim.sendPermitted, true)
+    assert.equal((await pub('source_review', 'outcome', { who: v.who, at: v.at }, publicOutcome(va))).replay, false)
+  })
+
+  it('default OFF: without the transaction-local selection every wrapper refuses before any row (all nine, as the API role)', async () => {
+    const w = await world()
+    const s = await started(w)
+    const p = await profileOf({ scope: accountScope(w) })
+    const r = await reserve(w.who, s.at, 'r81-off', p)
+    const a = await applyFor(w, s.at, r)
+    const bodies = { apply: publicApply(a), claim: publicClaim(a, H('x')), outcome: publicOutcome(a) }
+    for (const op of ['research', 'design', 'source_review'] as const)
+      for (const step of ['apply', 'claim', 'outcome'] as const)
+        assert.match(
+          await refusal(rawPublic(fnOf(op, step), w.who, { ...s.at, [step]: bodies[step] })),
+          /55000:bound_output_disabled/,
+          `${op} ${step}`,
+        )
+    // a value other than v1 is OFF too
+    const other = await refusal(
+      service(async (c) => {
+        await c.query(`SELECT set_config('sophia.bound_output', 'v2', true)`)
+        return c.query(`SELECT sophia.runtime_bound_output_apply($1,$2,$3,$4)`, [
+          w.who.tokenSha256,
+          w.who.runtimeUnitId,
+          w.who.bridgeInstanceId,
+          JSON.stringify({ ...s.at, apply: bodies.apply }),
+        ])
+      }),
+    )
+    assert.match(other, /55000:bound_output_disabled/)
+    // the selection does not outlive its transaction: the next transaction on the pool is OFF again
+    await pub('research', 'apply', { who: w.who, at: s.at }, bodies.apply)
+    assert.match(
+      await refusal(rawPublic('runtime_bound_output_claim', w.who, { ...s.at, claim: publicClaim(a, H('y')) })),
+      /55000:bound_output_disabled/,
+    )
+    assert.equal(await countIn('research_bound_claims', w.projectId), 0)
+  })
+
+  it('not opted: a tracked reservation without boundProfile is refused by every step, typed invalid_request', async () => {
+    const w = await world()
+    const s = await started(w)
+    const r = await reserve(w.who, s.at, 'r81-unopted')
+    assert.equal(r.binding?.bounds, undefined)
+    const body = {
+      reservationId: r.reservationId,
+      dispatchId: randomUUID(),
+      callId: 'r81-unopted',
+      originalGeneration: null,
+      emitterIdentityDigest: EMITTER,
+      outboundParamsDigest: H('o'),
+      authorizeSetDigest: H('s'),
+    }
+    assert.match(
+      await refusal(pub('research', 'apply', { who: w.who, at: s.at }, body)),
+      /invalid_request:bound_output_not_opted/,
+    )
+    assert.match(
+      await refusal(
+        pub(
+          'research',
+          'claim',
+          { who: w.who, at: s.at },
+          {
+            reservationId: r.reservationId,
+            dispatchId: body.dispatchId,
+            originalGeneration: null,
+            applyReceiptDigest: H('r'),
+          },
+        ),
+      ),
+      /invalid_request:bound_output_not_opted/,
+    )
+    assert.match(
+      await refusal(
+        pub(
+          'research',
+          'outcome',
+          { who: w.who, at: s.at },
+          {
+            reservationId: r.reservationId,
+            dispatchId: body.dispatchId,
+            outcomeKind: 'sent',
+            evidenceDigest: H('e'),
+            observedAt: '2026-11-16T06:00:00.000000Z',
+          },
+        ),
+      ),
+      /invalid_request:bound_output_not_opted/,
+    )
+  })
+
+  it('the selection is never authority: an unknown capability, another runtime and a foreign session are refused; no row', async () => {
+    const w = await world()
+    const s = await started(w)
+    const p = await profileOf({ scope: accountScope(w) })
+    const r = await reserve(w.who, s.at, 'r81-auth', p)
+    const a = await applyFor(w, s.at, r)
+    const stranger = callerOf(randomUUID() + randomUUID(), UNIT)
+    assert.match(
+      await refusal(pub('research', 'apply', { who: stranger, at: s.at }, publicApply(a))),
+      /runtime_capability_required|forbidden/,
+    )
+    // the project's other (legacy) runtime does not own this attempt
+    assert.match(
+      await refusal(pub('research', 'apply', { who: w.legacy, at: s.at }, publicApply(a))),
+      /forbidden|invalid_state|runtime_capability_required/,
+    )
+    // another world's runtime naming this reservation: its scope's project has no such dispatch
+    const x = await world()
+    const xs = await started(x)
+    assert.match(
+      await refusal(pub('research', 'apply', { who: x.who, at: xs.at }, publicApply(a))),
+      /invalid_request:bound_output_not_opted|forbidden/,
+    )
+    assert.equal(await countIn('research_bound_applications', w.projectId), 0)
+  })
+
+  it('closed body: a caller-named project or runtime, a missing member or a non-uuid reservation is refused before the scope', async () => {
+    const w = await world()
+    const s = await started(w)
+    const p = await profileOf({ scope: accountScope(w) })
+    const r = await reserve(w.who, s.at, 'r81-closed', p)
+    const a = await applyFor(w, s.at, r)
+    for (const bad of [
+      { ...publicApply(a), projectId: w.projectId },
+      { ...publicApply(a), runtimeId: randomUUID() },
+      { ...publicApply(a), project_id: w.projectId },
+      { ...publicApply(a), reservationId: 'nope' },
+      (({ dispatchId: _d, ...rest }) => rest)(publicApply(a)),
+    ])
+      assert.match(
+        await refusal(pub('research', 'apply', { who: w.who, at: s.at }, bad)),
+        /invalid_request:payload_invalid/,
+        JSON.stringify(Object.keys(bad)),
+      )
+    assert.equal(await countIn('research_bound_applications', w.projectId), 0)
+  })
+
+  it('revocation between apply and claim: the claim is refused (typed invalid_state), no permission, no claim row', async () => {
+    const w = await world()
+    const s = await started(w)
+    const p = await profileOf({ scope: accountScope(w) })
+    const r = await reserve(w.who, s.at, 'r81-revoke', p)
+    const a = await applyFor(w, s.at, r)
+    const receipt = await pub('research', 'apply', { who: w.who, at: s.at }, publicApply(a))
+    await recordBoundProfileEvent(owner, lifecycle(p, 'openai.output_tokens', p.out, 'revoke'))
+    assert.match(
+      await refusal(
+        pub('research', 'claim', { who: w.who, at: s.at }, publicClaim(a, receipt.applyReceiptDigest as string)),
+      ),
+      /invalid_state:dispatch_profile_inactive/,
+    )
+    assert.equal(await countIn('research_bound_claims', w.projectId), 0)
+  })
+
+  it('apply conflict: a different public apply of the same dispatch is a sticky conflict and the claim is refused', async () => {
+    const w = await world()
+    const s = await started(w)
+    const p = await profileOf({ scope: accountScope(w) })
+    const r = await reserve(w.who, s.at, 'r81-conflict', p)
+    const a = await applyFor(w, s.at, r)
+    const receipt = await pub('research', 'apply', { who: w.who, at: s.at }, publicApply(a))
+    const other = await pub(
+      'research',
+      'apply',
+      { who: w.who, at: s.at },
+      { ...publicApply(a), outboundParamsDigest: H('another preimage') },
+    )
+    assert.deepEqual([other.conflict, other.sendPermitted], [true, false])
+    assert.match(
+      await refusal(
+        pub('research', 'claim', { who: w.who, at: s.at }, publicClaim(a, receipt.applyReceiptDigest as string)),
+      ),
+      /invalid_state:dispatch_apply_conflict/,
+    )
+  })
+
+  it('race: two public claims, the second genuinely waiting on the first transaction, exactly one permission', async () => {
+    const w = await world()
+    const s = await started(w)
+    const p = await profileOf({ scope: accountScope(w) })
+    const r = await reserve(w.who, s.at, 'r81-race', p)
+    const a = await applyFor(w, s.at, r)
+    const receipt = await pub('research', 'apply', { who: w.who, at: s.at }, publicApply(a))
+    const body = publicClaim(a, receipt.applyReceiptDigest as string)
+    const holder = await api.connect()
+    try {
+      await holder.query('BEGIN')
+      const first = await pub('research', 'claim', { who: w.who, at: s.at }, body, holder)
+      const second = pub('research', 'claim', { who: w.who, at: s.at }, body)
+      await blockedBy(await pidOf(holder), 'the second public claim')
+      await holder.query('COMMIT')
+      const lost = await second
+      assert.deepEqual([first.sendPermitted, lost.sendPermitted, lost.replay], [true, false, true])
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined)
+      holder.release()
+    }
+    assert.equal(await countIn('research_bound_claims', w.projectId), 1)
   })
 })

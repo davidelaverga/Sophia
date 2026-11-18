@@ -85,6 +85,17 @@ function ownerRunnerAdmissionsFromEnv(): 'off' | 'admit' {
   if (value !== 'admit') throw new Error('SOPHIA_OWNER_RUNNERS is off, admit or unset')
   return value
 }
+/**
+ * C2 bound output (INC04-R07, A59, 0115): unset or off serves no bound step and refuses an opted reserve; on serves the
+ * nine bound steps and makes /ready require 0115's wrappers. It never qualifies a profile: each opted call still needs a
+ * qualified, active profile in 0113. Unset in every deployed environment.
+ */
+function boundOutputFromEnv(): boolean {
+  const value = optional('SOPHIA_BOUND_OUTPUT')
+  if (value === undefined || value === 'off') return false
+  if (value !== 'on') throw new Error('SOPHIA_BOUND_OUTPUT is on, off or unset')
+  return true
+}
 const app = buildApp({
   pool,
   logger: true,
@@ -101,6 +112,7 @@ const app = buildApp({
   // Voice qualification evidence (A45, 0085): on only by the operator's batch, with 0085 applied.
   voiceQualification: voiceQualificationFromEnv(),
   ownerRunnerAdmissions: ownerRunnerAdmissionsFromEnv(),
+  boundOutput: boundOutputFromEnv(),
   ...(mediaBridgeTokenSha256 ? { mediaBridgeTokenSha256 } : {}),
   ...(livekitUrl
     ? { livekit: { url: livekitUrl, apiKey: required('LIVEKIT_API_KEY'), apiSecret: required('LIVEKIT_API_SECRET') } }

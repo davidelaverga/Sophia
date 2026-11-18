@@ -19,6 +19,15 @@ test('search · «checklist» finds the task and the goal first, labelled, the w
   await expect(goal.locator('mark').first()).toHaveText(/checklist/i)
 })
 
+test('search · «region checklist» finds the task by its words, in any order, each marked (caza-main 1)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1&place=goals')
+  const results = await search(page, 'region checklist')
+  const task = results.getByRole('button', { name: /Translate the checklist for the second region/ })
+  await expect(task.locator('.search-hit-title mark')).toHaveText(['checklist', 'region'])
+})
+
 test('search · a task opens its sheet in Tasks', async ({ page }) => {
   await page.goto('/room.html?demo=1&place=goals')
   const results = await search(page, 'checklist')

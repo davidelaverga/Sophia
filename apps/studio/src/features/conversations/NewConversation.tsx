@@ -44,9 +44,11 @@ interface Props {
   notice: string | null
   /**
    * Sophia answers here now (the list's `capability.ask`). Where she doesn't, «Ask Sophia» still records the request, and
-   * the form says before Start that she won't answer yet, as the open conversation's composer does.
+   * the form says before Start that she won't answer, and why, as the open conversation's composer does.
    */
   answers: boolean
+  /** Why she doesn't, where she doesn't (the list's `capability.askReason`, askUnansweredWords). */
+  unanswered: string
   /** The conversations here, for the one that already asks the question (docs/plans/same-question.md). */
   conversations: readonly ConversationSummary[]
   /** Opens one of them instead of starting another. */
@@ -119,6 +121,7 @@ export function NewConversation(props: Props) {
         onChange={(change) => onFields({ ...fields, ...change })}
         same={same && { title: same.title, open: () => props.onOpenExisting(same.id) }}
         answers={props.answers}
+        unanswered={props.unanswered}
       />
       <div className="conv-compose-acts">
         <button type="submit" className="pill" aria-disabled={!ready || busy || undefined}>
@@ -155,6 +158,7 @@ function Fields(props: {
   /** A conversation here that already asks it, and the press that opens it. */
   same: { title: string; open: () => void } | null
   answers: boolean
+  unanswered: string
 }) {
   const { question, shown, fixed, onChange } = props
   return (
@@ -196,14 +200,21 @@ function Fields(props: {
         asked={shown.askSophia}
         fixed={fixed}
         answers={props.answers}
+        unanswered={props.unanswered}
         onAsked={(askSophia) => onChange({ askSophia })}
       />
     </>
   )
 }
 
-/** «Ask Sophia», and where she doesn't answer here yet, saying so before Start (as the open composer's hint does). */
-function AskSophia(props: { asked: boolean; fixed: boolean; answers: boolean; onAsked: (asked: boolean) => void }) {
+/** «Ask Sophia», and where she doesn't answer here, saying so and why before Start (as the open composer's hint does). */
+function AskSophia(props: {
+  asked: boolean
+  fixed: boolean
+  answers: boolean
+  unanswered: string
+  onAsked: (asked: boolean) => void
+}) {
   const unanswered = props.asked && !props.answers
   const note = useId()
   return (
@@ -222,7 +233,7 @@ function AskSophia(props: { asked: boolean; fixed: boolean; answers: boolean; on
       </label>
       {unanswered && (
         <p id={note} className="conv-note conv-ask-unanswered">
-          Sophia doesn’t answer here yet: the question goes to the team.
+          {props.unanswered}: the question goes to the team.
         </p>
       )}
     </>
