@@ -1,0 +1,905 @@
+{
+  "id": "A60",
+  "goal": "INC-COORD-1118-CODEX-NATIVE-RESULT-S-001",
+  "title": "Owner-private native retained results and same-goal discovery",
+  "why": [
+    "Exact accepted create/input run, immutable inline private Source, frozen conservative binding context privacy superset. Discovery is metadata only. Missing lookup does not prove no future commit. Execution expiry and action flags do not revoke retained reads. No managed continuation is provided by this read-only slice."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerResultRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedOperationRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "maxPages": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
+          },
+          "maxBytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8192
+          }
+        },
+        "required": ["expectedOperationRevision", "maxPages", "maxBytes"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerCollection",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "collectionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["pending", "collecting", "retained", "unavailable", "unknown", "withdrawn"]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resultId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reservedPages": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 8
+          },
+          "maxPages": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
+          },
+          "maxBytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8192
+          },
+          "deadlineAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "collectionId",
+          "projectId",
+          "operationId",
+          "state",
+          "reason",
+          "resultId",
+          "reservedPages",
+          "maxPages",
+          "maxBytes",
+          "deadlineAt"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerResultDescriptor",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "resultId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "goalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "originalCreateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attemptId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bindingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "versionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "acceptedRunId": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8192
+          },
+          "audience": {
+            "type": "string",
+            "enum": ["owner_private"]
+          },
+          "dependencyPolicy": {
+            "type": "string",
+            "enum": ["binding_context_privacy_superset_v1"]
+          },
+          "state": {
+            "type": "string",
+            "enum": ["retained", "withdrawn"]
+          },
+          "retainedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "resultId",
+          "projectId",
+          "goalId",
+          "operationId",
+          "originalCreateId",
+          "attemptId",
+          "bindingId",
+          "sourceId",
+          "versionId",
+          "acceptedRunId",
+          "sha256",
+          "byteLength",
+          "audience",
+          "dependencyPolicy",
+          "state",
+          "retainedAt"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerRetainedResult",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "$ref": "#/components/schemas/OwnerRunnerResultDescriptor"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 8192
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["result", "text"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerWorkOperation",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "goalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "resourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attemptId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bindingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "originalCreateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["create", "input", "stop"]
+          },
+          "state": {
+            "type": "string",
+            "enum": ["admitted", "possible_send", "received", "rejected", "denied", "unknown", "settled"]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "acceptedRunId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "admittedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "collection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OwnerRunnerCollection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OwnerRunnerResultDescriptor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "operationId",
+          "projectId",
+          "goalId",
+          "resourceId",
+          "attemptId",
+          "bindingId",
+          "originalCreateId",
+          "kind",
+          "state",
+          "revision",
+          "acceptedRunId",
+          "admittedAt",
+          "collection",
+          "result"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerWorkPage",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "goalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnerRunnerWorkOperation"
+            }
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["projectId", "goalId", "operations", "complete", "nextCursor", "observedAt"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerWorkLookup",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["operation", "collection"]
+          },
+          "state": {
+            "type": "string",
+            "enum": ["found", "not_observed"]
+          },
+          "operation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OwnerRunnerWorkOperation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "collection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OwnerRunnerCollection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "absenceProvesNoCommit": {
+            "type": "boolean",
+            "enum": [false]
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["kind", "state", "operation", "collection", "absenceProvesNoCommit", "observedAt"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerAdmissionRoute",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "resourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "profileId": {
+            "type": "string"
+          },
+          "profileRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "qualificationRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["create", "input", "stop"]
+            }
+          },
+          "sourcePolicy": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "v": {
+                "type": "integer",
+                "enum": [1]
+              },
+              "instanceId": {
+                "type": "string"
+              },
+              "models": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "model": {
+                      "type": "string"
+                    },
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "values": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "boolean"
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        "required": ["id", "values"]
+                      }
+                    }
+                  },
+                  "required": ["model", "options"]
+                }
+              }
+            },
+            "required": ["v", "instanceId", "models"]
+          },
+          "repositoryRoot": {
+            "type": "string"
+          },
+          "writeScope": {
+            "type": "string",
+            "enum": ["read_only"]
+          },
+          "remainingOperations": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "hostState": {
+            "type": "string",
+            "enum": ["recorded_active", "not_recorded_active"]
+          }
+        },
+        "required": [
+          "resourceId",
+          "profileId",
+          "profileRevision",
+          "qualificationRevision",
+          "operations",
+          "sourcePolicy",
+          "repositoryRoot",
+          "writeScope",
+          "remainingOperations",
+          "hostState"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/OwnerRunnerWorkAvailability",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "goalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "goalRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "authorityEpoch": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "canAdmit": {
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["role_or_goal", "no_qualified_route", "admissions_disabled", "managed_goal"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnerRunnerAdmissionRoute"
+            }
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "sourceId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": ["sourceId", "sha256", "revision"]
+            }
+          },
+          "sourcesComplete": {
+            "type": "boolean"
+          },
+          "nextSourceCursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "baseCommitPolicy": {
+            "type": "string",
+            "enum": ["caller_supplied_exact_commit"]
+          },
+          "managedContinuation": {
+            "type": "string",
+            "enum": ["not_provided"]
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resultsEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "projectId",
+          "goalId",
+          "goalRevision",
+          "authorityEpoch",
+          "canAdmit",
+          "reason",
+          "resources",
+          "sources",
+          "sourcesComplete",
+          "nextSourceCursor",
+          "baseCommitPolicy",
+          "managedContinuation",
+          "observedAt",
+          "resultsEnabled"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1runner-operations~1{operationId}~1results",
+      "value": {
+        "post": {
+          "operationId": "ownerRunnerCollection",
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "operationId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "idempotency-key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "description": "Owner-private current-authority projection",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/OwnerRunnerCollection"
+                  }
+                }
+              }
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerRunnerResultRequest"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1runner-results~1{resultId}",
+      "value": {
+        "get": {
+          "operationId": "ownerRunnerRetainedResult",
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "resultId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Owner-private current-authority projection",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/OwnerRunnerRetainedResult"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1goals~1{goalId}~1native-work",
+      "value": {
+        "get": {
+          "operationId": "ownerRunnerWorkPage",
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "goalId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "after",
+              "in": "query",
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Owner-private current-authority projection",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/OwnerRunnerWorkPage"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1goals~1{goalId}~1native-work~1lookup",
+      "value": {
+        "get": {
+          "operationId": "ownerRunnerWorkLookup",
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "goalId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "key",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            },
+            {
+              "name": "kind",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "enum": ["operation", "collection"]
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Owner-private current-authority projection",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/OwnerRunnerWorkLookup"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1goals~1{goalId}~1native-work~1availability",
+      "value": {
+        "get": {
+          "operationId": "ownerRunnerWorkAvailability",
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "goalId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "after",
+              "in": "query",
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Owner-private current-authority projection",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/OwnerRunnerWorkAvailability"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -21,7 +21,7 @@ import {
   type HostHello,
   type SettleResult,
 } from '@sophia/coordination/owner-host-channel'
-import type { RunnerAnswer, RunObservation } from '@sophia/coordination/runner-port'
+import type { RunnerAnswer, RunObservation, RunnerCollection } from '@sophia/coordination/runner-port'
 import { classifyDbError } from './errors.ts'
 import { onlyRow } from './rows.ts'
 
@@ -177,13 +177,19 @@ export class DbHostChannel implements HostChannel {
     return typeof r.payload === 'string' ? { result: 'go', payload: r.payload } : { result: 'go' }
   }
 
-  answer(exchangeId: string, answer: RunnerAnswer | RunObservation): Promise<AnswerResult> {
-    return call(
+  answer(exchangeId: string, answer: RunnerAnswer | RunObservation | RunnerCollection): Promise<AnswerResult> {
+    const pending = call<AnswerResult>(
       this.pool,
       'SELECT sophia.owner_host_answer($1, $2, $3) AS r',
       [this.capability, exchangeId, JSON.stringify(answer)],
       'answer',
     )
+    // The agent logs Error.message: never hand it a result driver's private DETAIL.
+    return 'v' in answer
+      ? pending.catch(() => {
+          throw new Error('Owner host result answer failed')
+        })
+      : pending
   }
 }
 

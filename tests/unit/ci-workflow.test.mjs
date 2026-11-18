@@ -194,7 +194,7 @@ describe('ci: everything else in the workflow is unchanged from d3e5ba9c', () =>
     isolationAt(ci.jobs['supabase-live'].steps)
     const rest = structuredClone(ci)
     rest.concurrency.group = D3E_GROUP
-    rest.jobs['runtime-unit'].steps = withoutDiagnostics(rest.jobs['runtime-unit'].steps)
+    rest.jobs['runtime-unit'].steps = withoutDiagnostics(withoutLinuxRecord(rest.jobs['runtime-unit'].steps))
     rest.jobs['supabase-live'] = withoutSupabaseIsolation(rest.jobs['supabase-live'])
     const digest = createHash('sha256').update(JSON.stringify(rest)).digest('hex')
     assert.equal(digest, 'fc501764446a618da3ad44170b8cbf0fe266943c13e31903986c04e37110448f')
@@ -243,6 +243,51 @@ const UPLOAD = {
     'if-no-files-found': 'warn',
     'retention-days': 7,
   },
+}
+
+// INC-COORD-1118-LINUX-RECORD-PRODUCER-001: only these exact additions are normalized for the old fingerprint.
+const RECORD_IF = "failure() && github.event_name == 'push' && steps.canonical.outcome == 'failure'"
+const RECORD_SHELL = 'node scripts/ci/linux-runtime-record.mjs capture {0}'
+const RECORD = {
+  name: 'Retain a guarded Linux runtime record after the failed check',
+  id: 'linux_record',
+  if: RECORD_IF + " && steps.canonical.outputs.capture_ready == 'true'",
+  'timeout-minutes': 1,
+  env: {
+    SOPHIA_CANONICAL_OUTCOME: '${{ steps.canonical.outcome }}',
+    SOPHIA_CAPTURE_READY: '${{ steps.canonical.outputs.capture_ready }}',
+    SOPHIA_CAPTURE_ID: '${{ steps.canonical.outputs.capture_id }}',
+    SOPHIA_CAPTURE_SHA256: '${{ steps.canonical.outputs.capture_sha256 }}',
+  },
+  run: 'node scripts/ci/linux-runtime-record.mjs produce',
+}
+const RECORD_UPLOAD = {
+  name: 'Upload the unaccepted Linux runtime record',
+  if: RECORD_IF + " && steps.linux_record.outputs.packet_ready == 'true'",
+  'timeout-minutes': 1,
+  uses: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',
+  with: {
+    name: 'linux-runtime-record-${{ github.run_id }}-${{ github.run_attempt }}-${{ steps.canonical.outputs.capture_id }}',
+    path: '${{ steps.linux_record.outputs.packet_path }}',
+    'if-no-files-found': 'warn',
+    'retention-days': 7,
+  },
+}
+function withoutLinuxRecord(steps) {
+  const canonical = steps.filter((step) => step.run === 'pnpm check')
+  assert.equal(canonical.length, 1)
+  assert.deepEqual(canonical[0], { id: 'canonical', 'timeout-minutes': 25, shell: RECORD_SHELL, env: { [REPORT_ENV]: TAP_PATH }, run: 'pnpm check' })
+  const record = steps.filter((step) => step.name === RECORD.name)
+  const upload = steps.filter((step) => step.name === RECORD_UPLOAD.name)
+  assert.deepEqual(record, [RECORD])
+  assert.deepEqual(upload, [RECORD_UPLOAD])
+  const order = [canonical[0], steps.find((step) => step.name === UPLOAD.name), record[0], upload[0], steps.find((step) => step.name === 'Pinned dsh source and release provenance')].map((step) => steps.indexOf(step))
+  assert.ok(order.every((index, at) => index >= 0 && (at === 0 || order[at - 1] < index)))
+  return steps.filter((step) => step !== record[0] && step !== upload[0]).map((step) => {
+    if (step !== canonical[0]) return step
+    const { id, shell, ...original } = step
+    return original
+  })
 }
 
 /** runtime-unit's steps without the diagnostics, as 805523a1 had them; anything else that changed is left in place. */

@@ -38,7 +38,10 @@ jobs:
       - name: Prepare the diagnostics directory
         run: mkdir -p "$RUNNER_TEMP/sophia-ci-diagnostics"
       # 25 minutes, below the job's 30, so the upload after it still runs when the check is cut off.
-      - timeout-minutes: 25
+      - id: canonical
+        timeout-minutes: 25
+        # Keep the command and its failure; the shell only captures bounded VERIFY evidence for the push lane.
+        shell: node scripts/ci/linux-runtime-record.mjs capture {0}
         env:
           SOPHIA_INTEGRATION_TAP: ${{ runner.temp }}/sophia-ci-diagnostics/integration.tap
         run: pnpm check
@@ -49,6 +52,25 @@ jobs:
         with:
           name: integration-tap-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/sophia-ci-diagnostics/integration.tap
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Retain a guarded Linux runtime record after the failed check
+        id: linux_record
+        if: failure() && github.event_name == 'push' && steps.canonical.outcome == 'failure' && steps.canonical.outputs.capture_ready == 'true'
+        timeout-minutes: 1
+        env:
+          SOPHIA_CANONICAL_OUTCOME: ${{ steps.canonical.outcome }}
+          SOPHIA_CAPTURE_READY: ${{ steps.canonical.outputs.capture_ready }}
+          SOPHIA_CAPTURE_ID: ${{ steps.canonical.outputs.capture_id }}
+          SOPHIA_CAPTURE_SHA256: ${{ steps.canonical.outputs.capture_sha256 }}
+        run: node scripts/ci/linux-runtime-record.mjs produce
+      - name: Upload the unaccepted Linux runtime record
+        if: failure() && github.event_name == 'push' && steps.canonical.outcome == 'failure' && steps.linux_record.outputs.packet_ready == 'true'
+        timeout-minutes: 1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux-runtime-record-${{ github.run_id }}-${{ github.run_attempt }}-${{ steps.canonical.outputs.capture_id }}
+          path: ${{ steps.linux_record.outputs.packet_path }}
           if-no-files-found: warn
           retention-days: 7
       - name: Pinned dsh source and release provenance

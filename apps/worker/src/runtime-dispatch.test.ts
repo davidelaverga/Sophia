@@ -180,3 +180,56 @@ describe('the new-work installation hold (INC04-S02a coherent; LABELLED FAKE poo
     assert.equal(lines.filter((l) => l.includes('installation hold')).length, passes)
   })
 })
+
+it('the real dispatcher continues cleanup through deferred result work and invokes its pass before progress continues', async () => {
+  const f = fakePool(() => [row('stop-1', true, 'native.stop')], false)
+  let resultPasses = 0
+  let stopped = 0
+  const runnerResults = {
+    pass() {
+      resultPasses += 1
+    },
+    stop() {
+      stopped += 1
+      return Promise.resolve()
+    },
+  }
+  const dispatcher = new RuntimeDispatcher(f.pool, { workerId: 's-result', runnerResults, idleMs: 10 })
+  dispatcher.start()
+  await new Promise((resolve) => setTimeout(resolve, 40))
+  await within(500, dispatcher.stop())
+  assert.ok(f.dispatched.length > 1, 'legacy Stop/cleanup still progressed')
+  assert.equal(resultPasses, f.claims(), 'every progress continue passed the result hook')
+  assert.equal(stopped, 1)
+})
+
+it('a failed legacy pass still reaches result maintenance, and a throwing result hook cannot block Stop', async () => {
+  const f = fakePool(() => {
+    throw new Error('legacy failure')
+  }, false)
+  let passes = 0
+  const lines: string[] = []
+  const dispatcher = new RuntimeDispatcher(f.pool, {
+    workerId: 's-result',
+    idleMs: 5,
+    log: (line) => lines.push(line),
+    runnerResults: {
+      pass() {
+        passes += 1
+        throw new Error('private-result-hook-canary')
+      },
+      stop() {
+        return Promise.resolve()
+      },
+    },
+  })
+  dispatcher.start()
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  await within(500, dispatcher.stop())
+  assert.ok(passes > 1)
+  assert.ok(lines.some((line) => line.startsWith('dispatch pass failed:')))
+  assert.equal(
+    lines.some((line) => line.includes('private-result-hook-canary')),
+    false,
+  )
+})

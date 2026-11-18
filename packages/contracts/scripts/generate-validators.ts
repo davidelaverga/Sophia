@@ -93,6 +93,12 @@ const EXPORTS = [
   'SelectionView',
   'PersonalAnswerReceipt',
   'PersonalAnswerDecisionList',
+  'OwnerRunnerCollection',
+  'OwnerRunnerResultDescriptor',
+  'OwnerRunnerRetainedResult',
+  'OwnerRunnerWorkPage',
+  'OwnerRunnerWorkLookup',
+  'OwnerRunnerWorkAvailability',
 ] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
