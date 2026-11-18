@@ -197,6 +197,7 @@ describe('ci: everything else in the workflow is unchanged from d3e5ba9c', () =>
     rest.jobs['runtime-unit'].steps = withoutDiagnostics(withoutLinuxRecord(rest.jobs['runtime-unit'].steps))
     rest.jobs['supabase-live'] = withoutSupabaseIsolation(rest.jobs['supabase-live'])
     rest.jobs.database = withoutHquota(rest.jobs.database)
+    rest.jobs.renderer = withoutPgWrappers(rest.jobs.renderer)
     const digest = createHash('sha256').update(JSON.stringify(rest)).digest('hex')
     assert.equal(digest, 'fc501764446a618da3ad44170b8cbf0fe266943c13e31903986c04e37110448f')
   })
@@ -673,5 +674,112 @@ describe('HQUOTA actual DB entry rejects unsafe required inputs before any fixtu
       if(name==='disposable_shape')env.SOPHIA_DISPOSABLE_DATABASE_URL='postgres://fixture@fixture.invalid/postgres'
       const child=spawnSync(process.execPath,['--test',fileURLToPath(new URL('../../apps/api/src/owner-host.db.test.ts',import.meta.url))],{env,encoding:'utf8',timeout:20_000,maxBuffer:1024*1024})
       assert.ifError(child.error);assert.equal(child.status,1);assert.ok((child.stdout+child.stderr).includes('HQUOTA_CONTRACT:'+code));assert.equal((child.stdout+child.stderr).includes('ECONNREFUSED'),false,'must reject before contacting the sentinel database')
+    })
+})
+
+// Required real-PG C2B wrappers after the existing renderer checks, reusing its already-owned service. These execute only harmless selector fixtures locally.
+const PG_WRAPPER_GROUP = "C2B: the closed observed facts at the three maintained wrappers, full worst-escaped envelope, real API and PostgreSQL"
+const PG_WRAPPER_PRODUCER = "C2B producer: the real runtime's observed facts reach the original ledger; replay and API restart keep them"
+const PG_WRAPPERS = {
+  id: 'pg_wrappers',
+  name: 'Authenticated observed-facts wrappers on PostgreSQL',
+  shell: 'bash',
+  run: [
+    "test -n \"${SOPHIA_DISPOSABLE_DATABASE_URL:-}\"",
+    "mkdir -p \"$RUNNER_TEMP/sophia-ci-diagnostics\"",
+    "node --test --test-concurrency=1 --test-timeout=180000 --test-reporter=tap \\",
+    "  --test-name-pattern='^C2B: the closed observed facts at the three maintained wrappers, full worst-escaped envelope, real API and PostgreSQL$' tests/integration/call-evidence.test.mjs | \\",
+    "  tee \"$RUNNER_TEMP/sophia-ci-diagnostics/pg-wrappers.tap\"",
+    "node --input-type=module - \"$RUNNER_TEMP/sophia-ci-diagnostics/pg-wrappers.tap\" <<'NODE'",
+    "import assert from 'node:assert/strict'",
+    "import { readFileSync } from 'node:fs'",
+    "const tap = readFileSync(process.argv[2], 'utf8')",
+    "const names = tap.split('\\n').filter(line => /^\\s*ok \\d+ - /.test(line)).map(line => line.replace(/^\\s*ok \\d+ - /, ''))",
+    "assert.ok(names.includes(\"C2B: the closed observed facts at the three maintained wrappers, full worst-escaped envelope, real API and PostgreSQL\"), 'the exact PostgreSQL wrapper suite ran without a skip')",
+    "assert.ok(names.includes(\"C2B producer: the real runtime's observed facts reach the original ledger; replay and API restart keep them\"), 'the maintained real runtime producer case ran without a skip')",
+    "const counts = Object.fromEntries([...tap.matchAll(/^# (tests|pass|fail|cancelled|skipped|todo) (\\d+)$/gm)].map(([, key, value]) => [key, Number(value)]))",
+    "assert.ok(counts.tests > 0, 'selected tests ran')",
+    "assert.equal(counts.pass, counts.tests)",
+    "for (const key of ['fail', 'cancelled', 'skipped', 'todo']) assert.equal(counts[key], 0, key)",
+    "NODE",
+  ].join('\n') + '\n',
+}
+const PG_WRAPPER_ARTIFACTS = {
+  "id": "pg_wrapper_artifacts",
+  "name": "Build and verify runtime artifacts for PostgreSQL wrappers",
+  "run": "pnpm build && pnpm artifacts"
+}
+function pgWrappersAt(job) {
+  const steps = job.steps, selected = steps.filter(step => step.id === 'pg_wrappers')
+  assert.deepEqual(selected, [PG_WRAPPERS], 'one exact fail-closed wrapper invocation')
+  const artifacts = steps.filter(step => step.id === 'pg_wrapper_artifacts')
+  assert.deepEqual(artifacts, [PG_WRAPPER_ARTIFACTS], 'one normal build and artifact VERIFY prerequisite')
+  assert.equal(steps.indexOf(artifacts[0]), steps.length - 2, 'after every established renderer check')
+  assert.equal(steps.indexOf(selected[0]), steps.length - 1, 'immediately after VERIFY and last')
+  assert.equal(steps[steps.length - 3].run, 'node --test --test-concurrency=1 --test-timeout=180000 tests/integration/render-supervisor.test.mjs tests/integration/design-capture-supervisor.test.mjs')
+  assert.equal(job.env.SOPHIA_DISPOSABLE_DATABASE_URL, 'postgres://postgres:ci@localhost:5432/postgres')
+  assert.equal(job.env.SOPHIA_RENDERER_REQUIRED, '1')
+  return { step: selected[0], artifact: artifacts[0] }
+}
+function withoutPgWrappers(job) {
+  const result = structuredClone(job), { step, artifact } = pgWrappersAt(result)
+  result.steps = result.steps.filter(value => value !== step && value !== artifact)
+  return result
+}
+describe('ci: the existing renderer job requires the maintained real-PG wrappers', () => {
+  it('preserves renderer checks and database bytes, requires artifact VERIFY and keeps service, pins and limits', () => {
+    pgWrappersAt(ci.jobs.renderer)
+    assert.equal(ci.jobs.renderer['runs-on'], 'ubuntu-24.04')
+    assert.equal(ci.jobs.renderer['timeout-minutes'], 30)
+    const workflow = readFileSync(WORKFLOW, 'utf8')
+    const database = workflow.slice(workflow.indexOf('  database:\n'), workflow.indexOf('  room-media:\n'))
+    assert.equal(createHash('sha256').update(database).digest('hex'), "664c511c35f61524e6dec776f1b57c2c02d67a9927d551336ea0706dedc223a0", 'entire database job is byte-identical to a0f2')
+    assert.equal(readFileSync(new URL('../../.node-version', import.meta.url), 'utf8').trim(), '24.21.0')
+    const target = readFileSync(new URL('../../tests/integration/call-evidence.test.mjs', import.meta.url), 'utf8')
+    assert.ok(target.includes("describe('" + PG_WRAPPER_GROUP + "', { skip: dbEnabled ? false"))
+    assert.ok(target.includes(PG_WRAPPER_PRODUCER.replaceAll("'", "\\'")), 'the exact maintained producer case exists')
+  })
+  for (const [name, change] of [
+    ['missing step', j => { j.steps = j.steps.filter(s => s.id !== 'pg_wrappers') }],
+    ['duplicate step', j => { j.steps.push(structuredClone(PG_WRAPPERS)) }],
+    ['wrong selector', j => { j.steps.find(s => s.id === 'pg_wrappers').run = PG_WRAPPERS.run.replace('^C2B:', '^other:') }],
+    ['missing DB precondition', j => { j.steps.find(s => s.id === 'pg_wrappers').run = PG_WRAPPERS.run.split('\n').slice(1).join('\n') }],
+    ['missing completion guard', j => { j.steps.find(s => s.id === 'pg_wrappers').run = PG_WRAPPERS.run.split("node --input-type=module")[0] }],
+    ['extra trailing command', j => { j.steps.find(s => s.id === 'pg_wrappers').run += '\ntrue' }],
+    ['non-pipefail shell', j => { j.steps.find(s => s.id === 'pg_wrappers').shell = 'sh' }],
+    ['conditional execution', j => { j.steps.find(s => s.id === 'pg_wrappers').if = 'false' }],
+    ['continue on error', j => { j.steps.find(s => s.id === 'pg_wrappers')['continue-on-error'] = true }],
+    ['before VERIFY', j => { const i = j.steps.findIndex(s => s.id === 'pg_wrappers'); [j.steps[i-1], j.steps[i]] = [j.steps[i], j.steps[i-1]] }],
+    ['missing artifact prerequisite', j => { j.steps = j.steps.filter(s => s.id !== 'pg_wrapper_artifacts') }],
+    ['build without VERIFY', j => { j.steps.find(s => s.id === 'pg_wrapper_artifacts').run = 'pnpm build' }],
+  ]) it('rejects parsed wrapper step mutation: ' + name, () => { const job = structuredClone(ci.jobs.renderer); change(job); assert.throws(() => pgWrappersAt(job)) })
+
+  for (const mode of ['selected', 'missing-db', 'wrong-suite', 'suite-skipped', 'producer-skipped', 'producer-missing', 'child-failed'])
+    it('actual Node selector and Bash guard on harmless fixture: ' + mode, () => {
+      const dir = mkdtempSync(join(tmpdir(), 'sophia-pg-wrapper-selector-'))
+      try {
+        const files = join(dir, 'tests', 'integration'); mkdirSync(files, { recursive: true })
+        const group = mode === 'wrong-suite' ? PG_WRAPPER_GROUP + ' renamed' : PG_WRAPPER_GROUP
+        const testSource = [
+          "import { describe, test } from 'node:test'",
+          "import assert from 'node:assert/strict'",
+          `describe(${JSON.stringify(group)}, { skip: ${mode === 'suite-skipped'} }, () => {`,
+          "test('ordinary fixture child', () => assert.ok(true))",
+          ...(mode === 'producer-missing' ? [] : [`test(${JSON.stringify(PG_WRAPPER_PRODUCER)}, { skip: ${mode === 'producer-skipped'} }, () => assert.equal(${mode === 'child-failed'}, false))`]),
+          '})',
+          "describe('unselected unrelated fixture', () => { test('must never run', () => assert.fail('selector widened')) })",
+        ].join('\n')
+        writeFileSync(join(files, 'call-evidence.test.mjs'), testSource)
+        const env = { PATH: process.env.PATH, HOME: process.env.HOME, TMPDIR: process.env.TMPDIR, RUNNER_TEMP: dir,
+          ...(mode === 'missing-db' ? {} : { SOPHIA_DISPOSABLE_DATABASE_URL: 'synthetic-selector-only-not-a-connection' }) }
+        const r = spawnSync('bash', ['--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', PG_WRAPPERS.run], { cwd: dir, env, encoding: 'utf8', timeout: 30_000 })
+        assert.ifError(r.error)
+        assert.equal(r.status === 0, mode === 'selected', r.stdout + r.stderr)
+        if (mode === 'selected') {
+          assert.match(r.stdout, /# tests 2\n/)
+          assert.doesNotMatch(r.stdout, /selector widened/)
+        }
+        if (mode === 'missing-db') assert.equal(r.stdout, '', 'precondition refuses before Node')
+      } finally { rmSync(dir, { recursive: true, force: true }) }
     })
 })

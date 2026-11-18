@@ -117,6 +117,31 @@ jobs:
       # The supervisor against the real API and PostgreSQL: claim, fetch through the API, render confined, upload, settle;
       # and a design's capture the same way, gated, inspected and published (SDD-01-RF-0004).
       - run: node --test --test-concurrency=1 --test-timeout=180000 tests/integration/render-supervisor.test.mjs tests/integration/design-capture-supervisor.test.mjs
+      # Reuse this job's disposable PG after its renderer checks; verify the runtime before selecting real-PG wrappers.
+      - id: pg_wrapper_artifacts
+        name: Build and verify runtime artifacts for PostgreSQL wrappers
+        run: pnpm build && pnpm artifacts
+      - id: pg_wrappers
+        name: Authenticated observed-facts wrappers on PostgreSQL
+        shell: bash
+        run: |
+          test -n "${SOPHIA_DISPOSABLE_DATABASE_URL:-}"
+          mkdir -p "$RUNNER_TEMP/sophia-ci-diagnostics"
+          node --test --test-concurrency=1 --test-timeout=180000 --test-reporter=tap \
+            --test-name-pattern='^C2B: the closed observed facts at the three maintained wrappers, full worst-escaped envelope, real API and PostgreSQL$' tests/integration/call-evidence.test.mjs | \
+            tee "$RUNNER_TEMP/sophia-ci-diagnostics/pg-wrappers.tap"
+          node --input-type=module - "$RUNNER_TEMP/sophia-ci-diagnostics/pg-wrappers.tap" <<'NODE'
+          import assert from 'node:assert/strict'
+          import { readFileSync } from 'node:fs'
+          const tap = readFileSync(process.argv[2], 'utf8')
+          const names = tap.split('\n').filter(line => /^\s*ok \d+ - /.test(line)).map(line => line.replace(/^\s*ok \d+ - /, ''))
+          assert.ok(names.includes("C2B: the closed observed facts at the three maintained wrappers, full worst-escaped envelope, real API and PostgreSQL"), 'the exact PostgreSQL wrapper suite ran without a skip')
+          assert.ok(names.includes("C2B producer: the real runtime's observed facts reach the original ledger; replay and API restart keep them"), 'the maintained real runtime producer case ran without a skip')
+          const counts = Object.fromEntries([...tap.matchAll(/^# (tests|pass|fail|cancelled|skipped|todo) (\d+)$/gm)].map(([, key, value]) => [key, Number(value)]))
+          assert.ok(counts.tests > 0, 'selected tests ran')
+          assert.equal(counts.pass, counts.tests)
+          for (const key of ['fail', 'cancelled', 'skipped', 'todo']) assert.equal(counts[key], 0, key)
+          NODE
 
   database:
     name: SQL, persistence and API on PostgreSQL 16
