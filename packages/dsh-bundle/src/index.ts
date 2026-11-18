@@ -342,7 +342,7 @@ const loadedClosure = (): string => executorClosure(loadedInputs()).digest
  * dsh-llm-pi-ai patch additionally forwards the bound hook (C1P and C2B code byte-unchanged; pi-ai patch unchanged).
  */
 export const C1P_RUNTIMES: Readonly<Record<string, string>> = {
-  'linux-x64': 'sophia-tree-v2:sha256:10edf4f49258efd52c47f0b4389aadf6575f0be18d5e1e1874f175b638daadf7',
+  'linux-x64': 'sophia-tree-v2:sha256:521275dc787057cf90190e8c0e186052e81f15d1f5884331298a2d33abbc0a3c',
 }
 
 /**
@@ -353,7 +353,7 @@ export const C1P_RUNTIMES: Readonly<Record<string, string>> = {
  * adapter takes the bound capability.
  */
 export const C2B_RUNTIMES: Readonly<Record<string, string>> = {
-  'linux-x64': 'sophia-tree-v2:sha256:10edf4f49258efd52c47f0b4389aadf6575f0be18d5e1e1874f175b638daadf7',
+  'linux-x64': 'sophia-tree-v2:sha256:521275dc787057cf90190e8c0e186052e81f15d1f5884331298a2d33abbc0a3c',
 }
 
 /** The routes whose C1P Responses decoder reports usage only when complete (INC04-S03A-R07-C1P), by route id. */
