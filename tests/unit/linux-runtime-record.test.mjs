@@ -14,7 +14,7 @@ import {
   existsSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import { describe, it } from 'node:test'
 import {
   guard,
@@ -1246,5 +1246,107 @@ describe('raw shell capture fixtures: no actual artifact/check producer invocati
     const result = JSON.parse(out.trim().split('\n').at(-1))
     assert.equal(result.signal, 'SIGTERM')
     assert.equal(result.groupGone, true)
+  })
+})
+
+
+// LSE: six literal diagnostics copied from the sealed actual local CEB1 child stderr streams.
+// The formatter/identities below remain synthetic; none of these fixtures is the missing Linux capture.
+const sealedStderrCommands = [
+  '$ node scripts/toolchain-check.mjs',
+  '$ prettier --check .',
+  '$ oxlint --type-aware .',
+  '$ pnpm --filter @sophia/dsh-bundle --filter @sophia/execution-host run build',
+  '$ pnpm --filter @sophia/contracts run generate:check',
+  '$ node scripts/apply-amendments.ts --check && node scripts/generate-types.ts --check && node scripts/generate-validators.ts --check && node scripts/generate-runtime-wire.ts --check && node scripts/generate-specialists.ts --check',
+  '$ node scripts/build-artifacts.mjs',
+]
+function stderrCommands() {
+  const root = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).scripts
+  const contracts = JSON.parse(readFileSync(new URL('../../packages/contracts/package.json', import.meta.url), 'utf8')).scripts
+  return ['check', 'toolchain:check', 'format:check', 'lint', 'build', 'typecheck', 'contracts:check', 'artifacts']
+    .flatMap((key) => key === 'contracts:check' ? [`$ ${root[key]}`, `$ ${contracts['generate:check']}`] : [`$ ${root[key]}`])
+}
+describe('LSE: exact maintained command prefix on stderr', () => {
+  it('accepts the sealed actual local stderr commands with labelled synthetic VERIFY', () => {
+    const f = fixture(), commands = stderrCommands()
+    assert.deepEqual(sealedStderrCommands, commands.filter((line) => !line.startsWith('$ pnpm toolchain:check &&') && !line.startsWith('$ pnpm -r ')))
+    f.input.log.stderr = sealedStderrCommands.join('\n') + '\n' + f.input.log.stderr
+    assert.deepEqual(verifyEvidence(f.input.log, f.facts, f.unit, PROFILE), [ROW, PRIMARY])
+    assert.equal(guard(f.input), null)
+  })
+  it('accepts exact command subsequences without moving the table or summary', () => {
+    for (const commands of [stderrCommands(), [stderrCommands()[0]], [stderrCommands()[5]], []]) {
+      const f = fixture()
+      f.input.log.stderr = (commands.length ? commands.join('\n') + '\n' : '') + f.input.log.stderr
+      assert.equal(guard(f.input), null)
+    }
+  })
+  for (const [name, prefix, suffix] of [
+    ['unknown command', '$ node unexpected.mjs\n', ''],
+    ['unit command after VERIFY boundary', '$ ' + JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).scripts.test + '\n', ''],
+    ['integration command after VERIFY boundary', '$ node scripts/test-integration.mjs\n', ''],
+    ['record command', '$ node scripts/build-artifacts.mjs --record\n', ''],
+    ['changed command', sealedStderrCommands[0] + ' --extra\n', ''],
+    ['warning', 'warning: ignored error\n', ''],
+    ['error', 'Error: failed build\n', ''],
+    ['stdout success on stderr', 'All matched files use Prettier code style!\n', ''],
+    ['duplicate command', sealedStderrCommands[0] + '\n' + sealedStderrCommands[0] + '\n', ''],
+    ['out of order commands', sealedStderrCommands[1] + '\n' + sealedStderrCommands[0] + '\n', ''],
+    ['blank inside command prefix', sealedStderrCommands[0] + '\n\n' + sealedStderrCommands[1] + '\n', ''],
+    ['two blanks before summary', sealedStderrCommands[0] + '\n\n', ''],
+    ['command after summary', '', sealedStderrCommands[0] + '\n'],
+    ['command after lifecycle', '', '[ELIFECYCLE] Command failed with exit code 1.\n' + sealedStderrCommands[0] + '\n'],
+    ['duplicate summary with command', sealedStderrCommands[0] + '\n', '\n2 identity mismatch(es): this checkout does not reproduce runtime unit fixture\n'],
+  ]) it(`refuses ${name} before any record dispatch`, async () => {
+    const f = fixture()
+    f.input.log.stderr = prefix + f.input.log.stderr + suffix
+    assert.equal(guard(f.input), 'verify_not_linux_only')
+    let called = false
+    const receipt = await produce(f.input, async () => { called = true; return success() }, () => f.after)
+    assert.equal(called, false)
+    assert.equal(receipt.state, 'skipped')
+  })
+  it('transports maintained root check/typecheck commands through actual pinned pnpm in a benign fixture', async () => {
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'lse-pnpm-')))
+    const root = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'))
+    const run = (args) => new Promise((resolve, reject) => {
+      // Actual pnpm and TypeScript, no fake pnpm. Every leaf script is benign fixture code; no product checks run.
+      const child = spawn('pnpm', args, { cwd: dir, env: { ...process.env, PATH: new URL('../../node_modules/.bin', import.meta.url).pathname + delimiter + process.env.PATH } })
+      let stdout = '', stderr = ''
+      child.stdout.on('data', (b) => { stdout += b })
+      child.stderr.on('data', (b) => { stderr += b })
+      child.on('error', reject)
+      child.on('close', (status, signal) => resolve({ stdout, stderr, status, signal }))
+    })
+    try {
+      const scripts = Object.fromEntries(['toolchain:check', 'format:check', 'lint', 'build', 'contracts:check', 'artifacts', 'test', 'test:integration'].map((key) => [key, 'node benign.mjs']))
+      scripts.check = root.scripts.check
+      scripts.typecheck = root.scripts.typecheck
+      writeFileSync(join(dir, 'package.json'), bytes({ name: 'lse-benign', private: true, packageManager: root.packageManager, scripts }))
+      writeFileSync(join(dir, 'pnpm-workspace.yaml'), 'packages:\n  - child\n')
+      writeFileSync(join(dir, 'benign.mjs'), 'console.log("LSE benign leaf; no product execution")\n')
+      writeFileSync(join(dir, 'probe.ts'), 'export {};\n')
+      writeFileSync(join(dir, 'tsconfig.json'), bytes({ compilerOptions: { types: [], noEmit: true }, files: ['probe.ts'] }))
+      mkdirSync(join(dir, 'child'))
+      writeFileSync(join(dir, 'child/package.json'), bytes({ name: 'lse-child', private: true, scripts: { typecheck: 'node ../benign.mjs' } }))
+      const version = await run(['--version'])
+      assert.equal(version.status, 0)
+      assert.equal(version.stdout.trim(), '11.7.0')
+      const captured = await run(['run', 'check'])
+      console.log('LSE_ACTUAL_PNPM_TRANSPORT_SYNTHETIC_VERIFY ' + JSON.stringify({ version, ...captured }))
+      assert.equal(captured.status, 0)
+      assert.equal(captured.signal, null)
+      assert.match(captured.stdout, /LSE benign leaf; no product execution/)
+      const wanted = [`$ ${root.scripts.check}`, `$ ${root.scripts.typecheck}`]
+      const actual = captured.stderr.split(/\r?\n/).filter((line) => wanted.includes(line))
+      assert.deepEqual(actual, wanted, 'actual pinned pnpm emits both exact maintained command forms on stderr')
+      const f = fixture()
+      // Only the two measured exact maintained command forms are reused; benign leaf diagnostics are not admitted.
+      f.input.log.stderr = actual.join('\n') + '\n' + f.input.log.stderr
+      assert.deepEqual(verifyEvidence(f.input.log, f.facts, f.unit, PROFILE), [ROW, PRIMARY])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

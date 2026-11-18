@@ -238,14 +238,18 @@ function json(path, value) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600, flag: 'wx' })
 }
 
+/** Exact pnpm command diagnostics, in maintained check order; nested contracts runs before artifacts. */
+function maintainedCommands() {
+  const root = JSON.parse(boundedFile(join(ROOT, 'package.json'))).scripts
+  const contracts = JSON.parse(boundedFile(join(ROOT, 'packages/contracts/package.json'))).scripts
+  return ['check', 'toolchain:check', 'format:check', 'lint', 'build', 'typecheck', 'contracts:check', 'artifacts'].flatMap(
+    (key) => key === 'contracts:check' ? [`$ ${root[key]}`, `$ ${contracts['generate:check']}`] : [`$ ${root[key]}`],
+  )
+}
+
 /** Only maintained successful pre-VERIFY diagnostics are allowed outside the exact formatter table. */
 function pipelineDiagnostics() {
-  const root = JSON.parse(boundedFile(join(ROOT, 'package.json'))).scripts
-  const commands = new Set(
-    ['check', 'toolchain:check', 'format:check', 'lint', 'build', 'typecheck', 'contracts:check', 'artifacts'].map(
-      (key) => `$ ${root[key]}`,
-    ),
-  )
+  const commands = new Set(maintainedCommands())
   const projects = [
     'apps/execution-host',
     'packages/contracts',
@@ -347,6 +351,14 @@ function verifyTable(lines, keys, { facts, unit, profilePath }) {
 }
 
 function verifySummary(errors, table, id) {
+  const commands = maintainedCommands()
+  let previous = -1
+  while (errors[0]?.startsWith('$ ')) {
+    const at = commands.indexOf(errors[0])
+    if (at <= previous) return false
+    previous = at
+    errors.shift()
+  }
   if (errors[0] === '') errors.shift()
   if (
     errors.shift() !==
