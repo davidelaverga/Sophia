@@ -125,15 +125,28 @@ a path updates its row in the same commit.
 
 ## Owner-host HTTP/CLI/stock dispatch crossing (H-001, A61 / 0117)
 
-All rows below are a local source candidate awaiting independent review; none is real owner/native qualification or release acceptance.
+All destinations below remain partial. Local source/software evidence does not establish actual owner/native qualification or release acceptance; the frozen planning goals retain their separate real acceptance requirements.
 
-| Destination | Status | Ownership / boundary |
-|---|---|---|
-| `apps/api/src/routes/owner-host.ts`, `owner-host-config.ts` | partial | Owner JWT enrollment/management, exact host-capability channel, default-OFF enrollment, bounded nonlogging HTTP |
-| `packages/coordination/src/owner-host-http.ts` | partial | Fixed-origin HostChannel; owner-only capability file, finite wire/time/error vocabulary |
-| `scripts/owner-host.ts` | partial | Existing durable capability writer plus complete local-profile redeem/run composition and bounded signal drain |
-| `apps/worker/src/owner-host-route.ts`, `runtime-dispatch.ts` | partial | One finite task in stock RuntimeDispatcher; explicit original journal, OFF maintenance, current qualification/GO checks |
-| `packages/persistence/src/owner-host-route.ts`, `db/migrations/0117_owner_host_route.sql` | partial | Additive worker-only exact-journal metadata lookup; no replacement routing or qualification writes |
-| `packages/contracts/amendments/A61-owner-host-channel.json` | partial | Exact Sophia-owned owner-host vocabulary; normal generated destinations remain canonical |
-| H focused API/HTTP/CLI/worker/DB tests and `db/tests/0117_owner_host_route.sql` | partial | Owned synthetic loopback/SCRAM checks, original-journal Stop and final S staged-answer consumption/redaction |
-| `docs/handoffs/INC-COORD-1118-OWNER-HOST-H-001.md` | partial | Source/evidence boundaries, actual check receipts and independent-review HOLD |
+| Destination | Status | Owning goal | Boundary note |
+|---|---|---|---|
+| `apps/api/src/routes/owner-host.ts` | partial | S1-02 / S1-09 | Owner JWT enrollment/management and exact host-capability channel; bounded nonlogging HTTP; enrollment default OFF |
+| `apps/api/src/owner-host-config.ts` | partial | S1-02 | Strict raw default-OFF enrollment admission configuration |
+| `apps/api/src/owner-host-config.test.ts` | partial | S1-02 | Synthetic configuration refusal checks; no native or deployment qualification |
+| `apps/api/src/owner-host-entry.test.ts` | partial | S1-02 / S1-03 | Stock entry/auth and owned request-lifecycle controls; synthetic local identity only |
+| `apps/api/src/owner-host.db.test.ts` | partial | S1-02 / S1-09 | Restricted-role HTTP and staged-result crossing; synthetic accounts and local transport |
+| `packages/coordination/src/owner-host-http.ts` | partial | S1-09 | Fixed-origin owner HostChannel; owner-only capability file and finite wire/time/error vocabulary |
+| `packages/coordination/src/owner-host-http.test.ts` | partial | S1-09 | Owned synthetic loopback transport controls; no actual owner account or native resource |
+| `scripts/owner-host.ts` | partial | S1-03 / S1-09 | Durable capability writer, local-profile redeem/run composition and bounded signal drain; existing journal retained |
+| `scripts/owner-host.test.ts` | partial | S1-03 / S1-09 | Controlled CLI restart/signal/journal checks; no provider or real native launch |
+| `apps/worker/src/owner-host-route.ts` | partial | S1-03 / S1-09 | Original owner/environment/journal routing, OFF maintenance and current qualification/GO checks |
+| `apps/worker/src/runtime-dispatch.ts` | partial | S1-03 | Finite owner task in stock RuntimeDispatcher; Stop/recovery lifecycle stays bounded |
+| `apps/worker/src/owner-host-route.test.ts` | partial | S1-03 / S1-09 | Synthetic original-journal and retired/Stop routing controls |
+| `apps/worker/src/runtime-dispatch.test.ts` | partial | S1-03 | Stock dispatch lifecycle verification with controlled resources |
+| `packages/persistence/src/owner-host-route.ts` | partial | S1-02 / S1-09 | Additive exact-journal metadata lookup; no replacement routing or qualification writes |
+| `packages/persistence/src/owner-host-route.db.test.ts` | partial | S1-02 / S1-09 | Owned SCRAM metadata-route and Stop crossing; no real native account acceptance |
+| `db/migrations/0117_owner_host_route.sql` | partial | S1-02 / S1-09 | Worker-only exact owner/journal metadata lookup; no schema authority or qualification grant |
+| `db/tests/0117_owner_host_route.sql` | partial | S1-02 | Owning structural least-privilege checks; not full SQL-corpus verification |
+| `packages/contracts/amendments/A61-owner-host-channel.json` | partial | S1-02 | Exact Sophia-owned host-channel admission vocabulary; generated destinations remain canonical |
+| `tests/helpers/owner-host-fixture-resources.ts` | partial | S1-03 | Owned local verification resource lifecycle; join before disposal and preserve cleanup failures |
+| `tests/unit/owner-host-fixture-resources.test.mjs` | partial | S1-03 | Finite synthetic fixture setup/reader/child teardown controls; not native lifecycle qualification |
+| `docs/handoffs/INC-COORD-1118-OWNER-HOST-H-001.md` | partial | S1-02 / S1-03 / S1-09 | Source/evidence boundaries, actual scoped receipts and retained owner/native/release holds |
