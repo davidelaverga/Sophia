@@ -444,7 +444,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
 function registerOwnerHosts(app: FastifyInstance, deps: AppDeps): void {
   const admission = ownerHostAdmission()
-  registerAuthentication(app, deps.verifyActor, deps.mediaBridgeTokenSha256 ?? null, admission)
+  registerAuthentication(app, deps.verifyActor, deps.mediaBridgeTokenSha256 ?? null, admission, deps.pool)
   ownerHostRoutes(app, { pool: deps.pool, enrollment: deps.ownerHostEnrollment === true, admission })
 }
 /** The production bound-output operations for the three runtime route factories when the switch is on; else false. */
@@ -561,17 +561,29 @@ function requireMediaCapability(req: FastifyRequest, expected: Buffer | null): v
   }
 }
 
-function hostAuthenticated(req: FastifyRequest, route: string): boolean {
+async function hostAuthenticated(
+  req: FastifyRequest,
+  route: string,
+  pool: pg.Pool,
+  admission: ReturnType<typeof ownerHostAdmission>,
+): Promise<boolean> {
   if (route === REDEEM_ROUTE) return true
   if (!HOST_ROUTES.has(route)) return false
-  authenticateOwnerHost(req)
+  await admission.authorize(req, () => authenticateOwnerHost(req, pool, admission.control(req)))
+  admission.promote(req, 'host')
   return true
+}
+function admitOwner(req: FastifyRequest, anonymous: boolean, admission: ReturnType<typeof ownerHostAdmission>): void {
+  if (!isOwnerHostRoute(req)) return
+  if (anonymous) throw new DomainError('forbidden', 'Owner host refused')
+  admission.promote(req, 'owner')
 }
 function registerAuthentication(
   app: FastifyInstance,
   verifyActor: VerifyActor,
   mediaToken: Buffer | null,
   ownerHosts: ReturnType<typeof ownerHostAdmission>,
+  pool: pg.Pool,
 ): void {
   app.decorateRequest('actorId', '')
   app.decorateRequest('actorName', null)
@@ -583,7 +595,7 @@ function registerAuthentication(
   app.addHook('onRequest', async (req, reply) => {
     ownerHosts.begin(req, reply)
     const route = req.routeOptions.url ?? ''
-    if (hostAuthenticated(req, route)) return
+    if (await hostAuthenticated(req, route, pool, ownerHosts)) return
     if (PUBLIC_ROUTES.has(route)) return
     if (CAPABILITY_RUNTIME_ROUTES.has(route)) {
       req.runtimeCaller = runtimeCallerOf(req)
@@ -604,6 +616,7 @@ function registerAuthentication(
     try {
       const actor = await ownerHosts.authorize(req, () => verifyActor(req.headers.authorization))
       ownerHosts.assert(req)
+      admitOwner(req, actor.anonymous, ownerHosts)
       req.actorId = actor.id
       req.actorName = actor.name
       req.actorContact = actor.contact
