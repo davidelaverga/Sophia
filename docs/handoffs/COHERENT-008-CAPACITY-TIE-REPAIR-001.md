@@ -1,13 +1,13 @@
 # COHERENT-008-CAPACITY-TIE-REPAIR-001: attempt 1
 
 Goal and attempt: COHERENT-008-CAPACITY-TIE-REPAIR-001, attempt 1 (Root120). A distinct repair to the pure capacity
-module of the published coherent 008 candidate. It is not an INC-04 product slice or its acceptance.  
+module of the published coherent 008 candidate. It is not an INC-04 product slice or its acceptance.\
 Human owner / executor resource: Davide (repository owner); a Claude Code cloud session (Routing17,
-`https://claude.ai/code/session_01FGXfrGsUA6jNm3sxRoSro2`) as worker.  
-Native session: not applicable.  
+`https://claude.ai/code/session_01FGXfrGsUA6jNm3sxRoSro2`) as worker.\
+Native session: not applicable.\
 Starting worktree/commit: new `/home/user/sophia-r120-capacity-tie-repair` on new
 `refs/heads/inc04-r07-capacity-tie-repair-001` at `90a0af7eb3d4d376e9a0d63c0e05def18ee79b36` (tree `c2c2b887`, 4309
-leaves).  
+leaves).\
 Ending commit/tree and changed files: an UNCOMMITTED candidate tree. Its four paths are:
 
 - `M packages/domain/src/capacity-exposure.ts`;

@@ -1,10 +1,10 @@
 # Handoff: Personal · an erasure held by an unanswered copy says the way out
 
-Goal and attempt: hunt report on main (evaluacion-2026-11-08/caza-main.md), finding 5, attempt 1  
+Goal and attempt: hunt report on main (evaluacion-2026-11-08/caza-main.md), finding 5, attempt 1\
 Human owner / executor resource: Luis (owner, «Procede y corrige», the two lines approved word for word); the Claude
-Code session that built it  
+Code session that built it\
 Starting worktree/commit: `D:/Descargas/SophiaV4/Sophia-paper-4`, local branch `personal/clipboard-way-out` from main
-`953e5dc3d` (through #500)  
+`953e5dc3d` (through #500)\
 Changed files: `apps/studio/src/features/personal/copy.ts`, `DataSheet.tsx`, `notice-view.ts`, `copy.test.ts`,
 `apps/studio/e2e/app-auth.spec.ts`, `docs/plans/personal-clipboard-way-out.md`, this file.
 

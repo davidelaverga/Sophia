@@ -629,3 +629,74 @@ describe("a patched producer's providerReportedModels (INC04-S03b B2, 0108): car
     assert.ok('error' in decodeThreadRead(body, 't-1'), 'a terminal run named active stays no evidence')
   })
 })
+
+import { collectionReadCall, decodeCollectionPage } from './t3-port-mapping.ts'
+const resultItem = (over: Record<string, unknown> = {}) => ({
+  position: 0,
+  visibility: 'local',
+  sourceThreadId: 'thread',
+  itemId: 'item-final',
+  messageId: 'message-final',
+  runId: 'run-final',
+  type: 'assistant_message',
+  status: 'completed',
+  text: 'Useful output',
+  textTruncated: false,
+  nextTextOffset: null,
+  ...over,
+})
+const resultPage = (item = resultItem()) => ({
+  thread: { threadId: 'thread', activeRunId: null, runCount: 1 },
+  recentRuns: [{ runId: 'run-final', status: 'completed' }],
+  items: [item],
+  hasMore: false,
+  nextPosition: 0,
+})
+describe('pinned public result-only decoding', () => {
+  it('uses only the documented read primitive with fixed bounds and projects assistant content', () => {
+    const call = collectionReadCall('env', 'thread', 32, 5)
+    assert.equal(call.tool, 't3_thread_read')
+    assert.equal(call.args.maxCharsPerItem, 32)
+    assert.equal(call.args.afterPosition, 5)
+    assert.equal(decodeCollectionPage(resultPage(), 'thread')?.items[0]?.text, 'Useful output')
+  })
+  it('rejects foreign, inherited, malformed, partial and redirected output', () => {
+    for (const change of [
+      { sourceThreadId: 'foreign' },
+      { visibility: 'inherited' },
+      { itemId: '' },
+      { messageId: null },
+      { runId: null },
+      { status: 'running' },
+      { status: 'unrecognized' },
+      { textTruncated: true },
+      { nextTextOffset: 5 },
+      { text: '\ud800' },
+      { senderThreadId: 'other' },
+      { subagentId: 'child' },
+    ])
+      assert.equal(decodeCollectionPage(resultPage(resultItem(change)), 'thread'), null, JSON.stringify(change))
+    assert.equal(decodeCollectionPage({ ...resultPage(), nextPosition: 1 }, 'thread'), null)
+    assert.equal(
+      decodeCollectionPage({ ...resultPage(), hasMore: true, items: [], nextPosition: null }, 'thread'),
+      null,
+    )
+  })
+  it('does not project reasoning, shell, tool or user text', () => {
+    for (const type of ['reasoning', 'command', 'dynamic_tool', 'user_message']) {
+      const decodedResult = decodeCollectionPage(resultPage(resultItem({ type, text: 'PRIVATE' })), 'thread')
+      assert.equal(decodedResult?.items[0]?.text, null)
+      assert.equal(decodedResult?.items[0]?.eligible, false)
+    }
+  })
+})
+
+it('collection rejects oversized raw pages and repeated item positions', () => {
+  assert.equal(
+    decodeCollectionPage(resultPage(resultItem({ type: 'reasoning', text: 'x'.repeat(262145) })), 'thread'),
+    null,
+  )
+  const item = resultItem()
+  assert.equal(decodeCollectionPage({ ...resultPage(), items: [item, { ...item, itemId: 'second' }] }, 'thread'), null)
+  assert.equal(decodeCollectionPage(resultPage(resultItem({ messageId: 'x'.repeat(1001) })), 'thread'), null)
+})

@@ -39,6 +39,14 @@ import { canonicalJson } from './canonical.ts'
 import { reportFromProducer } from './runner-model-report.ts'
 import {
   checkEnvelope,
+  snapshotCollectionRequest,
+  snapshotCollectionIdentity,
+  RUNNER_COLLECTION_RESPONSE_BYTES_MAX,
+  RUNNER_COLLECTION_READ_TIMEOUT_MS,
+  collectionUnavailable,
+  sha256Hex,
+  type RunnerCollection,
+  type RunnerCollectionRequest,
   checkPayload,
   digestOf,
   envelopeV2,
@@ -57,6 +65,10 @@ import type { JournalEntry, RunnerJournal } from './runner-journal.ts'
 import { followupTargetError } from './runner-journal-records.ts'
 import {
   callFor,
+  collectionReadCall,
+  decodeCollectionPage,
+  type CollectionItem,
+  type CollectionPage,
   classifyReply,
   codeLabel,
   decodeThreadRead,
@@ -95,6 +107,8 @@ export interface GatewayOptions {
   readonly profile: GatewayProfile
   /** At most this many thread pages per reconcile or observation (100 items each). */
   readonly maxReadPages?: number
+  /** Explicit source capability only; actual current read authorization is required at the S boundary. */
+  readonly collectionVersion?: 1
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -133,6 +147,7 @@ type Read =
   | { kind: 'error'; reason: string }
 
 export class RunnerGateway implements SophiaRunnerPort {
+  private readonly collectionVersion: 1 | undefined
   private readonly journal: RunnerJournal
   private readonly transport: T3Transport
   private readonly profile: GatewayProfile
@@ -141,6 +156,7 @@ export class RunnerGateway implements SophiaRunnerPort {
   private readonly inFlight = new Map<string, Promise<RunnerAnswer>>()
 
   constructor(options: GatewayOptions) {
+    this.collectionVersion = options.collectionVersion
     this.journal = options.journal
     this.transport = options.transport
     this.profile = options.profile
@@ -450,6 +466,103 @@ export class RunnerGateway implements SophiaRunnerPort {
       : { kind: 'error', reason: 'nothing was read' }
   }
 
+  /** Reads existing accepted execution only. Never writes a journal, native input, or scheduler wake. */
+  async collect(identity: RunnerIdentity, request: RunnerCollectionRequest): Promise<RunnerCollection> {
+    if (this.collectionVersion !== 1) return collectionUnavailable('unsupported')
+    const limits = snapshotCollectionRequest(request)
+    if (!limits) return collectionUnavailable('invalid_request')
+    const captured = snapshotCollectionIdentity(identity)
+    if (!captured || this.foreign(captured)) return collectionUnavailable('scope')
+    const entry = this.collectionEntry(captured)
+    if (!entry) return collectionUnavailable('unaccepted')
+    return this.collectAccepted(captured, limits, entry.runId, entry.native)
+  }
+
+  private collectionEntry(identity: RunnerIdentity): { runId: string; native: NativeIdentity } | null {
+    const entry = this.journal.entry(identity.envelope.operationId)
+    if (identity.envelope.kind === 'stop' || !entry?.envelope || entry.digest !== identity.digest) return null
+    if (entry.answer?.kind !== 'received' || !entry.answer.runId || !entry.identity?.messageId) return null
+    // A client: label is a scope check only. Actual outside-MCP authentication/context qualification is still
+    // required: a thread-scoped public read can acknowledge child results despite a configured label.
+    if (!entry.identity.namespace.startsWith('client:') || !this.transport.namespace().startsWith('client:'))
+      return null
+    return { runId: entry.answer.runId, native: { ...entry.identity } }
+  }
+
+  private async collectAccepted(
+    identity: RunnerIdentity,
+    request: RunnerCollectionRequest,
+    runId: string,
+    native: NativeIdentity,
+  ): Promise<RunnerCollection> {
+    const first = await this.scanCollection(request, runId, native, identity.envelope.environmentRef)
+    if ('kind' in first) return first
+    const remaining = request.maxPages - first.pages
+    if (remaining < 1) return collectionUnavailable('incomplete')
+    const second = await this.scanCollection(
+      { ...request, maxPages: remaining },
+      runId,
+      native,
+      identity.envelope.environmentRef,
+    )
+    if ('kind' in second) return second
+    if (first.fingerprint !== second.fingerprint) return collectionUnavailable('incomplete')
+    return finishCollection(identity, runId, native, { ...second, pages: first.pages + second.pages })
+  }
+
+  private async scanCollection(
+    request: RunnerCollectionRequest,
+    runId: string,
+    native: NativeIdentity,
+    environmentRef: string,
+  ): Promise<CollectionScan | RunnerCollection> {
+    const scan: CollectionScan = {
+      after: undefined,
+      pages: 0,
+      snapshot: null,
+      inputFound: false,
+      selected: null,
+      ids: new Set(),
+      bytes: 0,
+      fingerprint: '',
+    }
+    while (scan.pages < request.maxPages) {
+      const reply = await this.collectionRead(native.threadId, request.maxBytes, scan.after, environmentRef)
+      if (!reply || reply.kind !== 'ok') return collectionUnavailable('unavailable')
+      const page = decodeCollectionPage(reply.body, native.threadId)
+      if (!page) return collectionUnavailable('invalid_result')
+      scan.pages += 1
+      if (!collectPage(scan, page, runId, native.messageId, request.maxBytes))
+        return collectionUnavailable('invalid_result')
+      if (page.read.nextPosition === null) return scan
+      if (page.lastPosition === null || page.lastPosition <= (scan.after ?? -1))
+        return collectionUnavailable('incomplete')
+      scan.after = page.lastPosition
+    }
+    return collectionUnavailable('incomplete')
+  }
+
+  private async collectionRead(
+    threadId: string,
+    maxBytes: number,
+    after: number | undefined,
+    environmentRef: string,
+  ): Promise<T3Reply | null> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await Promise.race([
+        this.transport.call(collectionReadCall(environmentRef, threadId, maxBytes, after)),
+        new Promise<null>((resolve) => {
+          timer = setTimeout(() => resolve(null), RUNNER_COLLECTION_READ_TIMEOUT_MS)
+        }),
+      ])
+    } catch {
+      return null
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
   async observe(identity: RunnerIdentity): Promise<RunObservation> {
     const foreign = this.foreign(identity)
     if (foreign) return { kind: 'unknown', reason: `not answerable here: ${foreign}` }
@@ -524,4 +637,96 @@ function receiptOf(entry: JournalEntry): { threadId: string; runId: string | nul
   if (answer?.kind === 'received') return { threadId: answer.identity.threadId, runId: answer.runId }
   if (answer?.kind === 'settled' && answer.identity) return { threadId: answer.identity.threadId, runId: null }
   return null
+}
+
+interface CollectionScan {
+  after: number | undefined
+  pages: number
+  snapshot: string | null
+  inputFound: boolean
+  selected: CollectionItem | null
+  ids: Set<string>
+  bytes: number
+  fingerprint: string
+  lastPosition?: number
+}
+
+function collectPage(
+  scan: CollectionScan,
+  page: CollectionPage,
+  runId: string,
+  inputId: string | null,
+  maxBytes: number,
+): boolean {
+  const snapshot = digestOf({ runs: [...page.read.runs], active: page.read.activeRunId, count: page.read.runCount })
+  if (!runsComplete(page.read) || page.read.activeRunId !== null || page.read.runs.get(runId) !== 'completed')
+    return false
+  if (scan.snapshot !== null && scan.snapshot !== snapshot) return false
+  scan.snapshot = snapshot
+  scan.fingerprint = digestOf([scan.fingerprint, snapshot, page.items, page.lastPosition, page.read.nextPosition])
+  return page.items.every((item) => collectItem(scan, item, runId, inputId, maxBytes))
+}
+
+function collectItem(
+  scan: CollectionScan,
+  item: CollectionItem,
+  runId: string,
+  inputId: string | null,
+  maxBytes: number,
+): boolean {
+  if (item.position <= (scan.lastPosition ?? -1) || scan.ids.has(`item:${item.itemId}`)) return false
+  if (item.messageId !== null && scan.ids.has(`message:${item.messageId}`)) return false
+  scan.lastPosition = item.position
+  scan.ids.add(`item:${item.itemId}`)
+  if (item.messageId !== null) scan.ids.add(`message:${item.messageId}`)
+  if (item.messageId === inputId) return collectInput(scan, item, runId)
+  if (item.runId !== runId || !item.eligible) return true
+  return collectAssistant(scan, item, maxBytes)
+}
+function collectInput(scan: CollectionScan, item: CollectionItem, runId: string): boolean {
+  if (scan.inputFound || item.runId !== runId || item.type !== 'user_message') return false
+  scan.inputFound = true
+  return true
+}
+function collectAssistant(scan: CollectionScan, item: CollectionItem, maxBytes: number): boolean {
+  if (!item.text?.trim()) return true
+  if (!scan.inputFound) return false
+  scan.bytes += Buffer.byteLength(item.text, 'utf8')
+  if (scan.bytes > maxBytes) return false
+  scan.selected = item
+  return true
+}
+
+function finishCollection(
+  identity: RunnerIdentity,
+  runId: string,
+  native: NativeIdentity,
+  scan: CollectionScan,
+): RunnerCollection {
+  const item = scan.selected
+  if (!scan.inputFound || !item?.text || !item.messageId || !native.messageId || scan.lastPosition === undefined)
+    return collectionUnavailable('incomplete')
+  const content = {
+    v: 1 as const,
+    kind: 'collected' as const,
+    operationId: identity.envelope.operationId,
+    bindingId: identity.envelope.bindingId,
+    journalId: identity.journalId,
+    envelopeDigest: identity.digest,
+    threadId: native.threadId,
+    runId,
+    inputMessageId: native.messageId,
+    messageId: item.messageId,
+    itemId: item.itemId,
+    text: item.text,
+    textSha256: sha256Hex(item.text),
+    byteLength: Buffer.byteLength(item.text, 'utf8'),
+    pages: scan.pages,
+    coverageDigest: scan.fingerprint,
+    lastPosition: scan.lastPosition,
+  }
+  const result = { ...content, resultDigest: digestOf(content) }
+  return Buffer.byteLength(canonicalJson(result), 'utf8') <= RUNNER_COLLECTION_RESPONSE_BYTES_MAX
+    ? result
+    : collectionUnavailable('incomplete')
 }

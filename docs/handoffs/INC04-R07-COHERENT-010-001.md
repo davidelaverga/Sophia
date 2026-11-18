@@ -6,8 +6,8 @@ maintained application with bound output default OFF. It is not INC-04 product a
 qualification.
 
 Human owner / executor resource: Davide (repository owner); a Claude Code cloud session (Routing17,
-`https://claude.ai/code/session_01FGXfrGsUA6jNm3sxRoSro2`) as the one writer of this composition.  
-Native session: not applicable to this session.  
+`https://claude.ai/code/session_01FGXfrGsUA6jNm3sxRoSro2`) as the one writer of this composition.\
+Native session: not applicable to this session.\
 Starting worktree/commit: new `/home/user/sophia-r123-coherent-010` on new `refs/heads/inc04-r07-coherent-010-001` at
 `90a0af7eb3d4d376e9a0d63c0e05def18ee79b36`. Then `git merge --no-ff --no-commit 9495c87f… 9dfeba7f…`: rc 0, no conflict,
 prospective ordered parents `[90a0af7e, 9495c87f, 9dfeba7f]`.

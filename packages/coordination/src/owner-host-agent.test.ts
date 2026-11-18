@@ -16,7 +16,14 @@ import { FakeT3 } from './runner-fake-t3.ts'
 import { RunnerGateway, type GatewayProfile } from './runner-gateway.ts'
 import { RunnerJournal } from './runner-journal.ts'
 import { canonicalJson } from './canonical.ts'
-import { digestOf, sha256Hex, type RunnerAnswer, type RunnerEnvelope, type RunObservation } from './runner-port.ts'
+import {
+  digestOf,
+  sha256Hex,
+  type RunnerAnswer,
+  type RunnerEnvelope,
+  type RunObservation,
+  type RunnerCollection,
+} from './runner-port.ts'
 import { launchCommandId } from './t3-port-mapping.ts'
 
 const root = mkdtempSync(join(tmpdir(), 'sophia-owner-host-agent-'))
@@ -70,7 +77,7 @@ class Channel implements HostChannel {
   goThrows = false
   answerThrows = 0
   helloResult: HelloResult = { result: 'ok', hostId: 'h1', state: 'active', first: true }
-  readonly answers: { exchangeId: string; answer: RunnerAnswer | RunObservation }[] = []
+  readonly answers: { exchangeId: string; answer: RunnerAnswer | RunObservation | RunnerCollection }[] = []
   readonly hellos: HostHello[] = []
   hello(h: HostHello) {
     this.hellos.push(h)
@@ -86,7 +93,7 @@ class Channel implements HostChannel {
     if (this.goThrows) return Promise.reject(new Error('channel unreachable'))
     return Promise.resolve(this.goes.shift() ?? { result: 'denied', reason: 'unscripted', grantedBefore: false })
   }
-  answer(exchangeId: string, answer: RunnerAnswer | RunObservation) {
+  answer(exchangeId: string, answer: RunnerAnswer | RunObservation | RunnerCollection) {
     if (this.answerThrows > 0) {
       this.answerThrows -= 1
       return Promise.reject(new Error('the reply was lost'))
@@ -96,9 +103,14 @@ class Channel implements HostChannel {
   }
 }
 
-function host(file = join(root, `journal-${(n += 1)}.jsonl`), t3 = new FakeT3(NS)) {
+function host(file = join(root, `journal-${(n += 1)}.jsonl`), t3 = new FakeT3(NS), collectionVersion?: 1) {
   const journal = new RunnerJournal(file)
-  const gateway = new RunnerGateway({ journal, transport: t3, profile })
+  const gateway = new RunnerGateway({
+    journal,
+    transport: t3,
+    profile,
+    ...(collectionVersion ? { collectionVersion } : {}),
+  })
   open.push(gateway)
   const channel = new Channel()
   const hello: HostHello = {
@@ -115,7 +127,7 @@ function host(file = join(root, `journal-${(n += 1)}.jsonl`), t3 = new FakeT3(NS
   const agent = new OwnerHostAgent({ channel, gateway, journal, hello, log: (l) => logs.push(l) })
   const deliver = (kind: Delivered['kind'], e = env(), id = `x-${kind}`, journalId = journal.id) =>
     channel.queue.push({ exchangeId: id, kind, request: exchangeRequest(kind, e, journalId), deadlineAt: '' })
-  return { journal, gateway, channel, agent, t3, file, deliver, logs }
+  return { journal, gateway, channel, agent, t3, file, deliver, logs, hello }
 }
 
 describe('the owner-host agent', () => {
@@ -372,4 +384,89 @@ describe('the owner-host agent under source authority (INC01-CC-005, 0096)', () 
       assert.equal(h.journal.entry(env().operationId)?.possibleSend ?? false, false)
     }
   })
+})
+
+import { collectionExchangeRequest } from './owner-host-channel.ts'
+describe('host result reads do not send or request GO', () => {
+  it('old/default-off gateways return explicit unsupported', async () => {
+    const h = host()
+    const e = env()
+    const identity = { envelope: e, digest: digestOf(e), journalId: h.journal.id }
+    h.channel.queue.push({
+      exchangeId: 'collect',
+      kind: 'collect',
+      request: collectionExchangeRequest(identity, { v: 1, maxPages: 2, maxBytes: 100 }),
+      deadlineAt: '',
+    })
+    assert.deepEqual(await h.agent.serveOnce(), ['answered'])
+    assert.deepEqual(h.channel.answers[0]?.answer, { v: 1, kind: 'collection_unavailable', reason: 'unsupported' })
+    assert.equal(h.channel.goCalls, 0)
+    assert.equal(h.t3.calls.length, 0)
+  })
+  it('collects an already accepted result through the host, without another native write', async () => {
+    const h = host(undefined, new FakeT3(NS), 1)
+    const e = env()
+    const received = await h.gateway.send(e, digestOf(e), h.journal.id)
+    if (received.kind !== 'received' || !received.runId) throw new Error('fixture launch missing')
+    h.t3.finishRun(received.runId)
+    const thread = h.t3.threads.get(received.identity.threadId)
+    if (!thread) throw new Error('fixture thread missing')
+    thread.collectionItems = [
+      {
+        position: 1,
+        visibility: 'local',
+        sourceThreadId: received.identity.threadId,
+        itemId: 'final',
+        messageId: 'answer',
+        runId: received.runId,
+        type: 'assistant_message',
+        status: 'completed',
+        text: 'Checklist',
+        textTruncated: false,
+        nextTextOffset: null,
+      },
+    ]
+    h.channel.queue.push({
+      exchangeId: 'collect',
+      kind: 'collect',
+      request: collectionExchangeRequest(
+        { envelope: e, digest: digestOf(e), journalId: h.journal.id },
+        { v: 1, maxPages: 2, maxBytes: 100 },
+      ),
+      deadlineAt: '',
+    })
+    assert.deepEqual(await h.agent.serveOnce(), ['answered'])
+    assert.equal(h.channel.answers[0]?.answer.kind, 'collected')
+    assert.equal(h.channel.goCalls, 0)
+    assert.deepEqual(h.t3.effects, { launches: 1, messages: 0, stops: 0 })
+  })
+})
+
+it('a legacy port without collect never falls back to observe, input or GO', async () => {
+  const h = host()
+  let otherCalls = 0
+  const unavailable = () => {
+    otherCalls += 1
+    throw new Error('no other operation permitted')
+  }
+  const agent = new OwnerHostAgent({
+    channel: h.channel,
+    journal: h.journal,
+    hello: h.hello,
+    gateway: { journalId: h.journal.id, send: unavailable, observe: unavailable, reconcile: unavailable },
+  })
+  const e = env()
+  h.channel.queue.push({
+    exchangeId: 'legacy-collect',
+    kind: 'collect',
+    deadlineAt: '',
+    request: collectionExchangeRequest(
+      { envelope: e, digest: digestOf(e), journalId: h.journal.id },
+      { v: 1, maxPages: 2, maxBytes: 128 },
+    ),
+  })
+  assert.deepEqual(await agent.serveOnce(), ['answered'])
+  assert.deepEqual(h.channel.answers[0]?.answer, { v: 1, kind: 'collection_unavailable', reason: 'unsupported' })
+  assert.equal(otherCalls, 0)
+  assert.equal(h.channel.goCalls, 0)
 })

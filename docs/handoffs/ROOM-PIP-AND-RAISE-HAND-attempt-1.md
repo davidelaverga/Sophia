@@ -1,10 +1,10 @@
 # Handoff: Room · keep the call in view, and raise hand
 
-Goal and attempt: lote 18 (evaluacion-2026-11-16/textos-lote-18.md), points 11 and 12, attempt 1  
+Goal and attempt: lote 18 (evaluacion-2026-11-16/textos-lote-18.md), points 11 and 12, attempt 1\
 Human owner / executor resource: Luis (owner, the lines approved word for word on 2026-11-16); the Claude Code
-session that built it  
+session that built it\
 Starting worktree/commit: `D:/Descargas/SophiaV4/Sophia-paper-base`, local branch `room/pip-and-raise-hand` from main
-`9495c87fc` (through #513)  
+`9495c87fc` (through #513)\
 Changed files: `apps/studio/src/features/voice/CallPip.tsx`, `pip-view.ts`, `hand-signal.ts`, `livekit-room.ts`,
 `useProjectRoom.ts`, `RoomDock.tsx`, `ReactMenu.tsx`, `VideoStage.tsx`, `Presences.tsx`, `room-view.ts` (and their
 tests `pip-view.test.ts`, `hand-signal.test.ts`, `room-view.test.ts`), `apps/studio/src/app/theme.css`,

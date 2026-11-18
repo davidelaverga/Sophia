@@ -362,3 +362,75 @@ describe('a model and a string option value are 1 to 200 code points, as the sch
     )
   })
 })
+
+import { collectionRequestValid, collectionUnavailable } from './runner-port.ts'
+describe('bounded read-result capability', () => {
+  it('allows only exact versioned narrowing bounds without changing an envelope digest', () => {
+    const before = digestOf(v1)
+    assert.equal(collectionRequestValid({ v: 1, maxPages: 8, maxBytes: 8192 }), true)
+    for (const value of [
+      null,
+      {},
+      { v: 2, maxPages: 1, maxBytes: 1 },
+      { v: 1, maxPages: 0, maxBytes: 1 },
+      { v: 1, maxPages: 9, maxBytes: 1 },
+      { v: 1, maxPages: 1, maxBytes: 8193 },
+      { v: 1, maxPages: 1.5, maxBytes: 1 },
+      { v: 1, maxPages: 1, maxBytes: 1, threadId: 'foreign' },
+    ])
+      assert.equal(collectionRequestValid(value), false)
+    assert.deepEqual(collectionUnavailable('unsupported'), {
+      v: 1,
+      kind: 'collection_unavailable',
+      reason: 'unsupported',
+    })
+    assert.equal(digestOf(v1), before)
+  })
+})
+
+import { collectRunnerResult } from './runner-port.ts'
+it('legacy ports return unavailable without invoking any other primitive', async () => {
+  let calls = 0
+  const forbidden = () => {
+    calls += 1
+    return Promise.reject(new Error('no alternate call'))
+  }
+  const old = { journalId: v1.operationId, send: forbidden, observe: forbidden, reconcile: forbidden }
+  const result = await collectRunnerResult(
+    old,
+    { envelope: v1, digest: digestOf(v1), journalId: old.journalId },
+    { v: 1, maxPages: 1, maxBytes: 1 },
+  )
+  assert.deepEqual(result, collectionUnavailable('unsupported'))
+  assert.equal(calls, 0)
+})
+
+import { snapshotCollectionIdentity, snapshotCollectionRequest } from './runner-port.ts'
+it('NCOL-F01 snapshots validated nested v2 values without freezing or mutating callers', () => {
+  const settings = structuredClone(SETTINGS)
+  const envelope = asV2(v2({ settings }))
+  const identity = { envelope, digest: digestOf(envelope), journalId: v1.operationId }
+  const bounds = { v: 1 as const, maxPages: 4, maxBytes: 16 }
+  const original = structuredClone(identity)
+  const captured = snapshotCollectionIdentity(identity)
+  const limits = snapshotCollectionRequest(bounds)
+  assert.deepEqual(captured, original)
+  assert.deepEqual(limits, bounds)
+  settings.model = 'mutated'
+  const option = settings.options[0]
+  if (!option) throw new Error('synthetic option missing')
+  Object.assign(option, { value: false })
+  identity.digest = 'd'.repeat(64)
+  bounds.maxBytes = 128
+  assert.deepEqual(captured, original)
+  assert.deepEqual(limits, { v: 1, maxPages: 4, maxBytes: 16 })
+  assert.equal(snapshotCollectionIdentity(identity), null, 'changed values with old/wrong digest fail closed')
+  const extra = { ...v1, unexpected: undefined }
+  assert.equal(
+    snapshotCollectionIdentity({ envelope: extra, digest: digestOf(extra), journalId: v1.operationId }),
+    null,
+    'copying cannot normalize an originally invalid envelope into an admitted one',
+  )
+  assert.equal(Object.isFrozen(settings), false)
+  assert.equal(Object.isFrozen(bounds), false)
+})

@@ -1,9 +1,9 @@
 # Handoff: Mark as seen says what it clears; Up to date says when it checked; a long report's On this page (lote 18)
 
-Goal and attempt: lote 18 (evaluacion-2026-11-16/textos-lote-18.md), items 9, 10 and 13, attempt 1  
-Human owner / executor resource: Luis (owner, the lines approved 2026-11-16); the Claude Code session that built it  
+Goal and attempt: lote 18 (evaluacion-2026-11-16/textos-lote-18.md), items 9, 10 and 13, attempt 1\
+Human owner / executor resource: Luis (owner, the lines approved 2026-11-16); the Claude Code session that built it\
 Starting worktree/commit: `D:/Descargas/SophiaV4/Sophia-paper-8`, local branch `studio/updates-and-sync-explained` from
-main `9495c87fc` (through #513)  
+main `9495c87fc` (through #513)\
 Changed files: `apps/studio/src/api/stream.ts`, `features/studio/useProjectFeed.ts`, `ProjectShell.tsx`,
 `ConnectionPill.tsx` (new), `features/updates/UpdatesView.tsx`, `features/voice/voice-trail.ts`,
 `features/artifacts/MarkdownView.tsx`, `DocumentPane.tsx`, `OnThisPage.tsx` (new), `page-index.ts` (new),
