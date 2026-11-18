@@ -291,6 +291,14 @@ BEGIN
  IF NOT FOUND THEN RETURN jsonb_build_object('result','no_host'); END IF;
  INSERT INTO sophia.owner_host_exchanges(host_id,owner_id,kind,exchange_key,project_id,operation_id,payload_digest,request,deadline_at)
  VALUES(h.id,c.owner_id,'collect',p_key,p_project,o.id,p_digest,p_request,c.deadline_at) RETURNING * INTO x;
+ -- The FK can wait behind a revoker whose initial project set was empty.
+ -- Its KEY SHARE now fences a later host authenticator/revoker; recheck the
+ -- committed host after that wait before publishing the collection's exchange.
+ SELECT * INTO h FROM sophia.owner_hosts WHERE id=h.id AND owner_id=c.owner_id AND environment_ref=o.environment_ref
+  AND journal_id=o.gateway_journal_id AND t3_namespace=o.native_namespace AND adapter_pin=o.adapter_pin
+  AND profile_id=o.profile_id AND profile_revision=o.profile_revision AND account_key=o.account_key
+  AND hello_ok AND state IN ('active','retired');
+ IF NOT FOUND THEN RAISE EXCEPTION 'Owner host not authenticated' USING ERRCODE='42501'; END IF;
  UPDATE sophia.owner_runner_collections SET exchange_id=x.id WHERE project_id=p_project AND id=c.id;
  RETURN jsonb_build_object('result','queued','exchangeId',x.id,'state',x.state);
 END $$;
@@ -306,15 +314,29 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
  AND h.profile_revision=o.profile_revision AND h.account_key=o.account_key AND sophia.runner_result_capture_ok(o))
 $$;
 
+-- Freeze bounded exchange IDs before waiting. Every project precedes the host and
+-- exchanges; new candidates wait for the next poll, never a late project lock.
 CREATE FUNCTION sophia.poll_runner_results(p_cap bytea,p_limit integer) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE x sophia.owner_host_exchanges; h sophia.owner_hosts; out jsonb:='[]';
+DECLARE x sophia.owner_host_exchanges; h sophia.owner_hosts; out jsonb:='[]'; ids uuid[]; projects uuid[]; p uuid;
 BEGIN
+ IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 20 THEN RAISE EXCEPTION 'Invalid poll bounds' USING ERRCODE='22023'; END IF;
  SELECT * INTO h FROM sophia.owner_hosts WHERE capability_sha256=p_cap AND state<>'revoked';
  IF NOT FOUND THEN RAISE EXCEPTION 'Owner host not authenticated' USING ERRCODE='42501'; END IF;
- FOR x IN SELECT e.* FROM sophia.owner_host_exchanges e WHERE e.host_id=h.id AND e.kind='collect'
-  AND e.state='queued' ORDER BY e.created_at LIMIT p_limit LOOP
-  PERFORM 1 FROM sophia.projects WHERE id=x.project_id FOR UPDATE;
+ SELECT coalesce(array_agg(e.id ORDER BY e.created_at,e.id),'{}'),coalesce(array_agg(DISTINCT e.project_id),'{}') INTO ids,projects
+ FROM (SELECT id,project_id,created_at FROM sophia.owner_host_exchanges WHERE host_id=h.id AND kind='collect'
+  AND state='queued' ORDER BY created_at,id LIMIT p_limit) e;
+ FOR p IN SELECT unnest(projects) ORDER BY 1 LOOP
+  PERFORM 1 FROM sophia.projects WHERE id=p FOR UPDATE;
+ END LOOP;
+ h:=sophia.owner_host_authenticate(p_cap);
+ UPDATE sophia.owner_hosts SET last_seen_at=now() WHERE id=h.id;
+ -- Candidate identity is fixed. Recheck membership after the last host wait,
+ -- before touching exchanges; never follow a changed project while holding H.
+ IF EXISTS(SELECT 1 FROM sophia.owner_host_exchanges e WHERE e.id=ANY(ids)
+  AND (e.host_id<>h.id OR e.kind<>'collect' OR NOT e.project_id=ANY(projects))) THEN
+  RAISE EXCEPTION 'Collection poll targets changed; retry' USING ERRCODE='40001'; END IF;
+ FOR x IN SELECT e.* FROM sophia.owner_host_exchanges e WHERE e.id=ANY(ids) ORDER BY e.created_at,e.id LOOP
   SELECT * INTO x FROM sophia.owner_host_exchanges WHERE id=x.id FOR UPDATE;
   IF x.state<>'queued' OR x.delivery_count<>0 OR NOT sophia.runner_result_exchange_ok(x) THEN CONTINUE; END IF;
   UPDATE sophia.owner_runner_collections SET reserved_pages=max_pages WHERE project_id=x.project_id AND exchange_id=x.id;
@@ -322,6 +344,33 @@ BEGIN
   out:=out||jsonb_build_array(jsonb_build_object('exchangeId',x.id,'kind','collect','request',x.request,'deadlineAt',x.deadline_at));
  END LOOP;
  RETURN out;
+END $$;
+
+-- Revoke uses the same project order as collection polling. A concurrent enqueue
+-- includes answered collections, so consume and revoke serialize on P. Enqueue
+-- may add a project while we wait: refuse before cancellation rather than taking
+-- a new project lock under H. The caller can retry the complete transaction.
+CREATE OR REPLACE FUNCTION sophia.owner_host_revoke(p_host uuid) RETURNS jsonb LANGUAGE plpgsql
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE a uuid:=sophia.actor_id(); h sophia.owner_hosts; n integer; projects uuid[]; p uuid;
+BEGIN
+ SELECT * INTO h FROM sophia.owner_hosts WHERE id=p_host;
+ IF a IS NULL OR NOT FOUND OR h.owner_id<>a THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;
+ SELECT coalesce(array_agg(DISTINCT project_id),'{}') INTO projects FROM sophia.owner_host_exchanges
+  WHERE host_id=p_host AND kind='collect' AND state IN ('queued','delivered','answered');
+ FOR p IN SELECT unnest(projects) ORDER BY 1 LOOP
+  PERFORM 1 FROM sophia.projects WHERE id=p FOR UPDATE;
+ END LOOP;
+ SELECT * INTO h FROM sophia.owner_hosts WHERE id=p_host FOR UPDATE;
+ IF NOT FOUND OR h.owner_id<>a THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;
+ IF EXISTS(SELECT 1 FROM sophia.owner_host_exchanges WHERE host_id=p_host AND kind='collect'
+  AND state IN ('queued','delivered','answered') AND NOT project_id=ANY(projects)) THEN
+  RAISE EXCEPTION 'Host revocation targets changed; retry' USING ERRCODE='40001'; END IF;
+ UPDATE sophia.owner_hosts SET state='revoked',revoked_at=coalesce(revoked_at,now()) WHERE id=h.id;
+ UPDATE sophia.owner_host_exchanges SET state='cancelled',reason='the owner host was revoked'
+  WHERE host_id=h.id AND go_count=0 AND state IN ('queued','delivered');
+ GET DIAGNOSTICS n=ROW_COUNT;
+ RETURN jsonb_build_object('result','revoked','fenced',n);
 END $$;
 
 CREATE FUNCTION sophia.answer_runner_result(p_cap bytea,p_exchange uuid,p_answer jsonb) RETURNS jsonb LANGUAGE plpgsql
@@ -529,8 +578,9 @@ BEGIN
  IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 20 OR p_redeliver_seconds IS NULL OR p_redeliver_seconds NOT BETWEEN 1 AND 300 THEN
   RAISE EXCEPTION 'Invalid poll bounds' USING ERRCODE='22023'; END IF;
  out:=sophia.poll_runner_results(p_capability_sha256,p_limit);
- h:=sophia.owner_host_authenticate(p_capability_sha256);
- UPDATE sophia.owner_hosts SET last_seen_at=now() WHERE id=h.id;
+ -- poll_runner_results already holds the authenticated host, including an empty
+ -- delivery batch. Do not acquire a new host lock after collection exchange locks.
+ SELECT * INTO h FROM sophia.owner_hosts WHERE capability_sha256=p_capability_sha256;
  IF h.journal_id IS NULL OR NOT h.hello_ok THEN RETURN out; END IF;
  FOR x IN SELECT * FROM sophia.owner_host_exchanges e WHERE e.host_id=h.id AND e.kind<>'collect' AND e.deadline_at>clock_timestamp()
    AND (e.state='queued' OR (e.state IN ('delivered','go_granted') AND e.delivered_at<=now()-make_interval(secs=>p_redeliver_seconds)))

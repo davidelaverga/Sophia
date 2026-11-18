@@ -21,6 +21,11 @@ BEGIN
  OR has_function_privilege('sophia_api','sophia.source_closure(uuid,uuid[])','EXECUTE')
  OR has_function_privilege('sophia_api','sophia.source_withdrawn(uuid,uuid)','EXECUTE') THEN
   RAISE EXCEPTION '0116 internal capture fence privilege leak'; END IF;
+ IF has_function_privilege('sophia_api','sophia.poll_runner_results(bytea,integer)','EXECUTE')
+ OR has_function_privilege('sophia_worker','sophia.poll_runner_results(bytea,integer)','EXECUTE')
+ OR has_function_privilege('public','sophia.owner_host_revoke(uuid)','EXECUTE')
+ OR NOT has_function_privilege('sophia_api','sophia.owner_host_revoke(uuid)','EXECUTE') THEN
+  RAISE EXCEPTION '0116 poll/revoke capability boundary changed'; END IF;
  IF sophia.runner_result_canonical('{"z":[1,"x"],"a":true}'::jsonb)<>'{"a":true,"z":[1,"x"]}' THEN
   RAISE EXCEPTION '0116 canonical digest encoding differs'; END IF;
 END $$;
