@@ -199,15 +199,44 @@ describe('the renderer host probe (OP-C)', () => {
     for (const check of ['api_host', 'runner_token_file']) assert.match(byName.get(check)?.detail ?? '', /^not run: /)
   })
 
-  it('tries only files and directories it can read itself: anything else is not run, on any host', async () => {
-    const socket = path.join(scratch, 's.sock')
+  it('tries only files and directories it can read itself: anything else is not run, on any host', async (t) => {
+    // sockaddr_un is bounded even when TMPDIR is deep; only this socket fixture needs a short POSIX path.
+    const socketDir = fs.mkdtempSync(path.join(fs.realpathSync('/tmp'), 'sp-'))
+    t.after(() => {
+      fs.rmSync(socketDir, { recursive: true, force: true })
+      assert.equal(fs.existsSync(socketDir), false)
+      t.diagnostic(JSON.stringify({ fixture: 'host-probe socket', directoryRemoved: !fs.existsSync(socketDir) }))
+    })
+    assert.equal(fs.statSync(socketDir).mode & 0o777, 0o700)
+    assert.equal(fs.statSync(socketDir).uid, process.getuid?.())
+    const socket = path.join(socketDir, 's.sock')
+    assert.ok(Buffer.byteLength(socket) < 104, 'socket address fits Darwin and Linux sockaddr_un')
     const server = net.createServer()
     await new Promise<void>((resolve) => server.listen(socket, resolve))
     try {
+      assert.equal(server.listening, true)
+      assert.equal(fs.lstatSync(socket).isSocket(), true)
+      t.diagnostic(
+        JSON.stringify({
+          fixture: 'host-probe socket',
+          address: socket,
+          addressBytes: Buffer.byteLength(socket),
+          listening: server.listening,
+        }),
+      )
       const results = await probeHost({ env: quick, node, secrets: [socket] })
       assert.match(notPassed(results, `unreadable:${socket}`), /^not run: not a file or a directory/)
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()))
+      assert.equal(server.listening, false)
+      assert.equal(fs.existsSync(socket), false)
+      t.diagnostic(
+        JSON.stringify({
+          fixture: 'host-probe socket',
+          listenerClosed: !server.listening,
+          socketRemoved: !fs.existsSync(socket),
+        }),
+      )
     }
   })
 
