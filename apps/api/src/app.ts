@@ -6,6 +6,7 @@ import {
   authenticateOwnerHost,
   HOST_ROUTES,
   REDEEM_ROUTE,
+  OWNER_HOST_SCHEMA,
 } from './routes/owner-host.ts'
 import { randomUUID, timingSafeEqual } from 'node:crypto'
 import Fastify, { type FastifyError, type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
@@ -760,6 +761,27 @@ async function schemaReady(
 ): Promise<boolean> {
   const part = async (on: boolean, sql: string) => !on || (await pool.query<{ ok: boolean }>(sql)).rows[0]?.ok === true
   return (
+    (await alwaysServedReady(part)) &&
+    (await part(stores, STORE_SCHEMA)) &&
+    (await part(conversations, CONVERSATION_SCHEMA)) &&
+    (await part(conversationInputs, CONVERSATION_INPUTS_SCHEMA)) &&
+    (await part(personalAnswers, PERSONAL_ANSWERS_SCHEMA)) &&
+    (await part(voice, VOICE_SCHEMA)) &&
+    (await ownerRuntimeReady(part, ownerRunners, ownerRunnerResults)) &&
+    // Member API contributions on (A48, A56): the routes' own installation predicate (0094, 0100's rebuild funding
+    // guard, 0104's owner protection and account qualification, 0105, 0106's viewer boundary; R2, F02). Off, the
+    // default: nothing more of them is required, so a database with 0105 and without 0106 is ready with them off.
+    (await part(apiContributions, API_CONTRIBUTIONS_SCHEMA)) &&
+    (await inc04Ready(part, capacityExposure, boundOutput))
+  )
+}
+
+/** Installation predicates for routes that are mounted regardless of new-work switches. */
+async function alwaysServedReady(part: (on: boolean, sql: string) => Promise<boolean>): Promise<boolean> {
+  return (
+    // Existing host channels are always mounted, even with enrollment and new runner work off.
+    // The route's exact0118 dependency and this API login's privileges must be installed before serving traffic.
+    (await part(true, OWNER_HOST_SCHEMA)) &&
     (await part(true, REQUIRED_SCHEMA)) &&
     // The atomic contributed admission (0105; INC04-S02a coherent), whatever the switches say: research admission and
     // the runtime's paid reservation are always served (researchRoutes, runtimeRoutes), and a database without 0105
@@ -773,18 +795,7 @@ async function schemaReady(
     (await part(true, TRACKED_CALL_SCHEMA)) &&
     // 0110's observed facts, for the same reason: without them a qualified research or review call is refused before its
     // provider call (Codex review 5916589022). Nothing of 0111 or later is required here.
-    (await part(true, OBSERVED_FACTS_SCHEMA)) &&
-    (await part(stores, STORE_SCHEMA)) &&
-    (await part(conversations, CONVERSATION_SCHEMA)) &&
-    (await part(conversationInputs, CONVERSATION_INPUTS_SCHEMA)) &&
-    (await part(personalAnswers, PERSONAL_ANSWERS_SCHEMA)) &&
-    (await part(voice, VOICE_SCHEMA)) &&
-    (await ownerRuntimeReady(part, ownerRunners, ownerRunnerResults)) &&
-    // Member API contributions on (A48, A56): the routes' own installation predicate (0094, 0100's rebuild funding
-    // guard, 0104's owner protection and account qualification, 0105, 0106's viewer boundary; R2, F02). Off, the
-    // default: nothing more of them is required, so a database with 0105 and without 0106 is ready with them off.
-    (await part(apiContributions, API_CONTRIBUTIONS_SCHEMA)) &&
-    (await inc04Ready(part, capacityExposure, boundOutput))
+    (await part(true, OBSERVED_FACTS_SCHEMA))
   )
 }
 
