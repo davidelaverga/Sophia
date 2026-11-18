@@ -13,7 +13,7 @@
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync, symlinkSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -196,6 +196,7 @@ describe('ci: everything else in the workflow is unchanged from d3e5ba9c', () =>
     rest.concurrency.group = D3E_GROUP
     rest.jobs['runtime-unit'].steps = withoutDiagnostics(withoutLinuxRecord(rest.jobs['runtime-unit'].steps))
     rest.jobs['supabase-live'] = withoutSupabaseIsolation(rest.jobs['supabase-live'])
+    rest.jobs.database = withoutHquota(rest.jobs.database)
     const digest = createHash('sha256').update(JSON.stringify(rest)).digest('hex')
     assert.equal(digest, 'fc501764446a618da3ad44170b8cbf0fe266943c13e31903986c04e37110448f')
   })
@@ -601,3 +602,76 @@ test('then never ends', () => new Promise(() => { setInterval(() => {}, 1000) })
 function within(ms, p, what) {
   return Promise.race([p, new Promise((_, reject) => setTimeout(() => reject(new Error(`${what}: not within ${String(ms)} ms`)), ms).unref())])
 }
+
+
+// HQUOTA Linux: this parses the actual YAML; data mutations test the contract, not GitHub execution.
+const HQUOTA_PATH = '${{ runner.temp }}/sophia-ci-diagnostics/hquota-physical.json'
+const HQUOTA_ENV = { SOPHIA_HQUOTA_PHYSICAL_REQUIRED: '1', SOPHIA_HQUOTA_PHYSICAL_REPORT: HQUOTA_PATH }
+const HQUOTA_PHASE = 'hquota_report=${{ steps.hquota_report.outcome }}'
+const HQUOTA_UPLOAD = {
+  name: 'Retain the physical owner-host crossing report', id: 'hquota_report',
+  if: "always() && (steps.db.outcome == 'success' || steps.db.outcome == 'failure')",
+  'timeout-minutes': 1,
+  uses: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',
+  with: { name: 'hquota-physical-${{ github.run_id }}-${{ github.run_attempt }}', path: HQUOTA_PATH, 'if-no-files-found': 'error', 'retention-days': 7 },
+}
+function hquotaAt(job) {
+  const steps = job.steps, dbs = steps.filter(s => s.id === 'db'), reports = steps.filter(s => s.id === 'hquota_report')
+  assert.equal(dbs.length, 1); assert.deepEqual(dbs[0], { id: 'db', env: HQUOTA_ENV, run: 'pnpm test:db' })
+  assert.deepEqual(reports, [HQUOTA_UPLOAD]); assert.equal(steps.indexOf(reports[0]), steps.indexOf(dbs[0]) + 1)
+  const phase = steps.find(s => s.name === 'Name the failed phase')
+  assert.equal(phase.env.PHASES.split(HQUOTA_PHASE).length, 2)
+  return { db: dbs[0], report: reports[0], phase }
+}
+function withoutHquota(job) {
+  const result = structuredClone(job), { db, report, phase } = hquotaAt(result)
+  delete db.env
+  result.steps = result.steps.filter(s => s !== report)
+  phase.env.PHASES = phase.env.PHASES.replace(' ' + HQUOTA_PHASE, '')
+  return result
+}
+describe('ci: required physical HQUOTA evidence in the existing database step', () => {
+  it('keeps the full maintained DB command, disjoint required/report contract and finite exact upload', () => {
+    hquotaAt(ci.jobs.database)
+    assert.equal(ci.jobs.database['runs-on'], 'ubuntu-24.04')
+    assert.equal(ci.jobs.database.services.postgres.image, 'postgres:16')
+    const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'))
+    assert.equal(pkg.scripts['test:db'], 'pnpm --filter @sophia/dsh-bundle run build && node scripts/with-postgres.ts node --test --test-concurrency=1 "packages/*/src/**/*.db.test.ts" "apps/*/src/**/*.db.test.ts"')
+    for (const path of ['packages/persistence/src/owner-host-enrollment.db.test.ts', 'packages/persistence/src/owner-host-route.db.test.ts', 'packages/persistence/src/runner-results.db.test.ts', 'packages/persistence/src/runner-results-locks.db.test.ts', 'apps/api/src/owner-host.db.test.ts', 'apps/api/src/runner-results.db.test.ts', 'apps/worker/src/runner-results.db.test.ts'])
+      assert.ok(existsSync(new URL('../../' + path, import.meta.url)))
+  })
+  for (const [name, change] of [
+    ['missing required', j => { delete j.steps.find(s => s.id === 'db').env.SOPHIA_HQUOTA_PHYSICAL_REQUIRED }],
+    ['wrong required', j => { j.steps.find(s => s.id === 'db').env.SOPHIA_HQUOTA_PHYSICAL_REQUIRED = '0' }],
+    ['missing report', j => { delete j.steps.find(s => s.id === 'db').env.SOPHIA_HQUOTA_PHYSICAL_REPORT }],
+    ['arbitrary report', j => { j.steps.find(s => s.id === 'db').env.SOPHIA_HQUOTA_PHYSICAL_REPORT = '/tmp/elsewhere.json' }],
+    ['masked DB exit', j => { j.steps.find(s => s.id === 'db').run = 'pnpm test:db || true' }],
+    ['continue on error', j => { j.steps.find(s => s.id === 'db')['continue-on-error'] = true }],
+    ['selected suite replaces full DB', j => { j.steps.find(s => s.id === 'db').run = 'node --test apps/api/src/owner-host.db.test.ts' }],
+    ['success only upload', j => { j.steps.find(s => s.id === 'hquota_report').if = 'success()' }],
+    ['missing report tolerated', j => { j.steps.find(s => s.id === 'hquota_report').with['if-no-files-found'] = 'warn' }],
+    ['wrong upload path', j => { j.steps.find(s => s.id === 'hquota_report').with.path = '/tmp/wrong.json' }],
+    ['failure not attributed', j => { const p = j.steps.find(s => s.name === 'Name the failed phase'); p.env.PHASES = p.env.PHASES.replace(HQUOTA_PHASE, '') }],
+  ]) it('rejects actual parsed workflow mutation: ' + name, () => { const job = structuredClone(ci.jobs.database); change(job); assert.throws(() => hquotaAt(job)) })
+})
+
+
+describe('HQUOTA actual DB entry rejects unsafe required inputs before any fixture creation', () => {
+  for (const [name, code] of [['required_value','required_value'],['required_missing','required_missing'],['missing_report','missing_report'],['report_path','report_path'],['runner_temp','runner_temp'],['report_symlink','report_symlink'],['stale_report','stale_report'],['missing_disposable','missing_disposable'],['disposable_shape','disposable_shape'],...(process.platform==='linux'?[]:[['non_linux','non_linux']])])
+    it(name, () => {
+      const dir=realpathSync(mkdtempSync(join(tmpdir(),'hquota-input-'))); after(()=>rmSync(dir,{recursive:true,force:true}))
+      const diag=join(dir,'sophia-ci-diagnostics'), report=join(diag,'hquota-physical.json')
+      const env={PATH:process.env.PATH,HOME:process.env.HOME,TMPDIR:process.env.TMPDIR,RUNNER_TEMP:dir,SOPHIA_HQUOTA_PHYSICAL_REQUIRED:'1',SOPHIA_HQUOTA_PHYSICAL_REPORT:report,SOPHIA_DISPOSABLE_DATABASE_URL:'postgres://fixture@127.0.0.1:1/postgres'}
+      if(name==='required_value')env.SOPHIA_HQUOTA_PHYSICAL_REQUIRED='0'
+      if(name==='required_missing'){delete env.SOPHIA_HQUOTA_PHYSICAL_REQUIRED;env.GITHUB_ACTIONS='true'}
+      if(name==='missing_report')delete env.SOPHIA_HQUOTA_PHYSICAL_REPORT
+      if(name==='report_path')env.SOPHIA_HQUOTA_PHYSICAL_REPORT=join(dir,'arbitrary.json')
+      if(name==='runner_temp')delete env.RUNNER_TEMP
+      if(name==='report_symlink'){const target=join(dir,'target');mkdirSync(target);symlinkSync(target,diag,'dir')}
+      if(name==='stale_report'){mkdirSync(diag);writeFileSync(report,'stale fixture data')}
+      if(name==='missing_disposable')delete env.SOPHIA_DISPOSABLE_DATABASE_URL
+      if(name==='disposable_shape')env.SOPHIA_DISPOSABLE_DATABASE_URL='postgres://fixture@fixture.invalid/postgres'
+      const child=spawnSync(process.execPath,['--test',fileURLToPath(new URL('../../apps/api/src/owner-host.db.test.ts',import.meta.url))],{env,encoding:'utf8',timeout:20_000,maxBuffer:1024*1024})
+      assert.ifError(child.error);assert.equal(child.status,1);assert.ok((child.stdout+child.stderr).includes('HQUOTA_CONTRACT:'+code));assert.equal((child.stdout+child.stderr).includes('ECONNREFUSED'),false,'must reject before contacting the sentinel database')
+    })
+})

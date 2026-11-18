@@ -148,7 +148,20 @@ jobs:
         run: pnpm test:sql
       # Two-connection races, lease fencing, idempotent retries, SSE and revocation over real HTTP.
       - id: db
+        env:
+          SOPHIA_HQUOTA_PHYSICAL_REQUIRED: '1'
+          SOPHIA_HQUOTA_PHYSICAL_REPORT: ${{ runner.temp }}/sophia-ci-diagnostics/hquota-physical.json
         run: pnpm test:db
+      - name: Retain the physical owner-host crossing report
+        id: hquota_report
+        if: always() && (steps.db.outcome == 'success' || steps.db.outcome == 'failure')
+        timeout-minutes: 1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: hquota-physical-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/sophia-ci-diagnostics/hquota-physical.json
+          if-no-files-found: error
+          retention-days: 7
       # S1-05A crossing: the real pinned dsh runtime against the real API, PostgreSQL and worker dispatch; and CON-01's
       # service-mode replies on the same path, the context recorded by the worker with the dispatcher never paused,
       # against a local provider double (no credential or provider call). One file at a time.
@@ -174,7 +187,7 @@ jobs:
           PHASES: >-
             install=${{ steps.install.outcome }} sql-pack=${{ steps.sql-pack.outcome }} sql=${{ steps.sql.outcome }}
             db=${{ steps.db.outcome }} artifacts=${{ steps.artifacts.outcome }} crossing=${{ steps.crossing.outcome }}
-            q13=${{ steps.q13.outcome }}
+            q13=${{ steps.q13.outcome }} hquota_report=${{ steps.hquota_report.outcome }}
         run: |
           failed=$(printf '%s\n' $PHASES | sed -n 's/=failure$//p' | tr '\n' ' ')
           echo "::error title=Failed phase::${failed:-a setup step before install} (outcomes: $PHASES)"
