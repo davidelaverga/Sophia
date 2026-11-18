@@ -122,3 +122,18 @@ a path updates its row in the same commit.
 | `apps/api/src/native-result-config.ts` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Exact raw default-OFF result switch; local candidate, not release |
 | `apps/api/src/native-result-config.test.ts` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Synthetic focused verification; no real owner/native qualification; local candidate, not release |
 | `docs/handoffs/INC-COORD-1118-CODEX-NATIVE-RESULT-S-001.md` | partial | S1-02 / INC-COORD-1118-CODEX-NATIVE-RESULT-S-001 | Local source candidate, actual evidence and independent review HOLD; local candidate, not release |
+
+## Owner-host HTTP/CLI/stock dispatch crossing (H-001, A61 / 0117)
+
+All rows below are a local source candidate awaiting independent review; none is real owner/native qualification or release acceptance.
+
+| Destination | Status | Ownership / boundary |
+|---|---|---|
+| `apps/api/src/routes/owner-host.ts`, `owner-host-config.ts` | partial | Owner JWT enrollment/management, exact host-capability channel, default-OFF enrollment, bounded nonlogging HTTP |
+| `packages/coordination/src/owner-host-http.ts` | partial | Fixed-origin HostChannel; owner-only capability file, finite wire/time/error vocabulary |
+| `scripts/owner-host.ts` | partial | Existing durable capability writer plus complete local-profile redeem/run composition and bounded signal drain |
+| `apps/worker/src/owner-host-route.ts`, `runtime-dispatch.ts` | partial | One finite task in stock RuntimeDispatcher; explicit original journal, OFF maintenance, current qualification/GO checks |
+| `packages/persistence/src/owner-host-route.ts`, `db/migrations/0117_owner_host_route.sql` | partial | Additive worker-only exact-journal metadata lookup; no replacement routing or qualification writes |
+| `packages/contracts/amendments/A61-owner-host-channel.json` | partial | Exact Sophia-owned owner-host vocabulary; normal generated destinations remain canonical |
+| H focused API/HTTP/CLI/worker/DB tests and `db/tests/0117_owner_host_route.sql` | partial | Owned synthetic loopback/SCRAM checks, original-journal Stop and final S staged-answer consumption/redaction |
+| `docs/handoffs/INC-COORD-1118-OWNER-HOST-H-001.md` | partial | Source/evidence boundaries, actual check receipts and independent-review HOLD |

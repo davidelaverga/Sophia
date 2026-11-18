@@ -15,7 +15,8 @@
     "./owner-host-channel": "./src/owner-host-channel.ts",
     "./owner-host-port-proxy": "./src/owner-host-port-proxy.ts",
     "./owner-host-agent": "./src/owner-host-agent.ts",
-    "./t3-mcp-transport": "./src/t3-mcp-transport.ts"
+    "./t3-mcp-transport": "./src/t3-mcp-transport.ts",
+    "./owner-host-http": "./src/owner-host-http.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p ."

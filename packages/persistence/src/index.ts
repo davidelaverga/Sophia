@@ -564,3 +564,4 @@ export {
 } from './owner-host-enrollment.ts'
 
 export * from './runner-results.ts'
+export { originalOwnerHostRoute, type OriginalOwnerHostRoute } from './owner-host-route.ts'

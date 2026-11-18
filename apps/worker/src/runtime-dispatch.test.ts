@@ -233,3 +233,47 @@ it('a failed legacy pass still reaches result maintenance, and a throwing result
     false,
   )
 })
+
+it('the stock loop owns host maintenance beside S results and drains both before stop completes', async () => {
+  const f = fakePool(() => [row('stop-h', true, 'native.stop')], false)
+  const drain = Promise.withResolvers<void>()
+  let hostPasses = 0
+  let results = 0
+  let stops = 0
+  const dispatcher = new RuntimeDispatcher(f.pool, {
+    workerId: 'h-stock',
+    idleMs: 10,
+    ownerHost: {
+      pass() {
+        hostPasses++
+      },
+      stop() {
+        stops++
+        return drain.promise
+      },
+    },
+    runnerResults: {
+      pass() {
+        results++
+      },
+      stop() {
+        return Promise.resolve()
+      },
+    },
+  })
+  dispatcher.start()
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  let ended = false
+  const stopping = dispatcher.stop().then(() => {
+    ended = true
+  })
+  await new Promise<void>((resolve) => setImmediate(resolve))
+  assert.equal(ended, false, 'the owned host task still holds shutdown')
+  drain.resolve()
+  await within(500, stopping)
+  assert.equal(hostPasses, f.claims())
+  assert.ok(hostPasses > 1)
+  assert.equal(results, hostPasses)
+  assert.equal(stops, 1)
+  assert.ok(f.dispatched.length > 1, 'legacy cleanup continues in the same loop')
+})

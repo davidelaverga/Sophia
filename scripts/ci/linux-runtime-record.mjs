@@ -238,57 +238,125 @@ function json(path, value) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600, flag: 'wx' })
 }
 
-/** Consume exactly the maintained VERIFY block; a copied/stale facts file alone is never authority. */
-export function verifyEvidence(log, facts, unit, profilePath) {
-  const expectedKeys = [ROW, ...COMMON, ...(unit.dsh?.artifact_primary_platform === 'linux-x64' ? [PRIMARY] : [])]
-  const keys = Object.keys(facts)
-  if (!equal(keys.toSorted(), expectedKeys.toSorted())) return null
-  const lines = log.replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/)
-  const start = lines.findIndex((line) =>
-    /^(match   |MISMATCH |UNRECORDED )dsh\.artifacts_by_platform\.linux-x64$/.test(line),
+/** Only maintained successful pre-VERIFY diagnostics are allowed outside the exact formatter table. */
+function pipelineDiagnostics() {
+  const root = JSON.parse(boundedFile(join(ROOT, 'package.json'))).scripts
+  const commands = new Set(
+    ['check', 'toolchain:check', 'format:check', 'lint', 'build', 'typecheck', 'contracts:check', 'artifacts'].map(
+      (key) => `$ ${root[key]}`,
+    ),
   )
-  if (start < 0) return null
+  const projects = [
+    'apps/execution-host',
+    'packages/contracts',
+    'packages/dsh-bundle',
+    'packages/report',
+    'packages/test-support',
+    'packages/ui',
+    'renderers/web/pdf',
+    'apps/media-bridge',
+    'packages/coordination',
+    'packages/design',
+    'packages/domain',
+    'packages/paperclip-adapters',
+    'apps/studio',
+    'packages/persistence',
+    'packages/paperclip-plugin',
+    'apps/worker',
+    'apps/api',
+  ]
+  for (const project of projects) {
+    const scripts = JSON.parse(boundedFile(join(ROOT, project, 'package.json'))).scripts
+    for (const task of ['build', 'typecheck']) {
+      if (task === 'build' && !['apps/execution-host', 'packages/dsh-bundle'].includes(project)) continue
+      if (scripts?.[task]) {
+        commands.add(`${project} ${task}$ ${scripts[task]}`)
+        commands.add(`${project} ${task}: Done`)
+      }
+    }
+    if (project === 'packages/contracts') commands.add(`$ ${scripts['generate:check']}`)
+  }
+  for (const line of [
+    'toolchain ok: node 24.21.0, pnpm 11.7.0',
+    'Checking formatting...',
+    'All matched files use Prettier code style!',
+    'Found 0 warnings and 0 errors.',
+    'OpenAPI equals the pack plus its amendments',
+    'Generated API types match OpenAPI',
+    'Generated validators match OpenAPI',
+    'Runtime wire module matches OpenAPI',
+    'Specialist modules match config/specialists.json',
+  ])
+    commands.add(line)
+  return (line) =>
+    line === '' ||
+    commands.has(line) ||
+    /^Scope: (?:2|18) of 19 workspace projects$/.test(line) ||
+    /^Finished in \d+(?:\.\d+)?s on \d+ files with \d+ rules using \d+ threads\.$/.test(line)
+}
+
+function recordedLine(lines, at, status, expected, built) {
+  if (status === 'match') return equal(expected, built) ? at : null
+  if (status !== 'MISMATCH') return null
+  const recorded = lines[at++]
+  if (!recorded?.startsWith('         recorded ') || expected === undefined || equal(expected, built)) return null
+  return equal(JSON.parse(recorded.slice(18)), expected) ? at : null
+}
+
+function verifyField(lines, at, key, facts, unit) {
+  const header = /^(match    |MISMATCH |UNRECORDED )(.+)$/.exec(lines[at++] ?? '')
+  if (!header || header[2] !== key) return null
+  const status = header[1].trim(),
+    built = lines[at++],
+    expected = get(unit, key)
+  if (!built?.startsWith('         built    ') || !equal(JSON.parse(built.slice(18)), facts[key])) return null
+  if (status === 'UNRECORDED') {
+    const message =
+      '         nothing is recorded for this platform yet (primary: ' +
+      unit.dsh.artifact_primary_platform +
+      '); record it with `pnpm artifacts:record` in a reviewed commit'
+    if (expected !== undefined || lines[at++] !== message) return null
+  } else at = recordedLine(lines, at, status, expected, facts[key])
+  return at === null ? null : { at, mismatch: status !== 'match' }
+}
+
+const LIFECYCLE = '[ELIFECYCLE] Command failed with exit code 1.'
+function streamLines(text) {
+  const sgr = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
+  const lines = safeText(text).replace(sgr, '').split(/\r?\n/)
+  if (lines.at(-1) !== '') throw new Error('unterminated_verify_stream')
+  lines.pop()
+  return lines
+}
+
+function verifyTable(lines, keys, { facts, unit, profilePath }) {
+  const start = lines.findIndex((line) =>
+    /^(match    |MISMATCH |UNRECORDED )dsh\.artifacts_by_platform\.linux-x64$/.test(line),
+  )
+  if (start < 0 || !lines.slice(0, start).every(pipelineDiagnostics())) return null
   let at = start
   const mismatches = []
   for (const key of keys) {
-    const header = /^(match   |MISMATCH |UNRECORDED )(.+)$/.exec(lines[at++] ?? '')
-    if (!header || header[2] !== key) return null
-    const status = header[1].trim()
-    const built = lines[at++]
-    if (!built?.startsWith('         built    ')) return null
-    try {
-      if (!equal(JSON.parse(built.slice(18)), facts[key])) return null
-    } catch {
-      return null
-    }
-    if (status !== 'match') {
-      mismatches.push(key)
-      if (status === 'MISMATCH') {
-        const recorded = lines[at++]
-        if (!recorded?.startsWith('         recorded ')) return null
-        try {
-          if (!equal(JSON.parse(recorded.slice(18)), get(unit, key))) return null
-        } catch {
-          return null
-        }
-      } else {
-        if (
-          get(unit, key) !== undefined ||
-          lines[at++] !==
-            '         nothing is recorded for this platform yet (primary: ' +
-              unit.dsh.artifact_primary_platform +
-              '); record it with `pnpm artifacts:record` in a reviewed commit'
-        )
-          return null
-      }
-    } else if (!equal(get(unit, key), facts[key])) return null
+    const field = verifyField(lines, at, key, facts, unit)
+    if (!field) return null
+    at = field.at
+    if (field.mismatch) mismatches.push(key)
   }
-  if (lines[at++] !== `match   ${profilePath}`) return null
-  if (lines[at] === '') at++
+  if (lines[at++] !== `match    ${profilePath}`) return null
+  return { mismatches, tail: lines.slice(at).filter((line) => line !== '') }
+}
+
+function verifySummary(errors, table, id) {
+  if (errors[0] === '') errors.shift()
   if (
-    lines[at] !== `${mismatches.length} identity mismatch(es): this checkout does not reproduce runtime unit ${unit.id}`
+    errors.shift() !==
+    `${table.mismatches.length} identity mismatch(es): this checkout does not reproduce runtime unit ${id}`
   )
-    return null
+    return false
+  return table.tail.length + errors.length <= 2 && [...table.tail, ...errors].every((line) => line === LIFECYCLE)
+}
+
+function linuxMismatch(facts, keys, mismatches) {
   const row = facts[ROW]
   if (
     !row ||
@@ -296,10 +364,28 @@ export function verifyEvidence(log, facts, unit, profilePath) {
     !Number.isSafeInteger(row.entries) ||
     row.entries < 1
   )
+    return false
+  if (keys.includes(PRIMARY) && facts[PRIMARY] !== row.digest) return false
+  return mismatches.includes(ROW) && mismatches.every((key) => [ROW, PRIMARY].includes(key))
+}
+
+function verifyStreams(log) {
+  return typeof log?.stdout === 'string' && typeof log?.stderr === 'string'
+}
+
+/** The table belongs to stdout and the unique failure summary to stderr; cross-pipe arrival order is not evidence. */
+export function verifyEvidence(log, facts, unit, profilePath) {
+  try {
+    if (!verifyStreams(log) || Buffer.byteLength(log.stdout) + Buffer.byteLength(log.stderr) > LOG_LIMIT) return null
+    const expectedKeys = [ROW, ...COMMON, ...(unit.dsh?.artifact_primary_platform === 'linux-x64' ? [PRIMARY] : [])]
+    const keys = Object.keys(facts)
+    if (!equal(keys.toSorted(), expectedKeys.toSorted())) return null
+    const table = verifyTable(streamLines(log.stdout), keys, { facts, unit, profilePath })
+    if (!table || !verifySummary(streamLines(log.stderr), table, unit.id)) return null
+    return linuxMismatch(facts, keys, table.mismatches) ? table.mismatches : null
+  } catch {
     return null
-  if (keys.includes(PRIMARY) && facts[PRIMARY] !== row.digest) return null
-  if (mismatches.length === 0 || mismatches.some((key) => ![ROW, PRIMARY].includes(key))) return null
-  return mismatches
+  }
 }
 
 export function guard(input) {
@@ -325,9 +411,8 @@ export function guard(input) {
     return 'source_changed'
   if (input.before.config !== input.current.config || input.before.profile !== input.current.profile)
     return 'source_changed'
-  if (!input.facts || !input.log) return 'verify_missing'
+  if (!input.facts || !verifyStreams(input.log)) return 'verify_missing'
   try {
-    safeText(input.log)
     if (!verifyEvidence(input.log, input.facts, JSON.parse(input.before.config), input.profilePath))
       return 'verify_not_linux_only'
   } catch {
@@ -510,7 +595,8 @@ export function exportPacket(location, input, receipt) {
     receipt.state === 'skipped'
       ? {}
       : {
-          'verify.log': input.log,
+          'verify.stdout': input.log.stdout,
+          'verify.stderr': input.log.stderr,
           'before.json': {
             config: input.before.config,
             profile: input.before.profile,
@@ -651,7 +737,7 @@ async function main() {
       pnpm: pnpm.status === 0 ? pnpm.stdout.trim() : null,
       current: snapshot(),
       facts: JSON.parse(boundedFile(join(ROOT, FACTS), 128 * 1024)),
-      log: saved.result.combined,
+      log: { stdout: saved.result.stdout, stderr: saved.result.stderr },
       profilePath: join(ROOT, PROFILE),
     }
     assertLocation(location)

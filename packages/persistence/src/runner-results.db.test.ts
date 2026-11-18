@@ -113,6 +113,7 @@ export async function withResultResources<T>(body: (resources: ResultResources) 
 }
 
 type ResultWorldFaults = {
+  shared?: { who: string; accountKey: string; journal: RunnerJournal; t3: FakeT3 }
   afterPools?: (pools: readonly pg.Pool[]) => Promise<void>
   afterGateway?: (gateway: RunnerGateway, directory: string) => Promise<void>
 }
@@ -127,12 +128,18 @@ export async function resultWorld(db: TestDatabase, faults: ResultWorldFaults = 
     const worker = new pg.Pool({ connectionString: db.workerUrl })
     resources.add(() => worker.end())
     await faults.afterPools?.([owner, api, worker])
-    const who = randomUUID()
+    const shared = faults.shared ?? {
+      who: randomUUID(),
+      accountKey: `synthetic:${randomUUID()}`,
+      journal: undefined,
+      t3: undefined,
+    }
+    const who = shared.who
     const teammate = randomUUID()
     const p = await seedProject(db.ownerUrl, { admin: who, editors: [teammate] })
     const connectionId = randomUUID()
     const resourceId = randomUUID()
-    const accountKey = `synthetic:${randomUUID()}`
+    const accountKey = shared.accountKey
     await owner.query(
       "INSERT INTO sophia.execution_connections(id,owner_id,upstream_origin,state) VALUES($1,$2,'synthetic','linked')",
       [connectionId, who],
@@ -165,9 +172,9 @@ export async function resultWorld(db: TestDatabase, faults: ResultWorldFaults = 
     }
     const directory = mkdtempSync(join(tmpdir(), 'sophia-s-result-'))
     resources.add(() => rmSync(directory, { recursive: true }))
-    const journal = new RunnerJournal(join(directory, 'journal.jsonl'))
-    resources.add(() => journal.close())
-    const t3 = new FakeT3()
+    const journal = shared.journal ?? new RunnerJournal(join(directory, 'journal.jsonl'))
+    if (!faults.shared) resources.add(() => journal.close())
+    const t3 = shared.t3 ?? new FakeT3()
     const gateway = new RunnerGateway({ journal, transport: t3, profile, collectionVersion: 1 })
     resources.add(() => gateway.close())
     await faults.afterGateway?.(gateway, directory)
@@ -209,6 +216,7 @@ export async function resultWorld(db: TestDatabase, faults: ResultWorldFaults = 
       teammate,
       resourceId,
       connectionId,
+      accountKey,
       owner,
       api,
       worker,

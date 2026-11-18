@@ -1,3 +1,12 @@
+import {
+  ownerHostRoutes,
+  ownerHostAdmission,
+  isOwnerHostRoute,
+  ownerHostError,
+  authenticateOwnerHost,
+  HOST_ROUTES,
+  REDEEM_ROUTE,
+} from './routes/owner-host.ts'
 import { randomUUID, timingSafeEqual } from 'node:crypto'
 import Fastify, { type FastifyError, type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import type pg from 'pg'
@@ -81,6 +90,7 @@ declare module 'fastify' {
 
 export interface AppDeps {
   pool: pg.Pool
+  ownerHostEnrollment?: boolean
   verifyActor: VerifyActor
   /**
    * SSE heartbeat and fallback re-read interval (ms). Clients treat ~2.5 intervals of silence as a
@@ -390,7 +400,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   })
 
   registerCors(app, deps.corsOrigins ?? [])
-  registerAuthentication(app, deps.verifyActor, deps.mediaBridgeTokenSha256 ?? null)
+  registerOwnerHosts(app, deps)
   app.setErrorHandler(handleError)
   const voice = deps.voiceQualification === true
   registerHealth(app, deps.pool, healthOf(deps))
@@ -432,6 +442,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   return app
 }
 
+function registerOwnerHosts(app: FastifyInstance, deps: AppDeps): void {
+  const admission = ownerHostAdmission()
+  registerAuthentication(app, deps.verifyActor, deps.mediaBridgeTokenSha256 ?? null, admission)
+  ownerHostRoutes(app, { pool: deps.pool, enrollment: deps.ownerHostEnrollment === true, admission })
+}
 /** The production bound-output operations for the three runtime route factories when the switch is on; else false. */
 const boundOutputOf = (deps: AppDeps) => (deps.boundOutput === true ? BOUND_OUTPUT_V1 : false)
 
@@ -546,7 +561,18 @@ function requireMediaCapability(req: FastifyRequest, expected: Buffer | null): v
   }
 }
 
-function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, mediaToken: Buffer | null): void {
+function hostAuthenticated(req: FastifyRequest, route: string): boolean {
+  if (route === REDEEM_ROUTE) return true
+  if (!HOST_ROUTES.has(route)) return false
+  authenticateOwnerHost(req)
+  return true
+}
+function registerAuthentication(
+  app: FastifyInstance,
+  verifyActor: VerifyActor,
+  mediaToken: Buffer | null,
+  ownerHosts: ReturnType<typeof ownerHostAdmission>,
+): void {
   app.decorateRequest('actorId', '')
   app.decorateRequest('actorName', null)
   app.decorateRequest('actorContact', null)
@@ -554,8 +580,10 @@ function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, 
   app.decorateRequest('runtimeCaller', null)
   app.decorateRequest('rendererToken', null)
   app.decorateRequest('coordinationToken', null)
-  app.addHook('onRequest', async (req) => {
+  app.addHook('onRequest', async (req, reply) => {
+    ownerHosts.begin(req, reply)
     const route = req.routeOptions.url ?? ''
+    if (hostAuthenticated(req, route)) return
     if (PUBLIC_ROUTES.has(route)) return
     if (CAPABILITY_RUNTIME_ROUTES.has(route)) {
       req.runtimeCaller = runtimeCallerOf(req)
@@ -574,13 +602,15 @@ function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, 
       return
     }
     try {
-      const actor = await verifyActor(req.headers.authorization)
+      const actor = await ownerHosts.authorize(req, () => verifyActor(req.headers.authorization))
+      ownerHosts.assert(req)
       req.actorId = actor.id
       req.actorName = actor.name
       req.actorContact = actor.contact
       req.actorAnonymous = actor.anonymous
     } catch (err: unknown) {
-      req.log.warn({ auth: describeAuthRejection(req.headers.authorization, err) }, 'authentication rejected')
+      if (!isOwnerHostRoute(req))
+        req.log.warn({ auth: describeAuthRejection(req.headers.authorization, err) }, 'authentication rejected')
       throw err
     }
     // A guest without an account can knock, wait and join the call they were admitted to; nothing else.
@@ -599,6 +629,7 @@ function sendError(req: FastifyRequest, reply: FastifyReply, status: number, bod
 
 /** Contract errors: stable code, safe message, request id and retry disposition. */
 function handleError(err: FastifyError | DomainError, req: FastifyRequest, reply: FastifyReply) {
+  if (isOwnerHostRoute(req)) return ownerHostError(err, reply)
   if (err instanceof DomainError) {
     if (err.status >= 500) req.log.error({ err: err.cause ?? err }, err.message)
     return sendError(req, reply, err.status, { code: err.code, message: err.message, retry: err.retry })

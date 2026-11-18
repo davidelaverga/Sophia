@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
+import { runInNewContext } from 'node:vm'
 import {
   mkdtempSync,
   mkdirSync,
@@ -105,25 +106,86 @@ function fixture() {
   return { unit, input, before, after, facts }
 }
 function verifyLog(unit, facts) {
-  let out = '',
-    count = 0
-  for (const [key, value] of Object.entries(facts)) {
-    const old = get(unit, key)
-    const same = JSON.stringify(old) === JSON.stringify(value)
-    out += `${same ? 'match   ' : old === undefined ? 'UNRECORDED ' : 'MISMATCH '}${key}\n         built    ${JSON.stringify(value)}\n`
-    if (!same) {
-      count++
-      out +=
-        old === undefined
-          ? `         nothing is recorded for this platform yet (primary: ${unit.dsh.artifact_primary_platform}); record it with \`pnpm artifacts:record\` in a reviewed commit\n`
-          : `         recorded ${JSON.stringify(old)}\n`
-    }
-  }
-  return (
-    out +
-    `match   ${PROFILE}\n\n${count} identity mismatch(es): this checkout does not reproduce runtime unit ${unit.id}\n`
-  )
+  const { stdout, stderr } = maintainedVerify(unit, facts)
+  return { stdout, stderr }
 }
+// Execute the unchanged maintained formatter body. Only static imports are removed; every build/file/tool seam
+// is synthetic and assertions refuse any unexpected I/O. No artifact, profile, native or network operation runs.
+function noIO() {
+  throw new Error('Unexpected formatter I/O')
+}
+function maintainedVerify(unit, facts, profile = 'fixture lock\n') {
+  const source = readFileSync(new URL('../../scripts/build-artifacts.mjs', import.meta.url), 'utf8')
+  const imports = source.match(/^import .* from .*$/gm)
+  assert.deepEqual(imports, [
+    "import { readFileSync, writeFileSync } from 'node:fs'",
+    "import { ARTIFACTS_DIR, RUNTIME_UNIT_PATH, loadRuntimeUnit, readJson, writeJson } from './lib/common.mjs'",
+    "import { profileLockPath, buildArtifacts, getPath, setPath } from './lib/artifacts.mjs'",
+    "import { assertToolchain } from './lib/toolchain.mjs'",
+  ])
+  const streams = { stdout: '', stderr: '' },
+    writes = [],
+    ended = new Error('synthetic formatter exit')
+  let status
+  const context = {
+    process: {
+      argv: [],
+      exit: (code) => {
+        status = code
+        throw ended
+      },
+    },
+    console: {
+      log: (text) => {
+        streams.stdout += text + '\n'
+      },
+      error: (text) => {
+        streams.stderr += text + '\n'
+      },
+    },
+    ARTIFACTS_DIR: '/synthetic-artifacts',
+    RUNTIME_UNIT_PATH: '/synthetic-unit',
+    assertToolchain: () => undefined,
+    loadRuntimeUnit: () => unit,
+    buildArtifacts: (actual) => {
+      assert.equal(actual, unit)
+      return { facts, profileLock: profile, lintFindings: [] }
+    },
+    profileLockPath: () => PROFILE,
+    readFileSync: (path, encoding) => {
+      assert.equal(path, PROFILE)
+      assert.equal(encoding, 'utf8')
+      return 'fixture lock\n'
+    },
+    writeJson: (path, value) => {
+      assert.equal(path, '/synthetic-artifacts/identities.json')
+      assert.equal(value, facts)
+      writes.push(path)
+    },
+    getPath: get,
+    writeFileSync: noIO,
+    readJson: noIO,
+    setPath: noIO,
+  }
+  try {
+    runInNewContext(source.replace(/^import .* from .*$/gm, ''), context, { timeout: 1000 })
+  } catch (error) {
+    if (error !== ended) throw error
+  }
+  assert.deepEqual(writes, ['/synthetic-artifacts/identities.json'])
+  return { ...streams, status }
+}
+
+it('LVP source-bound maintained formatter reaches the Linux-only decision', () => {
+  const f = fixture(),
+    streams = maintainedVerify(f.unit, f.facts)
+  assert.equal(streams.status, 1)
+  assert.match(streams.stdout, /^match    dsh.release_integrity$/m)
+  assert.match(streams.stdout, /^match    \/fixture\/config\/dsh\/profile\/pnpm-lock.yaml$/m)
+  assert.equal(streams.stderr, '\n2 identity mismatch(es): this checkout does not reproduce runtime unit fixture\n')
+  assert.deepEqual(verifyEvidence(streams, f.facts, f.unit, PROFILE), [ROW, PRIMARY])
+})
+
 const success = () => ({
   status: 0,
   signal: null,
@@ -564,7 +626,7 @@ describe('Linux record: exact maintained evidence, not inferred platform or stal
     [
       'profile mismatch',
       (i) => {
-        i.log = i.log.replace(`match   ${PROFILE}`, `MISMATCH ${PROFILE}`)
+        i.log.stdout = i.log.stdout.replace(`match    ${PROFILE}`, `MISMATCH ${PROFILE}`)
       },
       'verify_not_linux_only',
     ],
@@ -585,7 +647,7 @@ describe('Linux record: exact maintained evidence, not inferred platform or stal
     [
       'secret-shaped output',
       (i) => {
-        i.log += 'access_token=fixturesecretvalue\n'
+        i.log.stdout += 'access_token=fixturesecretvalue\n'
       },
       'verify_not_linux_only',
     ],
@@ -605,6 +667,361 @@ describe('Linux record: exact maintained evidence, not inferred platform or stal
         },
       )
       assert.equal(result.state, 'skipped')
+      assert.equal(calls, 0)
+    })
+})
+
+describe('LVP: maintained formatter and independent bounded channels', () => {
+  it('accepts a recorded nonprimary Linux-only mismatch using actual formatter routing', () => {
+    const f = fixture()
+    f.unit.dsh.artifact_primary_platform = 'darwin-arm64'
+    delete f.facts[PRIMARY]
+    f.input.before.config = f.input.current.config = bytes(f.unit)
+    f.input.log = verifyLog(f.unit, f.facts)
+    assert.equal(
+      f.input.log.stderr,
+      '\n1 identity mismatch(es): this checkout does not reproduce runtime unit fixture\n',
+    )
+    assert.deepEqual(verifyEvidence(f.input.log, f.facts, f.unit, PROFILE), [ROW])
+    assert.equal(guard(f.input), null)
+  })
+  it('source-binds the CLI evidence to its two current captured streams', () => {
+    const source = readFileSync(new URL('../../scripts/ci/linux-runtime-record.mjs', import.meta.url), 'utf8')
+    assert.match(source, /log: \{ stdout: saved\.result\.stdout, stderr: saved\.result\.stderr \}/)
+    assert.doesNotMatch(source, /log: saved\.result\.combined/)
+  })
+  for (const position of ['before', 'middle', 'after'])
+    it(`summary ${position} fragmented stdout gives the same guarded one-call decision`, async () => {
+      const f = fixture(),
+        streams = verifyLog(f.unit, f.facts),
+        calls = []
+      // Split inside both a header and JSON. Each pipe retains order, with no imposed cross-pipe order.
+      const cut = streams.stdout.indexOf('match    ') + 4
+      const stdout = [streams.stdout.slice(0, cut), streams.stdout.slice(cut, cut + 17), streams.stdout.slice(cut + 17)]
+      const stderr = [streams.stderr.slice(0, 13), streams.stderr.slice(13)]
+      const chunks = stdout.map((value) => ['stdout', value])
+      chunks.splice(
+        position === 'before' ? 0 : position === 'middle' ? 1 : chunks.length,
+        0,
+        ...stderr.map((value) => ['stderr', value]),
+      )
+      const program = `for (const [stream,text] of ${JSON.stringify(chunks)}) { process[stream].write(text); await new Promise(r=>setTimeout(r,15)); } process.exitCode=1`
+      const captured = await execute(process.execPath, ['--input-type=module', '-e', program], { timeoutMs: 3000 })
+      assert.equal(captured.status, 1)
+      assert.equal(captured.signal, null)
+      assert.equal(captured.overflow, false)
+      assert.equal(captured.timedOut, false)
+      assert.equal(captured.lingering, false)
+      assert.equal(captured.groupGone, true)
+      assert.equal(captured.stdout, streams.stdout)
+      assert.equal(captured.stderr, streams.stderr)
+      f.input.log = captured
+      assert.equal(guard(f.input), null)
+      assert.deepEqual(verifyEvidence(captured, f.facts, f.unit, PROFILE), [ROW, PRIMARY])
+      const receipt = await produce(
+        f.input,
+        async (command) => {
+          calls.push(command)
+          return success()
+        },
+        () => f.after,
+      )
+      assert.equal(f.input.checkStatus, 1, 'canonical failure stays failed')
+      assert.deepEqual(calls, [{ executable: 'pnpm', args: ['artifacts:record'] }])
+      assert.equal(receipt.state, 'recorded_unaccepted')
+    })
+  it('accounts explicitly for successful maintained pipeline diagnostics and both lifecycle failures', () => {
+    const f = fixture()
+    const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'))
+    const contracts = JSON.parse(
+      readFileSync(new URL('../../packages/contracts/package.json', import.meta.url), 'utf8'),
+    )
+    f.input.log.stdout =
+      [
+        `$ ${pkg.scripts.check}`,
+        `$ ${pkg.scripts['toolchain:check']}`,
+        'toolchain ok: node 24.21.0, pnpm 11.7.0',
+        `$ ${pkg.scripts['format:check']}`,
+        'Checking formatting...',
+        'All matched files use Prettier code style!',
+        `$ ${pkg.scripts.lint}`,
+        'Found 0 warnings and 0 errors.',
+        'Finished in 6.7s on 1709 files with 207 rules using 4 threads.',
+        `$ ${pkg.scripts.build}`,
+        'Scope: 2 of 19 workspace projects',
+        'apps/execution-host build$ tsc -p tsconfig.json',
+        'apps/execution-host build: Done',
+        'packages/dsh-bundle build$ tsc -p tsconfig.json',
+        'packages/dsh-bundle build: Done',
+        `$ ${pkg.scripts.typecheck}`,
+        'Scope: 18 of 19 workspace projects',
+        'packages/contracts typecheck$ tsc --noEmit -p .',
+        'packages/contracts typecheck: Done',
+        `$ ${pkg.scripts['contracts:check']}`,
+        `$ ${contracts.scripts['generate:check']}`,
+        'OpenAPI equals the pack plus its amendments',
+        'Generated API types match OpenAPI',
+        'Generated validators match OpenAPI',
+        'Runtime wire module matches OpenAPI',
+        'Specialist modules match config/specialists.json',
+        `$ ${pkg.scripts.artifacts}`,
+        '',
+      ].join('\n') +
+      f.input.log.stdout +
+      '[ELIFECYCLE] Command failed with exit code 1.\n'
+    f.input.log.stderr += '[ELIFECYCLE] Command failed with exit code 1.\n'
+    assert.equal(guard(f.input), null)
+  })
+  it('exports the current safe channels separately without copying arrival order into evidence', () => {
+    const owned = ownedFixture(),
+      f = fixture()
+    try {
+      const location = createLocation(owned.context)
+      const receipt = { state: 'recorded_unaccepted', result: success(), after: f.after }
+      assert.equal(exportPacket(location, f.input, receipt).state, 'recorded_unaccepted')
+      assert.equal(readFileSync(join(location.packet, 'verify.stdout'), 'utf8'), f.input.log.stdout)
+      assert.equal(readFileSync(join(location.packet, 'verify.stderr'), 'utf8'), f.input.log.stderr)
+      assert.equal(existsSync(join(location.packet, 'verify.log')), false)
+    } finally {
+      rmSync(owned.dir, { recursive: true, force: true })
+    }
+  })
+  for (const [name, mutate] of [
+    [
+      'three match spaces',
+      (f) => {
+        f.input.log.stdout = f.input.log.stdout.replaceAll('match    ', 'match   ')
+      },
+    ],
+    [
+      'five match spaces',
+      (f) => {
+        f.input.log.stdout = f.input.log.stdout.replaceAll('match    ', 'match     ')
+      },
+    ],
+    [
+      'tab match separator',
+      (f) => {
+        f.input.log.stdout = f.input.log.stdout.replaceAll('match    ', 'match\t')
+      },
+    ],
+    [
+      'wrong MISMATCH separator',
+      (f) => {
+        f.input.log.stdout = f.input.log.stdout.replace('MISMATCH ', 'MISMATCH  ')
+      },
+    ],
+    [
+      'missing common block',
+      (f) => {
+        f.input.log.stdout = f.input.log.stdout.replace(/match    workspace_lock_sha256\n[^\n]*\n/, '')
+      },
+    ],
+    [
+      'duplicate common block',
+      (f) => {
+        const block = f.input.log.stdout.match(/match    workspace_lock_sha256\n[^\n]*\n/)[0]
+        f.input.log.stdout = f.input.log.stdout.replace(block, block + block)
+      },
+    ],
+    [
+      'extra field',
+      (f) => {
+        f.input.log.stdout += 'match    unexpected\n         built    true\n'
+      },
+    ],
+    [
+      'duplicate complete table',
+      (f) => {
+        f.input.log.stdout += f.input.log.stdout
+      },
+    ],
+    [
+      'unknown prefix diagnostic',
+      (f) => {
+        f.input.log.stdout = 'arbitrary diagnostic\n' + f.input.log.stdout
+      },
+    ],
+    [
+      'unknown trailing diagnostic',
+      (f) => {
+        f.input.log.stdout += 'arbitrary diagnostic\n'
+      },
+    ],
+    [
+      'fake command diagnostic',
+      (f) => {
+        f.input.log.stdout = '$ some unrelated command\n' + f.input.log.stdout
+      },
+    ],
+    [
+      'duplicate summary',
+      (f) => {
+        f.input.log.stderr += f.input.log.stderr
+      },
+    ],
+    [
+      'conflicting summary',
+      (f) => {
+        f.input.log.stderr += '\n3 identity mismatch(es): this checkout does not reproduce runtime unit other\n'
+      },
+    ],
+    [
+      'wrong summary count',
+      (f) => {
+        f.input.log.stderr = f.input.log.stderr.replace('2 identity', '1 identity')
+      },
+    ],
+    [
+      'wrong runtime unit',
+      (f) => {
+        f.input.log.stderr = f.input.log.stderr.replace('unit fixture', 'unit other')
+      },
+    ],
+    [
+      'summary on stdout',
+      (f) => {
+        f.input.log.stdout += f.input.log.stderr
+        f.input.log.stderr = ''
+      },
+    ],
+    [
+      'table on stderr',
+      (f) => {
+        f.input.log.stderr = f.input.log.stdout + f.input.log.stderr
+        f.input.log.stdout = ''
+      },
+    ],
+    [
+      'missing summary',
+      (f) => {
+        f.input.log.stderr = ''
+      },
+    ],
+    [
+      'unknown stderr diagnostic',
+      (f) => {
+        f.input.log.stderr += 'unrecognized warning\n'
+      },
+    ],
+    [
+      'third lifecycle failure',
+      (f) => {
+        f.input.log.stderr += '[ELIFECYCLE] Command failed with exit code 1.\n'.repeat(3)
+      },
+    ],
+    [
+      'malformed built JSON',
+      (f) => {
+        f.input.log.stdout = f.input.log.stdout.replace('built    {', 'built    !{')
+      },
+    ],
+    [
+      'wrong built value',
+      (f) => {
+        f.input.log.stdout = f.input.log.stdout.replace('"entries":3', '"entries":4')
+      },
+    ],
+    [
+      'wrong recorded value',
+      (f) => {
+        f.input.log.stdout = f.input.log.stdout.replace('"entries":1', '"entries":9')
+      },
+    ],
+    [
+      'wrong profile path',
+      (f) => {
+        f.input.log.stdout = f.input.log.stdout.replace(PROFILE, PROFILE + '.other')
+      },
+    ],
+    [
+      'profile mismatch',
+      (f) => {
+        f.input.log = maintainedVerify(f.unit, f.facts, 'changed lock\n')
+      },
+    ],
+    [
+      'common mismatch agrees with facts',
+      (f) => {
+        f.facts.workspace_lock_sha256 = 'e'.repeat(64)
+        f.input.log = verifyLog(f.unit, f.facts)
+      },
+    ],
+    [
+      'no Linux mismatch',
+      (f) => {
+        f.facts[ROW] = f.unit.dsh.artifacts_by_platform['linux-x64']
+        f.facts[PRIMARY] = OLD
+        f.input.log = verifyLog(f.unit, f.facts)
+      },
+    ],
+    [
+      'primary mismatch without Linux mismatch',
+      (f) => {
+        f.facts[ROW] = f.unit.dsh.artifacts_by_platform['linux-x64']
+        f.input.log = verifyLog(f.unit, f.facts)
+      },
+    ],
+    [
+      'zero entries',
+      (f) => {
+        f.facts[ROW].entries = 0
+        f.input.log = verifyLog(f.unit, f.facts)
+      },
+    ],
+    [
+      'malformed digest',
+      (f) => {
+        f.facts[ROW].digest = 'wrong'
+        f.facts[PRIMARY] = 'wrong'
+        f.input.log = verifyLog(f.unit, f.facts)
+      },
+    ],
+    [
+      'UNRECORDED for recorded row',
+      (f) => {
+        f.input.log.stdout = f.input.log.stdout.replace('MISMATCH ' + ROW, 'UNRECORDED ' + ROW)
+      },
+    ],
+    [
+      'secret on stderr',
+      (f) => {
+        f.input.log.stderr += 'password=INVENTED_SECRET_0123456789\n'
+      },
+    ],
+    [
+      'unterminated stdout',
+      (f) => {
+        f.input.log.stdout = f.input.log.stdout.slice(0, -1)
+      },
+    ],
+    [
+      'unterminated stderr',
+      (f) => {
+        f.input.log.stderr = f.input.log.stderr.slice(0, -1)
+      },
+    ],
+    [
+      'bounded channel overflow',
+      (f) => {
+        f.input.log.stderr += 'x'.repeat(8 * 1024 * 1024)
+      },
+    ],
+  ])
+    it(`refuses ${name} before any record dispatch`, async () => {
+      const f = fixture()
+      mutate(f)
+      assert.equal(guard(f.input), 'verify_not_linux_only')
+      let calls = 0
+      const receipt = await produce(
+        f.input,
+        async () => {
+          calls++
+          return success()
+        },
+        () => f.after,
+      )
+      assert.equal(receipt.state, 'skipped')
       assert.equal(calls, 0)
     })
 })

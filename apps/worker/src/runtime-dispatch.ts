@@ -78,6 +78,7 @@ export interface DispatcherOptions {
   workerId: string
   /** Nonblocking finite result controller; never awaited by dispatch/Stop progress. */
   runnerResults?: { pass(): void; stop(): Promise<void> }
+  ownerHost?: { pass(): void; stop(): Promise<void> }
   batchSize?: number
   leaseSeconds?: number
   log?: (line: string) => void
@@ -221,10 +222,18 @@ export class RuntimeDispatcher {
     this.loop ??= this.run()
   }
 
+  private ownerHostPass(): void {
+    try {
+      this.options.ownerHost?.pass()
+    } catch {
+      this.options.log?.('owner host pass failed')
+    }
+  }
   private async run(): Promise<void> {
     await Promise.race([this.listener.listening, this.halted])
     while (!this.stopped) {
       // Before the progress continue and before legacy failure: neither can starve result maintenance.
+      this.ownerHostPass()
       try {
         this.options.runnerResults?.pass()
       } catch {
@@ -252,11 +261,13 @@ export class RuntimeDispatcher {
   async stop(): Promise<void> {
     this.stopped = true
     const resultsStopped = this.options.runnerResults?.stop()
+    const hostStopped = this.options.ownerHost?.stop()
     this.halt()
     this.wake?.()
     // The listener first: it may still be retrying its first LISTEN, and its retries must end for the process to.
     await this.listener.stop()
     await this.loop
     await resultsStopped
+    await hostStopped
   }
 }

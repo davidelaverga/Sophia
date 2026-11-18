@@ -243,3 +243,8 @@ Startup observations recorded at 2026-11-08T22:33:39Z. Each note in brackets giv
 - All 134 issued acceptance cases were `not_run`. There was no deployment, native qualification, merge or programme completion. [The issued CSV is unchanged. For the current register, see "Acceptance register".]
 - INC00-DOC-001: the coordinator wrote the documentation installation and the initial source map, with no product implementation. Claude product work waited for owner sign-in, and the CLI reported `loggedIn: false`. No desktop token was read or copied. [Web delivery sign-in now works; product-native routes are still unqualified.]
 - The designer was unassigned and no design candidate existed. [Superseded: see INC01-DES-001.]
+
+
+## 2026-11-18: bounded S/H/CI composition author attempt
+
+Under INC-COORD-1118-S-H-CI-LOCAL-COMPOSITION-001, the original Native author prepared a new uncommitted normal merge on7031 with accepted local H8ef/Sa1e3/CI804f. Fresh main remains de7a6ab2 and PR519 open/unmerged. No canonical acceptance case changes through this author note. Metadata/local identity differ from behavioral acceptance. See [the composition handoff](../handoffs/INC-COORD-1118-S-H-CI-COMPOSITION-001.md) for exact trees, bounded checks, retained negatives and open gates. Default-OFF/erratum, GOV/currentCI/introduced+historical review/Luis/RTA/Personal+U/native/deployed-app holds remain; D1 OFF, VoiceLab user-suspended. No commit/publication/artifact RECORD/activation grant.

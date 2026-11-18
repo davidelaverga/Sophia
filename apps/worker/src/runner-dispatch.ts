@@ -43,6 +43,7 @@ export interface RunnerDispatchOptions {
    * Whether new work (create, input) is sent. Off still sends already-admitted Stops, and maintains, reconciles and
    * observes what was already sent.
    */
+  readonly canPrepare?: (row: OutboxRow) => Promise<boolean>
   readonly sends: boolean
   readonly batchSize?: number
   readonly leaseSeconds?: number
@@ -73,6 +74,11 @@ async function sendClaimed(
   options: RunnerDispatchOptions,
   pass: RunnerPass,
 ) {
+  if (options.canPrepare && !(await options.canPrepare(row))) {
+    pass.lost += 1
+    options.log?.('runner original route unavailable; claim remains unprepared')
+    return
+  }
   let prepared: PrepareOutcome
   try {
     prepared = await prepareRunnerSend(pool, row.project_id, row.id, lease, options.port.journalId)
@@ -243,14 +249,23 @@ export class RunnerDispatcher {
   }
 }
 
-/**
- * SOPHIA_OWNER_RUNNER_DISPATCH: unset or `off` only. No owner-host transport is qualified yet (INC01-CC-003), so any
- * other value refuses to start rather than pretend a live route exists.
- */
-export function runnerDispatchFromEnv(env: { SOPHIA_OWNER_RUNNER_DISPATCH?: string | undefined }): 'off' {
-  const value = env.SOPHIA_OWNER_RUNNER_DISPATCH?.trim()
-  if (value === undefined || value === '' || value === 'off') return 'off'
-  throw new Error(
-    'SOPHIA_OWNER_RUNNER_DISPATCH is off or unset: no owner-host runner transport is qualified (INC01-CC-003)',
-  )
+/** Strict parser only; the stock entrypoint separately requires an explicit current qualified route. */
+export function runnerDispatchFromEnv(env: {
+  SOPHIA_OWNER_RUNNER_DISPATCH?: string | undefined
+  SOPHIA_OWNER_RUNNER_OWNER_ID?: string | undefined
+  SOPHIA_OWNER_RUNNER_ENVIRONMENT_REF?: string | undefined
+  SOPHIA_OWNER_RUNNER_JOURNAL_ID?: string | undefined
+}): 'off' | 'on' {
+  const value = env.SOPHIA_OWNER_RUNNER_DISPATCH
+  if (value === undefined || value === 'off') return 'off'
+  if (value === 'on') {
+    if (
+      !env.SOPHIA_OWNER_RUNNER_OWNER_ID ||
+      !env.SOPHIA_OWNER_RUNNER_ENVIRONMENT_REF ||
+      !env.SOPHIA_OWNER_RUNNER_JOURNAL_ID
+    )
+      throw new Error('INC01-CC-003: on requires an explicitly configured original owner route')
+    return 'on'
+  }
+  throw new Error('SOPHIA_OWNER_RUNNER_DISPATCH is on, off or unset')
 }
