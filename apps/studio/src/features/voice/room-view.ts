@@ -31,6 +31,9 @@ const STILL_ON: Record<Device, string> = {
   screen: 'Screen sharing couldn’t stop. Try again.',
 }
 
+/** An admin stopped this person's screen share (A31, host-more.md): the dock says so, politely (noteRole). */
+export const HOST_STOPPED_SCREEN = 'An admin stopped your screen share.'
+
 /**
  * What stopped a device, and what to do about it, for the way it was going: on (the browser's reasons) or off
  * (STILL_ON). Null when there is nothing to say: cancelling the screen picker is a choice, not an error. The note stays
@@ -69,6 +72,8 @@ export interface RoomParticipant {
   following?: string | null
   /** When they joined the call (ms), as LiveKit says; absent when it doesn't. */
   joinedAt?: number
+  /** Their hand is raised (raise-hand.md, hand-signal.ts); absent: lowered. */
+  handRaised?: boolean
 }
 
 const ROLES: ReadonlyArray<Standing> = ['admin', 'editor', 'viewer']
@@ -145,6 +150,8 @@ export function shortName(name: string): string {
  * member of the same name.
  */
 export function presenceRole(person: RoomParticipant, holds: boolean): string | null {
+  // A raised hand asks the room for a turn: said before anything else (raise-hand.md).
+  if (person.handRaised) return 'Hand raised'
   if (holds) return 'has the floor'
   if (person.standing === 'guest') return person.speaking ? 'guest · speaking' : 'guest'
   if (person.speaking) return 'speaking'

@@ -89,8 +89,16 @@ const LONG_REPLY =
   'he sees you now? We can take either one first, slowly.'
 // `away=N`: the earlier day's turns are N days back, not one (time away; where you began).
 const BEFORE = Math.max(1, Number(query.get('away')) || 1) * DAY
+// `formatted=1`: her answer holds bold, code, a quote and an address (personal-replies-formatted.md).
+const FORMATTED_REPLY =
+  'Start with **the one figure** you trust, then run `sum Q3` once.\n> Everything else can rest on that.\n' +
+  'The deck is at https://example.com/deck'
 /** Her answer to a message sent here. */
-const REPLY = query.has('longReply') ? LONG_REPLY : 'I’m here. Tell me more about that.'
+const REPLY = query.has('formatted')
+  ? FORMATTED_REPLY
+  : query.has('longReply')
+    ? LONG_REPLY
+    : 'I’m here. Tell me more about that.'
 
 let seq = 0
 const turn = (
@@ -158,8 +166,19 @@ class QuietRecognition extends EventTarget {
   processLocally = true
   static available = () => Promise.resolve('available')
   static install = () => Promise.resolve(true)
+  static starts = 0
+  // `speechError=code`: the first attempt fails as a browser's does, with that code, then the `aborted` an abort brings,
+  // then its end (after what it heard, with `heard=words`); the next attempts listen.
   start() {
-    return undefined
+    QuietRecognition.starts += 1
+    const code = query.get('speechError')
+    if (!code || QuietRecognition.starts > 1) return
+    window.setTimeout(() => {
+      const heard = query.get('heard')
+      if (heard) this.dispatchEvent(Object.assign(new Event('result'), { results: [[{ transcript: heard }]] }))
+      for (const error of [code, 'aborted']) this.dispatchEvent(Object.assign(new Event('error'), { error }))
+      this.dispatchEvent(new Event('end'))
+    })
   }
   // `heard=words`: what it heard, said as it stops.
   stop() {

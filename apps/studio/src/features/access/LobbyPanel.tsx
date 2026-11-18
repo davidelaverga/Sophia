@@ -4,7 +4,7 @@
 // unblock anyone). With several waiting, one click answers them all. The list is the snapshot's, so every
 // member sees it change. A new knock chimes for those who can answer, and notifies while the tab is hidden
 // (knock-alert.md).
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { LobbyEntry } from '@sophia/contracts'
 import { Button, ConfirmButton } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -116,11 +116,13 @@ interface HeadProps {
 }
 
 function LobbyHead({ names, count, canDecide, busy, onDeclineAll, onAdmitAll }: HeadProps) {
+  // Where the focus goes when a press it held goes (the notify offer).
+  const title = useRef<HTMLParagraphElement>(null)
   if (count === 0) return null
   return (
     <>
       <div className="lobby-head">
-        <p className="lobby-title" role="status">
+        <p ref={title} className="lobby-title" role="status" tabIndex={-1}>
           {count === 1 ? 'At the door' : `${String(count)} at the door`}
           {/* The rows name them to the eye; the status, heard alone, names who waits too. */}
           {names && <span className="sr-only">: {names}</span>}
@@ -137,7 +139,7 @@ function LobbyHead({ names, count, canDecide, busy, onDeclineAll, onAdmitAll }: 
         )}
       </div>
       {!canDecide && <p className="lobby-note">An editor or admin can let them in.</p>}
-      {canDecide && <NotifyOffer />}
+      {canDecide && <NotifyOffer onAsked={() => title.current?.focus()} />}
     </>
   )
 }
@@ -162,24 +164,41 @@ const rememberAsked = () => {
   }
 }
 
-function NotifyOffer() {
+/**
+ * The offer to be notified of knocks, asked once; pressed, it goes and hands the focus back (`onAsked`). Blocked (the
+ * answer, or the site's setting since the door opened), it says where knocks show instead, in a polite live region
+ * that is there before it has anything to say, so it is heard (docs/plans/dictation-and-notify-said.md); granted or
+ * left unmade, nothing. Not `role="status"`: the door's title is its one status.
+ */
+function NotifyOffer({ onAsked }: { onAsked: () => void }) {
   const [asked, setAsked] = useState(
     () => typeof Notification === 'undefined' || Notification.permission !== 'default' || askedBefore(),
   )
-  if (asked) return null
+  const [blocked, setBlocked] = useState(false)
   return (
-    <button
-      type="button"
-      className="text-button lobby-notify"
-      onClick={() => {
-        setAsked(true)
-        // Asked once, the browser's answer is final here, even a prompt closed with no choice (Codex P2 on #362).
-        rememberAsked()
-        void Notification.requestPermission()
-      }}
-    >
-      Notify me when someone knocks
-    </button>
+    <>
+      {!asked && (
+        <button
+          type="button"
+          className="text-button lobby-notify"
+          onClick={() => {
+            setAsked(true)
+            onAsked()
+            // Asked once, the browser's answer is final here, even a prompt closed with no choice (Codex P2 on #362).
+            rememberAsked()
+            // An old browser's callback form answers nothing here, and one that fails says nothing either.
+            void Promise.resolve(Notification.requestPermission())
+              .then((answer) => setBlocked(answer === 'denied'))
+              .catch(() => undefined)
+          }}
+        >
+          Notify me when someone knocks
+        </button>
+      )}
+      <p className="lobby-note lobby-said" aria-live="polite" aria-atomic="true">
+        {blocked && 'Notifications are blocked in this browser, so knocks show only here.'}
+      </p>
+    </>
   )
 }
 

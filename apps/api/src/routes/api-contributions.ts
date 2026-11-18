@@ -11,11 +11,11 @@
 // Path ids are checked exactly as A48 declares them (`format: uuid`: the hex form in any case, optionally `urn:uuid:`)
 // and then written in one spelling, lowercase without the prefix, before a write merges them or a read looks them up.
 //
-// Mounted only when the API is built with apiContributions (off by default; server.ts and the environment do not turn
-// it on). A database without everything these routes promise (0094, 0100, 0104's owner protection and account
-// qualification, 0105's atomic admission and 0106's viewer boundary) answers projection_unavailable (503) before any
-// read or write reaches SQL, never an empty list, a refused setting or a database message (R2, F02; INC04-S02a
-// coherent: 0106 can be installed without 0105).
+// Mounted only with apiContributions: stock SOPHIA_API_CONTRIBUTIONS unset/off keeps it off; explicit on exposes this
+// boundary without funding, custody or qualification. A database without everything these routes promise (0094,
+// 0100, 0104's owner protection and account qualification, 0105's atomic admission and 0106's viewer boundary) answers
+// projection_unavailable (503) before any read or write reaches SQL, never an empty list, a refused setting or a
+// database message (R2, F02; INC04-S02a coherent: 0106 can be installed without 0105).
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import { DomainError } from '@sophia/domain'

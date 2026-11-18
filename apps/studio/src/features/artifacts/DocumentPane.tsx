@@ -1100,6 +1100,7 @@ function DocumentTab({ data, onCite, changes, identity }: DocumentTabProps) {
         </p>
       )}
       <MarkdownView
+        indexed
         marks={changes.marks}
         report={data.parsed}
         sources={data.sources.data?.sources}

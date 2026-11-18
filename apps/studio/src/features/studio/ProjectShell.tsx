@@ -42,6 +42,8 @@ import { openAcross } from '../work/planning/decision-alert.ts'
 import { useDecisionAlert } from '../work/planning/useDecisionAlert.ts'
 import { MeetingRecapOnLeave } from '../voice/MeetingRecap.tsx'
 import { useProjectRoom, type LeaveHow, type ProjectRoom } from '../voice/useProjectRoom.ts'
+import { CALL_END } from '../voice/call-end.ts'
+import { browserTabs } from '../voice/call-tabs.ts'
 import { useMedia, WIDE } from '../../app/useMedia.ts'
 import { GoalList, type GoalPlan } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
@@ -54,7 +56,15 @@ import { ArrivalSince } from '../updates/ArrivalSince.tsx'
 import { UpdatesView } from '../updates/UpdatesView.tsx'
 import { Connections } from '../connections/Connections.tsx'
 import { ConversationsView } from '../conversations/ConversationsView.tsx'
-import { blockedBy, isStale, readsServedBoard, shownConnection, type Blocked } from './project-door.ts'
+import {
+  blockedBy,
+  callEndedByRemoval,
+  isStale,
+  readsServedBoard,
+  REMOVED_MID_CALL,
+  shownConnection,
+  type Blocked,
+} from './project-door.ts'
 import { PanelCallSwitches, StudioShell, useRoomPanel, type RoomPanel } from './StudioShell.tsx'
 import { lensInAddress } from './viewer-state.ts'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
@@ -63,33 +73,36 @@ import { useServedWork, type ServedWork } from '../work/planning/ServedWork.tsx'
 import type { Feed } from '../../projectors/projection.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { ProjectName } from './ProjectName.tsx'
+import { ConnectionPill } from './ConnectionPill.tsx'
 import { ViewFailed } from './ViewFailed.tsx'
 
 // The Invite sheet (and its QR encoder) loads the first time someone opens it.
 const InviteSheet = lazy(() => import('../access/InviteSheet.tsx').then((m) => ({ default: m.InviteSheet })))
 
-/** The project feed, not the call: "Live" read as a call in progress, so it says whether the view is current. */
-const CONNECTION: Record<Connection, string> = {
-  connecting: 'Connecting',
-  live: 'Up to date',
-  reconnecting: 'Reconnecting',
-  resyncing: 'Catching up',
-  denied: 'No access',
-}
-
 /**
  * A closed door closes the call too. Signed out or no longer a member, the project's screen gives way to a notice
- * with no dock: the call must not stay open behind it with a microphone nobody can mute.
+ * with no dock: the call must not stay open behind it with a microphone nobody can mute. Whether a removal ended a
+ * call here is read as the door closes, before that leave (callEndedByRemoval), for the notice to say.
  */
-function useLeaveBehindClosedDoor(blocked: Blocked | null, room: ProjectRoom) {
+function useLeaveBehindClosedDoor(blocked: Blocked | null, room: ProjectRoom, projectId: string): boolean {
   const leave = useRef(room.leave)
   useEffect(() => {
     leave.current = room.leave
   })
+  const [door, setDoor] = useState({ blocked, callEnded: false })
+  if (door.blocked !== blocked) {
+    const call = {
+      on: isInCall(room) || room.rejoining,
+      takenOut: room.error === CALL_END.removed.note,
+      left: browserTabs.left(projectId),
+    }
+    setDoor({ blocked, callEnded: callEndedByRemoval(blocked, call) })
+  }
   const closed = blocked === 'expired' || blocked === 'denied'
   useEffect(() => {
     if (closed) void leave.current()
   }, [closed])
+  return door.callEnded
 }
 
 /**
@@ -313,7 +326,9 @@ function useDecisionsWaiting(shown: Snapshot | undefined, plans: ServedWork['pla
 
 /**
  * What the shell does for the rest of the app: its tab title while on screen, its call reported, a join on arrival,
- * and no call kept behind a closed door. What came while the tab was hidden goes to the room's chat.
+ * and no call kept behind a closed door. What came while the tab was hidden goes to the room's chat; what waits on this
+ * person, by the view where it is answered, to the views' row (needs-you-in-project.md); whether a removal ended a call
+ * here goes to the notice.
  */
 function useBeyondTheView(
   props: Props,
@@ -322,15 +337,16 @@ function useBeyondTheView(
   blocked: Blocked | null,
   viewer: { me: string | null; plans: ServedWork['plans']; reads: Reads },
 ) {
-  useLeaveBehindClosedDoor(blocked, room)
+  const callEnded = useLeaveBehindClosedDoor(blocked, room, props.projectId)
   const shown = props.background ? undefined : snapshot
   const decisions = useDecisionsWaiting(shown, viewer.plans, props.projectId)
   const reads = props.background ? undefined : viewer.reads
-  const whileAway = useTabTitle(shown, viewer.me, (props.resourcesWaiting ?? 0) + decisions, reads)
+  const tools = shown ? (props.resourcesWaiting ?? 0) : 0
+  const whileAway = useTabTitle(shown, viewer.me, tools + decisions, reads)
   const looking = lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))
   useReportCall(props.projectId, snapshot?.title, room, looking, props.onCall)
   useJoinOnOpen(room, props.joinOnOpen ?? false, props.onJoinHandled)
-  return whileAway
+  return { whileAway, callEnded, waiting: { work: decisions, resources: tools } }
 }
 
 /** Other words people type for each view (docs/plans/palette-also.md): «what changed» is Updates, «sophia» Conversations. */
@@ -398,10 +414,10 @@ function useProjectKeys(
 
 /** What the shell reads of the project: its feed, its room and the viewer's membership. */
 function useProject(projectId: string, identity: Props['identity']) {
-  const { snapshot, feed, connection } = useProjectFeed(projectId, identity.name, identity.token)
+  const { snapshot, feed, connection, checkedAt } = useProjectFeed(projectId, identity.name, identity.token)
   const room = useProjectRoom(projectId, identity.token, snapshot.data)
   const membership = useProjectMembership(projectId, identity.name, identity.token, snapshot.dataUpdatedAt).data
-  return { snapshot, feed, connection, room, membership }
+  return { snapshot, feed, connection, checkedAt, room, membership }
 }
 
 /** The two sheets the shell opens itself: inviting, and the project's search. */
@@ -555,13 +571,13 @@ function ShellTitle(p: {
 
 export function ProjectShell(props: Props) {
   const { projectId, view, identity, account, onShow, onLeave, onWork, onSignOut } = props
-  const { snapshot, feed, connection, room, membership } = useProject(projectId, identity)
+  const { snapshot, feed, connection, checkedAt, room, membership } = useProject(projectId, identity)
   const { inviting, setInviting, searching, setSearching, invite, search } = useShellSheets()
   const { loaded, blocked, shown } = doorOf(snapshot)
   const dockAt = useDockPlace(room, snapshot.data, () => onShow('studio'), dockShown(view, blocked))
   const work = useTasksWork(props, feed, membership, blocked, searching)
   const viewer = { me: membership?.actorId ?? null, plans: work.plans, reads: snapshot }
-  const whileAway = useBeyondTheView(props, snapshot.data, room, blocked, viewer)
+  const { whileAway, callEnded, waiting } = useBeyondTheView(props, snapshot.data, room, blocked, viewer)
   const at = { view, inviting, mayInvite: !!shown && canInvite(membership), shown: !!shown, blocked: !!blocked }
   useProjectKeys({ onLeave, onWork, invite, search, show: onShow }, at)
   return (
@@ -569,8 +585,8 @@ export function ProjectShell(props: Props) {
       <div className="shell" data-view={view}>
         <ProjectHeader
           title={<ShellTitle {...{ snapshot, membership, projectId, identity, room, onWork }} />}
-          connection={shownConnection(connection, blocked, isStale(snapshot.error, loaded))}
-          nav={blocked ? null : <ViewNav projectId={projectId} view={view} onShow={onShow} />}
+          connection={{ state: shownConnection(connection, blocked, isStale(snapshot.error, loaded)), checkedAt }}
+          nav={blocked ? null : <ViewNav projectId={projectId} view={view} onShow={onShow} waiting={waiting} />}
           dock={dockAt.inHeader}
           share={shown && <HeadActions may={canInvite(membership)} projectId={projectId} go={{ invite, search }} />}
           account={account}
@@ -584,7 +600,7 @@ export function ProjectShell(props: Props) {
         )}
         {blocked ? (
           <AccessNotice
-            blocked={blocked}
+            {...{ blocked, callEnded }}
             identityName={identity.name}
             actions={{ leave: onWork, retry: () => void snapshot.refetch(), signin: onSignOut }}
           />
@@ -617,8 +633,11 @@ export function ProjectShell(props: Props) {
 interface HeaderProps {
   /** The project's title: words, or for an admin a press that opens the project's menu (ProjectName). */
   title: React.ReactNode
-  /** The feed's state; null while the project can't be shown, where the notice below says why. */
-  connection: Connection | null
+  /**
+   * The feed's state, null while the project can't be shown, where the notice below says why; and when the feed last
+   * heard from the project, for the pill's help (useProjectFeed).
+   */
+  connection: { state: Connection | null; checkedAt: () => number | null }
   nav: React.ReactNode
   /** The room from this view (MiniDock), first in the end cluster: off the page, never over it (docs/plans/dock-header.md). */
   dock: React.ReactNode
@@ -659,8 +678,9 @@ function LazyInvite({ from, onClose }: { from: InviteFrom; onClose: () => void }
  * The path to the project, as the places name it: the mark goes home, Work to the projects. Both keep a call going:
  * the places' bar shows the room, with Leave one tap away.
  */
-function ProjectHeader({ title, connection, nav, dock, share, account, onLeave, onWork }: HeaderProps) {
+function ProjectHeader({ title, connection: feed, nav, dock, share, account, onLeave, onWork }: HeaderProps) {
   const home = 'Home'
+  const connection = feed.state
   return (
     <header className="topbar">
       <button type="button" className="mark has-tip" onClick={onLeave} aria-label={home}>
@@ -682,12 +702,7 @@ function ProjectHeader({ title, connection, nav, dock, share, account, onLeave, 
       {nav}
       <div className="topbar-end">
         {dock}
-        {connection && (
-          <span role="status" className="connection" data-state={connection} title={CONNECTION[connection]}>
-            <span className="connection-dot" aria-hidden />
-            <span className="connection-label">{CONNECTION[connection]}</span>
-          </span>
-        )}
+        {connection && <ConnectionPill connection={connection} checkedAt={feed.checkedAt} />}
         {share}
         {account}
       </div>
@@ -1057,15 +1072,18 @@ const ACTION_LABEL: Record<NoticeAction, string> = {
 interface NoticeProps {
   blocked: Blocked
   identityName: string
+  /** A call here ended with the removal: said under the body, politely and never focused (removed-and-stopped-said.md). */
+  callEnded: boolean
   actions: Record<NoticeAction, () => void>
 }
 
-function AccessNotice({ blocked, identityName, actions }: NoticeProps) {
+function AccessNotice({ blocked, identityName, callEnded, actions }: NoticeProps) {
   const notice = NOTICE[blocked]
   return (
     <main className="page notice" data-content>
       <h2>{notice.title}</h2>
       <p>{notice.body(identityName)}</p>
+      {callEnded && <p role="status">{REMOVED_MID_CALL}</p>}
       <button type="button" className="pill" onClick={actions[notice.action]}>
         {ACTION_LABEL[notice.action]}
       </button>

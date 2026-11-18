@@ -510,7 +510,7 @@ test('r3-repair3 · F08 · credits or tokens at zero wait for capacity, whatever
   }
   const cases: [string, Said][] = [
     ['count=credits0', CREDITS],
-    ['count=tokens0', { tone: 'wait', line: 'Waiting for capacity: daily tokens window', more: null }],
+    ['count=tokens0', { tone: 'wait', line: 'Waiting for capacity: Daily tokens window', more: null }],
     ['count=percent-credits0', CREDITS],
     ['count=credits0-percent', CREDITS],
     ['count=tokens-credits0', CREDITS],
@@ -543,7 +543,7 @@ test('r3-repair3 · F08 · credits or tokens at zero wait for capacity, whatever
 const INVENTED = /NaN|Invalid Date|Infinity|undefined/
 const UNKNOWN_RESETS: [string, string, string | null][] = [
   ['count=credits0-badreset', 'Waiting for capacity: Daily requests window', null],
-  ['count=tokens0-emptyreset', 'Waiting for capacity: daily tokens window', null],
+  ['count=tokens0-emptyreset', 'Waiting for capacity: Daily tokens window', null],
   ['count=percent100-badreset', 'Waiting for capacity: 5-hour window', null],
   ['count=spend-badreset', 'Waiting for capacity: Spend limit window', null],
   ['count=badreset-percent100', 'Waiting for capacity: Daily requests window', null], // unknown holds longest

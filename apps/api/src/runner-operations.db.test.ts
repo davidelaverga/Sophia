@@ -52,6 +52,10 @@ const token = (sub: string) =>
     .setExpirationTime('5m')
     .sign(new TextEncoder().encode(SECRET))
 
+/** Two spellings of an id that A47's `format: uuid` accepts besides the lowercase one. */
+const upper = (id: string) => id.toUpperCase()
+const urn = (id: string) => `urn:uuid:${id}`
+
 const verifyActor = createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET })
 
 // oxlint-disable-next-line typescript/no-explicit-any -- test helper over heterogeneous response bodies
@@ -225,6 +229,53 @@ describe('with 0092 installed', () => {
     }
     // Another member's use of A's resource answers like a missing one.
     assert.equal((await call(admit, E, p.base, p.create)).json.code, 'not_found')
+  })
+
+  it('reads every spelling A47 declares of a body id as the one id: upper case and urn:uuid: (review of #513, P3 6)', async () => {
+    const targets = async (projectId: string) =>
+      (
+        await owner.query<{ kind: string; target_operation_id: string | null }>(
+          `SELECT kind, target_operation_id FROM sophia.owner_runner_operations WHERE project_id=$1 ORDER BY created_at`,
+          [projectId],
+        )
+      ).rows
+    // The same create under its key, spelled otherwise, is one request: its receipt replays.
+    const p = await qualifiedProject()
+    const key = randomUUID()
+    const first = await call(admit, A, p.base, p.create, key)
+    assert.equal(first.status, 202)
+    for (const spell of [upper, urn]) {
+      const again = { ...p.create, resourceId: spell(p.resourceId), goalId: spell(p.goalId) }
+      assert.deepEqual(await call(admit, A, p.base, again, key), first, spell(p.resourceId))
+    }
+    // An input naming its resource and target in upper case acts on that create.
+    await received(p.projectId, first.json.operationId)
+    const target = first.json.operationId as string
+    const input = await call(admit, A, p.base, {
+      kind: 'input',
+      resourceId: upper(p.resourceId),
+      targetOperationId: upper(target),
+      message: 'And the outbox?',
+      expectedGoalRevision: 1,
+      expectedAuthorityEpoch: 1,
+      sourceIds: [],
+    })
+    assert.equal(input.status, 202, JSON.stringify(input.json))
+    assert.deepEqual(await targets(p.projectId), [
+      { kind: 'create', target_operation_id: null },
+      { kind: 'input', target_operation_id: target },
+    ])
+    // A Stop naming them as urn:uuid: stops that create.
+    const q = await qualifiedProject()
+    const created = await call(admit, A, q.base, q.create)
+    await received(q.projectId, created.json.operationId)
+    const stop = { kind: 'stop', resourceId: urn(q.resourceId), targetOperationId: urn(created.json.operationId) }
+    const stopped = await call(admit, A, q.base, stop)
+    assert.equal(stopped.status, 202, JSON.stringify(stopped.json))
+    assert.deepEqual(await targets(q.projectId), [
+      { kind: 'create', target_operation_id: null },
+      { kind: 'stop', target_operation_id: created.json.operationId },
+    ])
   })
 
   it('with admissions off after admission: no new admission, while the owner still reads the work and its state', async () => {

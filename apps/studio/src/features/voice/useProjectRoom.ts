@@ -6,7 +6,7 @@ import { arriveWithMicrophone, enterCall, switchMicrophone, useTypedChat } from 
 // The room's state for the Studio: join (token from the API, then LiveKit), microphone, camera, screen,
 // leave. Members join their project's room; an admitted guest joins with their lobby entry. Leaving the
 // page leaves the room; nothing here touches goals or work.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { RoomToken, Snapshot } from '@sophia/contracts'
 import { issueRoomToken } from '../../api/client.ts'
 import { newVersion } from '../../app/new-version-early.ts'
@@ -15,7 +15,7 @@ import { CALL_END, joinHeld, keepsTextMode, keptNote, noteFor, type CallEnd } fr
 import { CallFence } from './call-fence.ts'
 import { micToStart, openRoom } from './call-open.ts'
 import { joinMessage } from './part-gone.ts'
-import { LIVE_BEAT_MS, Rejoin, rejoinLine, type RejoinStep } from './call-rejoin.ts'
+import { LIVE_BEAT_MS, Rejoin, REJOINED_FOR_MS, rejoinLine, type RejoinStep } from './call-rejoin.ts'
 import { browserTabs } from './call-tabs.ts'
 import { switchCamera } from './camera-flip.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
@@ -25,7 +25,7 @@ import { micOnJoin, rememberMic } from './mic-preference.ts'
 import type { Heard } from './reaction-channel.ts'
 import { paced, shownAfter, SHOWN_FOR_MS, type Reaction, type ReactionEmoji } from './reactions.ts'
 import type { Level } from './people-volume.ts'
-import { mediaMessage, type Device, type DockStatus, type RoomParticipant } from './room-view.ts'
+import { HOST_STOPPED_SCREEN, mediaMessage, type Device, type DockStatus, type RoomParticipant } from './room-view.ts'
 import type { SophiaSignal } from './sophia-view.ts'
 
 export type { VideoFeed } from './livekit-room.ts'
@@ -111,6 +111,11 @@ export interface ProjectRoom {
   react: (emoji: ReactionEmoji) => void
   /** What this person follows, said to the members in the call (A14, following-signal.ts); null for nothing. */
   setFollowing: (versionId: string | null) => Promise<void>
+  /**
+   * Raise or lower this person's hand in the call (raise-hand.md): read back from `participants`. A send refused puts
+   * it back there; out of a call there is no hand.
+   */
+  setHand: (raised: boolean) => void
   /** How loud each other person is here alone, by identity, full when not listed (people-volume.md). */
   volumes: ReadonlyMap<string, Level>
   setVolume: (identity: string, level: Level) => void
@@ -251,6 +256,20 @@ function tellingCamera(
  * choice a person makes is remembered for their next join; the ones made for them are not (on arrival, and
  * off when they start typing to Sophia).
  */
+/**
+ * «An admin stopped your screen share.» is news, not a failure: said once, for as long as «Reconnected.» is
+ * (REJOINED_FOR_MS), then gone, unless a note said since took its place (removed-and-stopped-said.md, review P3).
+ */
+function useHostStoppedNote(setNote: Dispatch<SetStateAction<string | null>>) {
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(timer.current), [])
+  return () => {
+    clearTimeout(timer.current)
+    setNote(HOST_STOPPED_SCREEN)
+    timer.current = setTimeout(() => setNote((note) => (note === HOST_STOPPED_SCREEN ? null : note)), REJOINED_FOR_MS)
+  }
+}
+
 function useDevices(connection: { current: RoomConnection | null }, refresh: () => void) {
   const [mediaError, setMediaError] = useState<string | null>(null)
   /** The microphone choices made, counted as each is asked (before its first wait). */
@@ -275,6 +294,7 @@ function useDevices(connection: { current: RoomConnection | null }, refresh: () 
   return {
     mediaError,
     clearNote: () => setMediaError(null),
+    hostStoppedScreen: useHostStoppedNote(setMediaError),
     /** The microphone a join turns on, in that join's call: false when text mode began meanwhile and it stayed on. */
     arrive: () => {
       const c = connection.current
@@ -334,6 +354,8 @@ interface JoinPorts {
   scoped: (scope: string) => void
   /** A new call began. */
   onLive: () => void
+  /** An admin stopped this person's screen share: the dock says so (removed-and-stopped-said.md). */
+  hostStoppedScreen: () => void
 }
 
 /**
@@ -341,7 +363,7 @@ interface JoinPorts {
  * this person's call.
  */
 function heardWhile(current: () => boolean, ports: JoinPorts): RoomCallbacks {
-  const { typedChat, setStatus, refresh, outOfCall } = ports
+  const { typedChat, setStatus, refresh, outOfCall, hostStoppedScreen } = ports
   return {
     onChange: refresh,
     onChat: (packet) => {
@@ -361,6 +383,9 @@ function heardWhile(current: () => boolean, ports: JoinPorts): RoomCallbacks {
     },
     onSpeakingMuted: () => {
       if (current()) typedChat.onSpeakingMuted()
+    },
+    onHostStoppedScreen: () => {
+      if (current()) hostStoppedScreen()
     },
     onStatus: (s) => {
       if (current()) setStatus(s)
@@ -612,6 +637,7 @@ function useLeave(
  */
 const relaysOf = (calls: CallFence<RoomConnection>) => ({
   setFollowing: (versionId: string | null) => calls.current?.setFollowing(versionId) ?? Promise.resolve(),
+  setHand: (raised: boolean) => void calls.current?.setHand(raised).catch(() => undefined),
   voiceLevel: (identity: string) => calls.current?.voiceLevel(identity) ?? 0,
   sophiaLevel: () => calls.current?.sophiaLevel() ?? 0,
 })
@@ -776,7 +802,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   useEffect(() => () => void calls.end(), [calls])
 
   const refresh = () => setPeople(peopleOf(calls.current))
-  const { clearNote, arrive, silence, ...devices } = useDevices(calls, refresh)
+  const { clearNote, arrive, silence, hostStoppedScreen, ...devices } = useDevices(calls, refresh)
   const { choices, resetChoices } = useCallChoices(calls)
   const typedChat = useConversation(calls, silence)
 
@@ -792,7 +818,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   const say = (note: string | null) => (note === null ? rest() : setError(note))
   const outOfCall = outOfCallFor({ calls, joining, typedChat, stand, reset, setStatus, setError: say, ended })
 
-  const ports = { calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall, scoped }
+  const ports = { calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall, scoped, hostStoppedScreen }
   const joined = useJoin(ports, joining, () => devices.setCamera(true))
   const join = joinOnline(joined.join)
   const { line, rejoining, rejoin } = useRejoin(status, calls, join, setError)

@@ -1,7 +1,7 @@
 // Bold, code and quotes in a message (docs/plans/message-format.md): a line starting with «> » is a quote; in a line,
 // `code` is literal and **bold** is bold; a mark that doesn't close, or holds nothing, is shown as written. Pure: the
 // pieces only, drawn by RichText.tsx as elements, never as HTML.
-import { linksIn } from './links.ts'
+import { linksIn, type MarkPiece } from './links.ts'
 
 export interface Piece {
   kind: 'text' | 'bold' | 'code'
@@ -65,3 +65,28 @@ export const richLines = (text: string): RichLine[] =>
     const quote = line.startsWith('> ')
     return { quote, pieces: inlinePieces(quote ? line.slice(2) : line) }
   })
+
+/**
+ * A message's words as RichText draws them: no marks, no «> » before a quote, its lines kept. What Personal's Find
+ * looks in and its Copy writes (docs/plans/personal-replies-formatted.md).
+ */
+export const shownOf = (text: string): string =>
+  richLines(text)
+    .map((line) => line.pieces.map((p) => p.text).join(''))
+    .join('\n')
+
+// Nothing here keeps a message: a module-wide store of Personal's words would outlive locking the space, erasing it
+// and signing out (Codex P1 on #522). What is read once per conversation is kept by the conversation's own memo.
+
+/** Find's pieces, cut over the shown words, within `from` to `to` of them: what a piece of a line holds, numbers kept. */
+export function marksIn(marks: readonly MarkPiece[], from: number, to: number): MarkPiece[] {
+  const out: MarkPiece[] = []
+  let at = 0
+  for (const mark of marks) {
+    const end = at + mark.text.length
+    const [start, stop] = [Math.max(at, from), Math.min(end, to)]
+    if (stop > start) out.push({ text: mark.text.slice(start - at, stop - at), n: mark.n })
+    at = end
+  }
+  return out
+}

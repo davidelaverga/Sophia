@@ -28,9 +28,10 @@ let app: FastifyInstance
 let base: string
 let roomServer: Server
 
-/** What the room server holds and answers: who is in, and whose mute fails. */
+/** What the room server holds and answers: who is in, who left after the list, and whose mute fails. */
 interface Room {
   people: { identity: string; standing: object; muted: boolean }[]
+  left: Set<string>
   failMute: Set<string>
   muteCalls: string[]
 }
@@ -46,7 +47,7 @@ const participant = (p: Room['people'][number]) => ({
 function answer(method: string, body: Record<string, unknown>): [number, unknown] {
   if (method === 'ListParticipants') return [200, { participants: room.people.map(participant) }]
   const who = room.people.find((p) => p.identity === body.identity)
-  if (!who) return [404, { code: 'not_found', msg: 'participant not found' }]
+  if (!who || room.left.has(who.identity)) return [404, { code: 'not_found', msg: 'participant not found' }]
   if (method === 'GetParticipant') return [200, participant(who)]
   if (method === 'MutePublishedTrack') {
     room.muteCalls.push(who.identity)
@@ -82,7 +83,7 @@ async function events(projectId: string): Promise<string[]> {
   try {
     const { rows } = await c.query<{ e: string }>(
       `SELECT type || ' ' || entity_id AS e FROM sophia.project_events
-        WHERE project_id = $1 AND type IN ('room.host_muted', 'room.host_muted_all') ORDER BY sequence`,
+        WHERE project_id = $1 AND type LIKE 'room.host_%' ORDER BY sequence`,
       [projectId],
     )
     return rows.map((r) => r.e)
@@ -122,7 +123,7 @@ after(async () => {
   await new Promise<void>((resolve) => roomServer.close(() => resolve()))
 })
 beforeEach(() => {
-  room = { people: [], failMute: new Set(), muteCalls: [] }
+  room = { people: [], left: new Set(), failMute: new Set(), muteCalls: [] }
 })
 
 const inCall = (...people: [string, object][]) =>
@@ -157,6 +158,33 @@ describe('mute everyone, against a controlled room server (Codex P2s on #385)', 
     assert.ok((await muteAll(projectId)) >= 400)
     assert.deepEqual(room.muteCalls, [G, B])
     assert.deepEqual(await events(projectId), [], 'the guest’s mute has no activity the project can name (0057)')
+  })
+
+  it('C left after the list (Codex P2 on #369): B and G are still muted, and the whole act is recorded', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B, C] })
+    room.people = inCall([A, { role: 'admin' }], [C, { role: 'editor' }], [B, { role: 'editor' }], [G, { guest: true }])
+    room.left.add(C)
+    assert.equal(await muteAll(projectId), 204)
+    assert.deepEqual(room.muteCalls, [B, G], 'C, gone, does not stop the ones after them')
+    const recorded = await events(projectId)
+    assert.equal(recorded.length, 1)
+    assert.match(recorded[0] ?? '', /^room\.host_muted_all /)
+  })
+
+  it('a single mute of a member who left after the check did nothing: 204, nothing recorded', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B] })
+    room.people = inCall([A, { role: 'admin' }], [B, { role: 'editor' }])
+    room.left.add(B)
+    for (const act of ['mute', 'stop-camera', 'stop-screen']) {
+      const res = await fetch(`${base}/api/v1/projects/${projectId}/room/people/${B}/${act}`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${await token(A)}` },
+      })
+      await res.arrayBuffer()
+      assert.equal(res.status, 204, act)
+    }
+    assert.deepEqual(room.muteCalls, [])
+    assert.deepEqual(await events(projectId), [])
   })
 
   it('everyone muted: the whole act, once', async () => {

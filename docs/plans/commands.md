@@ -11,7 +11,8 @@
   `{ key: fn }`: nothing knows their words, so nothing can list them. The tips on controls show a key each, when the
   control is on screen.
 - `?` and `Ctrl+K` do nothing; the seven project views have no key and no way but the mouse or Tab along the bar.
-- In the Studio view a `?` typed from nowhere lands in the message bar (stray typing: by design, a chat).
+- In the Studio view, while its chat is open, a `?` typed from nowhere lands in the message bar (stray typing: by
+  design, a chat); with the chat shut nothing takes stray typing, and `?` opens the index (2026-11-16, `keys-tip.md`).
 
 ## What changes
 

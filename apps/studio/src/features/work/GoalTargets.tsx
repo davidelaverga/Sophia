@@ -1,12 +1,14 @@
 // A goal's owner and target date (docs/plans/goal-owner-date.md, A25), kept beside the goal. Read with the project's
 // cursor, as the notes are, so a change made elsewhere is read as the project moves. Its row says them («Marco · due
 // 30 Oct 2026»); its sheet lets an editor or an admin set them, compare-and-set: a save someone else beat is said, and
-// the sheet shows what stands now. A viewer reads them.
+// the sheet shows what stands now. A save whose reply was lost is read again, and what landed is said, never blamed on a
+// teammate (save-reply-lost.md). A viewer reads them.
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { GoalTarget, GoalTargetList, ProjectMember } from '@sophia/contracts'
 import { Button } from '@sophia/ui'
 import { ApiError, getGoalTargets, getProjectMembers, setGoalTarget } from '../../api/client.ts'
+import { replyLost } from '../../api/reply-lost.ts'
 import { useMembership } from '../access/useAccess.ts'
 import type { NotesFor } from './GoalNotes.tsx'
 import { notesRead } from './goal-notes.ts'
@@ -89,10 +91,12 @@ export function targetLine(
   return parts.length > 0 ? { text: parts.join(' · '), due } : null
 }
 
-type Note = 'saved' | 'stale' | 'failed' | null
+type Note = 'saved' | 'checked' | 'lost' | 'stale' | 'failed' | null
 
 const NOTE: Record<Exclude<Note, null>, string> = {
   saved: 'Saved',
+  checked: 'Saved. The reply was slow, so we checked.',
+  lost: 'Not saved. Try again.',
   stale: 'Someone changed it meanwhile; here is what it says now.',
   failed: 'Couldn’t save the owner and date. Try again.',
 }
@@ -103,10 +107,29 @@ const targetWords = (target: GoalTarget | undefined, members: readonly ProjectMe
     target?.targetDate ? dayOf(target.targetDate) : 'none'
   }`
 
-/** A save's outcome: «Saved» as a status; a stale or failed save as an alert. */
+/** A save's outcome: «Saved» as a status, checked or not; one not saved, stale or failed as an alert. */
 function TargetNote({ note }: { note: Note }) {
   if (!note) return null
-  return note === 'saved' ? <p role="status">{NOTE.saved}</p> : <p role="alert">{NOTE[note]}</p>
+  return note === 'saved' || note === 'checked' ? <p role="status">{NOTE[note]}</p> : <p role="alert">{NOTE[note]}</p>
+}
+
+/**
+ * After a lost reply, what stands says whether the save landed: the goal's owner and date as sent, or not; with the
+ * targets read, which the sheet then stands on. A read that fails too tells nothing, so today's words stay.
+ */
+async function checked(
+  at: At,
+  goalId: string,
+  sent: Pick<GoalTarget, 'ownerId' | 'targetDate'>,
+): Promise<{ note: Note; read?: GoalTargetList }> {
+  try {
+    const read = await getGoalTargets(at.identity.token, at.projectId)
+    const now = read.targets.find((t) => t.goalId === goalId)
+    const landed = (now?.ownerId ?? null) === sent.ownerId && (now?.targetDate ?? null) === sent.targetDate
+    return { note: landed ? 'checked' : 'lost', read }
+  } catch {
+    return { note: 'failed' }
+  }
 }
 
 function TargetForm(props: {
@@ -179,15 +202,23 @@ export function GoalTargetSection({ goalId, at }: { goalId: string; at: At }) {
   const save = (ownerId: string | null, targetDate: string | null) => {
     setState({ note: null, saving: true })
     const body = { ownerId, targetDate, expectedRevision: target?.revision ?? 0 }
+    // Read again after a save, landed or maybe: the form then stands on the revision now read.
+    const said = (note: Note) => {
+      setState({ note, saving: false })
+      void client.invalidateQueries({ queryKey: targetsKey(at) })
+    }
     setGoalTarget(at.identity.token, at.projectId, goalId, body).then(
-      () => {
-        setState({ note: 'saved', saving: false })
-        void client.invalidateQueries({ queryKey: targetsKey(at) })
-      },
-      (err: unknown) => {
+      () => said('saved'),
+      async (err: unknown) => {
+        if (replyLost(err)) {
+          const { note, read } = await checked(at, goalId, body)
+          // What was read is what the form stands on before the line is said: a Save pressed at once goes against it.
+          if (read) client.setQueriesData<GoalTargetList>({ queryKey: targetsKey(at) }, read)
+          return said(note)
+        }
         const stale = err instanceof ApiError && err.code === 'stale_revision'
-        setState({ note: stale ? 'stale' : 'failed', saving: false })
-        if (stale) void client.invalidateQueries({ queryKey: targetsKey(at) })
+        if (stale) said('stale')
+        else setState({ note: 'failed', saving: false })
       },
     )
   }

@@ -46,6 +46,9 @@ export type IconName =
   | 'people'
   | 'more'
   | 'flip'
+  | 'pip'
+  | 'handRaise'
+  | 'panel'
 
 const slash = <path d="M4 4l16 16" />
 const mic = (
@@ -92,6 +95,13 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M8.8 12.6a3.2 3.2 0 0 1 5.6-1.9M14.6 9v1.9h-1.9M15.2 13.4a3.2 3.2 0 0 1-5.6 1.9M9.4 17v-1.9h1.9" />
     </>
   ),
+  // Picture in picture: a screen with a small view in its corner (call-picture-in-picture.md).
+  pip: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <rect x="12" y="11.5" width="6" height="4.5" rx="1" fill="currentColor" />
+    </>
+  ),
   screen: (
     <>
       <rect x="3" y="4.5" width="18" height="12" rx="2" />
@@ -132,6 +142,13 @@ const PATHS: Record<IconName, ReactNode> = {
   ),
   send: <path d="M12 19V5M6 11l6-6 6 6" />,
   download: <path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14" />,
+  // A pane at the side: a frame and the side pane's edge (conversations-kit-icons.md).
+  panel: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+      <path d="M14.5 4.5v15" />
+    </>
+  ),
   expand: <path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5" />,
   collapse: <path d="M10 4v6H4M14 20v-6h6M10 10L4 4M14 14l6 6" />,
   plus: <path d="M12 5v14M5 12h14" />,
@@ -160,6 +177,13 @@ const PATHS: Record<IconName, ReactNode> = {
   ),
   hand: (
     <path d="M8 12V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4a1.5 1.5 0 0 1 3 0v6M14 10V5.5a1.5 1.5 0 0 1 3 0V13c0 4-2.5 7-6 7s-5-2-6.5-5l-1.6-3a1.4 1.4 0 0 1 2.4-1.4L8 13" />
+  ),
+  // Raise hand: the hand, and a wave above it, asking for a turn (raise-hand.md); Take the floor's hand has none.
+  handRaise: (
+    <>
+      <path d="M8 13V7.5a1.5 1.5 0 0 1 3 0V12M11 11V6a1.5 1.5 0 0 1 3 0v5M14 11V7.5a1.5 1.5 0 0 1 3 0V14c0 4-2.5 7-6 7s-5-2-6.5-5l-1.6-3a1.4 1.4 0 0 1 2.4-1.4L8 14" />
+      <path d="M18.5 3.5c1 .6 1.7 1.6 2 2.8M4.5 4.5c.4-.8 1-1.4 1.8-1.8" />
+    </>
   ),
   // Sophia's light: a point that shines.
   sophia: (

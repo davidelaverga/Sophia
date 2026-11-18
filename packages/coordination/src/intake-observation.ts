@@ -715,11 +715,21 @@ interface ImportSpan {
  * What separates authored tokens: whitespace, and the clause dashes (en, em, bar) that also separate an acknowledgement
  * from its clause (r13). A hyphen joins a word (`non-stop`) and stays inside the token.
  */
-const TOKEN_HEAD = /[^\s\u2013\u2014\u2015\u2e3a\u2e3b]*$/u
+const SEPARATOR = /[\s\u2013\u2014\u2015\u2e3a\u2e3b]/u
 const TOKEN_TAIL = /^[^\s\u2013\u2014\u2015\u2e3a\u2e3b]*/u
 /** What may share a token with an imported span: punctuation only (quotes, brackets, stops). */
 const SPAN_EDGE = /^\p{P}*$/u
-const tokenHead = (text: string, at: number): string => TOKEN_HEAD.exec(text.slice(0, at))?.[0] ?? ''
+
+/**
+ * The rest of the token before `at`, walked back unit by unit: work is the head's length (an unanchored `[^\u2026]*$` over
+ * the text before `at` was quadratic in a long run). Every separator is one BMP unit and no surrogate half is one, so
+ * this is the same string the code-point reading gives.
+ */
+export function tokenHead(text: string, at: number): string {
+  let start = at
+  while (start > 0 && !SEPARATOR.test(text.charAt(start - 1))) start -= 1
+  return text.slice(start, at)
+}
 const tokenTail = (text: string, end: number): string => TOKEN_TAIL.exec(text.slice(end))?.[0] ?? ''
 
 /** Every occurrence of a literal, overlapping ones included, and whether each one is a complete span. */

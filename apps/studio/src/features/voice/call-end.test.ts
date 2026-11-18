@@ -14,6 +14,7 @@ import {
   REJOINED,
   REJOINING,
 } from './call-end.ts'
+import { HOST_STOPPED_SCREEN } from './room-view.ts'
 
 describe('why a call ended', () => {
   it('only a lost connection is a failure: the others were on purpose, here or elsewhere', () => {
@@ -159,5 +160,12 @@ describe('a dropped call coming back on its own (call-rejoin.md)', () => {
   it('never an alert, and never the lost call’s own words', () => {
     for (const line of [REJOINING, OFFLINE_REJOIN, REJOINED]) assert.notEqual(line, CALL_END.dropped.note)
     assert.equal(noteRole(CALL_END.dropped.note), 'alert', 'a try that failed says the lost call as before')
+  })
+})
+
+describe('a screen an admin stopped (removed-and-stopped-said.md)', () => {
+  it('is said politely, in Luis’s words', () => {
+    assert.equal(HOST_STOPPED_SCREEN, 'An admin stopped your screen share.')
+    assert.equal(noteRole(HOST_STOPPED_SCREEN), 'status')
   })
 })

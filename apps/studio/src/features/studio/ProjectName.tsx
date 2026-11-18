@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom'
 import type { Membership } from '@sophia/contracts'
 import { Button, Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
 import { ApiError, leaveProject, renameProject } from '../../api/client.ts'
+import { browserTabs } from '../voice/call-tabs.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import { membershipKey } from '../access/useAccess.ts'
@@ -100,9 +101,13 @@ function LeaveSheet({ title, projectId, identity, onClose, onLeft }: SheetProps 
   useEffect(() => cancel.current?.focus(), [])
   const leave = async () => {
     setState({ sending: true, failed: null })
+    // Said before the API leaves, which takes this person out of the call in every tab: those tabs then know it was
+    // this leave, not a removal (removed-and-stopped-said.md). A leave that failed takes it back.
+    browserTabs.leaving(projectId, true)
     try {
       await leaveProject(identity.token, projectId, key)
     } catch (err: unknown) {
+      browserTabs.leaving(projectId, false)
       const lastAdmin = err instanceof ApiError && err.code === 'invalid_state'
       const said = failure(err, 'Couldn’t leave the project. Try again.')
       setState({ sending: false, failed: lastAdmin ? `${said}. ${LAST_ADMIN_HINT}` : said })

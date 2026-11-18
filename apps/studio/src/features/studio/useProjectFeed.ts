@@ -56,10 +56,13 @@ interface PortsDeps {
   feed: { current: Feed | null }
   store: (feed: Feed) => void
   setConnection: (c: Connection) => void
+  /** Bytes came on the stream (its pings too): the last time the feed heard from the project. */
+  heard?: () => void
 }
 
 export function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => void } {
   const owner = ownerOf(deps.identity, deps.projectId)
+  const stream = { token: deps.token, projectId: deps.projectId, onHeard: deps.heard }
   let refresh: ReturnType<typeof setTimeout> | undefined
   // A project event since the last refresh (archive-project.md: project.archived / project.unarchived; the fixture's
   // project.updated). Room, chat and lobby events leave the archived list alone: its read asks LiveKit for rooms.
@@ -91,8 +94,7 @@ export function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => v
       if (fresh) deps.store(rebase(current(), fresh.cursor))
       feedResynced(owner)
     },
-    follow: (after, signal, onOpen, onFrame) =>
-      followEvents({ token: deps.token, projectId: deps.projectId, after, signal, onOpen, onFrame }),
+    follow: (after, signal, onOpen, onFrame) => followEvents({ ...stream, after, signal, onOpen, onFrame }),
     setConnection: deps.setConnection,
     refused: async () => {
       await deps.queryClient.refetchQueries({ queryKey: deps.key, exact: true })
@@ -136,6 +138,9 @@ export function useProjectFeed(projectId: string, identity: string, token: strin
   const [feed, setFeed] = useState<Feed | null>(null)
   const [connection, setConnection] = useState<Connection>('connecting')
   const feedRef = useRef<Feed | null>(null)
+  // When the stream last brought bytes: kept out of state, read only when the pill's help is asked for.
+  const heardAt = useRef<number | null>(null)
+  const checkedAt = useCallback(() => heardAt.current, [])
   const store = useCallback((next: Feed) => {
     feedRef.current = next
     setFeed(next)
@@ -161,6 +166,9 @@ export function useProjectFeed(projectId: string, identity: string, token: strin
       feed: feedRef,
       store,
       setConnection,
+      heard: () => {
+        heardAt.current = Date.now()
+      },
     })
     void runFeedLoop(ports, stop.signal)
     return () => {
@@ -169,5 +177,5 @@ export function useProjectFeed(projectId: string, identity: string, token: strin
     }
   }, [ready, token, projectId, identity, key, queryClient, store])
 
-  return { snapshot, feed, connection }
+  return { snapshot, feed, connection, checkedAt }
 }

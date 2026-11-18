@@ -8,7 +8,24 @@ const PAGE = '/work.html'
 const board = (page: Page) => page.locator('.board').first()
 const tile = (page: Page, id: string) => page.locator(`[data-task="${id}"]`)
 const lane = (page: Page, name: string) => board(page).getByRole('region', { name, exact: true })
-const titles = (l: Locator) => l.locator('.task-tile-title').allInnerTexts()
+/** A lane's titles. Complete beside Blocked is folded (board-fold-complete.md): opened first, so no read of it passes on
+ *  a lane it cannot see. */
+const titles = async (l: Locator) => {
+  const folded = l.locator('.lane-fold[aria-expanded="false"]')
+  if ((await folded.count()) > 0) await folded.click()
+  return l.locator('.task-tile-title').allInnerTexts()
+}
+/** Opens Complete when it is folded beside Blocked (board-fold-complete.md), for a check that reaches or counts its tiles. */
+const unfolded = async (page: Page) => {
+  const lanes = board(page).locator('.board-lanes[data-lanes]')
+  await lanes.waitFor()
+  // Read until the lanes stand open: a Blocked lane coming with a later read would fold Complete after a single look.
+  await expect(async () => {
+    if ((await lanes.getAttribute('data-folded')) !== null) await board(page).locator('.lane-fold').click()
+    expect(await lanes.getAttribute('data-folded')).toBeNull()
+    await expect(board(page).locator('.task-tile').first()).toBeVisible()
+  }).toPass()
+}
 /** Waits for every arriving animation on the board to end, so what is measured is at rest. */
 const settled = (page: Page) =>
   board(page).evaluate((b) =>
@@ -68,6 +85,9 @@ test('five lanes, each task in the one its state says; the words only where the 
   await expect(laneTitles('Up next')).toHaveText(['Review the retry’s candidate'], { useInnerText: true })
   await expect(laneTitles('Blocked')).toHaveText(['Write the export’s release note'], { useInnerText: true })
   await expect(laneTitles('Unassigned')).toHaveText(['Measure render time on large reports'], { useInnerText: true })
+  // Complete is folded beside Blocked (board-fold-complete.md): its count, then its tile once opened.
+  await expect(lane(page, 'Complete').locator('.lane-fold')).toHaveText(/^Complete\s*1$/)
+  await lane(page, 'Complete').locator('.lane-fold').click()
   await expect(laneTitles('Complete')).toHaveText(['Reproduce the failed render'], { useInnerText: true })
   await expect(tile(page, 'work-1').locator('.task-chip')).toHaveText('Waiting on Davide')
   await expect(tile(page, 'work-2').locator('.task-chip')).toHaveText('Working')
@@ -104,6 +124,7 @@ test('back after a while: one line of what changed, then Mark seen, remembered f
   page,
 }) => {
   await page.goto(`${PAGE}?viewer=davide&since=1`)
+  await unfolded(page)
   const away = board(page).locator('.board-return')
   await expect(away).toContainText('While you were away')
   await expect(away).toContainText('Implement the PDF retry now waits on you')
@@ -117,6 +138,7 @@ test('back after a while: one line of what changed, then Mark seen, remembered f
 
 test('lenses dim what they don’t show and move nothing; each says how many it shows', async ({ page }) => {
   await page.goto(PAGE) // Luis looks
+  await unfolded(page)
   const lens = (name: string) => board(page).getByRole('radio', { name: new RegExp(`^${name}`) })
   await expect(lens('For you')).toHaveText('For you3')
   await settled(page)
@@ -775,6 +797,7 @@ test('type · the board, a goal without a plan, and a task’s sheet keep to the
 
 const sheetOf = (page: Page, name: string) => page.getByRole('dialog', { name })
 async function openTask(page: Page, id: string, name: string) {
+  await unfolded(page)
   await tile(page, id).click()
   const sheet = sheetOf(page, name)
   await expect(sheet).toBeVisible()
@@ -1299,6 +1322,7 @@ test('wbc · UI-18 · a revision that failed keeps the last usable version opena
 
 test('wbc · UI-19 · by keys alone: a task’s conditions and its result are reached and opened', async ({ page }) => {
   await page.goto(`${PAGE}?viewer=davide&case=defects`)
+  await unfolded(page) // the review is complete
   await tile(page, 'work-1-review').focus()
   await page.keyboard.press('Enter')
   const sheet = sheetOf(page, 'Review the retry’s candidate')
@@ -2127,6 +2151,8 @@ test('codex · F-015 · the plan’s updating band holds its own choices only; a
 // ---- CX-0016 (Codex on #74; GitHub 4179419841, …844, …848, …853). ----
 
 const views = (page: Page) => page.getByRole('navigation', { name: 'Project views' })
+/** Tasks in the views' row, by its name with or without what waits there on the viewer (needs-you-in-project.md). */
+const TASKS_VIEW = /^Tasks(, \d+ waiting on you)?$/
 
 /** Davide's Claude Code worker, its acts open, in Resources: reached from Tasks in the same page. */
 async function workerInResources(page: Page) {
@@ -2146,7 +2172,7 @@ async function workerInResources(page: Page) {
 /** Back to Tasks, the retry's sheet open. */
 async function retryInTasks(page: Page) {
   await page.keyboard.press('Escape')
-  await views(page).getByRole('link', { name: 'Tasks', exact: true }).click()
+  await views(page).getByRole('link', { name: TASKS_VIEW }).click()
   return openTask(page, 'work-1', 'Implement the PDF retry')
 }
 
@@ -2901,7 +2927,7 @@ test('codex · F-023 · the first send’s late reply changes nothing while the 
   await expect(board(page)).toHaveCount(0)
   await page.clock.runFor(35_000)
   // Back at 125 s, the board anew: still the second send, waiting; then its own reply.
-  await views(page).getByRole('link', { name: 'Tasks', exact: true }).click()
+  await views(page).getByRole('link', { name: TASKS_VIEW }).click()
   await expect(status).toHaveText('Sending your choice…')
   await page.clock.runFor(5_000)
   await expect(status).toHaveText('Your choice is recorded. The plan is updating.')
@@ -3758,7 +3784,7 @@ async function lostThenBack(page: Page, away: 'view' | 'reload') {
   if (away === 'view') {
     await views(page).getByRole('link', { name: 'Resources', exact: true }).click()
     await expect(page.getByRole('button', { name: 'Review sources' })).toHaveCount(0)
-    await views(page).getByRole('link', { name: 'Tasks', exact: true }).click()
+    await views(page).getByRole('link', { name: TASKS_VIEW }).click()
   } else {
     await page.reload()
   }
@@ -3875,7 +3901,7 @@ async function lateAnswerAfterNewer(page: Page) {
   expect(await keptProposals(page)).toHaveLength(1)
   // The board, read again, shows it recorded and waiting on the viewer's decision: the kept one is let go.
   await views(page).getByRole('link', { name: 'Resources', exact: true }).click()
-  await views(page).getByRole('link', { name: 'Tasks', exact: true }).click()
+  await views(page).getByRole('link', { name: TASKS_VIEW }).click()
   const choice = page.getByRole('group', { name: 'Your choice' })
   await expect(choice).toBeVisible()
   await expect.poll(() => keptProposals(page)).toEqual([])

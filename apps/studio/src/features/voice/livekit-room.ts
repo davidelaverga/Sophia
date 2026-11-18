@@ -46,6 +46,7 @@ import { micWhileConnected } from './mic-while-connected.ts'
 import { hearWhileMuted, mutedWatch } from './muted-speech.ts'
 import { chosenDevices, deviceName, type DeviceKind, type MediaDevice } from './device-preference.ts'
 import { followingSignal } from './following-signal.ts'
+import { HAND_TOPIC, handSignal, type Publish } from './hand-signal.ts'
 import { VISION } from '../../app/vision.ts'
 import { standingOf, type RoomParticipant } from './room-view.ts'
 import { MEDIAPIPE_BASE, SEGMENTER_FILE } from './mediapipe-path.ts'
@@ -110,6 +111,8 @@ export interface RoomConnection {
   setFollowing: (versionId: string | null) => Promise<void>
   /** A reaction to everyone in the call, on its own topic (call-reactions.md). */
   sendReaction: (emoji: ReactionEmoji) => Promise<void>
+  /** Raise or lower this person's hand, said to everyone in the call (raise-hand.md). */
+  setHand: (raised: boolean) => Promise<void>
   /** How loud a person is in this browser alone, their voice and their screen's sound (people-volume.md). */
   setVolume: (identity: string, level: Level) => void
   /** Others' cameras come to this browser, or not (incoming-video.md); a screen shared always comes. */
@@ -139,6 +142,8 @@ export interface RoomCallbacks {
   onReaction?: (heard: Heard) => void
   /** Speech heard on this person's microphone while it is off (muted-speech.md). */
   onSpeakingMuted?: () => void
+  /** An admin stopped this person's screen share, and it stopped here (A31): never their own stop or the browser's. */
+  onHostStoppedScreen?: () => void
   /** Someone joined, left, spoke, muted or shared video: re-read `participants()` and `feeds()`. */
   onChange: () => void
   onStatus: (status: RoomStatus) => void
@@ -246,12 +251,14 @@ function remoteAudio(room: Room) {
 
 /**
  * A screen share the host stopped (A31, host-more.md) stops here too: the server can only mute it, so this person's
- * share ends, and the browser's capture with it, rather than sending a black screen.
+ * share ends, and the browser's capture with it, rather than sending a black screen. The room is told, to say so: only
+ * the server mutes a share, as this person's own stop and the browser's «Stop sharing» bar unpublish it.
  */
-function stopsWhenHostStops(room: Room): void {
+function stopsWhenHostStops(room: Room, cb: RoomCallbacks): void {
   room.on(RoomEvent.TrackMuted, (publication, participant) => {
     if (participant !== room.localParticipant || publication.source !== Track.Source.ScreenShare) return
     void room.localParticipant.setScreenShareEnabled(false).catch(() => undefined)
+    cb.onHostStoppedScreen?.()
   })
 }
 
@@ -292,6 +299,41 @@ function modeSignal(room: Room, textOnly: () => boolean): () => void {
   })
   room.on(RoomEvent.Reconnected, send)
   return send
+}
+
+/** The hand's packets on their own topic: to everyone in the call, or to the identities named alone (hand-signal.ts). */
+const handPublish =
+  (room: Room): Publish =>
+  (data, to) =>
+    room.localParticipant.publishData(data, {
+      reliable: true,
+      topic: HAND_TOPIC,
+      ...(to ? { destinationIdentities: to } : {}),
+    })
+
+/** The people in the call, Sophia apart. */
+const remotePeople = (room: Room) => [...room.remoteParticipants.values()].filter((p) => !isSophia(p))
+
+/**
+ * Who is in the call as the room shows them, with what each said on their own topic: what a member follows
+ * (following-signal.ts) and a raised hand (hand-signal.ts); and how this person says their own.
+ */
+function peopleSignals(room: Room, onChange: () => void) {
+  const following = followingSignal(room, onChange, { resync: VISION })
+  const hands = handSignal(room, handPublish(room), onChange)
+  const other = (p: Participant) => ({
+    ...toView(p, false),
+    following: following.of(p.identity),
+    handRaised: hands.raised(p.identity),
+  })
+  return {
+    participants: () => [
+      { ...toView(room.localParticipant, true), handRaised: hands.mine() },
+      ...remotePeople(room).map(other),
+    ],
+    setFollowing: (versionId: string | null) => Promise.resolve(following.set(versionId)),
+    setHand: hands.set,
+  }
 }
 
 /**
@@ -502,17 +544,16 @@ export async function connectRoom(
   let textOnly = false
   const audio = remoteAudio(room)
   watchQualification(room, qualification)
-  stopsWhenHostStops(room)
+  stopsWhenHostStops(room, cb)
   endsWith(room, audio, cb)
   listenToSophia(room, cb)
   listenToReactions(room, (heard) => cb.onReaction?.(heard))
   const signalMode = modeSignal(room, () => textOnly)
-  const following = followingSignal(room, cb.onChange, { resync: VISION })
+  const signals = peopleSignals(room, cb.onChange)
   const sound = await connectWithLevels(room, serverUrl, token)
   const feedsOf = videoFeeds()
   const after = thenChanged(cb)
-  const people = () => [...room.remoteParticipants.values()].filter((p) => !isSophia(p))
-  const other = (p: Participant) => ({ ...toView(p, false), following: following.of(p.identity) })
+  const people = () => remotePeople(room)
   return {
     sendChat: (packet) =>
       room.localParticipant.publishData(encodeChatPacket(packet), {
@@ -526,7 +567,7 @@ export async function connectRoom(
       signalMode()
     },
     textMode: () => textOnly,
-    participants: () => [toView(room.localParticipant, true), ...people().map(other)],
+    ...signals,
     sophia: () => sophiaSignal([...room.remoteParticipants.values()].find(isSophia)),
     audioBlocked: () => !room.canPlaybackAudio,
     ...sound.levels,
@@ -537,7 +578,6 @@ export async function connectRoom(
       after,
       mutedMicrophone(room, () => cb.onSpeakingMuted?.()),
     ),
-    setFollowing: (versionId) => Promise.resolve(following.set(versionId)),
     sendReaction: (emoji) =>
       room.localParticipant.publishData(encodeReaction(emoji), { reliable: true, topic: REACTION_TOPIC }),
     setVolume: (identity, level) =>

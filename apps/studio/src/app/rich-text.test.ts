@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { richLines } from './rich-text.ts'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { marksIn, richLines, shownOf } from './rich-text.ts'
 
 // Bold, code and quotes in messages (docs/plans/message-format.md).
 describe('a message’s marks', () => {
@@ -36,5 +38,38 @@ describe('a message’s marks', () => {
     assert.deepEqual(richLines('2 ** 3 and `open').at(0)?.pieces, [{ kind: 'text', text: '2 ** 3 and `open' }])
     assert.deepEqual(richLines('****').at(0)?.pieces, [{ kind: 'text', text: '****' }])
     assert.deepEqual(richLines('>no space').at(0), { quote: false, pieces: [{ kind: 'text', text: '>no space' }] })
+  })
+})
+
+// What Personal's Find and Copy read (docs/plans/personal-replies-formatted.md).
+describe('a message as shown', () => {
+  it('drops the marks and keeps the lines', () => {
+    assert.equal(shownOf('Run `sum` **now**\n> as I said\nand **2 ** 3'), 'Run sum now\nas I said\nand **2 ** 3')
+    assert.equal(shownOf('see https://example.com/**draft**'), 'see https://example.com/**draft**')
+  })
+
+  it('cuts Find’s pieces to a span, their numbers kept', () => {
+    const marks = [
+      { text: 'Start ', n: null },
+      { text: 'one fig', n: 0 },
+      { text: 'ure', n: null },
+    ]
+    assert.deepEqual(marksIn(marks, 6, 9), [{ text: 'one', n: 0 }])
+    assert.deepEqual(marksIn(marks, 3, 10), [
+      { text: 'rt ', n: null },
+      { text: 'one ', n: 0 },
+    ])
+    assert.deepEqual(marksIn(marks, 13, 16), [{ text: 'ure', n: null }])
+  })
+})
+
+// Personal's words never outlive the space's privacy boundaries (Codex P1 on #522): the module that reads them as
+// shown holds no store of its own, so locking, erasing or signing out leaves nothing of them here.
+describe('the words as shown, never kept by the module', () => {
+  it('declares no module-wide Map, Set or array that could hold a message', () => {
+    const source = readFileSync(fileURLToPath(new URL('./rich-text.ts', import.meta.url)), 'utf8')
+    const stores = source.match(/^(?:export )?(?:const|let|var) \w+\s*(?::[^=]+)?=\s*new (?:Map|Set|WeakRef)\b/gmu)
+    assert.equal(stores, null)
+    assert.doesNotMatch(source, /^(?:export )?(?:let|var) /mu)
   })
 })

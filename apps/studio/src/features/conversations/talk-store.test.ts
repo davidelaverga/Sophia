@@ -328,6 +328,14 @@ describe('goneFrom and withListed: only a whole list says one is gone', () => {
     assert.deepEqual(goneFrom(settled, ['c2', 'c3', 'c4']), [])
   })
 
+  it('a draft with words counts though never seen listed (read back after a reload); an empty one doesn’t', () => {
+    const k = keptWith({ drafts: { c1: 'kept in the tab', c2: '', c3: 'listed' } })
+    assert.deepEqual(goneFrom(k, ['c3']), ['c1'])
+    const settled = withoutConversation(k, 'c1')
+    assert.equal(settled.drafts.c1, undefined)
+    assert.deepEqual(goneFrom(settled, ['c3']), [])
+  })
+
   it('an erasure held here counts though never seen listed; a start seen listed is never gone while listed', () => {
     const k = withListed(keptWith({ erasures: { c9: { key: 'e9', ask: 'c9', sending: false } } }), ['c1'], true)
     assert.deepEqual(goneFrom(k, ['c1']), ['c9'])
@@ -404,6 +412,54 @@ describe('messages held with no reply, kept in the tab (reliability-held-on-relo
     try {
       forgetKept()
       items.set(TAB_KEY, JSON.stringify({ c1: { key: '', ask: ASK }, c2: { key: 'k2', ask: { text: 3 } } }))
+      assert.equal(keptAt(TAB_PLACE), undefined)
+    } finally {
+      outOfTab()
+    }
+  })
+})
+
+describe('unsent words kept in the tab (drafts-survive-reload.md)', () => {
+  const TAB_PLACE = 'project-tab luis'
+  const TAB_KEY = 'sophia.drafts.v1:["luis","talk","project-tab"]'
+
+  it('keeps each draft with words and its Ask Sophia in the tab, and lets it go once cleared', () => {
+    const items = inTab()
+    try {
+      forgetKept()
+      changeKept(TAB_PLACE, (was) => ({ ...was, drafts: { c1: 'Half a thought', c2: '' }, asks: { c1: false } }))
+      assert.deepEqual(JSON.parse(items.get(TAB_KEY) ?? 'null'), { c1: { text: 'Half a thought', askSophia: false } })
+      changeKept(TAB_PLACE, (was) => ({ ...was, drafts: { c1: '' } }))
+      assert.equal(items.has(TAB_KEY), false)
+    } finally {
+      outOfTab()
+    }
+  })
+
+  it('reads them back after a reload, each in its own conversation', () => {
+    const items = inTab()
+    try {
+      forgetKept()
+      changeKept(TAB_PLACE, (was) => ({ ...was, drafts: { c1: 'Half a thought' }, asks: { c1: false } }))
+      forgetKept()
+      assert.equal(items.has(TAB_KEY), true)
+      const back = keptAt(TAB_PLACE)
+      assert.deepEqual(back?.drafts, { c1: 'Half a thought' })
+      assert.deepEqual(back?.asks, { c1: false })
+      assert.deepEqual(back?.holds, {})
+    } finally {
+      outOfTab()
+    }
+  })
+
+  it('keeps no draft longer than the most, and reads back nothing from an entry that isn’t drafts', () => {
+    const items = inTab()
+    try {
+      forgetKept()
+      changeKept(TAB_PLACE, (was) => ({ ...was, drafts: { c1: 'x'.repeat(10_001) } }))
+      assert.equal(items.has(TAB_KEY), false)
+      forgetKept()
+      items.set(TAB_KEY, JSON.stringify({ c1: { text: 3 }, c2: 'loose' }))
       assert.equal(keptAt(TAB_PLACE), undefined)
     } finally {
       outOfTab()

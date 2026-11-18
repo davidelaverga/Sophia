@@ -243,12 +243,14 @@ test('writes · a message with no reply is offered again after a reload, and Sen
   await send(page).click()
   await expect(open(page)).toContainText('Not confirmed: “Did this one land?”')
   await reopenBriefs(page)
-  // The service holds it (it landed; its reply was lost), and the page says it may not be confirmed.
+  // The service holds it (it landed; its reply was lost), and the page says it may not be confirmed. The field holds
+  // its words, as it did before the reload: they are cleared once the message is in (drafts-survive-reload.md).
   await expect(open(page)).toContainText('Not confirmed: “Did this one land?”')
-  await expect(field(page)).toHaveValue('')
+  await expect(field(page)).toHaveValue('Did this one land?')
   await send(page).click()
   await expect(open(page)).not.toContainText('Not confirmed')
   await expect(messages(page).filter({ hasText: 'Did this one land?' })).toHaveCount(1)
+  await expect(field(page)).toHaveValue('')
   expect(await written(page, 'conversation-message')).toEqual(['conversation-message:Did this one land?:no'])
   const keys = await messageKeys(page)
   expect(keys).toHaveLength(2)
@@ -303,6 +305,33 @@ test('writes · a draft is kept when another conversation is opened and this one
   await expect(field(page)).toHaveValue('')
   await rows(page).nth(1).click()
   await expect(field(page)).toHaveValue('Half a thought')
+})
+
+/** What the tab keeps of the Studio's unsent words (held-in-tab.ts), by its keys. */
+const draftsInTab = (page: Page) =>
+  page.evaluate(() => Object.keys(sessionStorage).filter((k) => k.startsWith('sophia.drafts.v1:')))
+
+test('writes · a draft survives a reload in its own conversation, and is gone once sent (drafts-survive-reload.md)', async ({
+  page,
+}) => {
+  await openBriefs(page)
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await field(page).fill('Half a thought')
+  await reopenBriefs(page)
+  await expect(field(page)).toHaveValue('Half a thought')
+  await expect(open(page).getByRole('checkbox', { name: 'Ask Sophia' })).not.toBeChecked()
+  // Another conversation's composer holds none of it.
+  await rows(page).filter({ hasText: 'What makes a report worth reading?' }).click()
+  await expect(open(page).getByRole('heading', { level: 3 })).toHaveText('What makes a report worth reading?')
+  await expect(field(page)).toHaveValue('')
+  await rows(page).filter({ hasText: 'Short or long briefs?' }).click()
+  await expect(field(page)).toHaveValue('Half a thought')
+  await send(page).click()
+  await expect(messages(page).last()).toContainText('Half a thought')
+  await expect(field(page)).toHaveValue('')
+  await expect.poll(() => draftsInTab(page)).toEqual([])
+  await reopenBriefs(page)
+  await expect(field(page)).toHaveValue('')
 })
 
 test('writes · New conversation: Start waits for both fields; started, it opens at the top; Cancel returns the focus', async ({

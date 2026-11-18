@@ -1,5 +1,33 @@
 # Mission ledger — SOPHIA-INC-2026-11
 
+## Current outcome snapshot — 18 November 2026
+
+**Active; mission incomplete.** This additive snapshot supersedes the historical preparation below. Pinned main is `de7a6ab257a98861bb3790dea65f228014a5d2cd`. [PR519](https://github.com/davidelaverga/Sophia/pull/519) remains OPEN at `90a0af7eb3d4d376e9a0d63c0e05def18ee79b36`; [PR514](https://github.com/davidelaverga/Sophia/pull/514) remains OPEN at `332dc7b0b55cb2c39f4089508e0596d33e237685` (coordinator-supplied current facts). Luis's newer main changes are preserved in this integration. Published-head automatic review and current CI remain separate gates.
+
+| Outcome | Established scope and live gap |
+|---|---|
+| O1 Four owner-native routes | Source foundations only; actual Sophia-initiated retained output, owner account/settings/isolation/recovery qualification remains open. |
+| O2 Other-member API Explore | Contribution/accounting and stock-entry source only; an authorized cross-member artifact and actual funding/account qualification remain open. |
+| O3 Verified repository mission | Source prerequisites only; native output through review, main, authorized deployment and independent app success remains open. |
+| O4 Natural input | Observer and controlled-Personal source only; real founder observations and live routing remain open. |
+| O5 Editable allocation | Advisory source and reviewed private tie correction only; qualified live admission and override remain open. |
+| O6 Voice continuity | Ordinary room UI source is merged; D1 stays disabled and VoiceLab user-suspended. No new voice qualification. |
+| O7 Incremental UI | Approved catalog/recovery source is merged; deployed acceptance remains open. Personal successor `9e938816` still needs candidate-specific owner approval. |
+
+**Delivery roster.** Davide authorized three Codex delivery chats on 17 November using GPT-6.1 Sol with medium reasoning: startup cleanup/integration, native retained-output preflight, and API contribution preflight. The same sole coordinator and independent source reviewer/later app verifier remain. This authoring change preserves the existing Claude candidates, histories, allowances and unresolved effects; it changes no product provider/account/funding authority.
+
+**Source integration.** The independent reviewer accepted prospective core `7131b3986461144866f19dfd6dfe6ac37f93e9bb` and API entry r2 `21e313552467d3d43427953b19284e81153d06f5` for their bounded SOURCE_CORE stages only. The original signed Native W1 commit `9dfeba7f96ece540f904dfe3ac58adb988140148` was normally intaked with its original parent/objects; its signer trust remains unverified. Normal local merge commit `c3c6e1252658abbe21465b9c029cf84a49cd4a9f` preserves exact core7131 and original 90a0/9495/9dfe ancestry. It is a local source/history bridge, not a main merge or release. Pinned main and the API entry delta are now being composed into a distinct, uncommitted candidate; their old checks do not automatically qualify the combined inputs. See [the combined source handoff](../handoffs/INC-COORD-1118-CODEX-COHERENT-MAIN-001.md).
+
+**Other work and gates.** Native N collector code is ongoing; S retention is pre-code and not yet frozen. Neither is silently copied into this candidate. No actual native/API/app qualification has occurred. Historical failures/incomplete runs and unknown effects remain retained; old pass counts and the historical Studio enumeration do not qualify current source. Readiness0109/0110 and the private equivalent-tie correction already exist; do not duplicate them. Default-OFF flags and the verification-scope erratum remain. Personal9e approval, current automatic coverage/CI, Luis integration, applicable UI approval, PRE/GOV and the release-trust amendment remain gates. Source-exposed contexts do not execute credentialed release. No new grants, spend, credentials, provider calls or production configuration effects are authorized by this snapshot.
+
+The frozen November pack and acceptance CSV are unchanged. This ledger changes no acceptance case. All following 9 November history is retained byte-for-byte and is not current product or release acceptance.
+
+---
+
+## Historical 9 November ledger — retained verbatim
+
+# Mission ledger — SOPHIA-INC-2026-11
+
 This is the programme's coordination record, laid out like [the mission ledger template](../execution/2026-11-08-incremental/templates/MISSION_LEDGER.md). It is a **timestamped snapshot**, not a permanently current record.
 
 - **Snapshot time.** Coordinator facts at 2026-11-09T20:38:52Z (INC00-DOC-002-r3-FACTS.json, SHA256 `dabad5bd34a7c97bde45f34303b2a9c3d68ff903683b253cb07870e6d1b7bbb1`), plus read-only GitHub and Git observations by the INC00-DOC-002 author at 2026-11-09T20:42–20:44Z. Updated with the coordinator's security addendum (prompt SHA256 `69dff2cf287abe67e4ddb93f9f64ccf8e705ccd8168d1668f4bad85c997eaae1`, received about 20:58Z) and the independent assessment INC00-RELEASE-TRUST-SECURITY-ASSESSMENT-001 (2026-11-09T20:51:20Z, SHA256 `17665c62…`).

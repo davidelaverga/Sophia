@@ -11,6 +11,7 @@ import {
   inFilter,
   activity,
   expiry,
+  windowName,
   windowView,
   type QuotaObservation,
   type QuotaWindow,
@@ -96,8 +97,8 @@ describe('a resource’s capacity', () => {
   it('heads with an observed balance as reported, and keeps unknown apart from no window (M03-RF-0024)', () => {
     const tokens = window({ window_id: 'daily', unit: 'tokens_remaining', value: 100000, resets_at: null })
     const credits = window({ window_id: 'credits', unit: 'credits_remaining', value: 42, resets_at: null })
-    assert.equal(capacityLine(observation([tokens]), now), 'daily: 100000 tokens left')
-    assert.equal(capacityLine(observation([credits]), now), 'credits: 42 credits left')
+    assert.equal(capacityLine(observation([tokens]), now), 'Daily: 100000 tokens left')
+    assert.equal(capacityLine(observation([credits]), now), 'Credits: 42 credits left')
     assert.equal(
       capacityLine(observation([window({ value: 40 }), tokens]), now),
       '5-hour window: 40% used, resets in 2 h',
@@ -230,5 +231,15 @@ describe('finding a resource among many', () => {
     assert.equal(activity({ ...claude, sessions: sessions.slice(0, 1) }), 'Implement the PDF retry')
     const idle = { ...claude, sessions: sessions.map((s) => ({ ...s, assignment: null })) } as Resource
     assert.equal(activity(idle), '2 sessions, none assigned')
+  })
+})
+
+describe('a window’s name', () => {
+  it('starts upper case, known or not, as every name beside it does', () => {
+    assert.equal(windowName('daily_requests'), 'Daily requests')
+    assert.equal(windowName('five_hour'), '5-hour')
+    assert.equal(windowName('daily_tokens'), 'Daily tokens')
+    assert.equal(windowName('credits'), 'Credits')
+    assert.equal(windowName('weekly_spend_cap'), 'Weekly spend cap')
   })
 })

@@ -20,7 +20,7 @@ import type pg from 'pg'
 import type { OwnerRunnerOperationRequest } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { admitRunnerOperation, readRunnerOperation, readRunnerOperations, withActor } from '@sophia/persistence'
-import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
+import { canonicalId, idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
 
 export type OwnerRunnerAdmissions = 'off' | 'admit'
 
@@ -51,6 +51,23 @@ const operationParams = {
   },
   required: ['projectId', 'operationId'],
 } as const
+
+/**
+ * The request in the one spelling the database reads: A47/A50 declare each id it names `format: uuid` (any case,
+ * optionally `urn:uuid:`), and 0092/0096 read only lowercase, so every spelling of one id names it (review of #513,
+ * P3 6), and the digest and the key see one request. Two spellings of one source become one id, which 0096 refuses as
+ * named twice.
+ */
+function canonicalRequest(request: OwnerRunnerOperationRequest): OwnerRunnerOperationRequest {
+  const { resourceId, goalId, targetOperationId, sourceIds } = request
+  return {
+    ...request,
+    resourceId: canonicalId(resourceId),
+    ...(goalId === undefined ? {} : { goalId: canonicalId(goalId) }),
+    ...(targetOperationId === undefined ? {} : { targetOperationId: canonicalId(targetOperationId) }),
+    ...(sourceIds === undefined ? {} : { sourceIds: sourceIds.map(canonicalId) }),
+  }
+}
 
 /**
  * Whether the whole capability is installed (OWNER_RUNNER_SCHEMA), checked before any admission write or read. Only a
@@ -100,7 +117,7 @@ export function runnerOperationRoutes(
         throw new DomainError('runner_admission_disabled', 'Owner-runner admissions of new work are off')
       await requireInstalled()
       const receipt = await withActor(pool, req.actorId, 'write', (c) =>
-        admitRunnerOperation(c, req.params.projectId, req.headers['idempotency-key'], req.body),
+        admitRunnerOperation(c, req.params.projectId, req.headers['idempotency-key'], canonicalRequest(req.body)),
       )
       return reply.status(202).send(receipt)
     },

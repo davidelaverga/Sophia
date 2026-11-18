@@ -100,3 +100,27 @@ describe('which calls the other tabs of this browser hold (call-tabs.ts)', () =>
     assert.equal(a.calls.held(ROOM), false)
   })
 })
+
+describe('a Leave project in a tab of this browser (removed-and-stopped-said.md)', () => {
+  it('is heard by the other tabs, for that project only, until that leave fails', () => {
+    const b = browser()
+    const a = b.tab()
+    const other = b.tab()
+    a.calls.say('room-a', ROOM, 'in')
+    assert.equal(a.calls.left('project-1'), false)
+    other.calls.leaving('project-1', true)
+    assert.equal(a.calls.left('project-1'), true)
+    assert.equal(a.calls.left('project-2'), false, 'another project is still theirs')
+    other.calls.leaving('project-1', false)
+    assert.equal(a.calls.left('project-1'), false, 'the leave failed: the project is still theirs')
+  })
+
+  it('the tab that leaves knows it too, and a browser with no channel hears none from elsewhere', () => {
+    const b = browser()
+    const a = b.tab()
+    a.calls.leaving('project-1', true)
+    assert.equal(a.calls.left('project-1'), true)
+    const lone = b.tab(false)
+    assert.equal(lone.calls.left('project-1'), false)
+  })
+})

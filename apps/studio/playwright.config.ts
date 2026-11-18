@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test'
+import { tipSeenAt } from './e2e/tip-seen.ts'
 
 // The room's preservation checks (e2e/, LFE-00's BASE cases) in Chromium, against the fixture page (fixtures/room.html):
 // the real Studio components over labelled fixture data, with no API and no call. `@phone` checks run at 390×844 on a
@@ -12,7 +13,12 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   reporter: process.env.CI ? [['list'], ['github']] : 'list',
-  use: { baseURL: fixtures, browserName: 'chromium', trace: 'retain-on-failure' },
+  use: {
+    baseURL: fixtures,
+    browserName: 'chromium',
+    trace: 'retain-on-failure',
+    storageState: tipSeenAt(fixtures, 'http://127.0.0.1:5198'),
+  },
   projects: [
     { name: 'desktop', grepInvert: /@phone/, use: { viewport: { width: 1280, height: 800 } } },
     {

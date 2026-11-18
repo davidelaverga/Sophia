@@ -61,6 +61,35 @@ test('library · the press over a designed cover opens the designed page; the ti
   expect(await page.locator('iframe.report-html-frame').getAttribute('srcdoc')).toBe(DESIGNED.text)
 })
 
+// Until a designed page paints, its frame's own background shows: the theme's raised surface, never a white flash in
+// the room; on paper, white as before. The page keeps its own (docs/plans/cover-frame-theme.md).
+for (const [theme, query, waiting] of [
+  ['room', '', 'rgb(18, 17, 24)'],
+  ['paper', '&theme=light', 'rgb(255, 255, 255)'],
+] as const) {
+  test(`library · in the ${theme}, a designed page’s cover and full frames wait in the theme’s surface`, async ({
+    page,
+  }) => {
+    await page.goto(`/room.html?place=knowledge&designed=on${query}`)
+    const card = tile(page, 'Fixture report')
+    const cover = card.locator('.report-cover iframe')
+    await expect(cover).toBeAttached()
+    await expect(cover).toHaveCSS('background-color', waiting)
+    await expect(page.frameLocator('.report-cover iframe').locator('body')).toHaveCSS(
+      'background-color',
+      'rgb(251, 247, 239)',
+    )
+    await card.getByRole('button', { name: 'Open Fixture report, HTML page' }).click()
+    const full = page.locator('iframe.report-html-frame')
+    await expect(full).toBeAttached()
+    await expect(full).toHaveCSS('background-color', waiting)
+    await expect(page.frameLocator('iframe.report-html-frame').locator('body')).toHaveCSS(
+      'background-color',
+      'rgb(251, 247, 239)',
+    )
+  })
+}
+
 test('library · a Markdown report’s cover is its first lines as text, without citation ids; pressing it opens the report', async ({
   page,
 }) => {

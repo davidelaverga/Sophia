@@ -2,6 +2,7 @@
 // unit-tested; livekit-room.ts reads the reason from LiveKit and useProjectRoom shows the note.
 
 import { STALE_PART } from './part-gone.ts'
+import { HOST_STOPPED_SCREEN } from './room-view.ts'
 
 /**
  * - dropped: the connection was lost (a network failure, the server going away).
@@ -97,9 +98,19 @@ export function keptNote(next: string | null, at: { online: boolean; lost: boole
 
 /**
  * The connection's lines, said politely: the three offline ones, a dropped call coming back on its own, and a part of
- * the call gone after a deploy, which the notice at the top has already said (stale-part-call.md).
+ * the call gone after a deploy, which the notice at the top has already said (stale-part-call.md). A screen an admin
+ * stopped is news, not a failure, and is said politely too (removed-and-stopped-said.md).
  */
-const POLITE = new Set([OFFLINE_END, BACK_ONLINE, OFFLINE_JOIN, REJOINING, OFFLINE_REJOIN, REJOINED, STALE_PART])
+const POLITE = new Set([
+  OFFLINE_END,
+  BACK_ONLINE,
+  OFFLINE_JOIN,
+  REJOINING,
+  OFFLINE_REJOIN,
+  REJOINED,
+  STALE_PART,
+  HOST_STOPPED_SCREEN,
+])
 
 /** How the dock says its note: the connection's lines politely, as Personal's line; a failure, at once. */
 export const noteRole = (note: string): 'status' | 'alert' => (POLITE.has(note) ? 'status' : 'alert')

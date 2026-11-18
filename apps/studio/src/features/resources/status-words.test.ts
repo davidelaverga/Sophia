@@ -329,7 +329,7 @@ describe('a used-up count waits like a used-up window, whatever window is beside
     more: 'Code changes: not verified for this connection yet',
   }
   const CREDITS_OUT = { tone: 'wait', line: 'Waiting for capacity: Daily requests window', more: 'resets in 9 h' }
-  const TOKENS_OUT = { tone: 'wait', line: 'Waiting for capacity: daily tokens window', more: null }
+  const TOKENS_OUT = { tone: 'wait', line: 'Waiting for capacity: Daily tokens window', more: null }
 
   it('waits for credits or tokens at zero, alone, with the window’s own name and reset', () => {
     assert.deepEqual(summary([credits(0)]), CREDITS_OUT)
@@ -409,7 +409,7 @@ describe('a reset that isn’t an instant is an unknown reset, never a made-up t
     ['percent', (resets_at) => percentAt(100, { resets_at }), 'Waiting for capacity: 5-hour window'],
     ['spend percent', (resets_at) => spend(120, { resets_at }), 'Waiting for capacity: Spend limit window'],
     ['credits', (resets_at) => credits(0, { resets_at }), 'Waiting for capacity: Daily requests window'],
-    ['tokens', (resets_at) => tokens(0, { resets_at }), 'Waiting for capacity: daily tokens window'],
+    ['tokens', (resets_at) => tokens(0, { resets_at }), 'Waiting for capacity: Daily tokens window'],
   ]
 
   it('keeps a used-up window waiting, its reset unsaid, for every unit and every malformed time', () => {
@@ -461,7 +461,7 @@ describe('a reset that isn’t an instant is an unknown reset, never a made-up t
     assert.deepEqual(summary([unknownCredits, percentAt(100)]).line, 'Waiting for capacity: Daily requests window')
     // Two unknown resets, one malformed and one null: neither is later; the reading's order decides.
     assert.equal(summary([unknownCredits, tokens(0)]).line, 'Waiting for capacity: Daily requests window')
-    assert.equal(summary([tokens(0), unknownCredits]).line, 'Waiting for capacity: daily tokens window')
+    assert.equal(summary([tokens(0), unknownCredits]).line, 'Waiting for capacity: Daily tokens window')
     // A valid later reset still outranks a valid earlier one.
     assert.equal(summary([percentAt(100), credits(0)]).more, 'resets in 9 h')
   })
@@ -575,6 +575,23 @@ const q = (state: sw.CatalogQualification['state'], operations: sw.CatalogQualif
   expiresAt: null,
 })
 
+/** The owner's facts with this connection, no host and no qualification. */
+const noQualification = { state: 'none' as const, operations: [], qualifiedAt: null, expiresAt: null }
+const ownFacts = (connection: Parameters<typeof sw.connectionSaid>[0]) => ({
+  connection,
+  host: null,
+  qualification: noQualification,
+})
+/** A catalog resource's facts, in a state, with the owner's connection (linked by default). */
+const inState = (
+  state: 'active' | 'needs_connection' | 'revoked',
+  connection = ownFacts({ state: 'linked', expired: false }),
+) => ({
+  state,
+  observedAt: '2026-11-12T14:00:00Z',
+  mine: connection,
+})
+
 describe('the catalog’s words', () => {
   it('offers no control where controls aren’t reported, and says none is unsupported', () => {
     assert.deepEqual(controlGroups(null), [])
@@ -585,13 +602,13 @@ describe('the catalog’s words', () => {
 
   it('says a host as recorded, its age from the server’s count before its reading, never online or fresh', () => {
     assert.deepEqual(sw.catalogHostLines(host()), [
-      'Host bound (recorded) · last seen 4 min before this reading',
-      'Handshake recorded',
+      'Linked to your computer (recorded) · last seen 4 min before this reading',
+      'Connected once',
     ])
     assert.deepEqual(
       sw.catalogHostLines(host({ state: 'active', helloOk: false, helloConflict: true, secondsSinceSeen: null })),
       [
-        'Host active (recorded) · last seen time not recorded in a usable form',
+        'Your computer is connected (recorded) · last seen time not recorded in a usable form',
         'No handshake recorded',
         'A conflict is recorded',
       ],
@@ -623,6 +640,7 @@ describe('the catalog’s words', () => {
       'Recorded qualification: current for create, input and stop. Recorded evidence, not a promise that a control works.',
     )
     assert.equal(sw.qualificationSaid(q('expired', ['stop'])), 'Recorded qualification: expired')
+    assert.equal(sw.qualificationSaid(q('stale', ['stop'])), 'Qualification: needs checking again')
     assert.equal(sw.qualificationSaid(q('not_applicable', ['stop'])), 'Recorded qualification: doesn’t apply now')
     assert.doesNotMatch(sw.qualificationSaid(q('current', ['stop'])) ?? '', /supported|verified|ready/i)
   })
@@ -636,11 +654,31 @@ describe('the catalog’s words', () => {
       qualification: { state: 'none' as const, operations: [], qualifiedAt: null, expiresAt: null },
     }
     assert.equal(sw.catalogHostShort({ ...facts, mine }), 'No host')
-    assert.equal(sw.catalogHostShort({ ...facts, mine: { ...mine, host: host({ state: 'active' }) } }), 'Host recorded')
+    assert.equal(sw.catalogHostShort({ ...facts, mine: { ...mine, host: host({ state: 'active' }) } }), 'Your computer')
     assert.equal(sw.catalogState(facts), 'Needs a connection')
     assert.equal(sw.catalogState({ ...facts, state: 'active' }), null)
     assert.equal(sw.catalogState({ ...facts, state: 'revoked' }), 'Revoked')
     assert.equal(sw.CATALOG_PRIVATE, 'Its host and connection details are private to its owner.')
+  })
+
+  it('says how a tool is enrolled under a connection it needs or that expired, and nowhere else', () => {
+    assert.equal(sw.catalogEnrollment(inState('needs_connection')), sw.CATALOG_ENROLLMENT)
+    assert.equal(sw.catalogEnrollment({ ...inState('needs_connection'), mine: null }), sw.CATALOG_ENROLLMENT)
+    assert.equal(
+      sw.catalogEnrollment(inState('active', ownFacts({ state: 'linked', expired: true }))),
+      sw.CATALOG_ENROLLMENT,
+    )
+    assert.equal(
+      sw.catalogEnrollment(inState('active', ownFacts({ state: 'expired', expired: false }))),
+      sw.CATALOG_ENROLLMENT,
+    )
+    assert.equal(
+      sw.catalogEnrollment(inState('needs_connection', ownFacts({ state: 'linked', expired: true }))),
+      sw.CATALOG_ENROLLMENT,
+    )
+    assert.equal(sw.catalogEnrollment(inState('active')), null)
+    assert.equal(sw.catalogEnrollment(inState('active', ownFacts(null))), null)
+    assert.equal(sw.catalogEnrollment(inState('revoked', ownFacts({ state: 'revoked', expired: false }))), null)
   })
 
   it('says the catalog’s limits as limits (UX iteration 001): never ready, online, signed in, none or zero', () => {

@@ -2252,3 +2252,8 @@
 .resource-tile[data-catalog='private'] .resource-tile-host {
   color: var(--text-3);
 }
+/* The catalog's host label is plain words («Your computer»), set as written: capitals would make it a code again. */
+.resource-tile[data-catalog] .resource-tile-host {
+  letter-spacing: normal;
+  text-transform: none;
+}

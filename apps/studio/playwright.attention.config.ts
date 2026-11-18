@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test'
+import { tipSeenAt } from './e2e/tip-seen.ts'
 
 // The attention flag on the app's fixture page (e2e-attention/): the Studio app built with VITE_SOPHIA_ATTENTION=1 and
 // no vision flag on 5198, and with neither flag on 5199 (vite.attention.config.ts), its API answered in the page by
@@ -11,7 +12,13 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   reporter: process.env.CI ? [['list'], ['github']] : 'list',
-  use: { baseURL: served, browserName: 'chromium', trace: 'retain-on-failure', viewport: { width: 1280, height: 800 } },
+  use: {
+    baseURL: served,
+    browserName: 'chromium',
+    trace: 'retain-on-failure',
+    viewport: { width: 1280, height: 800 },
+    storageState: tipSeenAt(served),
+  },
   webServer: [
     {
       command: 'pnpm exec vite --config vite.attention.config.ts',

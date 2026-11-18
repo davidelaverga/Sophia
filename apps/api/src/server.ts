@@ -1,6 +1,7 @@
 // Entry point: `node src/server.ts` (Node 24 strips types; no build step).
 import { checkRoleSafety, createPool } from '@sophia/persistence'
 import { buildApp } from './app.ts'
+import { apiContributionsFromEnv } from './api-contribution-config.ts'
 import { createActorVerifier } from './auth.ts'
 import { personalCompanionFrom } from './companion-config.ts'
 import { parseOrigins } from './cors.ts'
@@ -17,6 +18,7 @@ function required(name: string): string {
   return v
 }
 
+const apiContributions = apiContributionsFromEnv(process.env.SOPHIA_API_CONTRIBUTIONS)
 const pool = createPool(required('SOPHIA_API_DATABASE_URL'), { connectionTimeoutMillis: RENDER_BODY_MS })
 await checkRoleSafety(pool) // refuse to start as an owner, superuser or BYPASSRLS login
 
@@ -113,6 +115,8 @@ const app = buildApp({
   voiceQualification: voiceQualificationFromEnv(),
   ownerRunnerAdmissions: ownerRunnerAdmissionsFromEnv(),
   boundOutput: boundOutputFromEnv(),
+  // A48 metadata, contribution controls and funding pins only; unset/off preserves the closed stock boundary.
+  apiContributions,
   ...(mediaBridgeTokenSha256 ? { mediaBridgeTokenSha256 } : {}),
   ...(livekitUrl
     ? { livekit: { url: livekitUrl, apiKey: required('LIVEKIT_API_KEY'), apiSecret: required('LIVEKIT_API_SECRET') } }

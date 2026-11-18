@@ -51,15 +51,20 @@ function wordsIn(node: Inline): string {
 }
 
 /**
- * The section index: the report's top headings, whatever level they are written at. A single heading at the top level
- * is the report's title: it is named, with the sections at the next level under it.
+ * The levels a report's index reads (its headings' levels, in reading order): the top one, and its sections'. A single
+ * heading at the top level is the report's title, with the sections at the next level under it; else the top level is
+ * the sections. The stage's Sections and the Document tab's On this page (page-index.ts) read the same.
  */
-export function sectionIndex(blocks: readonly Block[]): IndexEntry[] {
-  const headings = blocks.flatMap((b) => (b.kind === 'heading' && b.anchor ? [b] : []))
-  const levels = headings.map((h) => h.level)
+export function indexLevels(levels: readonly number[]): { top: number; sections: number } {
   const top = Math.min(...levels)
   const titled = levels.filter((l) => l === top).length === 1
-  const sections = titled ? Math.min(...levels.filter((l) => l > top)) : top
+  return { top, sections: titled ? Math.min(...levels.filter((l) => l > top)) : top }
+}
+
+/** The section index: the report's top headings, whatever level they are written at, its title named (indexLevels). */
+export function sectionIndex(blocks: readonly Block[]): IndexEntry[] {
+  const headings = blocks.flatMap((b) => (b.kind === 'heading' && b.anchor ? [b] : []))
+  const { top, sections } = indexLevels(headings.map((h) => h.level))
   const keys = headingKeys(headings.map((h) => h.anchor))
   return headings.flatMap((h, i) => {
     const key = keys[i]

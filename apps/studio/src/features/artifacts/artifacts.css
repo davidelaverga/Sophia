@@ -293,11 +293,84 @@
   margin-inline: auto;
 }
 /* The Document tab keeps the one reading measure on the full page: its text, and the lines above it on its edge. */
-.report-pane[data-size='full'] .report-pane-body > :is(.md, .report-limits, .report-format-note) {
+.report-pane[data-size='full'] .report-pane-body > :is(.md, .report-limits, .report-format-note, .md-toc) {
   max-width: var(--measure);
 }
 .report-pane .report-status {
   padding: 0 16px 8px;
+}
+/* A long report's «On this page» (docs/plans/report-on-this-page.md): folded under its button above the text, in the
+   pane's one measure; enlarged with room beside the column, the list stands in the margin instead (below). */
+.report-pane-body > .md-toc {
+  max-width: var(--measure);
+  margin-bottom: 16px;
+}
+.md-toc-toggle {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  color: var(--text-2);
+  text-decoration: none;
+}
+.md-toc-toggle svg {
+  transition: transform var(--fast) var(--ease);
+}
+.md-toc[data-open] .md-toc-toggle svg {
+  transform: rotate(180deg);
+}
+.md-toc ol {
+  display: none;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.md-toc[data-open] ol {
+  display: grid;
+  gap: 2px;
+}
+.md-toc a {
+  display: block;
+  padding: 3px 0 3px 10px;
+  border-left: 2px solid var(--line-3);
+  color: var(--text-2);
+  text-decoration: none;
+  text-wrap: pretty;
+}
+.md-toc a:hover {
+  color: var(--text);
+}
+.md-toc a[aria-current='location'] {
+  border-left-color: var(--text);
+  color: var(--text);
+}
+/* Enlarged with a margin for it: the list is sticky at the top of the reading area, left of the measure, and takes
+   no height, so the column keeps its place and its centre. Gated in rem, as the measure is: 72rem leaves 17.5rem a side
+   beside the 34rem column, room for the 12.5rem list and its 40 px gap at any default font size. */
+@media (min-width: 72rem) {
+  .report-pane[data-size='full'] .report-pane-body > .md-toc {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    height: 0;
+    max-width: none;
+    margin: 0;
+  }
+  .report-pane[data-size='full'] .md-toc-toggle {
+    display: none;
+  }
+  .report-pane[data-size='full'] .md-toc ol {
+    position: absolute;
+    top: 4px;
+    right: calc(50% + var(--measure) / 2 + 40px);
+    display: grid;
+    gap: 2px;
+    width: min(12.5rem, calc(50% - var(--measure) / 2 - 48px));
+    max-height: calc(100dvh - var(--topbar) - 120px);
+    margin: 0;
+    overflow-y: auto;
+  }
 }
 /* The PDF asked for is missing: one line above the Markdown shown in its place. */
 .report-format-note {
@@ -808,12 +881,14 @@
   position: absolute;
   inset: 0;
 }
-/* The page laid out three times wider than the cover, then drawn at a third: its first screen, as a desktop sees it. */
+/* The page laid out three times wider than the cover, then drawn at a third: its first screen, as a desktop sees it.
+   Until it paints, the raised surface, not a white flash in the room; once painted, the page's own ground, or paper
+   where it sets none (docs/plans/cover-frame-theme.md). */
 .report-cover-frame {
   width: 300%;
   height: 300%;
   border: 0;
-  background: #fff;
+  background: var(--surface-raised);
   transform: scale(calc(1 / 3));
   transform-origin: 0 0;
   pointer-events: none;
@@ -1221,7 +1296,8 @@
   min-height: 70vh;
   border: 1px solid var(--line-2);
   border-radius: var(--r-3);
-  background: #fff;
+  /* As the cover's frame: the raised surface until the page paints. */
+  background: var(--surface-raised);
 }
 
 /* The PDF (PdfView): the toolbar above the pages, the pages on the void, the rail beside them in the full page. */

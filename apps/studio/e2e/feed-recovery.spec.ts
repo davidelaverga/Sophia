@@ -117,6 +117,32 @@ test('feed · the stream goes silent, no ping either: given up after 25 s, then 
   expect(took).toBeLessThanOrEqual(28_000)
 })
 
+/** The pill's help as a pointer that just came onto it reads it: its title, said when the pointer arrives. */
+async function helpOnHover(page: Page): Promise<string | null> {
+  await page.mouse.move(0, 0)
+  await pill(page).hover()
+  return pill(page).getAttribute('title')
+}
+
+test('feed · Up to date says when it last heard from the project: checked seconds ago, from the last bytes', async ({
+  page,
+}) => {
+  test.setTimeout(45_000)
+  await open(page)
+  // Live: the stream's pings come every 5 s here, so the last read is a few seconds old at most.
+  expect(await helpOnHover(page)).toMatch(/^Up to date · checked (just now|[1-5] s ago)$/)
+  // Silent (no ping either): the pill still says Up to date for 25 s, and its help says how long nothing came.
+  await page.evaluate(() => window.fixture?.stallStream())
+  await page.waitForTimeout(8000)
+  await expect(pill(page)).toHaveAttribute('data-state', 'live')
+  await expect(pill(page)).toHaveText('Up to date')
+  const help = await helpOnHover(page)
+  expect(help, 'the help counts the seconds since the last bytes').toMatch(/^Up to date · checked \d+ s ago$/)
+  const seconds = Number(/(\d+) s ago$/.exec(help ?? '')?.[1])
+  expect(seconds).toBeGreaterThanOrEqual(8)
+  expect(seconds).toBeLessThanOrEqual(14)
+})
+
 test('feed · a sequence is skipped: Catching up, then Up to date, with the message from the snapshot', async ({
   page,
 }) => {

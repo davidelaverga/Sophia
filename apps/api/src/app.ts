@@ -154,9 +154,10 @@ export interface AppDeps {
   ownerRunnerAdmissions?: OwnerRunnerAdmissions
   /**
    * Member API contributions (A48, migration 0094): the owner's account and connection metadata, selected-project grants,
-   * admin narrowing, a member's funding pin and task funding. Off unless set: server.ts does not set it, so only a test
-   * (or a later, separately approved activation) mounts the boundary. Off does not turn off what is always served: the
-   * research admission and the runtime's paid reservation, which /ready and their own guard require 0105 for anyway.
+   * admin narrowing, a member's funding pin and task funding. Stock server.ts leaves it off with
+   * SOPHIA_API_CONTRIBUTIONS unset/off; explicit on exposes the boundary, without funding, custody or qualification.
+   * Off does not turn off the always-served research admission and runtime paid reservation, which /ready and their
+   * own guard require 0105 for anyway.
    */
   apiContributions?: boolean
   /**

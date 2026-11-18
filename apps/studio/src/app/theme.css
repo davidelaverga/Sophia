@@ -1453,6 +1453,22 @@ button.mark:hover {
 .view-nav a[aria-current='page'] {
   color: var(--text);
 }
+/* What waits on you there (needs-you-in-project.md): a small number, amber on its tint as .chip.amber and the board's
+   «for you». The tint is laid on the void as a solid: over the bar's see-through ground, content scrolled under it took
+   the number on paper to 3:1. */
+.view-count {
+  display: grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  padding: 0 4px;
+  border-radius: var(--r-1);
+  background: color-mix(in srgb, var(--amber) 10%, var(--void));
+  color: var(--amber);
+  font: 500 var(--type-label) / 1 var(--mono);
+  font-variant-numeric: tabular-nums;
+}
 /* The current view's line sits on the bar's own border. */
 .view-nav::after {
   content: '';
@@ -3169,6 +3185,11 @@ button.contribution-quote:hover {
     padding: 0;
     border-radius: var(--r-3);
   }
+  /* The row of seven keeps: picture in picture isn't offered on a phone, where Document Picture-in-Picture doesn't
+     exist and leaving the app is the phone's own (call-picture-in-picture.md). */
+  .dock .round.dock-pip {
+    display: none;
+  }
   .dock .dock-icon {
     position: relative;
     display: grid;
@@ -3879,6 +3900,19 @@ button.contribution-quote:hover {
 .tile-floor {
   color: var(--warm);
 }
+/* A raised hand in the tile's chip (raise-hand.md): after the name and its marks, warm, never cut with the name. */
+.tile-hand {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  color: var(--warm);
+  white-space: nowrap;
+}
+.presence[data-hand] .role {
+  color: var(--warm);
+}
 .video {
   position: absolute;
   inset: 0;
@@ -3925,7 +3959,8 @@ button.contribution-quote:hover {
    mute's corner mark on a phone's strip (muted-on-tiles.md) is one of them. */
 .tile-name,
 .tile-muted-corner,
-.screen-main figcaption {
+.screen-main figcaption,
+.pip-call figcaption {
   --text: #ecebf1;
   --text-2: rgb(236 235 241 / 0.66);
   --warm: #f1dcc7;
@@ -3933,6 +3968,29 @@ button.contribution-quote:hover {
   --halo-text-rgb: 185 168 255;
   background: rgb(0 0 0 / 0.62);
   color: var(--text);
+}
+
+/* Keep the call in view's small window (docs/plans/call-picture-in-picture.md): the stage's one view, whole on black,
+   its caption the stage's dark chip (above). */
+.pip-body {
+  margin: 0;
+  background: #000;
+}
+.pip-call {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  background: #000;
+}
+.pip-call figcaption {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 2px 7px;
+  border-radius: var(--r-1);
+  font-size: 12px;
 }
 
 /* The room from other views: in the header's end cluster on a wide screen (docs/plans/dock-header.md), a small
@@ -4089,6 +4147,32 @@ button.contribution-quote:hover {
    keeps it and the line stays out of its way. */
 .shell:has(.lobby) .arrival-band {
   display: none;
+}
+/* The keys' tip (keys-tip.md): one line in the bottom-left corner, clear of the floor band where the room's dock and
+   the composers sit, until dismissed; never shown while its box meets a control (KeysTip measures it unseen). */
+.keys-tip {
+  position: fixed;
+  left: var(--gutter);
+  bottom: calc(var(--floor) + var(--dock-h, 48px) + 16px);
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 2 * var(--gutter));
+  padding: 5px 5px 5px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-4);
+  background: var(--plane-2);
+  box-shadow: var(--elev-welcome);
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.keys-tip p {
+  margin: 0;
+}
+.keys-tip-measure {
+  visibility: hidden;
+  pointer-events: none;
 }
 .wait-note {
   position: fixed;
@@ -4316,6 +4400,10 @@ button.contribution-quote:hover {
   padding-bottom: 6px;
   color: var(--text-3);
   font-size: 12px;
+}
+/* Blocked notifications' line: its live region waits empty, taking no room (dictation-and-notify-said.md). */
+.lobby-said:empty {
+  padding-bottom: 0;
 }
 /* One offer to hear of the next knock in another tab (docs/plans/knock-alert.md). */
 .lobby-notify {
@@ -5416,6 +5504,17 @@ button.contribution-quote:hover {
   .tile-strip .tile-muted svg {
     display: none;
   }
+  /* A fifth of a phone: the raised hand alone, its words for a screen reader. */
+  .tile-strip .tile-hand {
+    margin-left: 4px;
+  }
+  .tile-strip .tile-hand-words {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
   .tile-strip .tile-muted-corner {
     position: absolute;
     top: 1px;
@@ -5483,7 +5582,8 @@ button.contribution-quote:hover {
   }
   /* Who holds the floor keeps their role under their name: the phone's dock leaves saying it to the room
      (docs/plans/phone-dock.md, docs/plans/room-phone-floor.md). */
-  .presence[data-floor] .role {
+  .presence[data-floor] .role,
+  .presence[data-hand] .role {
     display: block;
   }
   .dock {
@@ -7759,7 +7859,8 @@ button.contribution-quote:hover {
   color: var(--text-3);
   font-size: var(--type-small);
 }
-.in-project-people .form-error {
+.in-project-people .form-error,
+.in-project-people .sheet-status {
   grid-column: 1 / -1;
   margin: 0;
 }

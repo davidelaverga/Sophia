@@ -165,6 +165,9 @@ async function call(app: FastifyInstance, [method, url]: Request, as: string, bo
   }
 }
 
+/** A refusal's status, code and retry disposition. */
+const refusalOf = ({ status, json }: Awaited<ReturnType<typeof call>>) => [status, json?.code, json?.retry]
+
 async function epochOf(person: string): Promise<number> {
   const [row] = await owner<{ epoch: string }>('SELECT epoch FROM sophia.personal_spaces WHERE owner_id=$1', [person])
   return Number(row?.epoch ?? 0)
@@ -639,10 +642,11 @@ describe('A2 the Answer HTTP surface (A53)', () => {
       { answerContract: 'personal_answer_v1', text: 'x', interactionContract: 'automatic_v1' },
     ])
       assert.equal((await call(app, ['POST', url], person, body)).status, 422, JSON.stringify(body))
-    // Someone the companion does not answer live: 503, nothing kept, nothing of the enrolled owner said.
+    // Someone the companion does not answer live: 503, nothing kept, nothing of the enrolled owner said, and never worth
+    // asking again (review of #513, P3 7): they will not become the one person it answers.
     const stranger = randomUUID()
     const refused = await call(app, ['POST', url], stranger, { answerContract: 'personal_answer_v1', text: 'Hi' })
-    assert.equal(refused.status, 503)
+    assert.deepEqual(refusalOf(refused), [503, 'unavailable', 'never'])
     assert.ok(!refused.body.includes(person) && !refused.body.includes(payer))
     assert.equal((await owner('SELECT 1 FROM sophia.personal_inputs WHERE owner_id=$1', [stranger])).length, 0)
 
@@ -662,6 +666,9 @@ describe('A2 the Answer HTTP surface (A53)', () => {
       (await call(app, ['POST', url], person, { answerContract: 'personal_answer_v1', text: 'Later' }, 'k-wait')).body,
       waiting.body,
     )
+    // A stranger's retry of it is refused the same way, and decides nothing.
+    const strangers = await call(app, ['POST', `${url}/${w.inputId}/retry`], stranger, { expectedSeq: 1 })
+    assert.deepEqual(refusalOf(strangers), [503, 'unavailable', 'never'])
     const cancelled = await call(app, ['POST', url], person, {
       answerContract: 'personal_answer_v1',
       text: 'Never mind',
