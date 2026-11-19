@@ -2,9 +2,16 @@
 // frame. The frame is sandboxed with no permission at all (no scripts, no same origin, no forms, no popups, no top
 // navigation), so the page cannot run, reach Studio's DOM, cookies or storage, or send anything; its own Content
 // Security Policy, written by the compiler, refuses every load besides. It is never parsed into Studio's DOM and never
-// passes through MarkdownView. Above it, in Studio's words, how it was reviewed and what it says it could not do.
-import type { ReactNode } from 'react'
+// passes through MarkdownView. Above it, in Studio's words, how it was reviewed and what it says it could not do. Its
+// links to its own fragments (an inline citation's to its source entry) are framed to stay in the page; a page whose
+// links can't be kept so is not framed, and the reader is offered the version's other formats (in-page-links.ts). Nor
+// is one whose citations would move within its frame where the browser can't step Close past those moves
+// (own-history.ts).
+import { useMemo, type ReactNode } from 'react'
 import type { ArtifactRendition } from '@sophia/contracts'
+import { framed } from './in-page-links.ts'
+import { ownHistory } from './own-history.ts'
+import type { ViewerFormat } from './report-link.ts'
 
 /** What a designed page's review state means to a reader, in one sentence. */
 export function reviewWords(state: ArtifactRendition['reviewState']): string {
@@ -33,10 +40,49 @@ interface Props {
   full: boolean
   /** Beside the review's sentence: «Revise with Sophia…», for those who may ask (ReviseSections). */
   revise?: ReactNode
+  /** The version's other formats, offered when the page can't be shown here. */
+  others: readonly ViewerFormat[]
+  onFormat: (format: ViewerFormat) => void
 }
 
-export function HtmlView({ html, title, rendition, full, revise }: Props) {
+const READ_AS: Record<ViewerFormat, string> = { markdown: 'Read as Markdown', pdf: 'Read as PDF', html: 'Read as HTML' }
+
+/** Why a designed page isn't framed, in the reader's words. */
+const NOT_SHOWN = {
+  // Its citations link within it in a way the viewer can't keep in the frame without changing how the page looks, and
+  // framed as it is a click on one would empty the frame.
+  links:
+    'This designed page isn’t shown here: its citations link within the page in a way this viewer can’t follow without changing how the page looks.',
+  // Its citations would move within the frame, and this browser has no way to step Close past those moves.
+  history:
+    'This designed page isn’t shown in this browser: here, following one of its citations would keep Close from closing the report.',
+} as const
+
+/**
+ * A designed page that can't be shown here (NOT_SHOWN). Never framed; the reader is sent to the version's other
+ * formats, and Download keeps the page as it was checked.
+ */
+function NotShown({ why, others, onFormat }: Pick<Props, 'others' | 'onFormat'> & { why: keyof typeof NOT_SHOWN }) {
+  return (
+    <div className="report-html-refused" role="note">
+      <p>{NOT_SHOWN[why]} Download keeps the page as it is.</p>
+      <p>
+        {others.map((format) => (
+          <button key={format} type="button" className="text-button" onClick={() => onFormat(format)}>
+            {READ_AS[format]}
+          </button>
+        ))}
+      </p>
+    </div>
+  )
+}
+
+export function HtmlView({ html, title, rendition, full, revise, others, onFormat }: Props) {
   const limits = rendition.limitations ?? []
+  const page = useMemo(() => framed(html), [html])
+  if (page === null) return <NotShown why="links" others={others} onFormat={onFormat} />
+  // Its links kept in it, a click on one is a move of the frame's, an entry in the tab's history (own-history.ts).
+  if (page !== html && !ownHistory()) return <NotShown why="history" others={others} onFormat={onFormat} />
   return (
     <div className="report-html" data-full={full || undefined}>
       <div className="report-html-head">
@@ -60,7 +106,7 @@ export function HtmlView({ html, title, rendition, full, revise }: Props) {
         title={`${title}, designed page`}
         sandbox=""
         referrerPolicy="no-referrer"
-        srcDoc={html}
+        srcDoc={page}
       />
     </div>
   )
