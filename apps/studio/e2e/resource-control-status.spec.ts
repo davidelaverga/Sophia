@@ -89,6 +89,7 @@ test('stop · by keys alone: requested is said, never stopped, until its runtime
   await page.keyboard.press('Enter')
   const status = sheet.locator('.session-acts [role="status"]')
   await expect(status).toContainText('Stop requested; waiting for the runtime to confirm.')
+  // Fixed wait kept: negative check: past every receipt the fixture gives, Stopped is never reached
   await page.waitForTimeout(3500) // past every receipt the fixture gives without a settlement
   await expect(status.locator('p')).not.toContainText('Stopped') // the words; its third step's label stays unreached
   await expect(status.locator('li[data-reached]')).toHaveText(['Recorded', 'Delivered']) // not the third, Stopped
@@ -217,6 +218,7 @@ test('r3 · R3-02 · a Hold on its way: requested, never Held or Resume, and no 
   await expect(reviewer.locator('.resource-work .chip')).toHaveText('Hold requested')
   await expect(reviewer.locator('.work-control')).toContainText('Waiting for the runtime to confirm.')
   await expect(reviewer.getByRole('button', { name: 'Hold', exact: true })).toHaveCount(0) // no repeat gesture
+  // Fixed wait kept: negative check: past every receipt the fixture gives, Held is never reached
   await page.waitForTimeout(3500) // past every receipt the fixture gives without a settlement
   await expect(reviewer.locator('.resource-work .chip')).toHaveText('Hold requested')
   await expect(reviewer).not.toContainText(/\bHeld\b|Resume/)

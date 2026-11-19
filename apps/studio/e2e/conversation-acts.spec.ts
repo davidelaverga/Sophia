@@ -112,6 +112,7 @@ test('acts · two presses overlapping: each write starts in its press, the lates
   // The second write does not wait behind the first: it goes through and is said.
   await expect(first.getByRole('status')).toHaveText('Copied')
   await page.evaluate(() => window.settleFirstCopy?.())
+  // Fixed wait kept: negative check: the first copy refused late says nothing; its settling has no marker
   await page.waitForTimeout(150)
   // The first, refused late, says nothing.
   await expect(first.getByRole('status')).toHaveText('Copied')

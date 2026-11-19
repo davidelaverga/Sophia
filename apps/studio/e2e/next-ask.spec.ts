@@ -147,6 +147,7 @@ test('next ask · older asks unread, the quick asks wait; read again with the th
   // The page before the loaded one unread: what was asked there is not known, so no quick ask is offered.
   await expect(quick(page)).toHaveCount(0)
   // The older read given up for good: its own retry (one, a second on) spent, and the read on its error done.
+  // Fixed wait kept: negative check: the older read’s one retry (a second on) is spent and still no quick ask is offered
   await page.waitForTimeout(2500)
   await expect(quick(page)).toHaveCount(0)
   await page.evaluate(() => window.fixture?.failOlderMessages(false))

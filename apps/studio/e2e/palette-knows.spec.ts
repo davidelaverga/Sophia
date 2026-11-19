@@ -79,6 +79,7 @@ test('palette · an answer refused after the decisions closed is offered again u
   // Closed while the answer is on its way: no decision is left mounted to follow it as it settles.
   await page.locator('.board .decision-pill').first().click()
   await expect(page.locator('.board [data-decision]')).toHaveCount(0)
+  // Fixed wait kept: the answer on its way settles by a fixture timer with no marker; the palette is opened after
   await page.waitForTimeout(800)
   await openPalette(page)
   await expect(

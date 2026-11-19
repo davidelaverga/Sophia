@@ -67,6 +67,7 @@ test('people · a speaker’s meter follows their voice, with no loop of its own
   const reads = []
   for (let i = 0; i < 3; i++) {
     reads.push(await meterOf(page, MARCO))
+    // Fixed wait kept: the meter is sampled over time; the spacing is the subject
     await page.waitForTimeout(100)
   }
   for (const read of reads) {
@@ -134,8 +135,10 @@ test('motion · under reduced motion a speaker’s meter stands still, as before
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/room.html?call=on&people=1&speaking=1')
   await voice(page, 1, 0.9)
+  // Fixed wait kept: the meter eases to its level over frames; the sample is read after
   await page.waitForTimeout(400)
   const first = await meterOf(page, MARCO)
+  // Fixed wait kept: the meter is sampled twice to show it holds still; the spacing is the subject
   await page.waitForTimeout(200)
   const again = await meterOf(page, MARCO)
   expect(Math.abs(Math.max(...first.heights) - 6.6)).toBeLessThanOrEqual(0.5)

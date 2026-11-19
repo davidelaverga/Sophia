@@ -81,6 +81,7 @@ for (const [width, height] of [
       await page.goto(url)
       const label = page.locator('.fixture-label')
       await expect(label).toBeVisible()
+      // Fixed wait kept: the bars the label is measured against have no settled marker across the demo pages
       await page.waitForTimeout(800) // the page's own bars settle
       const box = await label.boundingBox()
       if (!box) throw new Error('the demo’s label is not on screen')

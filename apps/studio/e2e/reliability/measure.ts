@@ -156,6 +156,7 @@ export async function settled(page: Page, quietMs = 5000, maxMs = 25_000) {
       return last !== undefined && performance.now() - last.at >= q
     }, quietMs)
     if (quiet || Date.now() - started > maxMs) return
+    // Fixed wait kept: the poll’s interval while the page quiets, bounded by maxMs
     await page.waitForTimeout(250)
   }
 }

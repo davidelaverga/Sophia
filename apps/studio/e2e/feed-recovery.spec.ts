@@ -105,6 +105,7 @@ test('feed · the stream goes silent, no ping either: given up after 25 s, then 
     window.fixture?.stallStream()
     window.fixture?.say('Said into a silent stream.')
   })
+  // Fixed wait kept: negative check: a silent stream still looks live at first; the time is the subject
   await page.waitForTimeout(1500)
   await expect(pill(page), 'a silent stream still looks live at first').toHaveAttribute('data-state', 'live')
   await expect(discussion(page).getByText('Said into a silent stream.')).toHaveCount(0)
@@ -133,6 +134,7 @@ test('feed · Up to date says when it last heard from the project: checked secon
   expect(await helpOnHover(page)).toMatch(/^Up to date · checked (just now|[1-5] s ago)$/)
   // Silent (no ping either): the pill still says Up to date for 25 s, and its help says how long nothing came.
   await page.evaluate(() => window.fixture?.stallStream())
+  // Fixed wait kept: negative check: the pill still says Up to date well inside its 25 s; the time is the subject
   await page.waitForTimeout(8000)
   await expect(pill(page)).toHaveAttribute('data-state', 'live')
   await expect(pill(page)).toHaveText('Up to date')

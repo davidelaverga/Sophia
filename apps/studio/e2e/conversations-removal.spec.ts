@@ -43,6 +43,7 @@ async function noReadOnceGone(page: Page) {
   const refused = (await written(page, 'messages-gone')).length
   // Its read again as the feed moved, and that read's one retry at most.
   expect(refused).toBeLessThanOrEqual(2)
+  // Fixed wait kept: negative check: no read may follow in this window, and no event marks an absence
   await page.waitForTimeout(1000)
   expect(await written(page, 'messages-gone')).toHaveLength(refused)
 }
@@ -238,6 +239,7 @@ for (const width of ['desktop', '@phone'] as const) {
     await field(page).fill('Draft after the erasure.')
     expect(await written(page, 'reply')).toEqual([])
     await expect.poll(() => written(page, 'reply'), { timeout: 5000 }).toEqual(['reply:erasure'])
+    // Fixed wait kept: negative check: the late erasure reply must leave focus and draft where they are
     await page.waitForTimeout(300)
     await expect(field(page)).toBeVisible()
     await expect(field(page)).toBeFocused()
@@ -311,6 +313,7 @@ test('removal · an erasure with no reply, its conversation pushed past the list
   await page.evaluate((id) => window.fixture?.capPast(id), C1)
   await expect(list(page)).not.toContainText(FIRST)
   await expect(rows(page).first()).toBeFocused()
+  // Fixed wait kept: negative check: no erased notice comes in this window
   await page.waitForTimeout(1000)
   await expect(page.getByText('The conversation was erased.')).toHaveCount(0)
   // Back among the newest: its draft as it was, and its erasure still held under the same key.
@@ -373,6 +376,7 @@ test('removal · erased while a message’s proposal is on its way: nothing of i
   await expect(list(page)).not.toContainText(FIRST)
   // The proposal's reply comes 3 s after it went: it brings nothing back.
   await expect.poll(async () => (await page.evaluate(() => window.fixture?.missionWrites ?? [])).length).toBe(1)
+  // Fixed wait kept: negative check: the proposal’s 3 s late reply brings nothing back; its landing has no marker
   await page.waitForTimeout(3500)
   const after = await kept(page)
   expect([after?.proposals[id], after?.proposed[id], after?.proposalRefusals[id]]).toEqual([
@@ -432,6 +436,7 @@ test('removal · its own read answers not found to a current member, the list’
   // Read as it opened (twice: StrictMode mounts the fixture's view twice) and that read's one retry; then never again.
   const gone = (await written(page, 'messages-gone')).length
   expect(gone).toBeLessThanOrEqual(3)
+  // Fixed wait kept: negative check: no read may follow in this window, and no event marks an absence
   await page.waitForTimeout(1000)
   expect(await written(page, 'messages-gone')).toHaveLength(gone)
 })
@@ -461,6 +466,7 @@ test('removal · its own read refused (403), the list’s reads failing: nothing
   await expect(list(page)).toContainText('This project refused a read of its conversations.')
   await trip(page)
   await expect(list(page)).toContainText('This project refused a read of its conversations.')
+  // Fixed wait kept: negative check: nothing opens or lists after the refusal
   await page.waitForTimeout(1000)
   await expect(open(page)).toHaveCount(0)
   await expect(rows(page)).toHaveCount(0)
@@ -477,6 +483,7 @@ test('removal · its own read refused (403), the list’s reads failing: nothing
   expect((await kept(page))?.fence).toBeNull()
   // What the cache holds from before the refusal doesn't show, nor the composer, while its read since is under way.
   await expect(open(page)).toContainText('Reading this conversation again…')
+  // Fixed wait kept: negative check: no cached message or composer shows while the read is under way
   await page.waitForTimeout(500)
   await expect(messages(page)).toHaveCount(0)
   await expect(field(page)).toHaveCount(0)
@@ -519,6 +526,7 @@ test('removal · formatted words follow the read fence: refused, nothing of them
   await page.evaluate(() => window.fixture?.failConversations(false))
   await readListAgain(page)
   await expect(open(page)).toContainText('Reading this conversation again…')
+  // Fixed wait kept: negative check: the cached words stay hidden while the read is under way
   await page.waitForTimeout(500)
   expect(await page.evaluate((c) => window.fixture?.cachedMessages(c), C1)).toBe(true)
   await expect(page.getByText(BOLD)).toHaveCount(0)
@@ -578,6 +586,7 @@ test('removal · the list read alone refused (403), on Try again: asked once, an
     requestAnimationFrame(tick)
   })
   await listRefusedOnTryAgain(page)
+  // Fixed wait kept: negative check: no read may follow in this window, and no event marks an absence
   await page.waitForTimeout(1500)
   expect((await served(page)).filter((s) => s === 'conversations-refused')).toHaveLength(1)
   await expect(rows(page)).toHaveCount(0)
@@ -587,6 +596,7 @@ test('removal · the list read alone refused (403), on Try again: asked once, an
   await page.evaluate(() => window.fixture?.releaseMessageReads())
   await trip(page)
   await expect(list(page)).toContainText('This project refused a read of its conversations.')
+  // Fixed wait kept: negative check: nothing more shows after the refusal
   await page.waitForTimeout(1000)
   expect(await page.evaluate(() => Number(document.documentElement.dataset.shownAfterRefusal))).toBeLessThanOrEqual(3)
   const fenced = await kept(page)
@@ -733,6 +743,7 @@ test('removal · its read refused (403) as the feed moves, while open: asked onc
   })
   await page.evaluate(() => window.fixture?.listMore(true))
   await expect(rows(page)).toHaveCount(0)
+  // Fixed wait kept: negative check: nothing more shows after the refusal
   await page.waitForTimeout(1500)
   // The answer itself takes a frame or two to come in after the fixture serves it; a retry's wait would take ~60.
   expect(await page.evaluate(() => Number(document.documentElement.dataset.shownAfterRefusal))).toBeLessThanOrEqual(3)
@@ -771,6 +782,7 @@ test('removal · reads set out before another’s refusal (403) answer after it:
   const fenced = await kept(page)
   // The reads set out before the refusal answer now.
   await page.evaluate(() => window.fixture?.releaseMessageReads())
+  // Fixed wait kept: negative check: the late answer just released must change nothing, and its landing has no marker
   await page.waitForTimeout(1000)
   await expect(rows(page)).toHaveCount(0)
   await expect(open(page)).toHaveCount(0)
@@ -784,6 +796,7 @@ test('removal · reads set out before another’s refusal (403) answer after it:
   await readListAgain(page)
   await expect(rows(page)).not.toHaveCount(0)
   await expect(open(page)).toContainText('Reading this conversation again…')
+  // Fixed wait kept: negative check: no message or composer shows while the read is under way
   await page.waitForTimeout(500)
   await expect(messages(page)).toHaveCount(0)
   await expect(open(page).getByRole('textbox')).toHaveCount(0)
@@ -814,6 +827,7 @@ test('removal · older, then erased elsewhere with the list unchanged: read agai
   // A read that fails proves nothing either.
   await page.evaluate((c) => window.fixture?.failConversationReads(c), C1)
   await page.clock.fastForward(31_000)
+  // Fixed wait kept: negative check: the failed read keeps the draft; its failure has no marker
   await page.waitForTimeout(500)
   expect((await kept(page))?.drafts[C1]).toBe('SYNTHETIC-DRAFT-OLDER-THEN-ERASED')
   await page.evaluate(() => window.fixture?.failConversationReads(null))
@@ -863,6 +877,7 @@ for (const back of ['older still', 'newest again'] as const) {
     await expect(rows(page)).toHaveCount(0)
     // The list read checked before the refusal answers now: it lifts nothing.
     await page.evaluate(() => window.fixture?.releaseListReads())
+    // Fixed wait kept: negative check: the late answer just released must change nothing, and its landing has no marker
     await page.waitForTimeout(500)
     await expect(rows(page)).toHaveCount(0)
     await expect(open(page)).toHaveCount(0)
@@ -910,6 +925,7 @@ for (const send of ['lostSlow', 'slow'] as const) {
     await erase(page).click()
     await page.getByRole('group', { name: 'Erase this conversation' }).getByRole('button', { name: 'Erase' }).click()
     await expect(list(page)).not.toContainText(FIRST)
+    // Fixed wait kept: negative check: the erasure holds after its reply; nothing marks that state did not change
     await page.waitForTimeout(2500)
     const after = await kept(page)
     expect([after?.holds[C1], after?.drafts[C1], after?.refusals[C1], after?.asked[C1]]).toEqual([
@@ -947,6 +963,7 @@ test('removal · withdrawn while its send’s receipt is on its way, every read 
   await page.evaluate((c) => window.fixture?.failConversationReads(c), C1)
   // The withdrawal's own receipt came before (reply:withdrawal); the send's receipt is the one waited for.
   await expect.poll(async () => (await written(page, 'reply')).includes('reply:message'), { timeout: 6000 }).toBe(true)
+  // Fixed wait kept: negative check: the late answer just released must change nothing, and its landing has no marker
   await page.waitForTimeout(500)
   await expect(page.getByText('SYNTHETIC-WITHDRAWN-LATE-SEND-MUST-NOT-RETURN')).toHaveCount(0)
   await expect(messages(page).getByText('This message was withdrawn.')).toHaveCount(1)
@@ -973,6 +990,7 @@ test('removal · withdrawn elsewhere after a late send, the list read since: the
   // Then the list's reads fail too, and the send's receipt comes.
   await page.evaluate((c) => window.fixture?.failConversationReads(c), C1)
   await expect.poll(async () => (await written(page, 'reply')).includes('reply:message'), { timeout: 6000 }).toBe(true)
+  // Fixed wait kept: negative check: the late answer just released must change nothing, and its landing has no marker
   await page.waitForTimeout(500)
   await expect(list(page)).not.toContainText(WORDS)
 })
@@ -1030,6 +1048,7 @@ test('removal · a list read under way across a withdrawal elsewhere, answering 
   await expect(list(page)).not.toContainText(WORDS)
   // The list's read from before answers now, with the words.
   await page.evaluate(() => window.fixture?.releaseListReads())
+  // Fixed wait kept: negative check: the late answer just released must change nothing, and its landing has no marker
   await page.waitForTimeout(500)
   await expect(list(page)).not.toContainText(WORDS)
   await expect(page.getByText(WORDS)).toHaveCount(0)
@@ -1054,6 +1073,7 @@ test('removal · the thread read again while the list’s reads still fail: the 
   await open(page).getByRole('button', { name: 'Try again' }).click()
   await expect(messages(page).getByText('This message was withdrawn.')).toHaveCount(1)
   await expect(open(page).getByText('This may be out of date.')).toHaveCount(0)
+  // Fixed wait kept: negative check: the list must still say it may be out of date after the thread read
   await page.waitForTimeout(500)
   await expect(list(page).getByText('This may be out of date.')).toBeVisible()
   await expect(list(page)).not.toContainText(WORDS)
@@ -1080,6 +1100,7 @@ test('removal · a message confirmed while the list’s reads fail: its row says
   await open(page).getByRole('button', { name: 'Send' }).click()
   await expect(messages(page).filter({ hasText: WORDS })).toHaveCount(1)
   await expect(list(page)).toContainText(WORDS)
+  // Fixed wait kept: negative check: the list must still say it may be out of date after the send
   await page.waitForTimeout(500)
   await expect(list(page).getByText('This may be out of date.')).toBeVisible()
   await page.evaluate(() => window.fixture?.releaseListReads())
@@ -1118,6 +1139,7 @@ test('removal · the same, from an API that says no order: the row lags, never w
   // An older API (no messageSeq, no lastMessage.seq): equal times keep the row until the list is read again.
   const WORDS = 'SYNTHETIC-SAME-MILLISECOND-UNPLACED'
   const before = await sendSameMillisecond(page, WORDS, '&order=none')
+  // Fixed wait kept: negative check: the row is not placed until the list is read again
   await page.waitForTimeout(500)
   await expect(list(page)).not.toContainText(WORDS)
   expect(await rows(page).first().textContent()).toBe(before)

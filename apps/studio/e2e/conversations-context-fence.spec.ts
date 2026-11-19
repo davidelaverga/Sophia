@@ -77,6 +77,7 @@ test('context fence · the list read alone refused: no frame after shows the mis
   await sampleContextFrames(page, 'conversations-refused')
   await listRefusedOnTryAgain(page)
   await contextHidden(page)
+  // Fixed wait kept: negative check: the context pane draws no more frames after the refusal
   await page.waitForTimeout(1000)
   expect(await contextFrames(page)).toBeLessThanOrEqual(3)
   // Given the project back, the brief's read since held: what was read before the refusal shows nothing meanwhile.
@@ -111,6 +112,7 @@ test('context fence · the context’s own read refused (403): asked once, and t
   await expect(rows(page)).toHaveCount(0)
   await expect(open(page)).toHaveCount(0)
   await expect(list(page).getByRole('button', { name: 'New conversation' })).toHaveCount(0)
+  // Fixed wait kept: negative check: no read may follow in this window, and no event marks an absence
   await page.waitForTimeout(1500)
   expect((await served(page)).filter((s) => s === 'mission-refused')).toHaveLength(1)
   expect(typeof (await kept(page))?.fence?.at).toBe('number')
@@ -130,6 +132,7 @@ test('context fence · a read of the brief set out before the refusal, answering
   await page.evaluate(() => window.fixture?.holdMission(true))
   await listRefusedOnTryAgain(page)
   await page.evaluate(() => window.fixture?.holdMission(false))
+  // Fixed wait kept: negative check: the late answer just released must change nothing, and its landing has no marker
   await page.waitForTimeout(500)
   await contextHidden(page)
   // Given the project back, that older answer is not taken for current: the brief is read again before it shows.
@@ -187,6 +190,7 @@ test('context fence · a decision held with no reply: kept across the fence unde
   const sent = (await writes(page, '/decision')).length
   await listRefusedOnTryAgain(page)
   await contextHidden(page)
+  // Fixed wait kept: negative check: no decision is written in this window
   await page.waitForTimeout(1000)
   expect((await kept(page))?.decision).toEqual(held)
   expect(await writes(page, '/decision')).toHaveLength(sent)
@@ -220,6 +224,7 @@ async function formOpen(page: Page) {
 async function formOffersNothing(page: Page) {
   await expect(form(page)).toBeVisible()
   await expect(draft(page)).toHaveValue(DRAFT)
+  // Fixed wait kept: negative check: no starters are offered in this window
   await page.waitForTimeout(500)
   await expect(starters(page)).toHaveCount(0)
   await expect(form(page)).not.toContainText(PENDING)
@@ -255,6 +260,7 @@ test('context fence · the New conversation form across a list refusal, the brie
   await list(page).getByRole('button', { name: 'Try again' }).click()
   await expect(context(page)).toContainText('The project’s context can’t be read now.')
   await formOffersNothing(page)
+  // Fixed wait kept: negative check: no starters are offered in this window
   await page.waitForTimeout(1500)
   await expect(starters(page)).toHaveCount(0)
   // Read again, and answered: offered again.
@@ -363,6 +369,7 @@ test('context fence · a message’s «Proposed» line across a list refusal: wh
   await page.evaluate(() => window.fixture?.refuseConversations(false))
   await list(page).getByRole('button', { name: 'Try again' }).click()
   await expect(line).toBeVisible()
+  // Fixed wait kept: negative check: the line must not claim Still open while the brief is held
   await page.waitForTimeout(500)
   await expect(line).not.toHaveText('Proposed · it’s in Still open')
   await page.evaluate(() => window.fixture?.holdMission(false))
@@ -386,6 +393,7 @@ test('context fence · @phone: the New conversation form across a list refusal, 
   await page.evaluate(() => window.fixture?.refuseConversations(false))
   await list(page).getByRole('button', { name: 'Try again' }).click()
   await formOffersNothing(page)
+  // Fixed wait kept: negative check: no starters are offered in this window
   await page.waitForTimeout(1500)
   await expect(starters(page)).toHaveCount(0)
 })

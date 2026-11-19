@@ -123,6 +123,7 @@ test('decisions · one already waiting when the page opened is not news', async 
   await standIns(page, { permission: 'granted', hidden: true })
   await page.goto(`${PAGE}?viewer=davide`)
   await expect(page).toHaveTitle(ONE)
+  // Fixed wait kept: negative check: no notification is sent in this window
   await page.waitForTimeout(500)
   expect(await notified(page)).toEqual([])
 })
@@ -157,6 +158,7 @@ test('decisions · the last look moves on: an answered one leaving notifies noth
   await expect(ask.getByRole('status')).toContainText('Your choice is recorded')
   await page.evaluate(() => window.workFixture?.settle?.('d1'))
   await expect(page).toHaveTitle(ONE)
+  // Fixed wait kept: negative check: no second notification after the settle
   await page.waitForTimeout(300)
   expect(await notified(page)).toHaveLength(1)
 })

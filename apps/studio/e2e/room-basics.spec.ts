@@ -36,6 +36,7 @@ async function callClock(page: Page, { slowMs = 0, lateSnapshot = false }: Runne
   await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
   const clock = dock(page).getByRole('timer')
   await expect(clock).toHaveText('0:00')
+  // Fixed wait kept: it simulates a slow runner (ci-room-basics-flake.md); the delay is the subject
   if (slowMs > 0) await page.waitForTimeout(slowMs) // a slow runner, as main's CI on #482 was (ci-room-basics-flake.md)
   await page.clock.setFixedTime(at + 65_000)
   await expect(clock).toHaveText('1:05')

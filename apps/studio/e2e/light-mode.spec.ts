@@ -187,6 +187,7 @@ test('light · on paper no WebGL frame is drawn: the halo is CSS', async ({ page
   })
   await page.goto('/signin.html?theme=light')
   await drawn(page, DRAWN.signin)
+  // Fixed wait kept: negative check: no WebGL draw happens on paper in this window
   await page.waitForTimeout(600)
   expect(await page.evaluate(() => JSON.stringify(Reflect.get(window, 'webglDraws')))).toBe('{"n":0}')
 })

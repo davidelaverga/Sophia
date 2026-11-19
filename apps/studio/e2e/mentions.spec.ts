@@ -141,6 +141,7 @@ test('mentions · Home lists a message that mentions the person; opening it goes
   await expect
     .poll(() => page.evaluate(() => window.homeFixture?.pressed ?? []))
     .toEqual([`open studio 00000000-0000-4000-8000-0000000000aa #message-${MENTIONED_IN}`])
+  // Fixed wait kept: negative check: no second press
   await page.waitForTimeout(300)
   expect(await page.evaluate(() => window.homeFixture?.pressed ?? [])).toHaveLength(1)
   await expect(mention).toBeVisible()
@@ -163,6 +164,7 @@ test('mentions · with the chat closed, nothing is marked; opening it marks the 
 }) => {
   await page.goto('/room.html?call=on&people=2&floor=1&discussion=mentioned')
   await expect(leave(page)).toBeVisible()
+  // Fixed wait kept: negative check: nothing may be acknowledged in this window; nothing marks an absence
   await page.waitForTimeout(500)
   expect((await served(page)).some((s) => s.startsWith('seen:'))).toBe(false)
   await chatToggle(page).click()
@@ -208,12 +210,14 @@ test('mentions · named while a modal covers the chat: nothing is marked seen un
   expect(await modal.getAttribute('aria-modal')).toBe('true')
   await page.evaluate(() => window.fixture?.mentionMeIn(1))
   await expect(entry.locator('.contribution-mentions')).toHaveText('to you')
+  // Fixed wait kept: negative check: nothing may be acknowledged in this window; nothing marks an absence
   await page.waitForTimeout(1500)
   expect(await seenOf(page), 'nothing marked seen while covered').toEqual([])
   await page.keyboard.press('Escape')
   await expect(modal).toHaveCount(0)
   await expect.poll(() => seenOf(page)).toEqual([`seen:mention:${PROJECT}:1.1:${entryIdOf(1)}`])
   // Reading on, nothing more is sent.
+  // Fixed wait kept: negative check: nothing more may be sent in this window, and no event marks an absence
   await page.waitForTimeout(500)
   expect(await seenOf(page)).toHaveLength(1)
 })
@@ -237,6 +241,7 @@ test('mentions · removed and named again on the same words is a new occurrence:
   // Shown again, nothing more is sent.
   await page.evaluate(() => window.fixture?.say('Another message.'))
   await expect(discussion(page).getByText('Another message.')).toBeVisible()
+  // Fixed wait kept: negative check: nothing more may be sent in this window, and no event marks an absence
   await page.waitForTimeout(300)
   expect(await seenOf(page)).toHaveLength(2)
 })
@@ -268,6 +273,7 @@ test('mentions · a sliver at the chat’s edge is not reading it; the message i
   await sliver(4)
   expect(await visible()).toBeGreaterThan(0)
   expect(await visible()).toBeLessThanOrEqual(6)
+  // Fixed wait kept: negative check: nothing may be acknowledged in this window; nothing marks an absence
   await page.waitForTimeout(600)
   expect(await seenOf(page)).toEqual([])
   // Brought into view, it is read.
@@ -329,6 +335,7 @@ test('mentions · a message whose most visible part is under 5% of it (a short w
     const box = el.closest('.conversation-history')
     if (box) box.scrollTop += el.getBoundingClientRect().top - (box.getBoundingClientRect().top + box.clientHeight - 2)
   })
+  // Fixed wait kept: negative check: nothing may be acknowledged in this window; nothing marks an absence
   await page.waitForTimeout(500)
   expect(await seenOf(page)).toEqual([])
   await tall.evaluate((el) => {
@@ -371,6 +378,7 @@ test('mentions · an address naming no message of the chat says so, and nothing 
   )
   await expect(leave(page)).toBeVisible()
   await expect(page.getByText('The message you opened isn’t in the chat anymore.')).toBeVisible()
+  // Fixed wait kept: negative check: nothing may be acknowledged in this window; nothing marks an absence
   await page.waitForTimeout(300)
   expect((await seenOf(page)).filter((s) => s.includes('0000000000ff'))).toEqual([])
 })
@@ -390,12 +398,14 @@ test('mentions · a current mention is acknowledged only on the revision the cha
   await chatToggle(page).click()
   const old = line(page, 'Sounds good to me.')
   await expect(old).toBeInViewport()
+  // Fixed wait kept: negative check: nothing may be acknowledged in this window; nothing marks an absence
   await page.waitForTimeout(800)
   expect(await seenOf(page), 'no acknowledgement while the older words are shown').toEqual([])
   // The chat catches up: the current words are shown, and exactly that occurrence is acknowledged, once.
   await page.evaluate(() => window.fixture?.releaseSnapshot())
   await expect(line(page, 'Sounds good, from nine.')).toBeInViewport()
   await expect.poll(() => seenOf(page)).toEqual([`seen:mention:${PROJECT}:2.1:${entryIdOf(1)}`])
+  // Fixed wait kept: negative check: nothing more may be sent in this window, and no event marks an absence
   await page.waitForTimeout(300)
   expect(await seenOf(page)).toHaveLength(1)
 })
@@ -411,6 +421,7 @@ test('mentions · an earlier page that fails stops the look: the failure and Try
     window.location.hash = `#message-${id}`
   }, old)
   await expect(page.getByText('Couldn’t load earlier messages.')).toBeVisible()
+  // Fixed wait kept: negative check: one failed read, no automatic retry in this window
   await page.waitForTimeout(800)
   const reads = (await served(page)).filter((s) => s.startsWith('discussion:'))
   expect(reads, 'one failed read, no automatic retries').toHaveLength(1)
@@ -535,6 +546,7 @@ test('mentions · a seen write that keeps failing is tried a bounded number of t
   await page.goto(`/room.html?call=on&people=2&floor=1&discussion=mentioned#message-${MENTIONED_IN}`)
   await expect(discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)).toBeInViewport()
   await expect.poll(() => seenAttempts(page), { timeout: 9000 }).toBe(4) // the first and three more
+  // Fixed wait kept: negative check: no fifth attempt after the fourth; nothing marks an absence
   await page.waitForTimeout(4500)
   expect(await seenAttempts(page)).toBe(4)
   expect((await served(page)).filter((s) => s.startsWith('seen:'))).toEqual([])
@@ -759,12 +771,14 @@ for (const phone of [false, true])
   }) => {
     const entry = await heldThenCovered(page, 1)
     await page.evaluate(() => window.releaseSeen?.()) // 503, while covered
+    // Fixed wait kept: negative check: past the owned retry’s deadline (1 s), no new write while covered
     await page.waitForTimeout(2000) // past the owned retry's deadline (1 s)
     expect(await seenAttempts(page), 'no new write while covered').toBe(1)
     expect(await seenOf(page)).toEqual([])
     const scrolled = await discussion(page).evaluate((el) => el.scrollTop)
     await uncover(page)
     await expect.poll(() => seenOf(page)).toEqual([`seen:${NEED}`])
+    // Fixed wait kept: negative check: nothing more may be sent in this window, and no event marks an absence
     await page.waitForTimeout(1500)
     expect(await seenAttempts(page)).toBe(2)
     expect(await seenOf(page)).toEqual([`seen:${NEED}`])
@@ -777,11 +791,14 @@ test('mentions · a modal closing before a failed seen write is due sends nothin
 }) => {
   await heldThenCovered(page, 1)
   await page.evaluate(() => window.releaseSeen?.())
+  // Fixed wait kept: the uncover must land after the 503 and before the 1 s deadline; the timing is the subject
   await page.waitForTimeout(150)
   await uncover(page) // before the 1 s deadline
+  // Fixed wait kept: negative check: no early duplicate write
   await page.waitForTimeout(300)
   expect(await seenAttempts(page), 'no early duplicate').toBe(1)
   await expect.poll(() => seenOf(page)).toEqual([`seen:${NEED}`])
+  // Fixed wait kept: negative check: nothing more may be sent in this window, and no event marks an absence
   await page.waitForTimeout(1500)
   expect(await seenAttempts(page)).toBe(2)
 })
@@ -796,14 +813,17 @@ test('mentions · covered and revealed again and again, a failing seen write kee
     [2300, 3],
     [3300, 4],
   ] as const) {
+    // Fixed wait kept: the next retry falls due under the modal; the backoff’s timing is the subject
     await page.waitForTimeout(due) // the next retry falls due under the modal
     expect(await seenAttempts(page)).toBe(attempts - 1)
     await uncover(page)
     await expect.poll(() => seenAttempts(page)).toBe(attempts)
     await cover(page)
   }
+  // Fixed wait kept: negative check: past the last backoff, no further attempt
   await page.waitForTimeout(4500)
   await uncover(page)
+  // Fixed wait kept: negative check: nothing more may be sent in this window, and no event marks an absence
   await page.waitForTimeout(1000)
   expect(await seenAttempts(page)).toBe(4)
   expect(await seenOf(page)).toEqual([])
@@ -864,11 +884,13 @@ test('mentions · padlock shut from the start: the hidden room and its chat read
   await page.goto(`${MENTIONED_ROOM}&padlock=shut`)
   await expect(leave(page)).toBeVisible()
   await expect(discussion(page)).toHaveCount(0) // the chat is hidden
+  // Fixed wait kept: negative check: no read may follow in this window, and no event marks an absence
   await page.waitForTimeout(1000)
   expect(await needsGets(page), 'chat hidden: no mixed read').toBe(0)
   expect(await kept(page)).toBe('[]')
   await chatToggle(page).click()
   await expect(discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)).toBeAttached()
+  // Fixed wait kept: negative check: no read may follow in this window, and no event marks an absence
   await page.waitForTimeout(1500)
   expect(await needsGets(page), 'chat shown, padlock shut: still no mixed read').toBe(0)
   expect(await kept(page)).toBe('[]')
@@ -890,6 +912,7 @@ test('mentions · padlock shut from the start: the hidden room and its chat read
   await page.evaluate(() => window.releaseHeldSeen?.())
   await expect.poll(() => seenOf(page)).toEqual([`seen:${NEED}`])
   await expect(marked).toHaveCount(0)
+  // Fixed wait kept: negative check: nothing more may be sent in this window, and no event marks an absence
   await page.waitForTimeout(1000)
   expect(await seenOf(page)).toEqual([`seen:${NEED}`])
   expect(await page.evaluate(() => window.seenPosts ?? [])).toEqual([NEED])
@@ -913,6 +936,7 @@ test('mentions · a read on its way, kept under two cursors, then the padlock sh
   await expect.poll(() => kept(page)).toBe('[]')
   const shut = await needsGets(page)
   await page.evaluate(() => window.releaseNeeds?.()) // the held read answers, late
+  // Fixed wait kept: negative check: the late answer just released must change nothing, and its landing has no marker
   await page.waitForTimeout(1500)
   expect(await kept(page), 'the late answer refills nothing').toBe('[]')
   expect(await needsGets(page), 'nothing read while shut').toBe(shut)
@@ -932,6 +956,7 @@ test('mentions · a call that shuts the padlock: the room’s mentions read is f
   await expect(discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)).toBeVisible()
   await expect.poll(() => kept(page)).toBe('[]')
   const shut = await needsGets(page)
+  // Fixed wait kept: negative check: no read may follow in this window, and no event marks an absence
   await page.waitForTimeout(1500)
   expect(await needsGets(page)).toBe(shut)
   expect(await kept(page)).toBe('[]')
@@ -953,6 +978,7 @@ test('mentions · another tab shuts the padlock (device storage): the read is fo
   })
   await expect.poll(() => kept(page)).toBe('[]')
   const shut = await needsGets(page)
+  // Fixed wait kept: negative check: no read may follow in this window, and no event marks an absence
   await page.waitForTimeout(1500)
   expect(await needsGets(page)).toBe(shut)
   expect(await kept(page)).toBe('[]')
@@ -1126,6 +1152,7 @@ test('mentions · shown while the page is in the background, nothing is marked s
   await backgroundable(page)
   await page.goto(`/room.html?call=on&people=2&floor=1&discussion=mentioned#message-${MENTIONED_IN}`)
   await expect(discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)).toBeInViewport()
+  // Fixed wait kept: negative check: nothing may be acknowledged in this window; nothing marks an absence
   await page.waitForTimeout(1500)
   expect(await seenOf(page)).toEqual([])
   await page.evaluate(() => window.setHidden?.(false))
@@ -1143,6 +1170,7 @@ test('mentions · a failed seen write whose retry falls due in the background wa
   await expect(discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)).toBeInViewport()
   await expect.poll(() => seenAttempts(page)).toBe(1) // the first write, sent in front, failed
   expect(await page.evaluate(() => document.visibilityState)).toBe('hidden')
+  // Fixed wait kept: negative check: the retry falls due (1 s) in the background and must not go
   await page.waitForTimeout(2500) // its retry falls due (1 s) in the background
   expect(await seenAttempts(page)).toBe(1)
   expect(await seenOf(page)).toEqual([])

@@ -84,6 +84,7 @@ test('follow · a refusal that comes while another conversation is open is said 
   await field(page).fill('Refused later')
   await open(page).getByRole('button', { name: 'Send' }).click()
   await row(page, READING).click()
+  // Fixed wait kept: the refusal lands by a fixture timer while another row is open; the check is what it says on coming back
   await page.waitForTimeout(2000)
   await row(page, BRIEFS).click()
   await expect(open(page)).toContainText('That isn’t yours to write here.')
