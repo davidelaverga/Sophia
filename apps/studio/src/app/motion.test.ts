@@ -85,25 +85,26 @@ const ALLOWED = new Map<string, string>([
   ['src/features/personal/personal.css  1ms !important', 'reduced motion'],
 ])
 
+/** Whether one item of a transition or animation writes its duration or its easing by hand. */
+function byHand(item: string, longhand: string | undefined): boolean {
+  const words = split(item, ' ')
+  const times = words.filter((w) => LITERAL.test(w) || TOKEN.test(w))
+  // A shorthand's first time is its duration, the second its delay; a longhand's items are all durations.
+  const durations = longhand === '-duration' ? times : times.slice(0, 1)
+  return durations.some((t) => LITERAL.test(t) && !zero(t)) || words.some((w) => EASING.test(w) && !EASED.test(w))
+}
+
 /** Every transition and animation item whose time or easing is written by hand, as `file  item`. */
 function handWritten(): string[] {
-  const found: string[] = []
-  for (const { name, css } of sheets()) {
-    if (name === OPENING) continue
-    for (const m of css.matchAll(/(?<![\w-])(transition|animation)(-duration|-timing-function)?\s*:\s*([^;}]+)/g)) {
-      const longhand = m[2]
-      for (const item of split(m[3] ?? '', ',')) {
-        const words = split(item, ' ')
-        const times = words.filter((w) => LITERAL.test(w) || TOKEN.test(w))
-        // A shorthand's first time is its duration, the second its delay; a longhand's items are all durations.
-        const durations = longhand === '-duration' ? times : times.slice(0, 1)
-        const timed = durations.some((t) => LITERAL.test(t) && !zero(t))
-        const eased = words.some((w) => EASING.test(w) && !EASED.test(w))
-        if (timed || eased) found.push(`${name}  ${item}`)
-      }
-    }
-  }
-  return found
+  return sheets()
+    .filter(({ name }) => name !== OPENING)
+    .flatMap(({ name, css }) =>
+      [...css.matchAll(/(?<![\w-])(transition|animation)(-duration|-timing-function)?\s*:\s*([^;}]+)/g)].flatMap((m) =>
+        split(m[3] ?? '', ',')
+          .filter((item) => byHand(item, m[2]))
+          .map((item) => `${name}  ${item}`),
+      ),
+    )
 }
 
 describe('one motion vocabulary', () => {

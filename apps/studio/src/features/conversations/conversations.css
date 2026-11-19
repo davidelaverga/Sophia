@@ -172,8 +172,8 @@
   font-size: var(--type-small);
   white-space: nowrap;
   transition:
-    background var(--fast) var(--ease),
-    color var(--fast) var(--ease);
+    background var(--motion-fast) var(--ease),
+    color var(--motion-fast) var(--ease);
 }
 .conv-quick button:hover {
   background: var(--raise-2);
@@ -218,7 +218,7 @@
   background: none;
   color: var(--text);
   text-align: left;
-  transition: background var(--fast) var(--ease);
+  transition: background var(--motion-fast) var(--ease);
 }
 .conv-row:hover {
   background: var(--raise);
@@ -421,7 +421,7 @@
   background: var(--raise);
   color: var(--text);
   text-align: left;
-  transition: background var(--fast) var(--ease);
+  transition: background var(--motion-fast) var(--ease);
 }
 .conv-output:hover {
   background: var(--raise-2);
@@ -583,7 +583,7 @@
   font: var(--type-label) / var(--lh-small) var(--mono);
   opacity: 0;
   transform: translateY(-50%);
-  transition: opacity var(--fast) var(--ease);
+  transition: opacity var(--motion-fast) var(--ease);
 }
 .conv-msg.mine .conv-msg-at {
   right: auto;
@@ -668,7 +668,7 @@
   color: var(--halo-text);
 }
 .conv-answering .conv-glyph::before {
-  animation: conv-breathe 1.6s ease-in-out infinite alternate;
+  animation: conv-breathe var(--motion-pulse) var(--ease-in-out) infinite alternate;
 }
 @keyframes conv-breathe {
   from {
@@ -1126,7 +1126,7 @@
   box-shadow:
     0 0 0 1px var(--line-2),
     var(--elev-composer);
-  transition: box-shadow var(--fast) var(--ease);
+  transition: box-shadow var(--motion-fast) var(--ease);
 }
 .conv-field-box:focus-within {
   box-shadow:
@@ -1163,8 +1163,8 @@
   background: var(--raise-2);
   color: var(--text-2);
   transition:
-    background var(--fast) var(--ease),
-    color var(--fast) var(--ease);
+    background var(--motion-fast) var(--ease),
+    color var(--motion-fast) var(--ease);
 }
 .conv-send[data-ready] {
   background: var(--core);
@@ -1255,7 +1255,7 @@
   color: var(--text-2);
   font-size: var(--type-small);
   cursor: pointer;
-  transition: background var(--fast) var(--ease);
+  transition: background var(--motion-fast) var(--ease);
 }
 .conv-ask:hover {
   background: var(--raise-2);
@@ -1263,8 +1263,8 @@
 .conv-ask .umbral {
   opacity: 0.5;
   transition:
-    opacity var(--fast) var(--ease),
-    filter var(--fast) var(--ease);
+    opacity var(--motion-fast) var(--ease),
+    filter var(--motion-fast) var(--ease);
 }
 /* Off, a ring that reads at 3:1; on, filled. */
 .conv-ask-box {
@@ -1360,14 +1360,14 @@
     visibility: hidden;
     transform: translateX(100%);
     transition:
-      transform var(--base) var(--ease),
-      visibility 0s var(--base);
+      transform var(--motion-base) var(--ease),
+      visibility 0s var(--motion-base);
     box-shadow: var(--elev-context);
   }
   .conversations[data-context] .conv-context {
     visibility: visible;
     transform: none;
-    transition: transform var(--base) var(--ease);
+    transition: transform var(--motion-base) var(--ease);
   }
   .conversations[data-context] .conv-scrim {
     position: absolute;
