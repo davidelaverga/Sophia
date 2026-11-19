@@ -55,11 +55,12 @@ Pure rules: `features/personal/first-run.ts` (`firstRunShows`, `firstSteps`, `st
 
 ## Look
 
-Home's own column and type: the greeting stays above, Sophia's light on the right. A step is the section label (mono,
-uppercase) as its title, the kit's `Field` (`lg`, 44 px) and `Button` (primary «Continue», «Start the project»;
-ghost «Skip»; text «Not now, just talk to Sophia»), and the two choices as kit `Card`s pressed whole (radius 12,
-hover and ring from the kit). No hover value or shadow of its own; motion is Home's `hw-in` on the step as it
-arrives, off under reduced motion.
+Home's own column and type: the greeting stays above (her sentence held back while the first run asks), Sophia's
+light on the right. A step's title is a 20 px line in `--text`; its field's label the Studio's `field-label` (mono
+capitals); the field the kit's `Field` (`lg`, 44 px) with its press inside (primary «Continue», «Start the project»);
+«Skip» a ghost press and «Not now, just talk to Sophia» a text one; the two choices kit `Card`s pressed whole (radius
+12, hover and ring from the kit). No hover value or shadow of its own; motion is Home's `hw-in` on the step as it
+arrives (`--ease`), off under reduced motion.
 
 - **Phone width** (≤ 860 px): one column at Home's gutter; the choices stack, the presses wrap; nothing scrolls
   sideways at 375 px.
