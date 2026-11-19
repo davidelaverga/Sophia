@@ -39,3 +39,23 @@ Branch `work/undo-hold`, off `origin/main` c9c226c94. Design note: `docs/plans/u
   hold.», which says much the same; a shorter or no lead could be chosen.
 - An Undo for a Hold still on its way is out: Resume can't be sent before the view says held, so with a slow runtime the
   Undo only appears once the hold is confirmed.
+
+## Attempt 2 · review on attempt 1 (no P1)
+
+- **P2-1** (an Undo that came back stayed with no timer): `open` is cleared whenever there is no Hold to offer, and a
+  return within the window keeps its first end, so it times out; after the window it never comes back.
+- **P2-2** (window from first sight, not from settle): only a Hold this sheet saw on its way is offered
+  (`pendingHold` + `undoWatch` in `undo-hold.ts`); `UndoHold` is keyed by the execution shown, so a Hold confirmed
+  while the sheet was closed, turned to another task or sent from Resources offers none later. The page-long
+  `undoUntil` / `endUndo` map and the deferred-end machinery are gone.
+- **P2-3**: e2e for the timeout firing while Undo has the focus (focus to the status line).
+- **P3**: Undo carries Resume's tip (`has-tip`, `aria-label` «Undo: <tip>»); the focus is handed to the status line
+  whenever the Undo leaves while focused (layout effect), not only on timeout; windows live in the sheet's own
+  `undoWatch`, swept when over.
+- Copy unchanged (`UNDO_HOLD`), pending Luis.
+
+Red → green: tests `31512ec56`. Guard run at that commit: 3 failed, 7 passed. The failures were the flicker case (P2-1), the
+closed-sheet case (P2-2) and the tip. Units red too, since `pendingHold` and `undoWatch` didn't exist yet. The J-away
+variant of P2-2 and the P2-3 focus case already passed there; they stay as guards. Fix `45f528021`: guard run
+`undo-hold.spec.ts` + `task-keys.spec.ts` 12/12 passed; `undo-hold.test.ts` 15/15; all Studio units 2475/2477 (the two
+known Windows-only failures); `pnpm -s lint` and `pnpm -s typecheck` exit 0; Prettier clean.
