@@ -1,6 +1,6 @@
 // Undo after Hold, where the Hold was pressed (docs/plans/undo-hold.md): the button alone for a few seconds, under
-// the commands' status line, which already says «Held.». Its own polite live region, mounted before anything is
-// said; nothing hands the focus to it, and when it leaves while it has the focus, for any reason, the focus goes to
+// the commands' status line, which already says «Held.». Its own polite live region (aria-live, not a second
+// role=status: the sheet's status line stays the one status), mounted before anything is said; nothing hands the focus to it, and when it leaves while it has the focus, for any reason, the focus goes to
 // the status line, never the page. Which Hold, and for how long, are undo-hold.ts's; its windows are this sheet's own (SessionActs keys it by the
 // execution shown), so a sheet closed, turned or showing another attempt starts with none.
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
@@ -56,7 +56,7 @@ export function UndoHold({ pending, hold, tip, onUndo, status }: Props) {
   const shown = hold !== null && open === hold
   const focus = useFocusHandedBack(shown, status)
   return (
-    <div className="act-undo" role="status" aria-live="polite">
+    <div className="act-undo" aria-live="polite">
       {shown && (
         <p className="act-note">
           <button

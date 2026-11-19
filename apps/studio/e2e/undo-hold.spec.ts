@@ -20,11 +20,18 @@ test('undo hold · H holds, Undo is offered without the focus, and Undo resumes 
   await expect(sheet.locator('.act-steps')).toContainText('Held.')
   const line = sheet.locator('.act-undo')
   // Only the button: the status line above already says «Held.» (Luis, 2026-11-19).
-  await expect(line).toHaveText('Undo')
   const undo = line.getByRole('button', { name: 'Undo' })
   await expect(undo).toBeVisible()
-  // Said politely, in a live region of its own; nothing hands it the focus.
-  await expect(line).toHaveAttribute('role', 'status')
+  // The line holds the button and nothing else; the button says «Undo», its tip kept to the hover.
+  expect(
+    await line.evaluate(
+      (el) => el.querySelectorAll('button').length === 1 && el.textContent === el.querySelector('button')?.textContent,
+    ),
+  ).toBe(true)
+  expect(await undo.evaluate((b) => b.firstChild?.textContent)).toBe('Undo')
+  // Said politely, in a live region of its own that isn't a second status: the status line stays the sheet's one.
+  await expect(line).toHaveAttribute('aria-live', 'polite')
+  await expect(sheet.locator('.session-acts [role="status"]')).toHaveCount(1)
   await expect(undo).not.toBeFocused()
   // Keyboard reachable: Tab from where the focus was handed (the status line) lands on it.
   await sheet.locator('.act-status').focus()
