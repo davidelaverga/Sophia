@@ -1522,6 +1522,16 @@ button.mark:hover {
 .connection[data-state='denied'] .connection-dot {
   background: var(--rose);
 }
+/* Its help is a tip in the app's own type (hand-and-sync-announced.md): not the pill's mono capitals. The focus ring
+   keeps to the pill, not the margin after it. */
+.connection .tip {
+  font-family: var(--sans);
+  letter-spacing: normal;
+  text-transform: none;
+}
+.connection:focus-visible {
+  border-radius: var(--r-1);
+}
 /* The account, in every bar: the avatar opens a menu (AccountMenu). */
 .account {
   position: relative;
