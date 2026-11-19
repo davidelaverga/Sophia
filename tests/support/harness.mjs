@@ -78,6 +78,12 @@ export function suite(prefix, { model = MOCK_MODEL } = {}) {
       if (runtime) await runtime.stop()
       await service.close()
       await llm.close()
+      // INC04-R07-COHERENT-005-FIXTURE-RESOURCE-REPAIR-001: release this world's private profile copy once its dsh child
+      // has exited (stop() awaits its exit event) and the service and model are closed, so a file's cases no longer
+      // accumulate until cleanup(). A teardown exception above skips this line and retains the case; an ordinary
+      // assertion failure is not retained by this ordering. A failure before this hook is registered can still leave
+      // a partial case for cleanup().
+      rmSync(layout.root, { recursive: true, force: true })
     })
     return w
   }

@@ -11,6 +11,12 @@
 import { createServer } from 'node:http'
 import { createHash, randomUUID } from 'node:crypto'
 
+/**
+ * LABELLED SYNTHETIC executor resource (C2A REPAIR-001 F03): the resource every fixture command's binding names unless a
+ * test names another. Not a real resource id.
+ */
+export const FIXTURE_RESOURCE = 'dsh-native'
+
 /** The receipt of the fixture's review page (WBC-02, Codex on #107): a review cites a source with it. */
 export const REVIEW_RECEIPT = 'fedcba9876543210fedcba9876543210'
 
@@ -29,13 +35,27 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
   const research = []
   let researchSeq = 0
   const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
+  // INC04-S03A-R07-C2A (C01): a TRACKED model reservation is answered with its closed call binding, as the service's
+  // SQL answers it (0109): derived from this exact request and this fixture's own project and runtime unit. A request
+  // without a mode is legacy and keeps the legacy reply exactly.
+  // REPAIR-001 (F03): like the service's execution binding, the fixture binds each attempt to the resource of the FIRST
+  // command it issued for it (SYNTHETIC: no durable binding row), and its tracked answers echo that resource.
+  const boundResources = new Map()
+  // INC04-R07-C2B-PRODUCER-001 (A58 SI01): an opted-in tracked reservation (`facts: observed_v1`) is echoed `facts`, as
+  // 0110's research_call_ack does, and only then; every other reply is exactly as before. A test answering with its own
+  // handler (onResearch/onDesign/onReview) still controls the echo, so a missing or mismatched one stays testable.
+  const bindingOf = (body) => body.mode === 'tracked_v1' && body.kind === 'model'
+    ? { binding: { mode: body.mode, contract: body.contract, evidenceId: uuid(9500 + researchSeq), callId: body.callId, attemptId: body.attemptId,
+        nativeSessionId: body.nativeSessionId, projectId: 'proj-fixture', runtimeUnitId, resourceId: boundResources.get(body.attemptId) ?? FIXTURE_RESOURCE,
+        ...(body.facts === 'observed_v1' ? { facts: 'observed_v1' } : {}) } }
+    : {}
   const researchDefaults = {
     context: (body) => body.sourceId === undefined
       ? { taskId: uuid(1), rootTaskId: uuid(1), question: 'Fixture question?', outputs: ['markdown'], preferences: {}, assumptions: [], inputs: [], urls: [], base: null,
           allowance: { capUsd: 5, headroomUsd: 0.5, committedUsd: 0, searchesLeft: 5, readsLeft: 8 }, draft: null, roster: [] }
       : { sourceId: body.sourceId, offset: 0, nextOffset: null, totalChars: 0, truncated: false, text: '' },
     reserve: (body) => ({ reservationId: uuid(1000 + ++researchSeq), state: 'reserved', kind: body.kind, purpose: body.purpose ?? 'call', amountUsd: body.amountUsd,
-      target: body.kind === 'read' ? { ref: body.targetRef, url: 'https://example.org/page' } : null }),
+      target: body.kind === 'read' ? { ref: body.targetRef, url: 'https://example.org/page' } : null, ...bindingOf(body) }),
     settle: (body) => ({ reservationId: body.reservationId, state: body.outcome, settledUsd: body.costUsd ?? null }),
     capture: (body) => ({ sourceId: uuid(2000 + ++researchSeq), sha256: 'a'.repeat(64), byteLength: 1, kind: body.kind, refs: [] }),
     draft: () => ({ sourceId: uuid(3000 + ++researchSeq), sha256: 'b'.repeat(64), seq: 1 }),
@@ -77,7 +97,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
           limits: { maxSources: 3, maxInputBytes: 32768, maxModelRequests: 8, maxReportBytes: 16384, web: false, shell: false, connectors: false },
           allowance: { capUsd: 0.5, committedUsd: 0, modelCallsLeft: 8 } }
       : { sourceId: body.sourceId, offset: 0, nextOffset: null, totalChars: 26, truncated: false, text: 'The launch is on 3 March.', receipt: REVIEW_RECEIPT },
-    reserve: (body) => ({ reservationId: uuid(8000 + ++researchSeq), state: 'reserved', kind: body.kind, purpose: body.purpose ?? 'call', amountUsd: body.amountUsd, target: null }),
+    reserve: (body) => ({ reservationId: uuid(8000 + ++researchSeq), state: 'reserved', kind: body.kind, purpose: body.purpose ?? 'call', amountUsd: body.amountUsd, target: null, ...bindingOf(body) }),
     settle: (body) => ({ reservationId: body.reservationId, state: body.outcome, settledUsd: body.costUsd ?? null }),
     submit: (body) => body.result
       ? { outcome: 'published', resultId: uuid(9000), sourceId: uuid(9001), sha256: 'd'.repeat(64), verdict: body.result.verdict, replayed: false }
@@ -211,6 +231,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
     get polls() { return polls },
     /** Enqueue a command exactly as S1-02's outbox would (same object may be enqueued twice). */
     enqueue(command) {
+      if (command?.binding?.attemptId && !boundResources.has(command.binding.attemptId)) boundResources.set(command.binding.attemptId, command.binding.resourceId)
       seq += 1
       outbox.push({ seq, command })
       notify()
@@ -226,11 +247,11 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
 }
 
 /** Build a well-formed runtime command for the fixture. */
-export function command(kind, { attemptId, runtimeUnitId, epoch = 1, text, role, route, commandId = `cmd-${randomUUID()}`, expectedNativeSessionId = null } = {}) {
+export function command(kind, { attemptId, runtimeUnitId, epoch = 1, text, role, route, commandId = `cmd-${randomUUID()}`, expectedNativeSessionId = null, resourceId = FIXTURE_RESOURCE } = {}) {
   return {
     schema: 'sophia.runtime-command.v1',
     commandId,
-    binding: { projectId: 'proj-fixture', goalId: 'goal-fixture', goalRevision: 1, attemptId, resourceId: 'dsh-native', authorityEpoch: epoch, runtimeUnitId },
+    binding: { projectId: 'proj-fixture', goalId: 'goal-fixture', goalRevision: 1, attemptId, resourceId, authorityEpoch: epoch, runtimeUnitId },
     kind,
     expectedNativeSessionId,
     contextPacketId: null,

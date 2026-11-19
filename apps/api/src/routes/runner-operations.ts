@@ -17,10 +17,27 @@
 // operation's state, identities, Stop and reconciliation. Nothing here claims what a run used.
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
-import type { OwnerRunnerOperationRequest } from '@sophia/contracts'
+import type { OwnerRunnerOperationRequest, OwnerRunnerResultRequest } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { admitRunnerOperation, readRunnerOperation, readRunnerOperations, withActor } from '@sophia/persistence'
-import { canonicalId, idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
+import {
+  requireRunnerResults,
+  requestRunnerResult,
+  readRunnerResult,
+  readRunnerWork,
+  lookupRunnerWork,
+  runnerWorkAvailability,
+} from '@sophia/persistence'
+import {
+  canonicalId,
+  idempotencyHeader,
+  projectParams,
+  runnerWorkParams,
+  runnerResultParams,
+  runnerWorkPageQuery,
+  runnerWorkLookupQuery,
+  UUID_PATTERN,
+} from './schemas.ts'
 
 export type OwnerRunnerAdmissions = 'off' | 'admit'
 
@@ -94,9 +111,10 @@ function installation(pool: pg.Pool): () => Promise<void> {
 
 export function runnerOperationRoutes(
   app: FastifyInstance,
-  { pool, admissions }: { pool: pg.Pool; admissions: OwnerRunnerAdmissions },
+  { pool, admissions, results = false }: { pool: pg.Pool; admissions: OwnerRunnerAdmissions; results?: boolean },
 ): void {
   const requireInstalled = installation(pool)
+  resultRoutes(app, { pool, admissions, results })
 
   app.post<{
     Params: { projectId: string }
@@ -142,6 +160,119 @@ export function runnerOperationRoutes(
       return withActor(pool, req.actorId, 'read', (c) =>
         readRunnerOperation(c, req.params.projectId, req.params.operationId),
       )
+    },
+  )
+}
+
+/** A60 metadata and retained reads are served even when new capture is off. */
+function resultRoutes(
+  app: FastifyInstance,
+  options: { pool: pg.Pool; results: boolean; admissions: OwnerRunnerAdmissions },
+): void {
+  const { pool, results, admissions } = options
+  const requireInstalled = () => requireRunnerResults(pool)
+  app.post<{
+    Params: { projectId: string; operationId: string }
+    Headers: { 'idempotency-key': string }
+    Body: OwnerRunnerResultRequest
+  }>(
+    '/api/v1/projects/:projectId/runner-operations/:operationId/results',
+    {
+      schema: {
+        params: operationParams,
+        headers: idempotencyHeader,
+        body: { $ref: 'OwnerRunnerResultRequest#' },
+        response: { 202: { $ref: 'OwnerRunnerCollection#' } },
+      },
+    },
+    async (req, reply) => {
+      if (!results) throw new DomainError('runner_admission_disabled', 'New result requests are off')
+      await requireInstalled()
+      const c = await withActor(pool, req.actorId, 'write', (db) =>
+        requestRunnerResult(db, req.params, req.headers['idempotency-key'], req.body),
+      )
+      return reply.status(202).send(c)
+    },
+  )
+  app.get<{ Params: { projectId: string; resultId: string } }>(
+    '/api/v1/projects/:projectId/runner-results/:resultId',
+    { schema: { params: runnerResultParams, response: { 200: { $ref: 'OwnerRunnerRetainedResult#' } } } },
+    async (req) => {
+      await requireInstalled()
+      return withActor(pool, req.actorId, 'read', (db) =>
+        readRunnerResult(db, req.params.projectId, req.params.resultId),
+      )
+    },
+  )
+  resultDiscoveryRoutes(app, { pool, results, admissions })
+}
+
+function resultDiscoveryRoutes(
+  app: FastifyInstance,
+  { pool, results, admissions }: { pool: pg.Pool; results: boolean; admissions: OwnerRunnerAdmissions },
+): void {
+  const requireInstalled = () => requireRunnerResults(pool)
+  app.get<{ Params: { projectId: string; goalId: string }; Querystring: { after?: string } }>(
+    '/api/v1/projects/:projectId/goals/:goalId/native-work',
+    {
+      schema: {
+        params: runnerWorkParams,
+        querystring: runnerWorkPageQuery,
+        response: { 200: { $ref: 'OwnerRunnerWorkPage#' } },
+      },
+    },
+    async (req) => {
+      await requireInstalled()
+      return withActor(pool, req.actorId, 'read', (db) =>
+        readRunnerWork(db, req.params.projectId, req.params.goalId, req.query.after ?? null),
+      )
+    },
+  )
+  app.get<{
+    Params: { projectId: string; goalId: string }
+    Querystring: { key: string; kind: 'operation' | 'collection' }
+  }>(
+    '/api/v1/projects/:projectId/goals/:goalId/native-work/lookup',
+    {
+      schema: {
+        params: runnerWorkParams,
+        querystring: runnerWorkLookupQuery,
+        response: { 200: { $ref: 'OwnerRunnerWorkLookup#' } },
+      },
+    },
+    async (req) => {
+      await requireInstalled()
+      return withActor(pool, req.actorId, 'read', (db) => lookupRunnerWork(db, req.params, req.query))
+    },
+  )
+  resultAvailabilityRoute(app, { pool, results, admissions })
+}
+
+function resultAvailabilityRoute(
+  app: FastifyInstance,
+  { pool, results, admissions }: { pool: pg.Pool; results: boolean; admissions: OwnerRunnerAdmissions },
+): void {
+  const requireInstalled = () => requireRunnerResults(pool)
+  app.get<{ Params: { projectId: string; goalId: string }; Querystring: { after?: string } }>(
+    '/api/v1/projects/:projectId/goals/:goalId/native-work/availability',
+    {
+      schema: {
+        params: runnerWorkParams,
+        querystring: runnerWorkPageQuery,
+        response: { 200: { $ref: 'OwnerRunnerWorkAvailability#' } },
+      },
+    },
+    async (req) => {
+      await requireInstalled()
+      const availability = await withActor(pool, req.actorId, 'read', (db) =>
+        runnerWorkAvailability(db, req.params.projectId, req.params.goalId, req.query.after ?? null),
+      )
+      return {
+        ...availability,
+        resultsEnabled: results,
+        canAdmit: admissions === 'admit' && availability.canAdmit,
+        reason: admissions === 'admit' ? availability.reason : 'admissions_disabled',
+      }
     },
   )
 }

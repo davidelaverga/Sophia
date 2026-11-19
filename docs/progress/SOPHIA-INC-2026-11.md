@@ -1,5 +1,25 @@
 # Mission ledger — SOPHIA-INC-2026-11
 
+## Current outcome snapshot — 18 November 2026
+
+Active; mission incomplete. Coordinator-pinned main is `de7a6ab257a98861bb3790dea65f228014a5d2cd`; PR519 remains at `90a0af7e` and PR514 at `332dc7b0`. Root reconfirmed these primary refs at 05:03 UTC on 18 November; this author made no new remote observation. The accepted `8c` and `9ed` slices are in main. Default-OFF behavior and the verification-scope erratum remain in force.
+
+O1–O7 are all incomplete. O1 still needs actual owner-native route, account, isolation and recovery evidence; O2 needs an authorized other-member API artifact and funding/account qualification; O3 needs reviewed repository output through main, authorized deployment and independent app success. O4 needs real observations and live routing; O5 needs qualified admission and override. O6 needs voice continuity evidence: D1 stays off and VoiceLab remains user-suspended. O7 needs deployed UI acceptance, and Personal successor `9e938816` still needs candidate-specific owner approval.
+
+Local S commit `27d9a2536eaf27cd0f4c2d551c0833bc7f9afcb1`, tree `5823e23e213db314d330a5394e35b7a7b64ad3b2`, is independently accepted for bounded whole SOURCE_CORE only. It is now normally merged without a commit onto accepted local `a22d9ecf` / `60167638`. This distinct integration candidate is not yet accepted. Original N/main histories, artifact portability and socket repairs are retained. The exact accepted five-file CI producer layer is now composed locally; the whole combined candidate remains unaccepted. The original W1 signature trust remains unverified. See the [current composition handoff](../handoffs/INC-COORD-1118-S-5823-INTEGRATION-001.md).
+
+The complete a22d canonical run remains negative: unit tests had 5,716 pass, zero fail and 70 skipped; integration had 240 pass, 55 fail and two skipped, with zero cancelled. A later default-artifact-layout diagnostic passed 51 focused tests: all 21 formerly failing cases in the two selected files passed, while 34 other full-run failures were not retested. This is no full green result or Darwin C1P/C2B qualification. Historical pass counts and Studio enumerations do not qualify this integration or any product outcome.
+
+On the S composition, an initial unit invocation had 5,713 pass, zero fail, 19 cancelled and 70 skipped because its deployed-runtime setup was absent. That negative remains retained. After one separately authorized default-layout artifact VERIFY, an unchanged complete unit retry on input `e57af55c` passed 5,732 tests with zero failed/cancelled and 70 skipped. This is unit and artifact evidence only, not a full ordinary or product pass; the distinct final prose/candidate still needs whole-source review.
+
+CI producer R1 `9907` has bounded SOURCE_CORE acceptance, with its author’s 100 local tests and nine controlled witnesses subject to the recorded seam/copy/VM limits. Its five exact source files are locally composed; the current combined CI checks passed 100 tests with zero failed/cancelled/skipped on input `d0d331e8`. No actual clean GitHub/Linux capture or Linux record is established. Current Linux recording and Linux ordinary/CI proof remain open; no publication or effect grant follows here. Luis integration, current CI, automatic historical and introduced-commit coverage, PRE/GOV, the release-trust amendment, applicable UI approval and Personal9e approval remain gates. No source-exposed release, grant, credentialed provider/native operation or production activation follows from source review. The frozen November pack, issued acceptance cases and historical ledger below are unchanged.
+
+---
+
+## Historical 9 November ledger — retained verbatim
+
+# Mission ledger — SOPHIA-INC-2026-11
+
 This is the programme's coordination record, laid out like [the mission ledger template](../execution/2026-11-08-incremental/templates/MISSION_LEDGER.md). It is a **timestamped snapshot**, not a permanently current record.
 
 - **Snapshot time.** Coordinator facts at 2026-11-09T20:38:52Z (INC00-DOC-002-r3-FACTS.json, SHA256 `dabad5bd34a7c97bde45f34303b2a9c3d68ff903683b253cb07870e6d1b7bbb1`), plus read-only GitHub and Git observations by the INC00-DOC-002 author at 2026-11-09T20:42–20:44Z. Updated with the coordinator's security addendum (prompt SHA256 `69dff2cf287abe67e4ddb93f9f64ccf8e705ccd8168d1668f4bad85c997eaae1`, received about 20:58Z) and the independent assessment INC00-RELEASE-TRUST-SECURITY-ASSESSMENT-001 (2026-11-09T20:51:20Z, SHA256 `17665c62…`).
@@ -223,3 +243,8 @@ Startup observations recorded at 2026-11-08T22:33:39Z. Each note in brackets giv
 - All 134 issued acceptance cases were `not_run`. There was no deployment, native qualification, merge or programme completion. [The issued CSV is unchanged. For the current register, see "Acceptance register".]
 - INC00-DOC-001: the coordinator wrote the documentation installation and the initial source map, with no product implementation. Claude product work waited for owner sign-in, and the CLI reported `loggedIn: false`. No desktop token was read or copied. [Web delivery sign-in now works; product-native routes are still unqualified.]
 - The designer was unassigned and no design candidate existed. [Superseded: see INC01-DES-001.]
+
+
+## 2026-11-18: bounded S/H/CI composition author attempt
+
+Under INC-COORD-1118-S-H-CI-LOCAL-COMPOSITION-001, the original Native author prepared a new uncommitted normal merge on7031 with accepted local H8ef/Sa1e3/CI804f. Fresh main remains de7a6ab2 and PR519 open/unmerged. No canonical acceptance case changes through this author note. Metadata/local identity differ from behavioral acceptance. See [the composition handoff](../handoffs/INC-COORD-1118-S-H-CI-COMPOSITION-001.md) for exact trees, bounded checks, retained negatives and open gates. Default-OFF/erratum, GOV/currentCI/introduced+historical review/Luis/RTA/Personal+U/native/deployed-app holds remain; D1 OFF, VoiceLab user-suspended. No commit/publication/artifact RECORD/activation grant.

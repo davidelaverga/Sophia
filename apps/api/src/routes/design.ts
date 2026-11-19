@@ -62,6 +62,10 @@ export const DESIGN_ROUTES: readonly string[] = [
   '/v1/runtime/review/capture',
   '/v1/runtime/review/delivered',
   '/v1/runtime/review/submit',
+  // Root81 (A59, 0115): registered only when the server is built with the bound-output option.
+  '/v1/runtime/design/bound/apply',
+  '/v1/runtime/design/bound/claim',
+  '/v1/runtime/design/bound/outcome',
 ]
 
 /** A source write carries up to 640 KiB of HTML and CSS, which JSON escaping can grow. */
@@ -81,6 +85,56 @@ const runtimeHeaders = {
 interface Deps {
   pool: pg.Pool
   store: ByteStore | null
+  /** Root81 (A59): the server-only bound-output option; absent or false (the default) serves no bound route. */
+  boundOutput?: BoundOutputOption
+}
+
+/**
+ * Root81 (INC04-R07-C2-MAINTAINED-BOUND-OUTPUT-001, A59, migration 0115): the bound-output option a SERVER passes to its
+ * runtime route factories (never a request or model field). `false`, the default, keeps the maintained routes exactly as
+ * they were and refuses a reserve that names a `boundProfile` before any effect; a version object serves the nine bound
+ * steps through its operations (the persistence layer's `BOUND_OUTPUT_V1`, which sets the database's transaction-local
+ * selection for those calls only).
+ */
+export interface BoundOutput {
+  readonly version: 'v1'
+  readonly step: (
+    c: pg.PoolClient,
+    op: 'research' | 'design' | 'source_review',
+    step: 'apply' | 'claim' | 'outcome',
+    who: RuntimeCaller,
+    request: unknown,
+  ) => Promise<unknown>
+}
+export type BoundOutputOption = BoundOutput | false
+
+/** A reserve that opts in to bounds is refused, before any effect, unless the server was built with the option. */
+export function refuseUnservedBound(body: ResearchReserveRequest, boundOutput: BoundOutputOption): void {
+  if (boundOutput === false && Object.hasOwn(body, 'boundProfile')) {
+    throw new DomainError('invalid_request', 'Bound output is not enabled on this service')
+  }
+}
+
+const BOUND_BODY_LIMIT = 16 * 1024
+const BOUND_STEPS = [
+  ['apply', 'BoundApplyRequest', 'BoundApplyReceipt'],
+  ['claim', 'BoundClaimRequest', 'BoundClaimReply'],
+  ['outcome', 'BoundOutcomeRequest', 'BoundOutcomeReceipt'],
+] as const
+
+/** The three bound steps of one operation under `prefix` (…/bound/{apply,claim,outcome}), each in its own transaction. */
+export function boundStepRoutes(
+  app: FastifyInstance,
+  pool: pg.Pool,
+  boundOutput: BoundOutput,
+  op: 'research' | 'design' | 'source_review',
+  prefix: string,
+): void {
+  for (const [step, body, response] of BOUND_STEPS) {
+    app.post<{ Body: unknown }>(`${prefix}/${step}`, schema(body, response, BOUND_BODY_LIMIT), async (req) =>
+      withService(pool, (c) => boundOutput.step(c, op, step, callerOf(req), req.body)),
+    )
+  }
 }
 
 function callerOf(req: FastifyRequest): RuntimeCaller {
@@ -185,7 +239,11 @@ function sharedRoutes(app: FastifyInstance, deps: Deps): void {
   app.post<{ Body: ResearchReserveRequest }>(
     '/v1/runtime/design/reserve',
     schema('ResearchReserveRequest', 'ResearchReservation'),
-    async (req) => withService(pool, (c) => runtimeDesignReserve(c, callerOf(req), req.body)),
+    async (req) => {
+      const who = callerOf(req)
+      refuseUnservedBound(req.body, deps.boundOutput ?? false)
+      return withService(pool, (c) => runtimeDesignReserve(c, who, req.body))
+    },
   )
   app.post<{ Body: ResearchSettleRequest }>(
     '/v1/runtime/design/settle',
@@ -222,4 +280,10 @@ export function designRoutes(app: FastifyInstance, deps: Deps): void {
   designerRoutes(app, deps)
   sharedRoutes(app, deps)
   reviewerRoutes(app, deps)
+  if (deps.boundOutput) designBoundRoutes(app, deps.pool, deps.boundOutput)
+}
+
+/** Root81: the design operation's three bound steps (its own maintained scope in the database). */
+export function designBoundRoutes(app: FastifyInstance, pool: pg.Pool, boundOutput: BoundOutput): void {
+  boundStepRoutes(app, pool, boundOutput, 'design', '/v1/runtime/design/bound')
 }

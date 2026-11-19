@@ -41,10 +41,27 @@ DO $$ DECLARE f record; pickers text[]:=ARRAY['admit_research_task','admit_nativ
   'runtime_authenticate','runtime_conversation_acknowledged','runtime_conversation_claim','runtime_conversation_go',
   'runtime_conversation_reserve','runtime_conversation_settle','runtime_cursor','runtime_record_observations','runtime_record_receipts',
   'runtime_hello','runtime_lease','runtime_poll','runtime_record_ready','runtime_status','contribution_runtime_of',
-  'register_contribution_runtime','retire_contribution_runtime'];
+  'register_contribution_runtime','retire_contribution_runtime',
+  -- 0104 (INC04-S01b): a private boolean fact at an explicit instant, read only for a grant's own contribution runtime
+  -- (its project, connection and current credential revision); it chooses no runtime and returns none.
+  'selection_runtime_ready_at',
+  -- 0111 (INC04-R07-C3-FENCE-001): the migration-owner-only fence of ONE explicitly named draining contribution resource
+  -- (project, resource and its generation token); it locks and revokes that resource's own runtime rows, chooses no
+  -- runtime for new work and returns none. Its operator-only reach is asserted below.
+  'research_runtime_fence',
+  -- 0112 R2 (INC04-R07-C3-RECONCILE-001): the migration-owner-only late-fact operation reads exactly ONE runtime row, the
+  -- call's immutable ORIGINAL runtime (its frozen id, project and resource), FOR SHARE, as proof that the original
+  -- generation is revoked. It is not a picker: it chooses no runtime for new work, returns none and reactivates none. Its
+  -- bound selector and operator-only reach are asserted below.
+  'record_research_late_facts',
+  -- 0113 (INC04-COHERENT-008 C2): a boolean emitter-identity fact for ONE runtime row named explicitly by the caller
+  -- (p_runtime): whether its role for the route has a service executor bound to that route and emitter digest. It
+  -- chooses no runtime for new work and returns none.
+  'research_bound_emitter_consistent'];
 BEGIN
  FOR f IN SELECT p.proname, p.prosrc FROM pg_proc p WHERE p.pronamespace='sophia'::regnamespace
-   AND p.prosrc ~* 'from\s+sophia\.runtime_instances' LOOP
+   -- FROM or JOIN (INC04-S01b): a selector that reads the table through a join is a selector too.
+   AND p.prosrc ~* '(from|join)\s+sophia\.runtime_instances' LOOP
   IF f.proname=ANY(pickers) THEN
    IF position('contribution_resource' IN f.prosrc)=0 THEN RAISE EXCEPTION 'Picker % does not exclude contribution resources', f.proname; END IF;
   ELSIF f.proname=ANY(role_pinned) THEN
@@ -57,6 +74,44 @@ BEGIN
   RAISE EXCEPTION 'A listed picker is missing'; END IF;
  IF NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgname='runtime_instances_contribution_roles' AND tgrelid='sophia.runtime_instances'::regclass AND tgenabled='O') THEN
   RAISE EXCEPTION 'The contribution role trigger is missing'; END IF;
+ -- The 0111 classification holds only while the fence is the owner's alone: its actual signature, its entry points and
+ -- its tables are out of every ordinary role's reach (the regprocedure casts fail if a signature changes).
+ IF EXISTS(SELECT 1 FROM unnest(ARRAY['sophia_api','sophia_worker','sophia_conversation_assembler']) r
+   JOIN pg_roles ro ON ro.rolname=r,
+   unnest(ARRAY['sophia.research_runtime_fence(uuid,uuid,text,text)'::regprocedure,
+    'sophia.fence_contribution_runtime(uuid,uuid,text)'::regprocedure,
+    'sophia.contribution_runtime_generation(uuid,uuid)'::regprocedure]) fn
+   WHERE has_function_privilege(r,fn,'EXECUTE')) THEN
+  RAISE EXCEPTION 'An ordinary role can execute the 0111 fence'; END IF;
+ IF EXISTS(SELECT 1 FROM unnest(ARRAY['sophia_api','sophia_worker','sophia_conversation_assembler']) r
+   JOIN pg_roles ro ON ro.rolname=r,
+   unnest(ARRAY['sophia.research_runtime_fences'::regclass,'sophia.research_runtime_fence_snapshots'::regclass]) t
+   WHERE has_table_privilege(r,t,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')) THEN
+  RAISE EXCEPTION 'An ordinary role holds a 0111 fence table privilege'; END IF;
+ -- The 0112 R2 classification holds only while the late-fact operation's one selector stays bound to the call's original
+ -- runtime row and the operation stays the owner's alone: its actual signature (the casts fail if it changes), a definer
+ -- with no PUBLIC or ordinary-role EXECUTE (nor on its fact writer), and no ordinary-role privilege on its record.
+ IF (SELECT count(*) FROM regexp_matches((SELECT prosrc FROM pg_proc WHERE oid='sophia.record_research_late_facts(jsonb)'::regprocedure),
+     '(from|join)\s+sophia\.runtime_instances','gi'))<>1
+   OR position('FROM sophia.runtime_instances ri WHERE ri.id=i.runtime_id AND ri.project_id=v_project AND ri.resource_id=i.resource_id FOR SHARE'
+     IN (SELECT prosrc FROM pg_proc WHERE oid='sophia.record_research_late_facts(jsonb)'::regprocedure))=0 THEN
+  RAISE EXCEPTION 'The 0112 late-fact selector is not bound to the original runtime'; END IF;
+ IF NOT (SELECT prosecdef FROM pg_proc WHERE oid='sophia.record_research_late_facts(jsonb)'::regprocedure) THEN
+  RAISE EXCEPTION 'The 0112 late-fact operation is not a definer'; END IF;
+ IF EXISTS(SELECT 1 FROM unnest(ARRAY['sophia.record_research_late_facts(jsonb)'::regprocedure,
+    'sophia.research_call_record_late_facts(uuid,uuid,jsonb)'::regprocedure]) fn JOIN pg_proc p ON p.oid=fn
+   WHERE p.proacl IS NULL OR EXISTS(SELECT 1 FROM aclexplode(p.proacl) a WHERE a.grantee=0 AND a.privilege_type='EXECUTE')) THEN
+  RAISE EXCEPTION 'PUBLIC can execute the 0112 late-fact operation'; END IF;
+ IF EXISTS(SELECT 1 FROM unnest(ARRAY['sophia_api','sophia_worker','sophia_conversation_assembler']) r
+   JOIN pg_roles ro ON ro.rolname=r,
+   unnest(ARRAY['sophia.record_research_late_facts(jsonb)'::regprocedure,
+    'sophia.research_call_record_late_facts(uuid,uuid,jsonb)'::regprocedure]) fn
+   WHERE has_function_privilege(r,fn,'EXECUTE')) THEN
+  RAISE EXCEPTION 'An ordinary role can execute the 0112 late-fact operation'; END IF;
+ IF EXISTS(SELECT 1 FROM unnest(ARRAY['sophia_api','sophia_worker','sophia_conversation_assembler']) r
+   JOIN pg_roles ro ON ro.rolname=r
+   WHERE has_table_privilege(r,'sophia.research_late_fact_operations','SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')) THEN
+  RAISE EXCEPTION 'An ordinary role holds a 0112 late-fact record privilege'; END IF;
 END $$;
 
 -- --- fixtures (as the migration owner) -------------------------------------------------------------------------------

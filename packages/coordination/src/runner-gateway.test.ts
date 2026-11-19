@@ -106,11 +106,12 @@ const follow = (
   })
 
 function setup(
-  { file = journalFile(), t3 = new FakeT3(), maxReadPages, hostProfile = profile } = {} as {
+  { file = journalFile(), t3 = new FakeT3(), maxReadPages, hostProfile = profile, collectionVersion } = {} as {
     file?: string
     t3?: FakeT3
     maxReadPages?: number
     hostProfile?: GatewayProfile
+    collectionVersion?: 1
   },
 ) {
   const gateway = new RunnerGateway({
@@ -118,6 +119,7 @@ function setup(
     transport: t3,
     profile: hostProfile,
     ...(maxReadPages ? { maxReadPages } : {}),
+    ...(collectionVersion ? { collectionVersion } : {}),
   })
   const id = (e: RunnerEnvelope) => ({ envelope: e, digest: digestOf(e), journalId: gateway.journalId })
   return {
@@ -2324,4 +2326,488 @@ describe('settings of up to 200 code points reach the native call exactly (repai
       { kind: 'refused', reason: 'model is not a model name', launches: 0 },
     )
   })
+})
+
+/** A SYNTHETIC patched report for one run (the producer's `providerReportedModels`, keyed by `evidence`). */
+const patchedReport = (runId: string) => ({
+  evidence: 'collected',
+  collectedAt: '2026-11-14T00:00:00.000Z',
+  activeAttemptId: `${runId}:a1`,
+  attemptPolicy: 'latest_by_attempt_ordinal',
+  attemptLimit: 8,
+  attemptsOwned: 1,
+  attemptsOmitted: 0,
+  attempts: [
+    {
+      attemptId: `${runId}:a1`,
+      attemptOrdinal: 1,
+      reason: 'initial',
+      status: 'completed',
+      active: true,
+      providerInstanceId: 'claudeAgent',
+      rootTurns: 1,
+      terminalRootTurns: 1,
+      reportingRootTurns: 1,
+      unboundTurns: 0,
+      modelEvidence: 'reported',
+      models: ['synthetic-reported-model'],
+      modelsOmitted: 0,
+      excludedModelValues: 0,
+    },
+  ],
+})
+
+describe("an observation carries its own run's reported models only from a patched producer (INC04-S03b B2, 0108)", () => {
+  async function launched() {
+    const w = setup()
+    const created = await w.send(create(140))
+    return { ...w, e: create(140), thread: threadOf(created), runId: runOf(created) }
+  }
+
+  it('answers an unpatched read exactly as before: kind, status and terminal, no further key', async () => {
+    const w = await launched()
+    assert.deepEqual(await w.obs(w.e), { kind: 'run', status: 'running', terminal: false })
+    w.t3.finishRun(w.runId)
+    assert.deepEqual(await w.obs(w.e), { kind: 'run', status: 'completed', terminal: true })
+  })
+
+  it("attaches the receipt run's checked report, bound to the receipt thread and run", async () => {
+    const w = await launched()
+    w.t3.finishRun(w.runId)
+    w.t3.reportModels(w.runId, patchedReport(w.runId))
+    const seen = await w.obs(w.e)
+    assert.equal(seen.kind === 'run' && seen.status, 'completed')
+    assert.equal(seen.kind === 'run' && seen.reportedModels?.state, 'collected')
+    const r = seen.kind === 'run' ? seen.reportedModels : undefined
+    assert.equal(r?.state === 'collected' && r.threadId, w.thread)
+    assert.equal(r?.state === 'collected' && r.runId, w.runId)
+    assert.deepEqual(r?.state === 'collected' && r.attempts[0]?.models, ['synthetic-reported-model'])
+  })
+
+  it("keeps the status when its run's report is malformed, and never attaches another run's report", async () => {
+    const w = await launched()
+    w.t3.reportModels(w.runId, { evidence: 'collected', models: ['x'] })
+    assert.deepEqual(await w.obs(w.e), {
+      kind: 'run',
+      status: 'running',
+      terminal: false,
+      reportedModels: { state: 'malformed', reason: 'invalid' },
+    })
+    w.t3.reportModels(w.runId, undefined)
+    const input = follow(141, 140, w.thread)
+    const sent = await w.send(input)
+    w.t3.reportModels(runOf(sent), patchedReport(runOf(sent)))
+    assert.deepEqual(await w.obs(w.e), { kind: 'run', status: 'running', terminal: false })
+  })
+
+  it('keeps a Stop observation free of any report', async () => {
+    const w = await launched()
+    w.t3.reportModels(w.runId, patchedReport(w.runId))
+    const stop = follow(142, 140, w.thread, 'stop')
+    await w.send(stop)
+    w.t3.finishRun(w.runId, 'interrupted')
+    assert.deepEqual(await w.obs(stop), { kind: 'no_active_run' })
+  })
+})
+
+const collectionBounds = { v: 1 as const, maxPages: 8, maxBytes: 8192 }
+async function collectionFixture(source = false) {
+  const f = setup({ collectionVersion: 1, hostProfile: source ? sourced : profile })
+  const { envelope: e, payload } = source
+    ? v2(991, 'create', { settings: structuredClone(SETTINGS) })
+    : { envelope: create(991), payload: undefined }
+  const answer = source ? await sendV2(f.gateway, e, payload) : await f.send(e)
+  assert.equal(answer.kind, 'received')
+  if (answer.kind !== 'received' || !answer.runId) throw new Error('fixture create not received')
+  f.t3.finishRun(answer.runId)
+  const thread = f.t3.threads.get(answer.identity.threadId)
+  if (!thread) throw new Error('fixture thread missing')
+  thread.collectionItems = [
+    {
+      position: 1,
+      visibility: 'local',
+      sourceThreadId: answer.identity.threadId,
+      itemId: 'final-item',
+      messageId: 'final-message',
+      runId: answer.runId,
+      type: 'assistant_message',
+      status: 'completed',
+      text: 'Useful retained boundary checklist. 🧭',
+      textTruncated: false,
+      nextTextOffset: null,
+    },
+  ]
+  const identity = { envelope: e, digest: digestOf(e), journalId: f.gateway.journalId }
+  return { ...f, e, answer, thread, identity }
+}
+describe('separate owner-native read-result collection', () => {
+  it('collects only exact accepted completed output, with unchanged journal and no inference or new effect', async () => {
+    const f = await collectionFixture()
+    try {
+      const before = readFileSync(f.file)
+      const beforeEffects = { ...f.t3.effects }
+      const result = await f.gateway.collect(f.identity, collectionBounds)
+      assert.equal(result.kind, 'collected')
+      if (result.kind !== 'collected') throw new Error('missing collection')
+      assert.equal(result.runId, f.answer.runId)
+      assert.equal(result.inputMessageId, f.answer.identity.messageId)
+      assert.equal(result.messageId, 'final-message')
+      assert.equal(result.textSha256, sha256Hex(result.text))
+      assert.equal(result.byteLength, Buffer.byteLength(result.text, 'utf8'))
+      const { resultDigest, ...content } = result
+      assert.equal(resultDigest, digestOf(content))
+      assert.deepEqual(await f.gateway.collect(f.identity, collectionBounds), result)
+      assert.deepEqual(f.t3.effects, beforeEffects)
+      assert.deepEqual(readFileSync(f.file), before)
+      assert.equal((await f.obs(f.e)).kind, 'run')
+      assert.equal('text' in (await f.obs(f.e)), false)
+    } finally {
+      f.gateway.close()
+    }
+  })
+  it('fails unavailable for default-off collection and rejects foreign lineage before native reads', async () => {
+    const old = setup()
+    try {
+      assert.deepEqual(
+        await old.gateway.collect(
+          { envelope: create(990), digest: digestOf(create(990)), journalId: old.gateway.journalId },
+          collectionBounds,
+        ),
+        { v: 1, kind: 'collection_unavailable', reason: 'unsupported' },
+      )
+      assert.equal(old.t3.calls.length, 0)
+    } finally {
+      old.gateway.close()
+    }
+    const f = await collectionFixture()
+    try {
+      const count = f.t3.calls.length
+      for (const envelope of [
+        create(991, { ownerId: opId(4) }),
+        create(991, { authorityEpoch: 2 }),
+        create(991, { bindingId: opId(5) }),
+      ]) {
+        assert.equal(
+          (await f.gateway.collect({ ...f.identity, envelope, digest: digestOf(envelope) }, collectionBounds)).kind,
+          'collection_unavailable',
+        )
+      }
+      assert.equal(f.t3.calls.length, count)
+    } finally {
+      f.gateway.close()
+    }
+  })
+  it('rejects terminal-without-output, failed/interrupted/running, wrong run, truncation and UTF-8 overflow', async () => {
+    for (const fault of [
+      'missing',
+      'failed',
+      'interrupted',
+      'running',
+      'wrong_run',
+      'truncated',
+      'oversized',
+      'duplicate',
+    ]) {
+      const f = await collectionFixture()
+      try {
+        const items = f.thread.collectionItems
+        if (!items?.[0]) throw new Error('fixture output missing')
+        if (fault === 'missing') f.thread.collectionItems = []
+        else if (['failed', 'interrupted', 'running'].includes(fault))
+          f.t3.finishRun(f.answer.runId ?? 'missing', fault)
+        else if (fault === 'wrong_run') items[0].runId = 'other-run'
+        else if (fault === 'truncated') items[0].textTruncated = true
+        else if (fault === 'oversized') items[0].text = '🧭'.repeat(2100)
+        else items.push({ ...items[0], position: 2 })
+        assert.equal((await f.gateway.collect(f.identity, collectionBounds)).kind, 'collection_unavailable', fault)
+      } finally {
+        f.gateway.close()
+      }
+    }
+  })
+  it('bounds pages, selects the last assistant and omits reasoning/tool text across reconnect reads', async () => {
+    const f = await collectionFixture()
+    try {
+      f.t3.pageSize = 1
+      const first = f.thread.collectionItems?.[0]
+      if (!first) throw new Error('fixture output missing')
+      f.thread.collectionItems = [
+        { ...first, type: 'reasoning', itemId: 'reasoning-item', messageId: null, position: 1, text: 'PRIVATE' },
+        { ...first, position: 2, itemId: 'comment', messageId: 'comment', text: 'Earlier assistant' },
+        { ...first, position: 3 },
+      ]
+      assert.equal(
+        (await f.gateway.collect(f.identity, { ...collectionBounds, maxPages: 2 })).kind,
+        'collection_unavailable',
+      )
+      const got = await f.gateway.collect(f.identity, collectionBounds)
+      assert.equal(got.kind, 'collected')
+      if (got.kind !== 'collected') throw new Error('missing final')
+      assert.equal(got.pages, 8)
+      assert.equal(got.text.includes('PRIVATE'), false)
+      assert.equal(got.messageId, 'final-message')
+      f.t3.inject('t3_thread_read', { kind: 'lose_before_effect' })
+      assert.deepEqual(await f.gateway.collect(f.identity, collectionBounds), {
+        v: 1,
+        kind: 'collection_unavailable',
+        reason: 'unavailable',
+      })
+      assert.equal((await f.gateway.collect(f.identity, collectionBounds)).kind, 'collected')
+      assert.equal(f.t3.effects.launches, 1)
+    } finally {
+      f.gateway.close()
+    }
+  })
+})
+
+describe('collection scan conflict and restart boundaries', () => {
+  it('rejects nonprogress, changing summaries and foreign pages without another writer', async () => {
+    for (const fault of ['nonprogress', 'summary', 'foreign', 'rewrite']) {
+      const f = await collectionFixture()
+      f.gateway.close()
+      let reads = 0
+      const transport: T3Transport = {
+        namespace: () => f.t3.namespace(),
+        async call(call) {
+          const reply = await f.t3.call(call)
+          if (
+            call.tool !== 't3_thread_read' ||
+            reply.kind !== 'ok' ||
+            typeof reply.body !== 'object' ||
+            reply.body === null
+          )
+            return reply
+          reads += 1
+          const body: Record<string, unknown> = { ...reply.body }
+          if (fault === 'nonprogress') {
+            body.hasMore = true
+            body.nextPosition = 0
+          }
+          if (fault === 'foreign') body.thread = { threadId: 'foreign', activeRunId: null, runCount: 1 }
+          if (fault === 'summary' && reads > 1) body.recentRuns = [{ runId: f.answer.runId, status: 'failed' }]
+          if (fault === 'rewrite' && reads > 2 && Array.isArray(body.items))
+            body.items = body.items.map((item: unknown) =>
+              typeof item === 'object' && item !== null ? { ...item, text: 'Revised during read' } : item,
+            )
+          return { kind: 'ok', body }
+        },
+      }
+      f.t3.pageSize = 1
+      const reopened = new RunnerGateway({
+        journal: new RunnerJournal(f.file),
+        transport,
+        profile,
+        collectionVersion: 1,
+      })
+      try {
+        assert.equal((await reopened.collect(f.identity, collectionBounds)).kind, 'collection_unavailable', fault)
+        assert.equal(f.t3.effects.launches, 1)
+        assert.equal(f.t3.effects.messages, 0)
+        assert.equal(reads <= collectionBounds.maxPages, true)
+      } finally {
+        reopened.close()
+      }
+    }
+  })
+  it('a reopened journal reads the same result, but no accepted mapping cannot read anything', async () => {
+    const f = await collectionFixture()
+    const result = await f.gateway.collect(f.identity, collectionBounds)
+    f.gateway.close()
+    const reopened = new RunnerGateway({
+      journal: new RunnerJournal(f.file),
+      transport: f.t3,
+      profile,
+      collectionVersion: 1,
+    })
+    try {
+      assert.deepEqual(await reopened.collect(f.identity, collectionBounds), result)
+      const count = f.t3.calls.length
+      const missing = create(999)
+      assert.equal(
+        (await reopened.collect({ ...f.identity, envelope: missing, digest: digestOf(missing) }, collectionBounds))
+          .kind,
+        'collection_unavailable',
+      )
+      assert.equal(f.t3.calls.length, count)
+    } finally {
+      reopened.close()
+    }
+  })
+})
+
+it('a timed-out collection does not return a late body or start another read', async () => {
+  const f = await collectionFixture()
+  f.gateway.close()
+  let reads = 0
+  let release: ((reply: T3Reply) => void) | undefined
+  const transport: T3Transport = {
+    namespace: () => f.t3.namespace(),
+    call: () => {
+      reads += 1
+      return new Promise<T3Reply>((resolve) => {
+        release = resolve
+      })
+    },
+  }
+  const reopened = new RunnerGateway({ journal: new RunnerJournal(f.file), transport, profile, collectionVersion: 1 })
+  mock.timers.enable({ apis: ['setTimeout'] })
+  try {
+    const pending = reopened.collect(f.identity, collectionBounds)
+    mock.timers.tick(2500)
+    assert.deepEqual(await pending, { v: 1, kind: 'collection_unavailable', reason: 'unavailable' })
+    release?.({ kind: 'ok', body: { text: 'late private body' } })
+    await Promise.resolve()
+    assert.equal(reads, 1)
+    assert.equal(f.t3.effects.launches, 1)
+  } finally {
+    mock.timers.reset()
+    reopened.close()
+  }
+})
+
+/** NCOL-F01: deterministic pending read; no wall-clock timing assumption or provider operation. */
+function mutationGate() {
+  let resolveWait: (() => void) | undefined
+  const wait = new Promise<void>((resolve) => {
+    resolveWait = resolve
+  })
+  return { wait, release: () => resolveWait?.(), started: false }
+}
+async function deferredCollector(input = false, source = false) {
+  const f = await collectionFixture(source)
+  let e = f.e
+  let answer = f.answer
+  if (input) {
+    e = follow(992, 991, answer.identity.threadId)
+    const next = await f.send(e)
+    if (next.kind !== 'received' || !next.runId) throw new Error('synthetic input was not received')
+    answer = next
+    f.t3.finishRun(next.runId)
+    const item = f.thread.collectionItems?.[0]
+    if (!item) throw new Error('synthetic assistant missing')
+    f.thread.collectionItems = [{ ...item, position: 2, runId: answer.runId }]
+  }
+  f.gateway.close()
+  const gate = mutationGate()
+  let reads = 0
+  const transport: T3Transport = {
+    namespace: () => f.t3.namespace(),
+    async call(call) {
+      reads += 1
+      if (reads === 1) {
+        gate.started = true
+        await gate.wait
+      }
+      return f.t3.call(call)
+    },
+  }
+  const gateway = new RunnerGateway({
+    journal: new RunnerJournal(f.file),
+    transport,
+    profile: source ? sourced : profile,
+    collectionVersion: 1,
+  })
+  return {
+    ...f,
+    e,
+    answer,
+    gateway,
+    gate,
+    reads: () => reads,
+    identity: { envelope: { ...structuredClone(e) }, digest: digestOf(e), journalId: gateway.journalId },
+  }
+}
+describe('NCOL-F01 validated entry snapshots', () => {
+  it('NCOL-F01 gateway preserves original total page budgets across a deferred read', async () => {
+    for (const [original, changed, pages] of [
+      [8, 10, 5],
+      [4, 8, 3],
+    ] as const) {
+      const f = await deferredCollector()
+      const bounds: { v: 1; maxPages: number; maxBytes: number } = { v: 1, maxPages: original, maxBytes: 8192 }
+      const item = f.thread.collectionItems?.[0]
+      if (!item) throw new Error('fixture output missing')
+      f.thread.collectionItems = Array.from({ length: pages - 1 }, (_, i) => ({
+        ...item,
+        position: i + 1,
+        itemId: `item-${i}`,
+        messageId: `assistant-${i}`,
+        text: 'Useful',
+      }))
+      f.t3.pageSize = 1
+      try {
+        const pending = f.gateway.collect(f.identity, bounds)
+        assert.equal(f.gate.started, true)
+        bounds.maxPages = changed
+        f.gate.release()
+        const result = await pending
+        assert.equal(f.reads() <= original, true, `original page ceiling ${original}, observed ${f.reads()}`)
+        assert.equal(result.kind, 'collection_unavailable')
+        assert.equal(Object.isFrozen(bounds), false)
+      } finally {
+        f.gate.release()
+        f.gateway.close()
+      }
+    }
+  })
+  it('NCOL-F01 gateway preserves original UTF-8 budgets across a deferred read', async () => {
+    for (const [original, changed, text] of [
+      [8192, 16384, '🧭'.repeat(2100)],
+      [16, 128, 'x'.repeat(17)],
+    ] as const) {
+      const f = await deferredCollector()
+      const bounds: { v: 1; maxPages: number; maxBytes: number } = { v: 1, maxPages: 2, maxBytes: original }
+      const item = f.thread.collectionItems?.[0]
+      if (!item) throw new Error('fixture output missing')
+      item.text = text
+      try {
+        const pending = f.gateway.collect(f.identity, bounds)
+        assert.equal(f.gate.started, true)
+        bounds.maxBytes = changed
+        f.gate.release()
+        assert.equal((await pending).kind, 'collection_unavailable', `original byte ceiling ${original}`)
+        assert.equal(Object.isFrozen(bounds), false)
+      } finally {
+        f.gate.release()
+        f.gateway.close()
+      }
+    }
+  })
+  for (const [input, source] of [
+    [false, false],
+    [true, false],
+    [false, true],
+  ] as const) {
+    it(`NCOL-F01 gateway preserves ${input ? 'accepted INPUT' : source ? 'v2 CREATE' : 'CREATE'} lineage and exact replay`, async () => {
+      const f = await deferredCollector(input, source)
+      const original = structuredClone(f.identity)
+      const bounds = { ...collectionBounds }
+      try {
+        const pending = f.gateway.collect(f.identity, bounds)
+        assert.equal(f.gate.started, true)
+        f.identity.envelope.bindingId = opId(810)
+        f.identity.envelope.operationId = opId(811)
+        if (f.identity.envelope.settings) Object.assign(f.identity.envelope.settings, { model: 'caller-changed' })
+        f.identity.digest = 'd'.repeat(64)
+        f.identity.journalId = opId(812)
+        f.gate.release()
+        const got = await pending
+        assert.equal(got.kind, 'collected')
+        if (got.kind !== 'collected') throw new Error('original result missing')
+        assert.deepEqual(
+          [got.bindingId, got.operationId, got.envelopeDigest, got.journalId],
+          [original.envelope.bindingId, original.envelope.operationId, original.digest, original.journalId],
+        )
+        assert.equal(got.inputMessageId, f.answer.identity.messageId)
+        assert.equal(got.runId, f.answer.runId)
+        assert.notEqual(got.messageId, got.inputMessageId)
+        assert.deepEqual(await f.gateway.collect(original, bounds), got)
+        assert.equal(Object.isFrozen(f.identity.envelope), false)
+        assert.equal(f.t3.effects.messages, input ? 1 : 0)
+      } finally {
+        f.gate.release()
+        f.gateway.close()
+      }
+    })
+  }
 })

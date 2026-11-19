@@ -1,9 +1,22 @@
+import {
+  ownerHostRoutes,
+  ownerHostAdmission,
+  isOwnerHostRoute,
+  ownerHostError,
+  authenticateOwnerHost,
+  HOST_ROUTES,
+  REDEEM_ROUTE,
+  OWNER_HOST_SCHEMA,
+} from './routes/owner-host.ts'
 import { randomUUID, timingSafeEqual } from 'node:crypto'
 import Fastify, { type FastifyError, type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import type pg from 'pg'
 import { componentSchemas, type Error as ApiError } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import {
+  OWNER_RUNNER_RESULTS_SCHEMA,
+  ATOMIC_ADMISSION_SCHEMA,
+  BOUND_OUTPUT_V1,
   checkRoleSafety,
   claimObjectWrite,
   RUNTIME_COMMANDS_CHANNEL,
@@ -48,8 +61,9 @@ import { designRoutes } from './routes/design.ts'
 import { RENDERER_ROUTES, rendererRoutes } from './routes/renderer.ts'
 import { RUNTIME_ROUTES, conversationRuntimeRoutes, researchRoutes, runtimeRoutes } from './routes/runtime.ts'
 import { OWNER_RUNNER_SCHEMA, runnerOperationRoutes, type OwnerRunnerAdmissions } from './routes/runner-operations.ts'
-import { apiContributionRoutes } from './routes/api-contributions.ts'
+import { API_CONTRIBUTIONS_SCHEMA, apiContributionRoutes } from './routes/api-contributions.ts'
 import { projectResourceRoutes } from './routes/project-resources.ts'
+import { CAPACITY_EXPOSURE_SCHEMA, selectionPreviewRoutes } from './routes/selection-preview.ts'
 import { sourceRoutes } from './routes/sources.ts'
 import type { LiveKitConfig } from './livekit.ts'
 import { NotificationHub } from './notification-hub.ts'
@@ -77,6 +91,7 @@ declare module 'fastify' {
 
 export interface AppDeps {
   pool: pg.Pool
+  ownerHostEnrollment?: boolean
   verifyActor: VerifyActor
   /**
    * SSE heartbeat and fallback re-read interval (ms). Clients treat ~2.5 intervals of silence as a
@@ -149,12 +164,32 @@ export interface AppDeps {
    * admission still needs an operator-recorded qualification of the owner's route, which no request can create.
    */
   ownerRunnerAdmissions?: OwnerRunnerAdmissions
+  /** Gates fresh A60 capture only. Retained reads remain mounted. */
+  ownerRunnerResults?: boolean
   /**
    * Member API contributions (A48, migration 0094): the owner's account and connection metadata, selected-project grants,
-   * admin narrowing, a member's funding pin and task funding. Off unless set: server.ts does not set it, so only a test
-   * (or a later, separately approved activation) mounts the boundary.
+   * admin narrowing, a member's funding pin and task funding. Stock server.ts leaves it off with
+   * SOPHIA_API_CONTRIBUTIONS unset/off; explicit on exposes the boundary, without funding, custody or qualification.
+   * Off does not turn off the always-served research admission and runtime paid reservation, which /ready and their
+   * own guard require 0105 for anyway.
    */
   apiContributions?: boolean
+  /**
+   * C4/C5 W1 capacity exposure (INC04-R07, migration 0114): off unless set; server.ts does not set it. Off, nothing of
+   * 0114 is asked for, read or required: the preview, its route guard and /ready are exactly as before. On, the preview
+   * reads each API candidate's exposure custody and may only restrict its capacity (the kernel's existing
+   * capacity_unproven or capacity_exhausted; no new code, number or field on the wire), and both the preview's guard
+   * and /ready require 0114 (CAPACITY_EXPOSURE_SCHEMA). It is never a core requirement.
+   */
+  capacityExposure?: boolean
+  /**
+   * C2 bound output (INC04-R07, A59, migration 0115): off unless set; server.ts sets it only with SOPHIA_BOUND_OUTPUT=on.
+   * Off, a reserve naming a `boundProfile` is refused before any database call, the nine bound steps are not served and
+   * /ready requires nothing of 0115. On, the research, design and source-review runtime routes get the production
+   * BOUND_OUTPUT_V1 (never a caller's object) and /ready requires 0115's nine wrappers (BOUND_OUTPUT_SCHEMA). Not a core
+   * requirement, not activation of any profile: each opted call still needs a qualified, active profile in 0113.
+   */
+  boundOutput?: boolean
 }
 
 /**
@@ -306,13 +341,6 @@ export const STORE_SCHEMA = `SELECT to_regprocedure('sophia.claim_object_write(t
  * (Codex P1 r4232908444). An API with it off, the default, and the previous API, require nothing of 0085 or 0087, and
  * of 0086 only the claim (REQUIRED_SCHEMA).
  */
-/**
- * Member API contributions on (A48): 0094's write entry and 0100's rebuild funding guard (INC01-COHERENT-WRITE-003). An
- * API with contributions on is not ready on a database without 0100, where a rebuilt contributed task would run unbound.
- */
-export const CONTRIBUTION_FUNDING_SCHEMA = `SELECT to_regprocedure('sophia.api_contribution_write(text,text,jsonb)') IS NOT NULL
-  AND to_regprocedure('sophia.contribution_lineage_unbound(uuid,uuid)') IS NOT NULL AS ok`
-
 export const VOICE_SCHEMA = `SELECT to_regprocedure('sophia.voice_qualification_guard()') IS NOT NULL
   AND to_regprocedure('sophia.media_record_evidence(uuid,uuid,integer,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.media_record_evidence_write(uuid,uuid,uuid,text,jsonb)') IS NOT NULL
@@ -373,7 +401,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   })
 
   registerCors(app, deps.corsOrigins ?? [])
-  registerAuthentication(app, deps.verifyActor, deps.mediaBridgeTokenSha256 ?? null)
+  registerOwnerHosts(app, deps)
   app.setErrorHandler(handleError)
   const voice = deps.voiceQualification === true
   registerHealth(app, deps.pool, healthOf(deps))
@@ -391,10 +419,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   conversationRoutes(app, { pool: deps.pool, voice })
   missionRoutes(app, { pool: deps.pool })
   runtimeRoutes(app, { pool: deps.pool, hub: runtimeHub })
-  researchRoutes(app, deps.pool)
+  researchRoutes(app, deps.pool, { boundOutput: boundOutputOf(deps) })
   // The reply runtime's routes call 0064's functions: served, and checked by /ready, only with conversations on.
   if (deps.conversations) conversationRuntimeRoutes(app, deps.pool)
-  designRoutes(app, { pool: deps.pool, store })
+  designRoutes(app, { pool: deps.pool, store, boundOutput: boundOutputOf(deps) })
   roomRoutes(app, { pool: deps.pool, livekit: deps.livekit, voice })
   exchangeRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   const fences = new CallFences(deps.callFenceSessions ?? CALL_FENCE_SESSIONS)
@@ -405,7 +433,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   knowledgeRoutes(app, { pool: deps.pool })
   searchRoutes(app, { pool: deps.pool })
   humanTaskRoutes(app, { pool: deps.pool })
-  coordinationRoutes(app, { pool: deps.pool })
+  coordinationRoutes(app, { pool: deps.pool, boundOutput: boundOutputOf(deps) })
   eventRoutes(app, { pool: deps.pool, hub, heartbeatMs: deps.eventPollMs ?? 10_000 })
   registerPersonal(app, deps)
   registerConversationWrites(app, deps)
@@ -415,13 +443,28 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   return app
 }
 
+function registerOwnerHosts(app: FastifyInstance, deps: AppDeps): void {
+  const admission = ownerHostAdmission()
+  registerAuthentication(app, deps.verifyActor, deps.mediaBridgeTokenSha256 ?? null, admission, deps.pool)
+  ownerHostRoutes(app, { pool: deps.pool, enrollment: deps.ownerHostEnrollment === true, admission })
+}
+/** The production bound-output operations for the three runtime route factories when the switch is on; else false. */
+const boundOutputOf = (deps: AppDeps) => (deps.boundOutput === true ? BOUND_OUTPUT_V1 : false)
+
 /**
  * Owner-runner operations (A47), as before, and the native resource catalog (A51, 0097): the catalog is a read, always
  * served whatever new owner-runner work admits.
  */
 function registerNativeRunner(app: FastifyInstance, deps: AppDeps): void {
-  runnerOperationRoutes(app, { pool: deps.pool, admissions: deps.ownerRunnerAdmissions ?? 'off' })
+  runnerOperationRoutes(app, {
+    pool: deps.pool,
+    admissions: deps.ownerRunnerAdmissions ?? 'off',
+    results: deps.ownerRunnerResults === true,
+  })
   projectResourceRoutes(app, { pool: deps.pool })
+  // INC04-S01b (A56): the read-only selection preview; installation (0104) is its boundary, no flag. INC04-R07 C4/C5
+  // W1: the default-off capacityExposure switch adds 0114's restrictive exposure (and its installation) to it.
+  selectionPreviewRoutes(app, { pool: deps.pool, capacityExposure: deps.capacityExposure === true })
 }
 
 /**
@@ -519,7 +562,30 @@ function requireMediaCapability(req: FastifyRequest, expected: Buffer | null): v
   }
 }
 
-function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, mediaToken: Buffer | null): void {
+async function hostAuthenticated(
+  req: FastifyRequest,
+  route: string,
+  pool: pg.Pool,
+  admission: ReturnType<typeof ownerHostAdmission>,
+): Promise<boolean> {
+  if (route === REDEEM_ROUTE) return true
+  if (!HOST_ROUTES.has(route)) return false
+  await admission.authorize(req, () => authenticateOwnerHost(req, pool, admission.control(req)))
+  admission.promote(req, 'host')
+  return true
+}
+function admitOwner(req: FastifyRequest, anonymous: boolean, admission: ReturnType<typeof ownerHostAdmission>): void {
+  if (!isOwnerHostRoute(req)) return
+  if (anonymous) throw new DomainError('forbidden', 'Owner host refused')
+  admission.promote(req, 'owner')
+}
+function registerAuthentication(
+  app: FastifyInstance,
+  verifyActor: VerifyActor,
+  mediaToken: Buffer | null,
+  ownerHosts: ReturnType<typeof ownerHostAdmission>,
+  pool: pg.Pool,
+): void {
   app.decorateRequest('actorId', '')
   app.decorateRequest('actorName', null)
   app.decorateRequest('actorContact', null)
@@ -527,8 +593,10 @@ function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, 
   app.decorateRequest('runtimeCaller', null)
   app.decorateRequest('rendererToken', null)
   app.decorateRequest('coordinationToken', null)
-  app.addHook('onRequest', async (req) => {
+  app.addHook('onRequest', async (req, reply) => {
+    ownerHosts.begin(req, reply)
     const route = req.routeOptions.url ?? ''
+    if (await hostAuthenticated(req, route, pool, ownerHosts)) return
     if (PUBLIC_ROUTES.has(route)) return
     if (CAPABILITY_RUNTIME_ROUTES.has(route)) {
       req.runtimeCaller = runtimeCallerOf(req)
@@ -547,13 +615,16 @@ function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, 
       return
     }
     try {
-      const actor = await verifyActor(req.headers.authorization)
+      const actor = await ownerHosts.authorize(req, () => verifyActor(req.headers.authorization))
+      ownerHosts.assert(req)
+      admitOwner(req, actor.anonymous, ownerHosts)
       req.actorId = actor.id
       req.actorName = actor.name
       req.actorContact = actor.contact
       req.actorAnonymous = actor.anonymous
     } catch (err: unknown) {
-      req.log.warn({ auth: describeAuthRejection(req.headers.authorization, err) }, 'authentication rejected')
+      if (!isOwnerHostRoute(req))
+        req.log.warn({ auth: describeAuthRejection(req.headers.authorization, err) }, 'authentication rejected')
       throw err
     }
     // A guest without an account can knock, wait and join the call they were admitted to; nothing else.
@@ -572,6 +643,7 @@ function sendError(req: FastifyRequest, reply: FastifyReply, status: number, bod
 
 /** Contract errors: stable code, safe message, request id and retry disposition. */
 function handleError(err: FastifyError | DomainError, req: FastifyRequest, reply: FastifyReply) {
+  if (isOwnerHostRoute(req)) return ownerHostError(err, reply)
   if (err instanceof DomainError) {
     if (err.status >= 500) req.log.error({ err: err.cause ?? err }, err.message)
     return sendError(req, reply, err.status, { code: err.code, message: err.message, retry: err.retry })
@@ -609,6 +681,37 @@ function inputsOn(deps: AppDeps): boolean {
   return true
 }
 
+/**
+ * 0109's tracked model-call boundary (INC04-S03A-R07-C2A): every maintained model-call wrapper sends a tracked_v1
+ * reserve and refuses a reply without its binding, which only 0109 supplies (research_call_ack over
+ * research_call_identities, folded into the reserve reply). 0109 is one transaction, so these two objects of its own
+ * prove it is installed. Each lookup is false, never an error, when missing.
+ */
+const TRACKED_CALL_SCHEMA = `SELECT to_regprocedure('sophia.research_call_ack(uuid,uuid)') IS NOT NULL
+  AND to_regclass('sophia.research_call_identities') IS NOT NULL AS ok`
+
+/**
+ * 0110's observed-facts opt-in (INC04-R07-C2B, A58): a qualified research or review call reserves with `facts:
+ * observed_v1` and refuses a binding without `facts`, which only 0110's research_call_ack echoes (for a facts_version 2
+ * identity); 0109 ignores the opt-in. 0110 is one transaction, so two objects it adds, never replaces, prove it is
+ * installed: the identity's facts_version column and research_call_facts_version. Each lookup is false when missing.
+ */
+const OBSERVED_FACTS_SCHEMA = `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_attribute
+    WHERE attrelid = to_regclass('sophia.research_call_identities') AND attname = 'facts_version' AND NOT attisdropped)
+  AND to_regprocedure('sophia.research_call_facts_version(jsonb)') IS NOT NULL AS ok`
+
+/**
+ * 0115's bound output (INC04-R07-C2, A59), required only with the boundOutput switch on: the nine public wrappers the
+ * bound steps call, each present under its exact signature and executable by this login. Each lookup is false, never an
+ * error, when missing.
+ */
+const BOUND_OUTPUT_WRAPPERS = ['apply', 'claim', 'outcome'].flatMap((step) =>
+  ['', '_design', '_review'].map((op) => `sophia.runtime_bound_output_${step}${op}(bytea,text,text,jsonb)`),
+)
+export const BOUND_OUTPUT_SCHEMA = `SELECT ${BOUND_OUTPUT_WRAPPERS.map(
+  (f) => `(to_regprocedure('${f}') IS NOT NULL AND has_function_privilege(to_regprocedure('${f}'), 'EXECUTE'))`,
+).join('\n  AND ')} AS ok`
+
 /** What /health and /ready answer for: the schema parts this API's switches require, its companion and its commit. */
 interface Health {
   stores: boolean
@@ -618,7 +721,10 @@ interface Health {
   companion: Companion | null
   voice: boolean
   ownerRunners: boolean
+  ownerRunnerResults: boolean
   apiContributions: boolean
+  capacityExposure: boolean
+  boundOutput: boolean
   commit: string | null
 }
 
@@ -630,25 +736,89 @@ const healthOf = (deps: AppDeps): Health => ({
   companion: deps.companion ?? null,
   voice: deps.voiceQualification === true,
   ownerRunners: deps.ownerRunnerAdmissions === 'admit',
+  ownerRunnerResults: deps.ownerRunnerResults === true,
   apiContributions: deps.apiContributions === true,
+  capacityExposure: deps.capacityExposure === true,
+  boundOutput: deps.boundOutput === true,
   commit: deps.commit ?? null,
 })
 
 /** Whether the database has every function and column this API's switches call (each part only when it is on). */
 async function schemaReady(
   pool: pg.Pool,
-  { stores, conversations, conversationInputs, personalAnswers, voice, ownerRunners, apiContributions }: Health,
+  {
+    stores,
+    conversations,
+    conversationInputs,
+    personalAnswers,
+    voice,
+    ownerRunners,
+    ownerRunnerResults,
+    apiContributions,
+    capacityExposure,
+    boundOutput,
+  }: Health,
 ): Promise<boolean> {
   const part = async (on: boolean, sql: string) => !on || (await pool.query<{ ok: boolean }>(sql)).rows[0]?.ok === true
   return (
-    (await part(true, REQUIRED_SCHEMA)) &&
+    (await alwaysServedReady(part)) &&
     (await part(stores, STORE_SCHEMA)) &&
     (await part(conversations, CONVERSATION_SCHEMA)) &&
     (await part(conversationInputs, CONVERSATION_INPUTS_SCHEMA)) &&
     (await part(personalAnswers, PERSONAL_ANSWERS_SCHEMA)) &&
     (await part(voice, VOICE_SCHEMA)) &&
-    (await part(ownerRunners, OWNER_RUNNER_SCHEMA)) &&
-    (await part(apiContributions, CONTRIBUTION_FUNDING_SCHEMA))
+    (await ownerRuntimeReady(part, ownerRunners, ownerRunnerResults)) &&
+    // Member API contributions on (A48, A56): the routes' own installation predicate (0094, 0100's rebuild funding
+    // guard, 0104's owner protection and account qualification, 0105, 0106's viewer boundary; R2, F02). Off, the
+    // default: nothing more of them is required, so a database with 0105 and without 0106 is ready with them off.
+    (await part(apiContributions, API_CONTRIBUTIONS_SCHEMA)) &&
+    (await inc04Ready(part, capacityExposure, boundOutput))
+  )
+}
+
+/** Installation predicates for routes that are mounted regardless of new-work switches. */
+async function alwaysServedReady(part: (on: boolean, sql: string) => Promise<boolean>): Promise<boolean> {
+  return (
+    // Existing host channels are always mounted, even with enrollment and new runner work off.
+    // The route's exact0118 dependency and this API login's privileges must be installed before serving traffic.
+    (await part(true, OWNER_HOST_SCHEMA)) &&
+    (await part(true, REQUIRED_SCHEMA)) &&
+    // The atomic contributed admission (0105; INC04-S02a coherent), whatever the switches say: research admission and
+    // the runtime's paid reservation are always served (researchRoutes, runtimeRoutes), and a database without 0105
+    // keeps their old same-signature SQL, so it takes no traffic. This is this API's own new minimum: the previous
+    // source's readiness without 0105 was true for that source, not for this one, which also refuses those calls
+    // before their SQL. Shared with the guards (persistence's contribution-installation), so they cannot drift.
+    (await part(true, ATOMIC_ADMISSION_SCHEMA)) &&
+    // 0109's tracked-call boundary, whatever the switches say, for the same reason: the research and runtime routes
+    // are always served, and without 0109 every maintained model call is refused for want of its binding (Codex
+    // review 5911393845).
+    (await part(true, TRACKED_CALL_SCHEMA)) &&
+    // 0110's observed facts, for the same reason: without them a qualified research or review call is refused before its
+    // provider call (Codex review 5916589022). Nothing of 0111 or later is required here.
+    (await part(true, OBSERVED_FACTS_SCHEMA))
+  )
+}
+
+/** INC04-R07's default-off switches: never core requirements, each part only when its switch is on. */
+async function ownerRuntimeReady(
+  part: (on: boolean, sql: string) => Promise<boolean>,
+  runners: boolean,
+  results: boolean,
+): Promise<boolean> {
+  return (await part(runners, OWNER_RUNNER_SCHEMA)) && (await part(results, OWNER_RUNNER_RESULTS_SCHEMA))
+}
+
+async function inc04Ready(
+  part: (on: boolean, sql: string) => Promise<boolean>,
+  capacityExposure: boolean,
+  boundOutput: boolean,
+): Promise<boolean> {
+  return (
+    // C4/C5 W1 capacity exposure on: 0114's custody, which the preview then reads. Off, the default: nothing of 0114 is
+    // required, so a database without it stays ready.
+    (await part(capacityExposure, CAPACITY_EXPOSURE_SCHEMA)) &&
+    // C2 bound output on (A59): 0115's nine wrappers. Off, the default: nothing of 0115 is required.
+    (await part(boundOutput, BOUND_OUTPUT_SCHEMA))
   )
 }
 

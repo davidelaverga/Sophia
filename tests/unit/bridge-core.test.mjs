@@ -145,6 +145,238 @@ test('the first recorded execution identity is the attempt\'s; a later record ne
   assert.equal(logged.role, 'sophia-review-v1')
 })
 
+// C2A REPAIR-001 (F03): the executor resource of an attempt's authenticated commands rides in its existing command
+// records and folds back across a restart. SYNTHETIC records and resource ids throughout (no real resource or service).
+const cmdRecord = (commandId, attemptId, extra = {}) => ({ commandId, kind: 'input', attemptId, authorityEpoch: 1, messageId: null, target: null, content: null, nativeSeq: null, role: null, ...extra })
+
+test('F03: the resource of an authenticated command is journaled with it and folds back after a restart', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'journal-'))
+  try {
+    const sid = 'sophia-r1'
+    new Journal(dir).append(sid, 'sophia/command', cmdRecord('c1', 'r1', { kind: 'create', resourceId: 'res-1' }))
+    // A restart: a new Journal reads the file back.
+    const records = new Journal(dir).read(sid)
+    assert.equal(records[0].data.resourceId, 'res-1', 'recorded with the command, before any native action')
+    assert.deepEqual(foldLog(records).resource, { state: 'known', resourceId: 'res-1' })
+    // The same resource again keeps it known.
+    new Journal(dir).append(sid, 'sophia/command', cmdRecord('c2', 'r1', { resourceId: 'res-1' }))
+    assert.deepEqual(foldLog(new Journal(dir).read(sid)).resource, { state: 'known', resourceId: 'res-1' })
+  } finally {
+    rmSync(dir, { recursive: true })
+  }
+})
+
+test('F03: a legacy record without the field is unknown, and a later record without it never erases a known resource', () => {
+  assert.deepEqual(foldLog([]).resource, { state: 'unknown' })
+  const legacy = [{ seq: 0, time: 0, type: 'sophia/command', data: cmdRecord('c1', 'r1', { kind: 'create', role: 'sophia-review-v1' }) }]
+  assert.deepEqual(foldLog(legacy).resource, { state: 'unknown' }, 'a journal written before the field: unknown, never fabricated')
+  const known = [...legacy, { seq: 1, time: 0, type: 'sophia/command', data: cmdRecord('c2', 'r1', { resourceId: 'res-1' }) }]
+  assert.deepEqual(foldLog(known).resource, { state: 'known', resourceId: 'res-1' }, 'a legitimate authenticated command establishes it')
+  const later = [...known, { seq: 2, time: 0, type: 'sophia/command', data: cmdRecord('c3', 'r1') }]
+  assert.deepEqual(foldLog(later).resource, { state: 'known', resourceId: 'res-1' }, 'a missing field adds nothing')
+  // Nothing else about the fold changes: the role, the epoch and the commands are as before.
+  assert.equal(foldLog(later).role, 'sophia-review-v1')
+  assert.deepEqual([...foldLog(later).commands.keys()], ['c1', 'c2', 'c3'])
+})
+
+test('F03: another resource for the same attempt is ambiguous for good; an invalid value or another attempt never becomes a resource', () => {
+  const at = (seq, data) => ({ seq, time: 0, type: 'sophia/command', data })
+  const conflict = [at(0, cmdRecord('c1', 'r1', { resourceId: 'res-1' })), at(1, cmdRecord('c2', 'r1', { resourceId: 'res-2' }))]
+  assert.deepEqual(foldLog(conflict).resource, { state: 'ambiguous' })
+  const back = [...conflict, at(2, cmdRecord('c3', 'r1', { resourceId: 'res-1' })), at(3, cmdRecord('c4', 'r1'))]
+  assert.deepEqual(foldLog(back).resource, { state: 'ambiguous' }, 'never cleared, switched or re-adopted')
+  for (const bad of [7, '', '../escape', 'x'.repeat(65), null]) {
+    assert.deepEqual(foldLog([at(0, cmdRecord('c1', 'r1', { resourceId: bad }))]).resource, { state: 'ambiguous' }, `corrupt ${JSON.stringify(bad)}`)
+  }
+  const mixed = [at(0, cmdRecord('c1', 'r1', { resourceId: 'res-1' })), at(1, cmdRecord('c2', 'other', { resourceId: 'res-1' }))]
+  assert.deepEqual(foldLog(mixed).resource, { state: 'ambiguous' }, "another attempt's record in this session")
+})
+
+test('F03: a restarted bridge restores only its own attempt\'s resource, and refuses a tracked call while unknown or ambiguous', async () => {
+  const { bindingProblem, ResourceRefused } = await import('../../packages/dsh-bundle/dist/control-bridge.js')
+  const dir = mkdtempSync(join(tmpdir(), 'bridge-journal-'))
+  try {
+    const journal = new Journal(dir)
+    journal.append('sophia-known', 'sophia/command', cmdRecord('c1', 'known', { kind: 'create', resourceId: 'res-1' }))
+    journal.append('sophia-legacy', 'sophia/command', cmdRecord('c1', 'legacy', { kind: 'create' }))
+    journal.append('sophia-twice', 'sophia/command', cmdRecord('c1', 'twice', { resourceId: 'res-1' }))
+    journal.append('sophia-twice', 'sophia/command', cmdRecord('c2', 'twice', { resourceId: 'res-2' }))
+    // A journal file whose records belong to another attempt (corrupt or misplaced context).
+    journal.append('sophia-foreign', 'sophia/command', cmdRecord('c1', 'someone-else', { resourceId: 'res-1' }))
+    const bridge = new ControlBridge({}, { protocolVersion: 1, bundle: 'synthetic', dshVersion: 'synthetic', runtimeUnitId: 'u',
+      service: { baseUrl: 'http://127.0.0.1:9', token: 'synthetic-only' }, workspace: dir, journalDir: dir, pollWaitMs: 1, settleTimeoutMs: 1,
+      routes: {}, roleRoutes: {}, research: null, log: () => {} })
+    const restored = (attemptId) => bridge.newAttempt(attemptId, 1)
+    assert.deepEqual(restored('known').resource, { state: 'known', resourceId: 'res-1' })
+    assert.deepEqual(restored('legacy').resource, { state: 'unknown' })
+    assert.deepEqual(restored('twice').resource, { state: 'ambiguous' })
+    assert.deepEqual(restored('foreign').resource, { state: 'ambiguous' })
+    assert.deepEqual(restored('fresh').resource, { state: 'unknown' })
+    assert.doesNotThrow(() => bridge.resourceReady(bridge.attempts.get('known')))
+    for (const id of ['legacy', 'twice', 'foreign', 'fresh']) assert.throws(() => bridge.resourceReady(bridge.attempts.get(id)), ResourceRefused, id)
+    // The ACK must name exactly the known resource.
+    const sent = { attemptId: 'known', nativeSessionId: 'sophia-known', callId: 'llm-1', kind: 'model', provider: 'p', amountUsd: 0.1, purpose: 'call', mode: 'tracked_v1', contract: 'legacy_report' }
+    const reply = (resourceId) => ({ reservationId: 'r', state: 'reserved', kind: 'model', purpose: 'call', amountUsd: 0.1, target: null,
+      binding: { mode: 'tracked_v1', contract: 'legacy_report', evidenceId: '00000000-0000-4000-8000-000000000001', callId: 'llm-1', attemptId: 'known',
+        nativeSessionId: 'sophia-known', projectId: 'p', runtimeUnitId: 'u', ...(resourceId === undefined ? {} : { resourceId }) } })
+    const context = (resource) => ({ projectId: 'p', runtimeUnitId: 'u', resource })
+    const KNOWN = { state: 'known', resourceId: 'res-1' }
+    assert.equal(bindingProblem(reply('res-1'), sent, context(KNOWN)), null)
+    assert.equal(bindingProblem(reply(undefined), sent, context(KNOWN)), 'resource')
+    assert.equal(bindingProblem(reply('res-2'), sent, context(KNOWN)), 'resource')
+    assert.equal(bindingProblem(reply('res-1'), sent, context({ state: 'unknown' })), 'resource')
+    assert.equal(bindingProblem(reply('res-1'), sent, context({ state: 'ambiguous' })), 'resource')
+  } finally {
+    rmSync(dir, { recursive: true })
+  }
+})
+
+// REPAIR-001 R1 (C2A-REPAIR-F04): a recovered resource keeps the provenance of the attempt whose command carried it,
+// independently of the last journal row's attemptId. SYNTHETIC malformed/misplaced journals; no live exploit is claimed.
+const synthBridge = (dir) => new ControlBridge({}, { protocolVersion: 1, bundle: 'synthetic', dshVersion: 'synthetic', runtimeUnitId: 'u',
+  service: { baseUrl: 'http://127.0.0.1:9', token: 'synthetic-only' }, workspace: dir, journalDir: dir, pollWaitMs: 1, settleTimeoutMs: 1,
+  routes: {}, roleRoutes: {}, research: null, log: () => {} })
+
+test('F04: a foreign resource followed by a local legacy command, fence or epoch row is ambiguous for the local attempt, after a real restart', async () => {
+  const { ResourceRefused } = await import('../../packages/dsh-bundle/dist/control-bridge.js')
+  const dir = mkdtempSync(join(tmpdir(), 'bridge-f04-'))
+  try {
+    const journal = new Journal(dir)
+    const foreign = (sid) => journal.append(sid, 'sophia/command', cmdRecord('foreign', 'B', { kind: 'create', resourceId: 'res-B' }))
+    // (1) B's resource-bearing command, then A's command with no resource (legacy shape).
+    foreign('sophia-A1')
+    journal.append('sophia-A1', 'sophia/command', cmdRecord('legacy-local', 'A1'))
+    // (2) B's resource, then A's fence.
+    foreign('sophia-A2')
+    journal.append('sophia-A2', 'sophia/fence', { attemptId: 'A2', authorityEpoch: 2, state: 'active', commandId: 'f' })
+    // (3) B's resource, then A's epoch.
+    foreign('sophia-A3')
+    journal.append('sophia-A3', 'sophia/epoch', { attemptId: 'A3', authorityEpoch: 3 })
+    // (4) B's resource, then a later local command that does carry a resource: still never A's own context.
+    foreign('sophia-A4')
+    journal.append('sophia-A4', 'sophia/command', cmdRecord('local', 'A4', { resourceId: 'res-A' }))
+    for (const sid of ['sophia-A1', 'sophia-A2', 'sophia-A3', 'sophia-A4']) {
+      const folded = foldLog(new Journal(dir).read(sid))
+      assert.deepEqual(folded.resource, { state: 'ambiguous' }, `${sid}: the fold never relabels B's resource`)
+      assert.deepEqual([folded.owner, folded.ownerMismatch], ['B', true], `${sid}: the first owner and a sticky mismatch`)
+    }
+    // A real restart: a new bridge restores each attempt from its own journal file.
+    const bridge = synthBridge(dir)
+    for (const id of ['A1', 'A2', 'A3', 'A4']) {
+      const attempt = bridge.newAttempt(id, 1)
+      assert.deepEqual(attempt.resource, { state: 'ambiguous' }, `${id}: never adopts res-B`)
+      assert.throws(() => bridge.resourceReady(attempt), ResourceRefused, `${id}: no tracked call reserves`)
+    }
+    // Sticky: a later legitimate-looking command for A names a resource; the context stays ambiguous.
+    const a1 = bridge.attempts.get('A1')
+    bridge.append(a1, { schema: 'sophia.runtime-command.v1', commandId: 'later', kind: 'input', expectedNativeSessionId: null, contextPacketId: null, payload: {},
+      binding: { projectId: 'p', goalId: 'g', goalRevision: 1, attemptId: 'A1', resourceId: 'res-A', authorityEpoch: 4, runtimeUnitId: 'u' } }, null, null)
+    assert.deepEqual(a1.resource, { state: 'ambiguous' })
+    assert.deepEqual(synthBridge(dir).newAttempt('A1', 1).resource, { state: 'ambiguous' }, 'and after another restart')
+  } finally {
+    rmSync(dir, { recursive: true })
+  }
+})
+
+test('F04 (restart path only): a restarted ControlBridge never adopts a foreign resource behind a local command, fence or epoch row', async () => {
+  const { ResourceRefused } = await import('../../packages/dsh-bundle/dist/control-bridge.js')
+  const dir = mkdtempSync(join(tmpdir(), 'bridge-f04-restart-'))
+  try {
+    const journal = new Journal(dir)
+    const later = {
+      A1: () => journal.append('sophia-A1', 'sophia/command', cmdRecord('legacy-local', 'A1')),
+      A2: () => journal.append('sophia-A2', 'sophia/fence', { attemptId: 'A2', authorityEpoch: 2, state: 'active', commandId: 'f' }),
+      A3: () => journal.append('sophia-A3', 'sophia/epoch', { attemptId: 'A3', authorityEpoch: 3 }),
+    }
+    for (const [id, local] of Object.entries(later)) {
+      journal.append(`sophia-${id}`, 'sophia/command', cmdRecord('foreign', 'B', { kind: 'create', resourceId: 'res-B' }))
+      local()
+    }
+    const bridge = synthBridge(dir)
+    for (const id of Object.keys(later)) {
+      const attempt = bridge.newAttempt(id, 1)
+      assert.deepEqual(attempt.resource, { state: 'ambiguous' }, `${id}: a restart never adopts res-B`)
+      assert.throws(() => bridge.resourceReady(attempt), ResourceRefused, `${id}: no tracked call reserves`)
+    }
+  } finally {
+    rmSync(dir, { recursive: true })
+  }
+})
+
+// REPAIR-001 R2 (C2A-REPAIR-F04-R1-NULL-OWNER): an owner-typed record whose attemptId is not a string (explicit null) is
+// an invalid owner. SYNTHETIC malformed private journals only; normal writers never emit this, and no exploit is claimed.
+const NULL_OWNER_CASES = {
+  N0: null, // the null-owner resource row alone
+  N1: (journal) => journal.append('sophia-N1', 'sophia/command', cmdRecord('legacy-local', 'N1')),
+  N2: (journal) => journal.append('sophia-N2', 'sophia/fence', { attemptId: 'N2', authorityEpoch: 2, state: 'active', commandId: 'f' }),
+  N3: (journal) => journal.append('sophia-N3', 'sophia/epoch', { attemptId: 'N3', authorityEpoch: 3 }),
+}
+const NULL_OWNER_LABEL = { N0: 'alone', N1: 'then a valid local legacy command', N2: 'then a valid local fence', N3: 'then a valid local epoch' }
+for (const [id, local] of Object.entries(NULL_OWNER_CASES)) {
+  test(`F04 null owner (${id}): a null-owner resource row ${NULL_OWNER_LABEL[id]} never restores res-B for ${id}, after a real restart`, async () => {
+    const { ResourceRefused } = await import('../../packages/dsh-bundle/dist/control-bridge.js')
+    const dir = mkdtempSync(join(tmpdir(), `bridge-f04-null-${id}-`))
+    try {
+      const journal = new Journal(dir)
+      journal.append(`sophia-${id}`, 'sophia/command', cmdRecord('malformed', null, { kind: 'create', resourceId: 'res-B' }))
+      if (local) local(journal)
+      const attempt = synthBridge(dir).newAttempt(id, 1)
+      assert.deepEqual(attempt.resource, { state: 'ambiguous' }, `${id}: never adopts res-B from an invalid owner`)
+      assert.throws(() => synthBridge(dir).resourceReady(attempt), ResourceRefused, `${id}: no tracked call reserves`)
+    } finally {
+      rmSync(dir, { recursive: true })
+    }
+  })
+}
+
+test('F04 null owner (sticky): later legitimate-looking commands and another restart never clear an invalid owner', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bridge-f04-null-sticky-'))
+  try {
+    const journal = new Journal(dir)
+    journal.append('sophia-N1', 'sophia/command', cmdRecord('malformed', null, { kind: 'create', resourceId: 'res-B' }))
+    journal.append('sophia-N1', 'sophia/command', cmdRecord('legacy-local', 'N1'))
+    const bridge = synthBridge(dir)
+    const n1 = bridge.newAttempt('N1', 1)
+    bridge.append(n1, { schema: 'sophia.runtime-command.v1', commandId: 'later', kind: 'input', expectedNativeSessionId: null, contextPacketId: null, payload: {},
+      binding: { projectId: 'p', goalId: 'g', goalRevision: 1, attemptId: 'N1', resourceId: 'res-N1', authorityEpoch: 4, runtimeUnitId: 'u' } }, null, null)
+    assert.deepEqual(n1.resource, { state: 'ambiguous' })
+    assert.deepEqual(synthBridge(dir).newAttempt('N1', 1).resource, { state: 'ambiguous' }, 'and after another restart')
+  } finally {
+    rmSync(dir, { recursive: true })
+  }
+})
+
+test('F04 matched controls: same-attempt known + legacy keeps the first known; all-legacy stays unknown until a legitimate command', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bridge-f04-ok-'))
+  try {
+    const journal = new Journal(dir)
+    journal.append('sophia-K', 'sophia/command', cmdRecord('c1', 'K', { kind: 'create', resourceId: 'res-K' }))
+    journal.append('sophia-K', 'sophia/command', cmdRecord('c2', 'K'))
+    journal.append('sophia-K', 'sophia/fence', { attemptId: 'K', authorityEpoch: 2, state: 'held', commandId: 'c3' })
+    journal.append('sophia-K', 'sophia/epoch', { attemptId: 'K', authorityEpoch: 3 })
+    // Audit-only text naming another actor never owns the journal (not a mismatch).
+    journal.append('sophia-K', 'sophia/spend-refused', { attemptId: 'someone-else', sessionId: 'child-1', reason: 'synthetic audit line' })
+    journal.append('sophia-L', 'sophia/command', cmdRecord('c1', 'L', { kind: 'create' }))
+    journal.append('sophia-L', 'sophia/fence', { attemptId: 'L', authorityEpoch: 1, state: 'active', commandId: 'c1' })
+    const bridge = synthBridge(dir)
+    assert.deepEqual(
+      bridge.newAttempt('K', 1).resource,
+      { state: 'known', resourceId: 'res-K' },
+      'its own metadata rows, and an audit line naming another actor, never relabel it',
+    )
+    const legacy = bridge.newAttempt('L', 1)
+    assert.deepEqual(legacy.resource, { state: 'unknown' })
+    // The legitimate command: through the bridge's own append (journaled before any native action).
+    bridge.append(legacy, { schema: 'sophia.runtime-command.v1', commandId: 'c2', kind: 'input', expectedNativeSessionId: null, contextPacketId: null, payload: {},
+      binding: { projectId: 'p', goalId: 'g', goalRevision: 1, attemptId: 'L', resourceId: 'res-L', authorityEpoch: 2, runtimeUnitId: 'u' } }, null, null)
+    assert.deepEqual(legacy.resource, { state: 'known', resourceId: 'res-L' })
+    assert.deepEqual(synthBridge(dir).newAttempt('L', 1).resource, { state: 'known', resourceId: 'res-L' }, 'restored after a restart')
+    assert.equal(new Journal(dir).read('sophia-L').at(-1).data.resourceId, 'res-L', 'recorded with the command')
+  } finally {
+    rmSync(dir, { recursive: true })
+  }
+})
+
 import { createServer } from 'node:http'
 import { mkdtemp as mkdtempReplyPoll, rm as rmReplyPoll } from 'node:fs/promises'
 import { ControlBridge } from '../../packages/dsh-bundle/dist/control-bridge.js'
@@ -225,5 +457,68 @@ test('a retained receipt delivery that stalls is bounded and sent again', async 
     server.closeAllConnections()
     await new Promise((r) => server.close(r))
     await rmReplyPoll(scratch, { recursive: true, force: true })
+  }
+})
+
+// INC04-R07-C2B-PRODUCER-001: the opt-in, its ACK and the observation capability's lifecycle, on the built bridge.
+test('C2B: the answer echoes facts exactly when the request opted in; a missing, extra or other echo refuses before effect', async () => {
+  const { bindingProblem } = await import('../../packages/dsh-bundle/dist/control-bridge.js')
+  const base = { attemptId: 'known', nativeSessionId: 'sophia-known', callId: 'llm-1', kind: 'model', provider: 'p', amountUsd: 0.1, purpose: 'call', mode: 'tracked_v1', contract: 'c1p_complete_report' }
+  const reply = (facts) => ({ reservationId: 'r', state: 'reserved', kind: 'model', purpose: 'call', amountUsd: 0.1, target: null,
+    binding: { mode: 'tracked_v1', contract: 'c1p_complete_report', evidenceId: '00000000-0000-4000-8000-000000000001', callId: 'llm-1', attemptId: 'known',
+      nativeSessionId: 'sophia-known', projectId: 'p', runtimeUnitId: 'u', resourceId: 'res-1', ...(facts === undefined ? {} : { facts }) } })
+  const context = { projectId: 'p', runtimeUnitId: 'u', resource: { state: 'known', resourceId: 'res-1' } }
+  const opted = { ...base, facts: 'observed_v1' }
+  assert.equal(bindingProblem(reply('observed_v1'), opted, context), null)
+  assert.equal(bindingProblem(reply(undefined), opted, context), 'facts', 'an old or partial service: no silent v1 fallback')
+  assert.equal(bindingProblem(reply('observed_v2'), opted, context), 'facts')
+  assert.equal(bindingProblem(reply(undefined), base, context), null, 'v1 exactly as before')
+  assert.equal(bindingProblem(reply('observed_v1'), base, context), 'facts', 'an echo the request never asked for')
+})
+
+test('C2B: only a qualified route opts in; the capability is provided after the stripping listener and withdrawn first', async () => {
+  const { ControlBridge: Bridge } = await import('../../packages/dsh-bundle/dist/control-bridge.js')
+  const dir = mkdtempSync(join(tmpdir(), 'bridge-c2b-'))
+  const events = []
+  let streamListener
+  const ctx = {
+    on: (name, fn, options) => { events.push(`on:${name}${options?.global ? ':global' : ''}${options?.prepend ? ':prepend' : ''}`); if (name === 'llm/stream') streamListener = fn; return () => events.push(`off:${name}`) },
+    provide: (name, value) => { events.push(`provide:${name}:${value.version}:${Object.isFrozen(value)}`); return () => events.push(`withdraw:${name}`) },
+    tools: { guard: () => () => events.push('off:guard') },
+  }
+  const route = { provider: 'openai-research', model: 'gpt-6.1-sol', reasoningEffort: 'medium', maxTokens: 16000, prices: { input: 2, cacheRead: 0.1, cacheWrite: 2.5, output: 10 } }
+  const settings = (observedRoutes) => ({ protocolVersion: 1, bundle: 'synthetic', dshVersion: 'synthetic', runtimeUnitId: 'u', service: null, workspace: dir, journalDir: dir,
+    pollWaitMs: 1, settleTimeoutMs: 1, routes: { 'research-sol-medium-v1': route }, roleRoutes: {}, research: null, log: () => {}, observedRoutes })
+  try {
+    const bridge = new Bridge(ctx, settings(new Set(['research-sol-medium-v1'])))
+    assert.equal(bridge.tracked(route, route.prices).facts, 'observed_v1')
+    const stop = bridge.start()
+    assert.deepEqual(events.slice(0, 3), ['on:agent/pre-step', 'on:llm/stream:global:prepend', 'provide:sophiaC2bObservation:sophia-c2b-observation-v1:true'])
+    // The listener's unbound branch (no session) removes a frame and passes the rest.
+    const frame = { type: 'x-sophia-c2b-observation' }
+    Object.defineProperty(frame, 'sophiaC2bObservation', { value: { v: 1, frame: 'transport', sent: 'observable_transport_response' }, enumerable: false })
+    async function* next() { yield frame; yield { type: 'text-delta', index: 0, text: 'ok' } }
+    const seen = []
+    for await (const chunk of streamListener({}, next)) seen.push(chunk.type)
+    assert.deepEqual(seen, ['text-delta'])
+    // The bound but unmetered branch (this test bridge has no service transport) removes it too. LABELLED stub: the
+    // session's attempt is given directly, on the route the call names.
+    bridge.attemptForSession = () => ({ identity: { route: { provider: route.provider, model: route.model, reasoningEffort: route.reasoningEffort } } })
+    const unmetered = []
+    for await (const chunk of streamListener({ provider: route.provider, model: route.model, sessionId: 's-unmetered' }, next)) unmetered.push(chunk.type)
+    assert.deepEqual(unmetered, ['text-delta'])
+    events.length = 0
+    await stop()
+    assert.equal(events[0], 'withdraw:sophiaC2bObservation', 'the capability goes before any listener')
+    assert.ok(events.indexOf('off:llm/stream') > 0)
+    // Without a qualified route: no opt-in and no capability at all.
+    events.length = 0
+    const plain = new Bridge(ctx, settings(new Set()))
+    assert.equal('facts' in plain.tracked(route, route.prices), false)
+    const stopPlain = plain.start()
+    assert.equal(events.some((e) => e.startsWith('provide:')), false)
+    await stopPlain()
+  } finally {
+    rmSync(dir, { recursive: true })
   }
 })

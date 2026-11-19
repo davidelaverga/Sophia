@@ -46,10 +46,12 @@ import {
   createApiAccount,
   createApiConnection,
   createContributionGrant,
+  qualifyApiAccount,
   readResearchTaskFunding,
   registerContributionRuntime,
   setContributionGrantState,
   setResearchFundingPin,
+  updateApiAccount,
   updateContributionGrant,
 } from './api-contributions.ts'
 import { erasePersonalSpace } from './personal.ts'
@@ -146,6 +148,14 @@ async function contributionWorld(
           concurrency: opts.accountConcurrency ?? 1,
         }),
       )
+  // 0105 (S02a): a pinned contributed admission needs the owner's explicit protection declaration on the account
+  // (an alias shares its owner's account, already declared). SYNTHETIC.
+  if (!opts.aliasOf)
+    await withActor(api, OWNER, 'write', (c) =>
+      updateApiAccount(c, account.accountId, 1, {
+        protection: { applicability: 'none_applicable', operations: ['research'], roles: ['sophia-research-md-v1'] },
+      }),
+    )
   const conn = opts.aliasOf
     ? { connectionId: opts.aliasOf.connectionId }
     : await withActor(api, OWNER, 'write', (c) =>
@@ -172,6 +182,17 @@ async function contributionWorld(
   })
   const who = callerOf(token, unit)
   await bringUp(who)
+  // 0105 (S02a): and the operator's account qualification for the connection's current credential revision (an alias
+  // shares its owner's connection, already qualified). SYNTHETIC: not a live account qualification.
+  if (!opts.aliasOf)
+    await qualifyApiAccount(ownerPool, {
+      connectionId: conn.connectionId,
+      operations: ['research'],
+      verification: 'operator_verified_call',
+      evidenceRef: 'synthetic: not a live account qualification',
+      observedAt: new Date(Date.now() - 60_000).toISOString(),
+      expiresAt: new Date(Date.now() + 86400_000).toISOString(),
+    })
   const input = await withActor(api, REQ, 'write', (c) =>
     submitContribution(c, projectId, randomUUID(), {
       source: null,
@@ -499,15 +520,53 @@ describe('0094 contribution research against 0096 erasure: the rebuild keeps its
   it('an existing orphan (a rebuild queued before 0100) is fenced at dispatch, paid call, funding read and publication', async () => {
     // Fixture: the migration owner deletes the rebuilt task's binding and its calls' ledger links, standing in for a
     // rebuild made before 0100 (no binding, so 0094 never linked its calls).
-    const orphan = async (projectId: string, job: string) => {
-      await ownerPool.query(`DELETE FROM sophia.api_contribution_reservations WHERE project_id=$1 AND job_id=$2`, [
-        projectId,
-        job,
-      ])
-      await ownerPool.query(`DELETE FROM sophia.api_contribution_tasks WHERE project_id=$1 AND job_id=$2`, [
-        projectId,
-        job,
-      ])
+    // 0105 (S02a): SYNTHETIC HISTORICAL-STATE FAULT INJECTION, not a real pre-0100 upgrade or any production path (no
+    // production role or path deletes a binding; 0105 makes bindings INSERT-only and claims unfunded -> funded only).
+    // In ONE checked-out migration-owner transaction on this suite's disposable database, only the two named guard
+    // triggers are disabled, exactly this project's successor claim, ledger links and binding are removed (counts
+    // asserted), the guards are re-enabled and verified, then COMMIT; any error rolls the whole transaction back.
+    const orphan = async (projectId: string, job: string, links: number) => {
+      const c = await ownerPool.connect()
+      try {
+        await c.query('BEGIN')
+        await c.query('ALTER TABLE sophia.api_contribution_tasks DISABLE TRIGGER api_contribution_tasks_frozen')
+        await c.query('ALTER TABLE sophia.api_contribution_claims DISABLE TRIGGER api_contribution_claims_transition')
+        const claims = await c.query(`DELETE FROM sophia.api_contribution_claims WHERE project_id=$1 AND job_id=$2`, [
+          projectId,
+          job,
+        ])
+        assert.equal(claims.rowCount, 1, 'exactly the successor claim')
+        const linked = await c.query(
+          `DELETE FROM sophia.api_contribution_reservations WHERE project_id=$1 AND job_id=$2`,
+          [projectId, job],
+        )
+        assert.equal(linked.rowCount, links, 'exactly its contributed ledger links')
+        const bound = await c.query(`DELETE FROM sophia.api_contribution_tasks WHERE project_id=$1 AND job_id=$2`, [
+          projectId,
+          job,
+        ])
+        assert.equal(bound.rowCount, 1, 'exactly the successor binding')
+        await c.query('ALTER TABLE sophia.api_contribution_tasks ENABLE TRIGGER api_contribution_tasks_frozen')
+        await c.query('ALTER TABLE sophia.api_contribution_claims ENABLE TRIGGER api_contribution_claims_transition')
+        const guards = await c.query<{ tgname: string; tgenabled: string }>(
+          `SELECT tgname, tgenabled FROM pg_trigger WHERE tgname IN ('api_contribution_tasks_frozen','api_contribution_claims_transition')
+            ORDER BY tgname`,
+        )
+        assert.deepEqual(
+          guards.rows.map((g) => [g.tgname, g.tgenabled]),
+          [
+            ['api_contribution_claims_transition', 'O'],
+            ['api_contribution_tasks_frozen', 'O'],
+          ],
+          'both guards restored to their original enabled state',
+        )
+        await c.query('COMMIT')
+      } catch (err) {
+        await c.query('ROLLBACK')
+        throw err
+      } finally {
+        c.release()
+      }
     }
     // Before dispatch: the create is denied with the truthful reason, never sent.
     const d = await contributionWorld()
@@ -515,7 +574,7 @@ describe('0094 contribution research against 0096 erasure: the rebuild keeps its
     await withdrawInput(d)
     const rd = await rebuiltOf(d.projectId, sd.taskId)
     assert.ok(rd)
-    await orphan(d.projectId, rd.id)
+    await orphan(d.projectId, rd.id, 0)
     await dispatchAll()
     const denied = await jobState(rd.id)
     assert.equal(denied.state, 'cancelled')
@@ -580,7 +639,7 @@ describe('0094 contribution research against 0096 erasure: the rebuild keeps its
         )
       ).map((x) => x.reservation_id)
     assert.deepEqual(await linked(), [pending.reservationId, unsure.reservationId].toSorted())
-    await orphan(w.projectId, r.id)
+    await orphan(w.projectId, r.id, 2)
     const kept = await reservations()
     // New paid work of any kind is refused before anything is reserved: a model call, a search, a read.
     assert.equal(await codeOf(reserve(w.who, at, 'orphan', 0.01)), 'lineage_unbound')

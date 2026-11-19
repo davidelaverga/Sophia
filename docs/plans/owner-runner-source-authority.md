@@ -30,6 +30,10 @@ model or effort used, so neither is recorded as an observation. **Accepted, repo
 A 40-hex `baseRef` and T3's permissive pre-launch check are not proof of a checkout. `read_only` is a request that the
 profile must enforce; it is not enforced here.
 
+*INC04-S03b B2 (0108), added later:* a **patched** producer's provider-reported models are kept as their own
+append-only evidence (§12). They are what a provider reported, as one read collected them. They are neither accepted
+nor observed settings, and `requested_settings` is never compared with them. Accepted and observed stay unknown.
+
 The qualification gains `source_policy jsonb`, which is null for every existing one. Only the migration owner can
 declare it, through `declare_owner_runner_source_policy`, and declaring it bumps the qualification's revision. A route
 without a policy refuses every v2 create as `runner_unqualified` before anything is written.
@@ -537,3 +541,63 @@ one send. The original effect keeps its journal, reservation and later reconcili
 
 **Mutations.** The prepare final check removed, the GO final check removed, the GO deadline left out of it, and the
 final check moved back before the writes.
+
+## 12. Reported models (INC04-S03b B2, migration 0108)
+
+**The producer.** A patched T3 (`patches/t3code/ade47301-provider-reported-models.patch`, `docs/SOURCE_MAP.md`
+§2p), which Sophia neither applies nor installs, adds an optional `providerReportedModels` to each run of
+`t3_thread_read`. An unpatched T3 sends nothing.
+
+**The path.** No new endpoint; the existing chain carries it:
+
+1. **Decode** (`t3-port-mapping.ts`): keeps each listed run's raw value and nothing else. It is never part of whether
+   a read is evidence.
+2. **Gateway** (`runner-gateway.ts`): `observe` attaches only the receipt run's report, and only when the producer
+   sent the field. `runner-model-report.ts` checks it there, against the producer's contract and relations, and
+   bounds it. The checks are listed below.
+3. **Channel** (`owner-host-channel.ts`): `ownRun` accepts exactly `kind`, `status`, `terminal`, or those plus
+   `reportedModels`, which it checks again on Sophia's side. A bad report never voids the checked status.
+4. **Worker** (`runner-dispatch.ts`): for a create's or input's run observation, it first appends the report, or
+   `absent` when there is none. This is its own autocommit statement. Then it records the status from the
+   observation's own fields.
+   - An appender failure never stops that, whether a missing function, a refused report or a lost connection.
+   - Such a failure is logged as a fixed class (`not_installed`, `refused`, `transient`, `failed`) taken from the
+     SQLSTATE alone. Database text, reports and model ids are never logged.
+5. **Recorder** (`sophia.owner_runner_record_models`, worker only, SECURITY DEFINER): appends to
+   `sophia.owner_runner_model_reports`.
+
+**The checks** (step 2, repeated in step 3 and in SQL):
+- Model ids: 1–200 UTF-16 units, trimmed as JavaScript trims, no C0/C1 controls, distinct and in code-unit order.
+- Attempt ids: trimmed and non-empty, unbounded as at the pin.
+- Integers by value: safe, non-negative, positive where the contract says so.
+- Attempts in the producer's order: ordinal descending, then id by code unit.
+- The whole compact report, its receipt thread and run ids included, at most 32,768 UTF-8 bytes. Anything else is
+  `malformed` (`invalid` or `oversize`), with no content.
+
+**The evidence.**
+
+| Rule | What it means |
+|---|---|
+| Who and when | Only for a create or input in `received`, bound to the answering journal. A Stop, another journal or any other state appends nothing. |
+| Provenance | Thread, run, owner, connection, resource, goal, binding, qualification, profile, pin, repository, base and the frozen `requested_settings` digest, all copied from the operation's row, never from the report. |
+| States | `absent`, `collected` (the canonical report without its `collectedAt`), `unavailable`, `malformed`, `foreign` (another thread or run; no content) and `capped`. |
+| Change-only | A row is appended only when its canonical evidence, everything but the producer's `collectedAt`, differs from the latest row. The first sighting's time is kept. SQL canonicalizes integers, so `1`, `1.0` and `1e0` are the same report. |
+| Cap | 32 ordinary rows, then exactly one `capped` row, then nothing, under the project then operation locks. |
+| Append-only | No update, delete or truncate, even by the owner. Inserts happen only inside the recorder's seal. A later absence, erasure or contradiction adds a row and never retracts one. |
+| Untouched | The operation, binding, reservation, outbox row, command and events. |
+| Readers | No application role reads the table. An owner read is a later, separate amendment. |
+| SQL bound | `p_report::text` at most 49,152 bytes. jsonb text adds one space per separator, so this is a proven superset of the 32,768-byte compact bound. |
+
+**Not claimed.**
+- No accepted, effort, effective, final or complete model, and no union across rows.
+- No producer installation and no native qualification. R11 stays open.
+- The first terminal status ends follow-ups, so a later report is not collected: it stays unknown. There is no
+  reopen and no new poll.
+
+**Cutover (operational).**
+1. Install 0108, and the worker and proxy, everywhere first.
+2. Then the owner-host gateway.
+3. Then a patched T3, only under separate owner-route authority.
+
+An older proxy would void a four-key observation and hold its reservation, so a rollback removes the producer before
+the consumer.

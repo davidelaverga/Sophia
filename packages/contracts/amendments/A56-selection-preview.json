@@ -1,0 +1,699 @@
+{
+  "id": "A56",
+  "goal": "INC04-S01",
+  "title": "Selection preview: the trusted read-only preview of a new standalone research request, with the owner's account protection and the operator's account-scoped qualification readouts",
+  "why": [
+    "SOPHIA-INC-2026-11 INC-04 S01 (R01, R06, R09, R10) and C01/C03 under root decisions 623d6f78, 39363283 and 33a934ff: the server derives the kernel's input from authenticated current records (migration 0104) and returns only projectSelection for the verified actor. Assigned to INC04-S01b with migration 0104; the generated output is regenerated with `pnpm --filter @sophia/contracts generate`, never by hand.",
+    "The request carries no actor, role, goal, task, grant, proof, policy or settings field: the query is closed to the one operation and the exact named sources. Opening it reserves, admits, wakes, notifies, dispatches and calls no provider; existing admission remains the authority.",
+    "A legitimate positive preview needs two facts no existing record held: the owner's explicit protection declaration on the accounting root (account update, owner only, nullable, never defaulted), and the operator's account-scoped qualification (recorded by the migration owner, not by this API). Both are read back to their owner only, without evidence or credentials.",
+    "A nonmember and a missing project answer 404 alike; a database without 0104, or a pool above 200 candidates, answers projection_unavailable (503), never an empty or partial preview. strictSettings is null in this release and no strict-settings disclosure is made."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/SelectionLimitation",
+      "value": {
+        "type": "string",
+        "enum": [
+          "eligible",
+          "owner_only_native",
+          "not_permitted_for_this_work",
+          "not_verified",
+          "unavailable_now",
+          "not_selected_by_policy",
+          "not_evaluated"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/SelectionSettings",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Provider-native settings: compared only within one provider instance, never across providers.",
+        "properties": {
+          "providerInstanceRef": {
+            "type": "string",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "options": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,99}$"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                }
+              },
+              "required": ["id", "value"]
+            }
+          }
+        },
+        "required": ["providerInstanceRef", "model", "options"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/SelectionViewCandidate",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "candidateRef": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$"
+          },
+          "relation": {
+            "type": "string",
+            "enum": ["owner", "shared"]
+          },
+          "limitation": {
+            "$ref": "#/components/schemas/SelectionLimitation"
+          },
+          "codes": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "description": "Present only for the resource's owner: the kernel's bounded reason codes."
+          },
+          "routeKind": {
+            "type": "string",
+            "enum": ["native", "api"]
+          },
+          "payerScopeRef": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$",
+            "description": "Present only for the owner or a viewer the owner shares the payer scope with."
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SelectionSettings"
+              },
+              {
+                "type": "string",
+                "enum": ["unspecified"]
+              }
+            ],
+            "description": "A soft seed, or the effective strict settings only for a viewer of their exact origin; never a measurement."
+          }
+        },
+        "required": ["candidateRef", "relation", "limitation"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/SelectionViewProposal",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "candidateRef": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$"
+          },
+          "relation": {
+            "type": "string",
+            "enum": ["owner", "shared"]
+          },
+          "limitation": {
+            "$ref": "#/components/schemas/SelectionLimitation"
+          },
+          "codes": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "description": "Present only for the resource's owner: the kernel's bounded reason codes."
+          },
+          "routeKind": {
+            "type": "string",
+            "enum": ["native", "api"]
+          },
+          "payerScopeRef": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$",
+            "description": "Present only for the owner or a viewer the owner shares the payer scope with."
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SelectionSettings"
+              },
+              {
+                "type": "string",
+                "enum": ["unspecified"]
+              }
+            ],
+            "description": "A soft seed, or the effective strict settings only for a viewer of their exact origin; never a measurement."
+          },
+          "accepted": {
+            "type": "string",
+            "enum": ["unknown"]
+          },
+          "observed": {
+            "type": "string",
+            "enum": ["unknown"]
+          },
+          "withheld": {
+            "type": "boolean",
+            "enum": [true],
+            "description": "The proposal exists but this viewer may not see the candidate."
+          }
+        },
+        "if": {
+          "type": "object",
+          "required": ["withheld"],
+          "properties": {
+            "withheld": {}
+          }
+        },
+        "then": {
+          "type": "object",
+          "maxProperties": 1
+        },
+        "else": {
+          "type": "object",
+          "required": ["candidateRef", "relation", "limitation", "accepted", "observed"],
+          "properties": {
+            "candidateRef": {},
+            "relation": {},
+            "limitation": {},
+            "accepted": {},
+            "observed": {}
+          }
+        },
+        "description": "Either {withheld: true} alone, or the proposed candidate as this viewer may see it. A proposal, never a binding: what an adapter accepts and a provider runs stay unknown."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/SelectionView",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "contract": {
+            "type": "string",
+            "enum": ["inc04.selection.input.v1"]
+          },
+          "policyVersion": {
+            "type": "string",
+            "enum": ["inc04-s01-policy-v1"]
+          },
+          "disclosure": {
+            "type": "string",
+            "enum": ["restricted", "shared"]
+          },
+          "requestRevision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A correlation of what the viewer asked about. It authenticates nothing and may stay equal while commitments and the decision change."
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["invalid_input", "refused_active_work", "blocked", "selected", "waiting", "denied"]
+          },
+          "globalCodes": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "nextSteps": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["auto", "prefer", "pin"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strictSettings": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SelectionSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "candidates": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/SelectionViewCandidate"
+            }
+          },
+          "proposal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SelectionViewProposal"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alternatives": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$"
+            }
+          },
+          "fallback": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "crossPayer": {
+                    "type": "boolean"
+                  },
+                  "targetLimitation": {
+                    "$ref": "#/components/schemas/SelectionLimitation"
+                  }
+                },
+                "required": ["crossPayer", "targetLimitation"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["contract", "policyVersion", "disclosure"],
+        "if": {
+          "type": "object",
+          "properties": {
+            "disclosure": {
+              "type": "string",
+              "enum": ["shared"]
+            }
+          },
+          "required": ["disclosure"]
+        },
+        "then": {
+          "type": "object",
+          "required": [
+            "contract",
+            "policyVersion",
+            "disclosure",
+            "requestRevision",
+            "outcome",
+            "globalCodes",
+            "nextSteps",
+            "mode",
+            "strictSettings",
+            "candidates",
+            "proposal",
+            "alternatives",
+            "fallback"
+          ],
+          "properties": {
+            "contract": {},
+            "policyVersion": {},
+            "disclosure": {},
+            "requestRevision": {},
+            "outcome": {},
+            "globalCodes": {},
+            "nextSteps": {},
+            "mode": {},
+            "strictSettings": {},
+            "candidates": {},
+            "proposal": {},
+            "alternatives": {},
+            "fallback": {}
+          }
+        },
+        "else": {
+          "type": "object",
+          "maxProperties": 3
+        },
+        "description": "The kernel's viewer-safe projection of one advisory preview, for the verified actor only. `restricted`: a viewer not permitted to see this request's summary gets exactly {contract, policyVersion, disclosure}, no counts and no empty lists. `shared`: every field. Never an admission, reservation or binding; existing admission rechecks everything before any effect."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ApiAccountUpdateRequest/properties/patch/properties/protection",
+      "value": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "applicability": {
+                "type": "string",
+                "enum": ["none_applicable", "protected"]
+              },
+              "operations": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {
+                  "type": "string",
+                  "enum": ["research"]
+                }
+              },
+              "roles": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {
+                  "type": "string",
+                  "enum": ["sophia-research-md-v1"]
+                }
+              },
+              "protectedConcurrency": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3
+              },
+              "protectedSpendUsd": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 10000
+              },
+              "validUntil": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["applicability", "operations", "roles"]
+          }
+        ],
+        "description": "The owner's own protection declaration for this account, replaced whole; null withdraws it. Values are the owner's: none is defaulted or inferred."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MyApiResources/properties/accounts/items/properties/protection",
+      "value": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "applicability": {
+                "type": "string",
+                "enum": ["none_applicable", "protected"]
+              },
+              "operations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "protectedConcurrency": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "protectedSpendUsd": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "declaredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "validUntil": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "applicability",
+              "operations",
+              "roles",
+              "protectedConcurrency",
+              "protectedSpendUsd",
+              "declaredAt",
+              "validUntil"
+            ]
+          }
+        ],
+        "description": "Owner only: the account's protection declaration, or null when none (policy absent)."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MyApiResources/properties/connections/items/properties/accountQualification",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": ["current", "expired", "revoked", "stale", "none"]
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["operator_verified_call", "operator_verified_console"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recordedBy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["operator"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "credentialRevision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "required": ["state", "verification", "recordedBy", "observedAt", "expiresAt", "credentialRevision", "revoked"],
+        "description": "Owner only: the operator's account-scoped qualification record for this connection, judged now. A record, not live access; never its evidence or any credential."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1selection-preview",
+      "value": {
+        "get": {
+          "tags": ["selection-preview"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC04-S01",
+          "operationId": "getSelectionPreview",
+          "summary": "The actor's own read-only selection preview for a new standalone research request: the kernel's viewer-safe projection. It reserves, admits, wakes, dispatches and calls nothing.",
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "operation",
+              "in": "query",
+              "required": true,
+              "description": "The one closed profile of this release.",
+              "schema": {
+                "type": "string",
+                "enum": ["research"]
+              }
+            },
+            {
+              "name": "sourceIds",
+              "in": "query",
+              "required": false,
+              "description": "Up to 8 distinct project source ids the request names, comma-separated. Absent: an expressly context-free request.",
+              "schema": {
+                "type": "string",
+                "pattern": "^([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})(,[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}){0,7}$"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "The preview as this actor may see it (cache-control: no-store)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SelectionView"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "404": {
+              "description": "No such project, or the caller is not a current member of it (not_found): the two answer alike",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "A malformed project or source id, a repeated source, a missing or other operation, or an unknown query parameter (no actor, role, goal, grant, proof or settings field exists)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "The preview is not installed on this database, or the pool is larger than one evaluation may hold (projection_unavailable), never an empty or partial preview; or the database is unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

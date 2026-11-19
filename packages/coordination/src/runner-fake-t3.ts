@@ -14,6 +14,8 @@ import { launchCommandId, stableMessageId, type T3Call, type T3Reply, type T3Tra
 interface FakeRun {
   runId: string
   status: string
+  /** INC04-S03b B2: a patched producer's `providerReportedModels` for this run, sent as given; unset = unpatched. */
+  providerReportedModels?: unknown
 }
 interface FakeMessage {
   messageId: string
@@ -24,6 +26,8 @@ interface FakeThread {
   projectId: string
   runs: FakeRun[]
   messages: FakeMessage[]
+  /** Synthetic pinned-public timeline records for collection tests only. */
+  collectionItems?: Record<string, unknown>[]
   /** What the launch asked for, as given: the pin keeps both on the thread. */
   workspaceStrategy: unknown
   modelSelection: unknown
@@ -118,6 +122,18 @@ export class FakeT3 implements T3Transport {
   /** End a run, as the native agent finishing (or failing) would. */
   finishRun(runId: string, status = 'completed'): void {
     for (const t of this.threads.values()) for (const r of t.runs) if (r.runId === runId) r.status = status
+  }
+
+  /**
+   * What a patched T3 reports for a run's models (patches/t3code/ade47301-provider-reported-models.patch), sent as
+   * given with every later read of it: SYNTHETIC, never a provider's report. `undefined` makes it unpatched again.
+   */
+  reportModels(runId: string, value: unknown): void {
+    const runs = [...this.threads.values()].flatMap((t) => t.runs).filter((r) => r.runId === runId)
+    for (const r of runs) {
+      if (value === undefined) delete r.providerReportedModels
+      else r.providerReportedModels = value
+    }
   }
 
   count(tool: T3Call['tool']): number {
@@ -218,7 +234,44 @@ export class FakeT3 implements T3Transport {
     }
   }
 
+  /** Synthetic public-schema output, explicitly separate from the old status-only fake. */
+  private readCollection(thread: FakeThread, a: T3Call['args'], foreign: boolean): T3Reply {
+    const inputs = thread.messages.map((m, position) => ({
+      position,
+      visibility: 'local',
+      sourceThreadId: thread.threadId,
+      itemId: `input-${position}`,
+      messageId: m.messageId,
+      runId: m.runId,
+      type: 'user_message',
+      status: 'completed',
+      title: null,
+      text: null,
+      textTruncated: false,
+      nextTextOffset: null,
+    }))
+    const items = [...inputs, ...(thread.collectionItems ?? [])]
+    const after = typeof a.afterPosition === 'number' ? a.afterPosition : -1
+    const page = items.filter((i) => Number(i.position) > after).slice(0, this.pageSize)
+    const last = page.at(-1)?.position ?? null
+    return {
+      kind: 'ok',
+      body: {
+        thread: {
+          threadId: foreign ? 'foreign' : thread.threadId,
+          activeRunId: thread.runs.filter((r) => T3_ACTIVE.includes(r.status)).at(-1)?.runId ?? null,
+          runCount: thread.runs.length,
+        },
+        recentRuns: thread.runs.toReversed().slice(0, 50),
+        items: page,
+        hasMore: items.some((i) => Number(i.position) > Number(last)),
+        nextPosition: last,
+      },
+    }
+  }
+
   private read(thread: FakeThread, a: T3Call['args'], foreign = false): T3Reply {
+    if (a.maxCharsPerItem !== undefined) return this.readCollection(thread, a, foreign)
     const after = typeof a.afterPosition === 'number' ? a.afterPosition : 0
     const runLimit = typeof a.runLimit === 'number' ? a.runLimit : 50
     const items = thread.messages.map((m, position) => ({ position, messageId: m.messageId, runId: m.runId }))
@@ -239,7 +292,11 @@ export class FakeT3 implements T3Transport {
         recentRuns: thread.runs
           .slice(-runLimit)
           .toReversed()
-          .map((r) => ({ runId: r.runId, status: r.status })),
+          .map((r) => ({
+            runId: r.runId,
+            status: r.status,
+            ...('providerReportedModels' in r ? { providerReportedModels: r.providerReportedModels } : {}),
+          })),
         items: items.slice(after, after + this.pageSize),
         hasMore,
         nextPosition: hasMore ? after + this.pageSize : null,

@@ -18,6 +18,7 @@ import { ARTIFACTS_DIR, PROFILE_SOURCE_DIR, REPO_ROOT, RUNTIME_DIR, bundleArchiv
 import { baseBundleDir, baseBundleVersion, checkReviewedBaseRows, loadReviewedBaseRows } from './gate.mjs'
 import { lintComposition, parsePatch } from './patch-lint.mjs'
 import { fileDigest, fileIntegrity, treeDigest } from './tree-digest.mjs'
+import { relocateRuntimePatches } from './runtime-artifact-patches.mjs'
 
 const BUNDLE_DIR = join(REPO_ROOT, 'packages', 'dsh-bundle')
 
@@ -76,6 +77,7 @@ export function buildBundleArchive(unit) {
 export function buildRuntimeArtifact() {
   rmSync(RUNTIME_DIR, { recursive: true, force: true })
   runChecked('pnpm', ['--filter', '@sophia/dsh-runtime', 'deploy', '--prod', '--frozen-lockfile', RUNTIME_DIR], { cwd: REPO_ROOT })
+  relocateRuntimePatches(REPO_ROOT, RUNTIME_DIR)
   return RUNTIME_DIR
 }
 

@@ -1,31 +1,43 @@
 // Entry point: `node src/server.ts` (Node 24 strips types; no build step).
 import { createPrivateKey } from 'node:crypto'
 import { hostname } from 'node:os'
-import { checkRoleSafety, createPool } from '@sophia/persistence'
+import { checkRoleSafety, createPool, requireRunnerResults } from '@sophia/persistence'
 import { CoordinationDispatcher, httpPaperclipClient } from './coordination-dispatch.ts'
 import { liveKitRemover, RemovalReconciler } from './room-removals.ts'
 import { assemblyConfig, RuntimeDispatcher } from './runtime-dispatch.ts'
-import { runnerDispatchFromEnv } from './runner-dispatch.ts'
+import { ownerHostRouteFromEnv, requireOwnerHostRoute, OwnerHostRouteController } from './owner-host-route.ts'
+import { ownerRunnerResultsFromEnv } from './runner-results-config.ts'
+import { RunnerResultsController } from './runner-results.ts'
+
+const ownerHostRoute = ownerHostRouteFromEnv(process.env)
+const ownerRunnerResults = ownerRunnerResultsFromEnv(process.env.SOPHIA_OWNER_RUNNER_RESULTS)
 
 const url = process.env.SOPHIA_WORKER_DATABASE_URL?.trim()
 if (!url) throw new Error('SOPHIA_WORKER_DATABASE_URL is required (a login granted sophia_worker; see .env.example)')
 
-// Owner-runner operations (0092, A47): no owner-host transport is qualified yet, so this worker sends none. Admitted
-// operations wait, visibly, as admitted; any setting but off refuses to start, before anything else does.
-runnerDispatchFromEnv(process.env)
+// Explicit original-journal route only. Parsing above precedes pool effects; ON requires current qualified records.
+// OFF preserves only configured maintenance. Actual account/native qualification remains a separate episode.
 
 const pool = createPool(url, { max: 4 })
+if (ownerRunnerResults) await requireRunnerResults(pool)
 await checkRoleSafety(pool, 'sophia_worker') // refuse to run as an owner, superuser or BYPASSRLS login
+await requireOwnerHostRoute(pool, ownerHostRoute)
 
 const log = (line: string) => console.log(`[sophia-worker] ${line}`)
 const workerId = `${hostname()}:${process.pid}`
 // Optional: a login admitted to the conversation assembler role (Q13), or the fixed assembly through this worker's own
 // login (0084, SOPHIA_CONVERSATION_ASSEMBLY=fixed). Without either no reply context is recorded here.
 const assembly = assemblyConfig({ ...process.env, workerUrl: url })
-const dispatcher = new RuntimeDispatcher(pool, { workerId, log, ...assembly })
+const runnerResults = new RunnerResultsController(pool, { enabled: ownerRunnerResults, log })
+const ownerHost = new OwnerHostRouteController(pool, ownerHostRoute, workerId, log)
+const dispatcher = new RuntimeDispatcher(pool, { workerId, log, runnerResults, ownerHost, ...assembly })
 dispatcher.start()
 log('runtime dispatch started')
-log('owner-runner dispatch: off (no qualified owner-host transport)')
+log(
+  ownerHostRoute?.sends
+    ? 'owner-runner dispatch: configured, current rights rechecked'
+    : 'owner-runner dispatch: off; only explicitly configured original-journal maintenance',
+)
 
 // Room removals (amendment A07) need the LiveKit server; without it they stay pending, visibly, never "done".
 const livekitUrl = process.env.LIVEKIT_URL?.trim()
@@ -67,9 +79,11 @@ log(
 )
 
 const shutdown = async () => {
+  const resultsStopped = runnerResults.stop()
   removals?.stop()
   await coordination?.stop()
   await dispatcher.stop()
+  await resultsStopped
   await pool.end()
   process.exit(0)
 }

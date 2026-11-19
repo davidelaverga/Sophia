@@ -5,6 +5,17 @@ export interface MockResponsesStep {
   delayMs?: number
   usage?: Record<string, unknown>
   toolCall?: { name: string; arguments?: unknown }
+  /** INC04-S03A-R07-C1P: the terminal response carries no `usage` field. */
+  omitUsage?: boolean
+  /** INC04-S03A-R07-C1P: end with response.incomplete or response.failed instead of response.completed. */
+  terminal?: 'completed' | 'incomplete' | 'failed'
+  incompleteReason?: string
+  /** INC04-S03A-R07-C1P: cut the connection after response.created, before any terminal event. */
+  cutAfterCreated?: boolean
+  /** INC04-S03A-R07-C1P: keep the stream open this long after its terminal event. */
+  holdOpenMs?: number
+  /** INC04-S03A-R07-C2A: the provider response id this answer carries (any JSON value; default resp_mock_<n>). */
+  responseId?: unknown
 }
 export interface MockResponsesRequest {
   method: string
@@ -18,6 +29,7 @@ export interface MockResponses {
   script(...steps: MockResponsesStep[]): void
   readonly active: number
   readonly abandoned: number
+  readonly terminalSent: number
   close(): Promise<void>
 }
 export function startMockResponses(): Promise<MockResponses>
@@ -25,3 +37,4 @@ export function recordedRouteOverlay(bundlePatchText: string, baseURL: string): 
 export function researchRouteOverlay(bundlePatchText: string, baseURL: string): string
 export function conversationRouteOverlay(bundlePatchText: string, baseURL: string): string
 export function reviewRouteOverlay(bundlePatchText: string, baseURL: string): string
+export function providerOverlayJson(bundlePatchText: string, baseURL: string, provider: string, options?: { api?: string }): string

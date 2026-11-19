@@ -628,9 +628,14 @@ describe('the live personal companion (local provider double)', () => {
       WHEN (NEW.author = 'sophia' AND NEW.owner_id = '${DEV}') EXECUTE FUNCTION sophia.b76_refuse_reply()`)
     let asked: { id: string; reply?: string | null } | undefined
     try {
-      double.script({ text: 'The one answer.', usage: { input_tokens: 10, output_tokens: 5 } })
+      // The answer comes 500 ms after the call is asked: its cost is reserved (and committed) before the provider is
+      // asked and settled only after it answers, so the wait below must reach the settlement, not the reservation
+      // (CI job 132796635717 read 'reserved' here).
+      double.script({ text: 'The one answer.', usage: { input_tokens: 10, output_tokens: 5 }, delayMs: 500 })
       await write(at, '/api/v1/personal/turns', DEV, { text: 'Answer me once.' })
       for (let i = 0; i < 100 && (await usage('settled-payer')).length === 0; i++)
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      for (let i = 0; i < 100 && (await usage('settled-payer'))[0]?.state !== 'settled'; i++)
         await new Promise((resolve) => setTimeout(resolve, 50))
       assert.deepEqual(
         (await usage('settled-payer')).map((r) => r.state),

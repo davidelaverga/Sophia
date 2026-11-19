@@ -15,6 +15,12 @@ import {
   ApiTimeout,
   BOOT_EVIDENCE,
   bootConsole,
+  WholeBootConsole,
+  WHOLE_BOOT,
+  bootObservation,
+  bootDiagnosticJson,
+  DIAGNOSTIC_JSON_BYTES,
+  diagnosticProvenance,
   HostTainted,
   runOnce,
   supervise,
@@ -53,6 +59,13 @@ if (mode === 'split') {
   process.stdout.write(adverse.slice(40) + '\\n')
   say(policy)
 } else if (mode !== 'norecords') { say(adverse); say(policy) }
+// Controlled integration of whole observation with the real supervisor; no UML/kernel/browser is started.
+if (mode === 'bootmiddle') {
+  for (let i = 0; i < 328; i += 1) say(i === 159 ? 'first middle failure context' : 'boot detail ' + i)
+  say('capability runner-capability')
+  say('lease lease-1')
+  process.exit(7)
+}
 // A guest that never gets in: the kernel's first marked line, then its console, and the launcher ends (R1-UML-BOOT-EVIDENCE).
 if (mode === 'bootfail' || mode === 'bootsignal') {
   say('UML_RAM_BACKING memfd bytes=1 fixed_size=1 cloexec=1')
@@ -684,6 +697,23 @@ describe(
       assert.deepEqual(seen.uploads, [])
     })
 
+    it('whole middle boot evidence is observational: unchanged abandoned outcome and no delivery', async () => {
+      const evidence: BootEvidence[] = []
+      const { outcome, log } = await run({ format: 'pdf' }, 'bootmiddle', { diagnostics: (e) => evidence.push(e) })
+      assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'abandoned' })
+      assert.deepEqual(seen.uploads, [])
+      assert.deepEqual(seen.settles, [])
+      assert.equal(evidence.length, 1)
+      const e = evidence[0]
+      assert.ok(e)
+      assert.ok(e.console?.whole?.stdout.text.includes('first middle failure context'))
+      assert.equal(e.launcherLeader?.exitCode, 7, 'outer launcher status, not a guest status')
+      const json = bootDiagnosticJson(e, true)
+      assert.ok(!json.includes(TOKEN))
+      assert.ok(!json.includes('lease-1'))
+      assert.ok(!log.some((line) => line.includes('first middle failure context')))
+    })
+
     it('a guest that got in keeps no console; a Stop and a failing diagnostic change nothing of the run', async () => {
       const evidence: BootEvidence[] = []
       const entered = await run({ format: 'pdf' }, 'ok', { diagnostics: (e) => evidence.push(e) })
@@ -710,6 +740,7 @@ describe(
         const stopped = await run({ format: 'pdf' }, 'hang', { diagnostics: (e) => evidence.push(e) })
         assert.equal(stopped.outcome.claimed && stopped.outcome.outcome, 'cancelled')
         assert.equal(evidence[0]?.cancelled, true)
+        assert.equal(evidence[0]?.console, null, 'Stop publishes no raw diagnostic console')
         assert.deepEqual(seen.uploads, [])
         assert.deepEqual(seen.settles, [])
         await gone(stopped.pids)
@@ -748,5 +779,242 @@ describe('the bounded boot console a synthetic check is given (R1-UML-BOOT-EVIDE
     quiet.take('one line')
     assert.deepEqual(quiet.read(), { lines: ['one line'], seen: 1, dropped: 0, truncated: false })
     assert.deepEqual(BOOT_EVIDENCE, { lines: 16, lineChars: 256, bytes: 4096 })
+  })
+})
+
+const bootReceipt = (whole: ReturnType<WholeBootConsole['read']>): BootEvidence => ({
+  event: 'UML_BOOT_EVIDENCE',
+  qualification: false,
+  jobId: 'controlled-job',
+  launcherLeader: { exitCode: 7, signal: null },
+  cancelled: false,
+  timedOut: false,
+  lingering: false,
+  failed: null,
+  guestEntered: false,
+  console: { lines: ['legacy diagnostic text'], seen: 0, dropped: 0, truncated: false, whole },
+})
+
+const provenanceFixture = () => ({
+  declaredNodeImage: 'recipe-default node:24.21.0@sha256:' + '1'.repeat(64),
+  declaredLinuxArchive: 'linux-6.12.101.tar.xz sha256:' + '2'.repeat(64),
+  measuredConfigSha256: '3'.repeat(64),
+  measuredSourceHashes: [
+    'kernel.config',
+    'kernel-abi.patch',
+    'kernel-memory.patch',
+    'make-guest.sh',
+    'make-initrd.py',
+    'guest-init',
+    'guest-job',
+    'namespace-launch.py',
+    'landlock-launch.py',
+  ]
+    .map((n) => n + '=' + '4'.repeat(64))
+    .join(';'),
+  measuredCompiler: 'gcc 12.2.0',
+  measuredLinker: 'GNU ld 2.40',
+  measuredPackages: 'libc6=2.36;',
+  measuredNode: 'v24.21.0',
+  measuredBrowser: null,
+  measuredOptimization: 'performance',
+})
+
+describe('synthetic whole boot observation: context, boundaries and disclosure', () => {
+  it('retains all 328 lines and the first fatal context in the middle, not just prefix and tail', () => {
+    const lines = Array.from(
+      { length: 328 },
+      (_, i) => `line-${i + 1}: ${i === 159 ? 'first failure: unexpected instruction at init' : 'boot detail'}`,
+    )
+    const input = Buffer.from(lines.join('\n') + '\n')
+    const c = new WholeBootConsole()
+    for (let at = 0; at < input.length; at += 17) c.take('stdout', input.subarray(at, at + 17))
+    const e = c.read()
+    assert.equal(e.stdout.text, input.toString())
+    assert.ok(e.stdout.text.includes('line-160: first failure: unexpected instruction at init'))
+    assert.ok(e.stdout.text.includes('line-155: boot detail'))
+    assert.ok(e.stdout.text.includes('line-165: boot detail'))
+    assert.ok(e.stdout.text.includes('line-328: boot detail'))
+    assert.equal(e.stdout.tail.observedLines, 328)
+    assert.equal(e.stdout.retainedCompleteLines, 328)
+    assert.equal(e.stdout.omittedLineContexts, 0)
+    assert.equal(e.stdout.observedBytes, input.length)
+    assert.equal(e.stdout.omittedBytes, 0)
+    assert.equal(e.complete, true)
+  })
+
+  it('retains a whole long line and a final fragment, with no primary per-line clipping', () => {
+    const c = new WholeBootConsole()
+    const input = 'a'.repeat(70_000) + '\nfirst unclassified failure without newline'
+    c.take('stdout', Buffer.from(input))
+    c.end('stdout')
+    c.end('stdout')
+    const e = c.read()
+    assert.equal(e.stdout.text, input)
+    assert.equal(e.stdout.tail.observedLines, 2)
+    assert.equal(e.stdout.tail.finalFragment, true)
+    assert.equal(e.stdout.tail.oversizeLines, 1)
+    assert.equal(e.complete, false, 'tail loss is disclosed even though the primary is intact')
+  })
+
+  for (const delta of [-1, 0, 1]) {
+    it(`shares a fixed capacity across streams at cap${delta >= 0 ? '+' : ''}${delta}`, () => {
+      const c = new WholeBootConsole()
+      c.take('stderr', Buffer.from('err\n'))
+      const rest = Buffer.alloc(WHOLE_BOOT.bytes + delta - 4, 0x61)
+      const total = 4 + rest.length
+      c.take('stdout', rest)
+      const e = c.read()
+      assert.equal(e.stdout.retainedBytes + e.stderr.retainedBytes, Math.min(total, WHOLE_BOOT.bytes))
+      assert.equal(e.stdout.observedBytes + e.stderr.observedBytes, total)
+      assert.equal(e.stdout.omittedBytes + e.stderr.omittedBytes, Math.max(0, total - WHOLE_BOOT.bytes))
+      assert.equal(e.stderr.text, 'err\n')
+      assert.equal(c.primary.length, WHOLE_BOOT.bytes)
+      assert.equal(c.streams.length, WHOLE_BOOT.bytes / 8)
+      assert.equal(e.overflow, total > WHOLE_BOOT.bytes)
+    })
+  }
+
+  it('says the first failure beyond capacity was not retained; keeps the bounded recent tail', () => {
+    const c = new WholeBootConsole()
+    c.take('stderr', Buffer.from('x'.repeat(WHOLE_BOOT.bytes)))
+    c.take('stdout', Buffer.from('first-failure-beyond-cap\nfinal-tail\n'))
+    const e = c.read()
+    assert.equal(e.stdout.text, '')
+    assert.equal(e.stderr.text, 'x'.repeat(WHOLE_BOOT.bytes))
+    assert.equal(e.stdout.omittedBytes, Buffer.byteLength('first-failure-beyond-cap\nfinal-tail\n'))
+    assert.deepEqual(e.stdout.tail.lines, ['first-failure-beyond-cap', 'final-tail'])
+    assert.equal(e.complete, false)
+    assert.equal(e.crossStreamOrder, 'unknown')
+  })
+
+  it('decodes UTF8 independently at every byte boundary, interleaves streams and flushes once', () => {
+    const input = Buffer.from('before café λ 中文 😀\nlast-no-newline')
+    for (let split = 0; split <= input.length; split += 1) {
+      const c = new WholeBootConsole()
+      c.take('stdout', input.subarray(0, split))
+      c.take('stderr', Buffer.from('other-stream\n'))
+      c.take('stdout', input.subarray(split))
+      c.end('stdout')
+      c.end('stdout')
+      const e = c.read()
+      assert.equal(e.stdout.text, 'before caf? ? ?? ?\nlast-no-newline')
+      assert.deepEqual(e.stdout.tail.lines, ['before caf? ? ?? ?', 'last-no-newline'])
+      assert.equal(e.stdout.tail.invalidUtf8, false)
+      assert.equal(e.stdout.tail.observedLines, 2)
+      assert.equal(e.stderr.text, 'other-stream\n')
+      assert.equal(e.stdout.tail.finalFragment, true)
+    }
+  })
+
+  it('reports invalid UTF8 and a capacity split inside a codepoint honestly', () => {
+    const c = new WholeBootConsole()
+    c.take('stdout', Buffer.alloc(WHOLE_BOOT.bytes - 1, 0x61))
+    c.take('stdout', Buffer.from('é\n'))
+    const e = c.read()
+    assert.equal(e.stdout.capCutUtf8, true)
+    assert.equal(e.stdout.invalidUtf8, true)
+    assert.equal(e.stdout.text, '[partial line omitted]')
+    assert.equal(e.complete, false)
+    const bad = new WholeBootConsole()
+    bad.take('stderr', Buffer.from([0xc3, 0x28, 0xff]))
+    assert.equal(bad.read().stderr.tail.invalidUtf8, true)
+  })
+
+  it('retains repeated distinct lines, uses fixed tail bounds and reports the original input stop', () => {
+    const c = new WholeBootConsole()
+    for (let i = 0; i < 30; i += 1) c.take('stdout', Buffer.from('repeat\n'))
+    c.take('stderr', Buffer.from('q'.repeat(300) + '\n'))
+    c.limit()
+    const e = c.read()
+    assert.equal(e.stdout.text, 'repeat\n'.repeat(30))
+    assert.deepEqual(
+      e.stdout.tail.lines,
+      Array.from({ length: 8 }, () => 'repeat'),
+    )
+    assert.equal(e.stderr.tail.lines[0]?.length, 256)
+    assert.equal(e.stderr.tail.clipped, true)
+    assert.equal(e.collectionStoppedAtOriginalLimit, true)
+    assert.equal(e.complete, false)
+    assert.ok(e.stderr.tail.lines.reduce((n, line) => n + Buffer.byteLength(line), 0) <= 2048)
+  })
+
+  it('redacts known canaries across chunks, clipping and capacity boundaries before public serialization', () => {
+    const token = 'fake-capability-é-😀-DO-NOT-DISCLOSE'
+    const path = '/run/fake-credential-path'
+    const lease = 'fake-lease-canary-EXACT'
+    const c = new WholeBootConsole()
+    const input = Buffer.from(`early ${token}\nlease ${lease}\nAuthorization: Bearer hidden\n${path}\n`)
+    for (const byte of input) c.take('stdout', Buffer.from([byte]))
+    c.take('stderr', Buffer.from('x'.repeat(4097) + token + '\n'))
+    const e = c.read([token, lease, path])
+    const json = bootDiagnosticJson(bootReceipt(e), true)
+    for (const canary of [token, lease, path, 'hidden', 'DO-NOT-DISCLOSE', 'fake-capability'])
+      assert.ok(!json.includes(canary), canary)
+    assert.equal(JSON.parse(json).console.lines.length, 0, 'legacy clipped text is never a public raw stream')
+    assert.ok(e.stdout.redacted)
+    assert.ok(e.stderr.tail.oversizeLines > 0)
+    const boundary = new WholeBootConsole()
+    boundary.take('stdout', Buffer.from('a'.repeat(WHOLE_BOOT.bytes - token.length + 4) + token))
+    assert.ok(!JSON.stringify(boundary.read([token])).includes(token.slice(0, 12)))
+  })
+
+  it('publishes console only for failed never-entered synthetic evidence, never Stop or success', () => {
+    const c = new WholeBootConsole()
+    c.take('stdout', Buffer.from('controlled boot failure\n'))
+    const evidence = bootReceipt(c.read())
+    assert.ok(bootDiagnosticJson(evidence, true).includes('controlled boot failure'))
+    for (const other of [
+      { ...evidence, cancelled: true },
+      { ...evidence, guestEntered: true },
+      { ...evidence, launcherLeader: { exitCode: 0, signal: null } },
+    ]) {
+      assert.equal(JSON.parse(bootDiagnosticJson(other, true)).console, null)
+    }
+    assert.equal(JSON.parse(bootDiagnosticJson(evidence, false)).console, null)
+    assert.equal(bootObservation(undefined), null, 'normal configuration allocates no console observer')
+    assert.ok(bootObservation(() => {}) instanceof WholeBootConsole)
+  })
+
+  it('caps whole JSON after escaping and fails closed on oversize or serialization failure', () => {
+    const c = new WholeBootConsole()
+    c.take('stdout', Buffer.from('"\\'.repeat(WHOLE_BOOT.bytes / 2)))
+    const e = bootReceipt(c.read())
+    const json = bootDiagnosticJson(e, true)
+    assert.ok(Buffer.byteLength(json) <= DIAGNOSTIC_JSON_BYTES)
+    assert.equal(JSON.parse(json).console.whole.stdout.retainedBytes, WHOLE_BOOT.bytes)
+    const oversized = { ...e, jobId: 'j'.repeat(DIAGNOSTIC_JSON_BYTES) }
+    assert.equal(JSON.parse(bootDiagnosticJson(oversized, true)).console, null)
+    assert.equal(JSON.parse(bootDiagnosticJson(oversized, true)).diagnostic_error, 'omitted')
+    const throwing = {
+      ...e,
+      get console(): never {
+        throw new Error('controlled diagnostic failure')
+      },
+    }
+    assert.equal(JSON.parse(bootDiagnosticJson(throwing, true)).diagnostic_error, 'omitted')
+  })
+
+  it('validates measured provenance and preserves missing facts as unknown with reasons', () => {
+    const facts = provenanceFixture()
+    const valid = diagnosticProvenance(JSON.stringify(facts))
+    assert.deepEqual(valid.facts, facts)
+    assert.equal(valid.qualification, false)
+    assert.deepEqual(valid.unknownFields, [{ field: 'measuredBrowser', reason: 'not_recorded_or_unavailable' }])
+    assert.ok(Buffer.byteLength(JSON.stringify(valid)) <= 12 * 1024)
+    for (const value of [
+      null,
+      'not json',
+      'x'.repeat(8193),
+      JSON.stringify({ ...facts, unexpected: 'x' }),
+      JSON.stringify({ ...facts, measuredConfigSha256: 'wrong' }),
+      JSON.stringify({ ...facts, measuredCompiler: 'Authorization: Bearer canary' }),
+      JSON.stringify({ ...facts, measuredSourceHashes: 'guessed' }),
+      JSON.stringify({ ...facts, measuredNode: 'x\nunsafe' }),
+    ]) {
+      assert.equal(diagnosticProvenance(value).facts, null)
+    }
+    const duplicate = JSON.stringify(facts).replace('{', '{"measuredNode":"other",')
+    assert.equal(diagnosticProvenance(duplicate).facts, null)
   })
 })

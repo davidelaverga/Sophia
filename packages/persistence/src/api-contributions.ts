@@ -163,11 +163,27 @@ export const createApiAccount = (c: pg.PoolClient, input: ApiAccountInput) =>
     'api_account_create',
   )
 
+/**
+ * The owner's protection declaration for one account (INC04-S01b, 0104): replaced whole, or withdrawn with null. Its
+ * values are the owner's: none is defaulted or inferred. `none_applicable` is an explicit scoped decision for exactly
+ * research by the research role; `protected` keeps owner-entered slots and/or spend free of one more task.
+ */
+export interface AccountProtection {
+  applicability: 'none_applicable' | 'protected'
+  operations: ['research']
+  roles: ['sophia-research-md-v1']
+  protectedConcurrency?: number
+  protectedSpendUsd?: number
+  validUntil?: string | null
+}
+
 export const updateApiAccount = (
   c: pg.PoolClient,
   accountId: string,
   expectedRevision: number,
-  patch: Partial<Pick<ApiAccountInput, 'label' | 'totalCapUsd' | 'concurrency' | 'provenance'>>,
+  patch: Partial<Pick<ApiAccountInput, 'label' | 'totalCapUsd' | 'concurrency' | 'provenance'>> & {
+    protection?: AccountProtection | null
+  },
 ) =>
   call<{ accountId: string; revision: number }>(
     c,
@@ -378,6 +394,15 @@ export const readMyContributions = (c: pg.PoolClient) =>
       slotsHeld: number
       providerBalance: 'unknown'
       revision: number
+      /** 0104: the owner's own declaration, or null (no declaration: policy absent). */
+      protection:
+        | (Required<Omit<AccountProtection, 'protectedConcurrency' | 'protectedSpendUsd' | 'validUntil'>> & {
+            protectedConcurrency: number | null
+            protectedSpendUsd: string | null
+            declaredAt: string
+            validUntil: string | null
+          })
+        | null
     }[]
     connections: {
       connectionId: string
@@ -386,9 +411,22 @@ export const readMyContributions = (c: pg.PoolClient) =>
       credentialRef: string
       credentialRevision: number
       revision: number
+      /** 0104: the operator's account-scoped qualification of this connection, judged now. Never its evidence. */
+      accountQualification: AccountQualificationView
     }[]
     grants: (ContributionGrantReceipt & { committedUsd: string; readiness: ContributionReadinessReason[] })[]
   }>(c, 'SELECT sophia.api_contributions_mine() AS r', [], 'api_contributions_mine')
+
+/** The owner's readout of a connection's account qualification (0104): a record judged now, not live access. */
+export interface AccountQualificationView {
+  state: 'current' | 'expired' | 'revoked' | 'stale' | 'none'
+  verification: 'operator_verified_call' | 'operator_verified_console' | null
+  recordedBy: 'operator' | null
+  observedAt: string | null
+  expiresAt: string | null
+  credentialRevision: number | null
+  revoked: boolean
+}
 
 /** An observed setting: unknown unless the runtime actually reported it. Never copied from the request. */
 export type Observed<T> = 'unknown' | T
@@ -447,6 +485,41 @@ export const registerContributionRuntime = (
     [input.projectId, input.connectionId, input.runtimeUnitId, input.tokenSha256, input.rotate],
     'register_contribution_runtime',
   )
+
+/**
+ * Record that one account's connection, at its CURRENT credential revision, was verified for its route, model, effort
+ * and operations (INC04-S01b, 0104). Migration owner only. Evidence stays outside the database, named by reference;
+ * no credential is read and no provider is called. Recording it is not live qualification by itself: the global route
+ * qualification is still required, and a credential rotation stales it.
+ */
+export const qualifyApiAccount = (
+  db: Queryable,
+  input: {
+    connectionId: string
+    operations: ['research']
+    verification: 'operator_verified_call' | 'operator_verified_console'
+    evidenceRef: string
+    observedAt: string
+    expiresAt: string
+  },
+) =>
+  call<{
+    qualificationId: string
+    accountId: string
+    connectionId: string
+    credentialRevision: number
+    expiresAt: string
+  }>(
+    db,
+    'SELECT sophia.qualify_api_account($1, $2, $3, $4, $5, $6) AS r',
+    [input.connectionId, input.operations, input.verification, input.evidenceRef, input.observedAt, input.expiresAt],
+    'qualify_api_account',
+  )
+
+/** Revoke an account qualification, naming why (migration owner only). Nothing it already allowed is undone. */
+export const revokeApiAccountQualification = async (db: Queryable, qualificationId: string, reason: string) => {
+  await db.query('SELECT sophia.revoke_api_account_qualification($1, $2)', [qualificationId, reason])
+}
 
 export const retireContributionRuntime = (db: Queryable, projectId: string, resourceId: string) =>
   call<{ resourceId: string; unresolvedReservations: number }>(

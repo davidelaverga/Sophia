@@ -79,8 +79,15 @@ import {
   validateProjectTask,
   validateProjectTaskList,
   validateProjectNativeResourcePage,
+  validateSelectionView,
   validatePersonalAnswerReceipt,
   validatePersonalAnswerDecisionList,
+  validateOwnerRunnerCollection,
+  validateOwnerRunnerResultDescriptor,
+  validateOwnerRunnerRetainedResult,
+  validateOwnerRunnerWorkPage,
+  validateOwnerRunnerWorkLookup,
+  validateOwnerRunnerWorkAvailability,
 } from './generated/validators.js'
 import type { CursorAdvance, Error as ErrorBody, Event } from './generated-types.ts'
 
@@ -189,6 +196,11 @@ export const parseDesignRetryReceipt = parser('DesignRetryReceipt', validateDesi
  */
 export const parseProjectNativeResourcePage = parser('ProjectNativeResourcePage', validateProjectNativeResourcePage)
 /**
+ * The actor's own read-only selection preview (A56): the kernel's viewer-safe projection, restricted or shared.
+ * Tolerant like the rest; a proposal is never a binding, and accepted/observed settings stay unknown.
+ */
+export const parseSelectionView = parser('SelectionView', validateSelectionView)
+/**
  * A Personal Answer receipt (A53): the decision its own send, retry or cancel made. Tolerant like the rest; the pairing
  * of the operation with its decision's operation is left to the consumer.
  */
@@ -211,3 +223,17 @@ export function parseFrame(value: unknown): Event | CursorAdvance {
 export function isCursorAdvance(frame: Event | CursorAdvance): frame is CursorAdvance {
   return frame.type === 'cursor.advanced'
 }
+
+/** A60 owner-private current-authority responses; ordinary tolerant-reader semantics. */
+export const parseOwnerRunnerCollection = parser('OwnerRunnerCollection', validateOwnerRunnerCollection)
+export const parseOwnerRunnerResultDescriptor = parser(
+  'OwnerRunnerResultDescriptor',
+  validateOwnerRunnerResultDescriptor,
+)
+export const parseOwnerRunnerRetainedResult = parser('OwnerRunnerRetainedResult', validateOwnerRunnerRetainedResult)
+export const parseOwnerRunnerWorkPage = parser('OwnerRunnerWorkPage', validateOwnerRunnerWorkPage)
+export const parseOwnerRunnerWorkLookup = parser('OwnerRunnerWorkLookup', validateOwnerRunnerWorkLookup)
+export const parseOwnerRunnerWorkAvailability = parser(
+  'OwnerRunnerWorkAvailability',
+  validateOwnerRunnerWorkAvailability,
+)

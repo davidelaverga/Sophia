@@ -285,6 +285,27 @@ describe('the owner-host port proxy: reconcile and observe', () => {
     assert.equal((await proxy(bad.s).observe(ident())).kind, 'unknown')
   })
 
+  it("passes a run's checked report through (INC04-S03b B2): malformed content is dropped, the status kept", async () => {
+    const reportedModels = {
+      state: 'unavailable',
+      threadId: 't-1',
+      runId: 'r-1',
+      reason: 'attempts_not_loaded',
+      collectedAt: 'x',
+    }
+    const run = { kind: 'run', status: 'completed', terminal: true }
+    const ok = store({ views: [view({ state: 'answered', answer: { ...run, reportedModels } })] })
+    assert.deepEqual(await proxy(ok.s).observe(ident()), { ...run, reportedModels })
+    const bad = store({
+      views: [
+        view({ state: 'answered', answer: { ...run, reportedModels: { state: 'collected', model: 'secret-m' } } }),
+      ],
+    })
+    const got = await proxy(bad.s).observe(ident())
+    assert.deepEqual(got, { ...run, reportedModels: { state: 'malformed', reason: 'invalid' } })
+    assert.ok(!JSON.stringify(got).includes('secret-m'))
+  })
+
   it('checks an observation for its own operation: a Stop needs the thread proof, a Create or Input its run (r5)', async () => {
     const observe = async (kind: 'create' | 'input' | 'stop', answer: unknown) => {
       const e = env({
@@ -503,4 +524,232 @@ describe('the owner-host port proxy under source authority (INC01-CC-005, 0096)'
     assert.equal(checkExchangeRequest(request).ok, true, 'the host accepts the content-free v2 request')
     assert.equal(checkExchangeRequest({ ...request, payload }).ok, false, 'and refuses one that carries more')
   })
+})
+
+import { collectionUnavailable } from './runner-port.ts'
+describe('optional result collection transport', () => {
+  const bounds = { v: 1 as const, maxPages: 2, maxBytes: 128 }
+  const identity = () => ({ envelope: env(), digest: digestOf(env()), journalId: JOURNAL })
+  it('old stores are explicitly unavailable without enqueue or input fallback', async () => {
+    const { s, calls } = store({})
+    assert.deepEqual(await proxy(s).collect(identity(), bounds), collectionUnavailable('unsupported'))
+    assert.equal(calls.enqueue.length, 0)
+    assert.equal(calls.exchange, 0)
+  })
+  it('transports only a v2 read and checks unavailable/foreign/malformed answers', async () => {
+    for (const answer of [
+      collectionUnavailable('unsupported'),
+      { kind: 'run', status: 'completed', terminal: true },
+      { text: 'PRIVATE' },
+    ]) {
+      const { s, calls } = store({ views: [view({ state: 'answered', answer })] })
+      const got = await proxy({ ...s, collectionVersion: 1 }).collect(identity(), bounds)
+      assert.equal(got.kind, 'collection_unavailable')
+      assert.equal(calls.enqueue[0]?.request.kind, 'collect')
+      assert.equal(calls.enqueue[0]?.request.v, 2)
+      assert.equal(checkExchangeRequest(calls.enqueue[0]?.request).ok, true)
+      assert.equal(calls.settle, 0)
+    }
+  })
+  it('no host, thrown transport and foreign identity remain unavailable, never a replacement send', async () => {
+    for (const script of [{ enqueue: { result: 'no_host' as const } }, { throwOn: 'enqueue' as const }]) {
+      const { s, calls } = store(script)
+      assert.equal(
+        (await proxy({ ...s, collectionVersion: 1 }).collect(identity(), bounds)).kind,
+        'collection_unavailable',
+      )
+      assert.equal(calls.enqueue.filter((c) => c.request.kind === 'send').length, 0)
+    }
+    const { s, calls } = store({})
+    assert.deepEqual(
+      await proxy({ ...s, collectionVersion: 1 }).collect({ ...identity(), journalId: env().ownerId }, bounds),
+      collectionUnavailable('scope'),
+    )
+    assert.equal(calls.enqueue.length, 0)
+  })
+})
+
+import { sha256Hex as collectionTextHash } from './runner-port.ts'
+it('the collection proxy accepts only hash-checked content bound to this native namespace', async () => {
+  const e = env()
+  const identity = { envelope: e, digest: digestOf(e), journalId: JOURNAL }
+  const native = deriveIdentity(e, NS)
+  const content = {
+    v: 1 as const,
+    kind: 'collected' as const,
+    operationId: e.operationId,
+    bindingId: e.bindingId,
+    journalId: JOURNAL,
+    envelopeDigest: identity.digest,
+    threadId: native.threadId,
+    runId: 'accepted-run',
+    inputMessageId: native.messageId,
+    messageId: 'final-message',
+    itemId: 'final-item',
+    text: 'Useful result',
+    textSha256: collectionTextHash('Useful result'),
+    byteLength: 13,
+    pages: 2,
+    coverageDigest: 'a'.repeat(64),
+    lastPosition: 2,
+  }
+  for (const foreign of [false, true]) {
+    const body = { ...content, threadId: foreign ? 'foreign-thread' : native.threadId }
+    const answer = { ...body, resultDigest: digestOf(body) }
+    const { s, calls } = store({ views: [view({ state: 'answered', answer })] })
+    const got = await proxy({ ...s, collectionVersion: 1 }).collect(identity, { v: 1, maxPages: 2, maxBytes: 128 })
+    assert.equal(got.kind, foreign ? 'collection_unavailable' : 'collected')
+    assert.equal(calls.enqueue.length, 1)
+    assert.equal(calls.enqueue[0]?.request.kind, 'collect')
+  }
+})
+
+function proxyMutationGate() {
+  let resolveWait: (() => void) | undefined
+  const wait = new Promise<void>((resolve) => {
+    resolveWait = resolve
+  })
+  return { wait, release: () => resolveWait?.(), started: false }
+}
+function mutableSourceIdentity() {
+  const { message: _message, title: _title, ...common } = env()
+  const envelope = {
+    ...common,
+    v: 2 as const,
+    kind: 'create' as const,
+    payloadSha256: 'a'.repeat(64),
+    manifestSha256: 'b'.repeat(64),
+    baseCommit: '0123456789abcdef0123456789abcdef01234567',
+    writeScope: 'read_only' as const,
+    settings: { instanceId: 'claudeAgent', model: 'synthetic-model', options: [{ id: 'effort', value: 'high' }] },
+  }
+  return { envelope, digest: digestOf(envelope), journalId: JOURNAL }
+}
+function proxyCollectionAnswer(identity: ReturnType<typeof ident>, text = 'Useful', pages = 2) {
+  const native = deriveIdentity(identity.envelope, NS)
+  const body = {
+    v: 1 as const,
+    kind: 'collected' as const,
+    operationId: identity.envelope.operationId,
+    bindingId: identity.envelope.bindingId,
+    journalId: identity.journalId,
+    envelopeDigest: identity.digest,
+    threadId: native.threadId,
+    runId: 'accepted-run',
+    inputMessageId: native.messageId,
+    messageId: 'assistant',
+    itemId: 'item',
+    text,
+    textSha256: collectionTextHash(text),
+    byteLength: Buffer.byteLength(text),
+    pages,
+    lastPosition: 2,
+    coverageDigest: 'a'.repeat(64),
+  }
+  return { ...body, resultDigest: digestOf(body) }
+}
+describe('NCOL-F01 proxy snapshots', () => {
+  it('NCOL-F01 proxy preserves nested caller identity while enqueue is deferred', async () => {
+    const identity = mutableSourceIdentity()
+    const original = structuredClone(identity)
+    const bounds = { v: 1 as const, maxPages: 2, maxBytes: 128 }
+    const gate = proxyMutationGate()
+    const scripted = store({ views: [view({ state: 'answered', answer: proxyCollectionAnswer(original) })] })
+    const s: ExchangeStore = {
+      ...scripted.s,
+      collectionVersion: 1,
+      async enqueue(input) {
+        gate.started = true
+        await gate.wait
+        return scripted.s.enqueue(input)
+      },
+    }
+    try {
+      const pending = proxy(s).collect(identity, bounds)
+      assert.equal(gate.started, true)
+      identity.envelope.bindingId = env().ownerId
+      identity.envelope.operationId = env().resourceId
+      identity.envelope.settings.model = 'changed'
+      const option = identity.envelope.settings.options[0]
+      if (!option) throw new Error('synthetic setting missing')
+      option.value = 'low'
+      identity.envelope.manifestSha256 = 'c'.repeat(64)
+      identity.digest = 'd'.repeat(64)
+      identity.journalId = env().ownerId
+      gate.release()
+      assert.equal((await pending).kind, 'collected')
+      assert.deepEqual(scripted.calls.enqueue[0]?.request.envelope, original.envelope)
+      assert.equal(scripted.calls.enqueue[0]?.request.digest, original.digest)
+      assert.equal(Object.isFrozen(identity.envelope.settings), false)
+    } finally {
+      gate.release()
+    }
+  })
+  it('NCOL-F01 proxy protects private identity from store-side wire mutation', async () => {
+    const identity = mutableSourceIdentity()
+    const original = structuredClone(identity)
+    let forged = proxyCollectionAnswer(original)
+    const scripted = store({})
+    const s: ExchangeStore = {
+      ...scripted.s,
+      collectionVersion: 1,
+      enqueue(input) {
+        Object.assign(input.request.envelope, { bindingId: env().ownerId })
+        forged = proxyCollectionAnswer({ ...original, envelope: input.request.envelope })
+        return scripted.s.enqueue(input)
+      },
+      exchange() {
+        return Promise.resolve(view({ state: 'answered', answer: forged }))
+      },
+    }
+    const result = await proxy(s).collect(identity, { v: 1, maxPages: 2, maxBytes: 128 })
+    assert.equal(result.kind, 'collection_unavailable')
+    assert.deepEqual(identity, original, 'store must not receive aliases of the caller either')
+  })
+  it('NCOL-F01 proxy preserves narrower limits while its answer is deferred', async () => {
+    const identity = ident()
+    const bounds = { v: 1 as const, maxPages: 2, maxBytes: 16 }
+    const gate = proxyMutationGate()
+    const scripted = store({})
+    const s: ExchangeStore = {
+      ...scripted.s,
+      collectionVersion: 1,
+      async exchange() {
+        gate.started = true
+        await gate.wait
+        return view({ state: 'answered', answer: proxyCollectionAnswer(identity, 'x'.repeat(32), 4) })
+      },
+    }
+    try {
+      const pending = proxy(s).collect(identity, bounds)
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      assert.equal(gate.started, true)
+      bounds.maxPages = 8
+      bounds.maxBytes = 128
+      gate.release()
+      assert.equal((await pending).kind, 'collection_unavailable')
+      assert.equal(Object.isFrozen(bounds), false)
+    } finally {
+      gate.release()
+    }
+  })
+})
+
+it('NCOL-F01 proxy private limits cannot be changed through the store wire request', async () => {
+  const identity = ident()
+  const bounds = { v: 1 as const, maxPages: 2, maxBytes: 16 }
+  const scripted = store({
+    views: [view({ state: 'answered', answer: proxyCollectionAnswer(identity, 'x'.repeat(32), 4) })],
+  })
+  const s: ExchangeStore = {
+    ...scripted.s,
+    collectionVersion: 1,
+    enqueue(input) {
+      if (!input.request.collection) throw new Error('collection request missing')
+      Object.assign(input.request.collection, { maxPages: 8, maxBytes: 128 })
+      return scripted.s.enqueue(input)
+    },
+  }
+  assert.equal((await proxy(s).collect(identity, bounds)).kind, 'collection_unavailable')
+  assert.deepEqual(bounds, { v: 1, maxPages: 2, maxBytes: 16 })
 })

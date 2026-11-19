@@ -25,6 +25,8 @@
 // PLAYWRIGHT_BROWSERS_PATH (or Playwright's default cache in HOME); or SOPHIA_RENDER_ISOLATION=uml, with the guest's
 // artifacts under SOPHIA_UML_ROOT (/opt/uml).
 import { spawn } from 'node:child_process'
+import { isUtf8 } from 'node:buffer'
+import { StringDecoder } from 'node:string_decoder'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
@@ -99,7 +101,7 @@ const GUEST = { dir: '/work/job', sourceRoot: '/work/job/src', outputDir: '/work
  *   and whether anything was dropped or cut
  * @typedef {{ event: 'UML_BOOT_EVIDENCE', qualification: false, jobId: string, launcherLeader: LeaderExit | null,
  *   cancelled: boolean, timedOut: boolean, lingering: boolean, failed: string | null, guestEntered: boolean,
- *   console: BootConsole | null }} BootEvidence what a synthetic check's diagnostic is told of one UML run: the console
+ *   console: (BootConsole & { whole?: ReturnType<WholeBootConsole['read']> }) | null }} BootEvidence what a synthetic check's diagnostic is told of one UML run: the console
  *   only when the guest was never entered
  */
 
@@ -595,13 +597,14 @@ function umlCommand(cfg, dir) {
  */
 function launcherRecords(cfg, job, child, stop) {
   /** @type {{ adverse: object | null, policy: object | null, refused: string | null, entered: boolean,
-   *   boot: ReturnType<typeof bootConsole> | null }} */
+   *   boot: ReturnType<typeof bootConsole> | null, whole: WholeBootConsole | null }} */
   const seen = {
     adverse: null,
     policy: null,
     refused: null,
     entered: false,
     boot: cfg.uml?.diagnostics ? bootConsole() : null,
+    whole: bootObservation(cfg.uml?.diagnostics),
   }
   let bytes = 0
   let logged = 0
@@ -624,16 +627,19 @@ function launcherRecords(cfg, job, child, stop) {
     else seen[key] = record
   }
   /** A reader of one stream, with its own partial line: the two streams' lines never mix. */
-  const reader = () => {
+  /** @param {DiagnosticStream} stream */
+  const reader = (stream) => {
     let pending = ''
     /** @param {Buffer} chunk */
     return (chunk) => {
       bytes += chunk.length
       if (bytes > UML_LOG_BYTES) {
+        seen.whole?.limit()
         seen.refused ??= `the guest printed more than ${UML_LOG_BYTES} bytes`
         stop()
         return
       }
+      if (!seen.entered) observeBoot(seen, stream, chunk)
       pending += chunk.toString('utf8')
       const lines = pending.split('\n')
       pending = lines.pop() ?? ''
@@ -641,8 +647,12 @@ function launcherRecords(cfg, job, child, stop) {
       for (const line of lines) take(line.trim())
     }
   }
-  child.stdout?.on('data', reader())
-  child.stderr?.on('data', reader())
+  child.stdout?.on('data', reader('stdout'))
+  child.stderr?.on('data', reader('stderr'))
+  if (seen.whole) {
+    child.stdout?.once('end', () => seen.whole?.end('stdout'))
+    child.stderr?.once('end', () => seen.whole?.end('stderr'))
+  }
   return seen
 }
 
@@ -834,7 +844,7 @@ function reportBoot(cfg, job, result, seen) {
       lingering: result.lingering,
       failed: result.failed,
       guestEntered: seen.entered,
-      console: seen.entered || !seen.boot ? null : seen.boot.read(),
+      console: bootEvidenceConsole(cfg, job, result, seen),
     })
   } catch {
     // A diagnostic that fails tells nothing; the run goes on as it would without it.
@@ -1180,4 +1190,361 @@ if (isMain()) {
   process.once('SIGTERM', () => controller.abort())
   process.once('SIGINT', () => controller.abort())
   await supervise(configOf(process.env), controller.signal)
+}
+
+/** Synthetic-only observation; never a protocol decoder or a production configuration switch. */
+export const WHOLE_BOOT = Object.freeze({ bytes: 256 * 1024, tailLines: 8, tailLineBytes: 256, pendingBytes: 4096 })
+export const DIAGNOSTIC_JSON_BYTES = 576 * 1024
+
+/** @typedef {'stdout' | 'stderr'} DiagnosticStream */
+/** @param {string} text @param {string[]} secrets @param {boolean} cut */
+function safeConsole(text, secrets, cut = false) {
+  let shown = text
+  const partialLineSuppressed = cut && shown !== '' && !shown.endsWith('\n')
+  if (partialLineSuppressed) shown = `${shown.slice(0, Math.max(0, shown.lastIndexOf('\n') + 1))}[partial line omitted]`
+  const beforeRedaction = shown
+  for (const secret of secrets) if (secret) shown = shown.replaceAll(secret, '?')
+  shown = shown.replace(/^.*(?:authorization\s*:|\bbearer\s|(?:token|password|secret|credential)\s*[=:]).*$/gimu, '?')
+  const printable = shown.replaceAll(/[^\x20-\x7e\n]/gu, '?')
+  return {
+    text: printable,
+    redacted: shown !== beforeRedaction,
+    controlsReplaced: printable !== shown,
+    partialLineSuppressed,
+  }
+}
+
+/** @param {Buffer} bytes */
+function incompleteUtf8(bytes) {
+  let at = bytes.length - 1
+  while (at >= Math.max(0, bytes.length - 4) && ((bytes[at] ?? 0) & 0xc0) === 0x80) at -= 1
+  const lead = bytes[at] ?? 0
+  const width =
+    lead >= 0xf0 && lead <= 0xf4 ? 4 : lead >= 0xe0 && lead <= 0xef ? 3 : lead >= 0xc2 && lead <= 0xdf ? 2 : 1
+  return width > bytes.length - at
+}
+
+/** One fixed-size tail reader. Its decoder never supplies protocol input. */
+class DiagnosticTail {
+  decoder = new StringDecoder('utf8')
+  validator = new TextDecoder('utf-8', { fatal: true })
+  /** @type {string[]} */
+  lines = []
+  pending = ''
+  pendingBytes = 0
+  lineBytes = 0
+  oversizeBytes = 0
+  observedLines = 0
+  oversizeLines = 0
+  oversized = false
+  invalidUtf8 = false
+  finalFragment = false
+  ended = false
+  /** @param {Buffer} bytes */
+  take(bytes) {
+    if (this.ended) return
+    for (let at = 0; at < bytes.length; at += WHOLE_BOOT.pendingBytes) {
+      const part = bytes.subarray(at, at + WHOLE_BOOT.pendingBytes)
+      try {
+        this.validator.decode(part, { stream: true })
+      } catch {
+        this.invalidUtf8 = true
+      }
+      this.text(this.decoder.write(part))
+    }
+  }
+  /** @param {string} text */
+  text(text) {
+    for (const char of text) {
+      if (char === '\n') this.line()
+      else {
+        this.lineBytes += Buffer.byteLength(char)
+        this.character(char)
+      }
+    }
+  }
+  /** @param {string} char */
+  character(char) {
+    if (!this.oversized) {
+      this.pendingBytes += Buffer.byteLength(char)
+      if (this.pendingBytes > WHOLE_BOOT.pendingBytes) {
+        this.pending = ''
+        this.oversized = true
+      } else this.pending += char
+    }
+  }
+  line() {
+    this.observedLines += 1
+    if (this.oversized) {
+      this.oversizeLines += 1
+      this.oversizeBytes += this.lineBytes
+    }
+    this.lines.push(this.oversized ? '[oversize tail line omitted]' : this.pending)
+    if (this.lines.length > WHOLE_BOOT.tailLines) this.lines.shift()
+    this.pending = ''
+    this.pendingBytes = 0
+    this.lineBytes = 0
+    this.oversized = false
+  }
+  end() {
+    if (this.ended) return
+    this.ended = true
+    try {
+      this.validator.decode()
+    } catch {
+      this.invalidUtf8 = true
+    }
+    this.text(this.decoder.end())
+    if (this.pendingBytes || this.oversized) {
+      this.finalFragment = true
+      this.line()
+    }
+  }
+  /** @param {string[]} secrets */
+  read(secrets) {
+    this.end()
+    let clipped = false
+    let redacted = false
+    let controlsReplaced = false
+    let clippedBytes = 0
+    const lines = this.lines.map((line) => {
+      const safe = safeConsole(line, secrets)
+      redacted ||= safe.redacted
+      controlsReplaced ||= safe.controlsReplaced
+      if (safe.text.length <= WHOLE_BOOT.tailLineBytes) return safe.text
+      clipped = true
+      clippedBytes += safe.text.length - WHOLE_BOOT.tailLineBytes + 6
+      return `${safe.text.slice(0, WHOLE_BOOT.tailLineBytes - 6)} [cut]`
+    })
+    return {
+      lines,
+      observedLines: this.observedLines,
+      oversizeLines: this.oversizeLines,
+      oversizeBytes: this.oversizeBytes,
+      droppedLines: this.observedLines - lines.length,
+      clippedBytes,
+      controlsReplaced,
+      clipped,
+      redacted,
+      invalidUtf8: this.invalidUtf8,
+      finalFragment: this.finalFragment,
+    }
+  }
+}
+
+/** Fixed shared byte storage plus one fixed bit per byte for stream identity; no chunk list. */
+export class WholeBootConsole {
+  primary = Buffer.alloc(WHOLE_BOOT.bytes)
+  streams = Buffer.alloc(WHOLE_BOOT.bytes / 8)
+  used = 0
+  observed = { stdout: 0, stderr: 0 }
+  retained = { stdout: 0, stderr: 0 }
+  tails = { stdout: new DiagnosticTail(), stderr: new DiagnosticTail() }
+  stoppedAtOriginalLimit = false
+  ended = false
+  /** @param {DiagnosticStream} stream @param {Buffer} chunk */
+  take(stream, chunk) {
+    if (this.ended) return
+    this.observed[stream] += chunk.length
+    const count = Math.min(chunk.length, WHOLE_BOOT.bytes - this.used)
+    chunk.copy(this.primary, this.used, 0, count)
+    if (stream === 'stderr') {
+      for (let i = this.used; i < this.used + count; i += 1)
+        this.streams[i >> 3] = (this.streams[i >> 3] ?? 0) | (1 << (i & 7))
+    }
+    this.used += count
+    this.retained[stream] += count
+    this.tails[stream].take(chunk)
+  }
+  limit() {
+    this.stoppedAtOriginalLimit = true
+  }
+  /** @param {DiagnosticStream} stream */
+  end(stream) {
+    this.tails[stream].end()
+  }
+  /** @param {DiagnosticStream} stream @param {string[]} secrets */
+  stream(stream, secrets) {
+    const bytes = Buffer.alloc(this.retained[stream])
+    let at = 0
+    for (let i = 0; i < this.used; i += 1) {
+      if (Boolean((this.streams[i >> 3] ?? 0) & (1 << (i & 7))) === (stream === 'stderr'))
+        bytes[at++] = this.primary[i] ?? 0
+    }
+    const omittedBytes = this.observed[stream] - bytes.length
+    const safe = safeConsole(bytes.toString('utf8'), secrets, omittedBytes > 0)
+    const tail = this.tails[stream].read(secrets)
+    const retainedNewlines = bytes.reduce((count, byte) => count + Number(byte === 10), 0)
+    const retainedCompleteLines = retainedNewlines + Number(omittedBytes === 0 && tail.finalFragment)
+    return {
+      text: safe.text,
+      observedBytes: this.observed[stream],
+      retainedBytes: bytes.length,
+      omittedBytes,
+      redacted: safe.redacted,
+      controlsReplaced: safe.controlsReplaced,
+      partialLineSuppressed: safe.partialLineSuppressed,
+      invalidUtf8: !isUtf8(bytes),
+      capCutUtf8: omittedBytes > 0 && incompleteUtf8(bytes),
+      retainedCompleteLines,
+      omittedLineContexts: tail.observedLines - retainedCompleteLines,
+      tail,
+    }
+  }
+  /** @param {string[]} secrets */
+  read(secrets = []) {
+    this.ended = true
+    const stdout = this.stream('stdout', secrets)
+    const stderr = this.stream('stderr', secrets)
+    const loss = [stdout, stderr].some(
+      (s) =>
+        s.omittedBytes > 0 ||
+        s.invalidUtf8 ||
+        s.redacted ||
+        s.controlsReplaced ||
+        s.partialLineSuppressed ||
+        s.tail.controlsReplaced ||
+        s.tail.oversizeLines > 0 ||
+        s.tail.clipped ||
+        s.tail.redacted,
+    )
+    return {
+      version: 1,
+      complete: !loss && !this.stoppedAtOriginalLimit,
+      capacityBytes: WHOLE_BOOT.bytes,
+      overflow: this.observed.stdout + this.observed.stderr > this.used,
+      collectionStoppedAtOriginalLimit: this.stoppedAtOriginalLimit,
+      crossStreamOrder: 'unknown',
+      stdout,
+      stderr,
+    }
+  }
+}
+
+/** A diagnostic cannot change a verdict, nor publish unbounded or unknown-boundary data. */
+export function bootDiagnosticJson(/** @type {BootEvidence} */ evidence, /** @type {boolean} */ synthetic) {
+  const omitted = { event: 'UML_E2E_BOOT_EVIDENCE', qualification: false, console: null, diagnostic_error: 'omitted' }
+  try {
+    const failed = evidence.failed || evidence.timedOut || evidence.lingering || evidence.launcherLeader?.exitCode !== 0
+    const disclose = synthetic && Boolean(failed) && !evidence.guestEntered && !evidence.cancelled
+    const safe = { ...evidence, console: disclose && evidence.console ? { ...evidence.console, lines: [] } : null }
+    const json = JSON.stringify({ ...safe, event: 'UML_E2E_BOOT_EVIDENCE' })
+    return Buffer.byteLength(json) <= DIAGNOSTIC_JSON_BYTES ? json : JSON.stringify(omitted)
+  } catch {
+    return JSON.stringify(omitted)
+  }
+}
+
+/** Fixed-schema host-side build facts. Missing/untrusted facts stay unknown, never a qualification. */
+export function diagnosticProvenance(/** @type {unknown} */ value) {
+  const unknown = { schema: 1, qualification: false, facts: null, reason: 'missing_or_invalid' }
+  if (typeof value !== 'string' || Buffer.byteLength(value) > 8192) return unknown
+  try {
+    /** @type {unknown} */
+    const parsed = JSON.parse(value)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return unknown
+    const entries = Object.entries(parsed)
+    if (!validProvenanceEntries(value, entries)) return unknown
+    /** @type {unknown} */
+    const config = Reflect.get(parsed, 'measuredConfigSha256')
+    if (typeof config !== 'string' || !/^[a-f0-9]{64}$/u.test(config)) return unknown
+    if (!validSourceHashes(Reflect.get(parsed, 'measuredSourceHashes'))) return unknown
+    const json = JSON.stringify({ schema: 1, qualification: false, facts: parsed, reason: null })
+    const unknownFields = entries
+      .filter(([, val]) => val === null)
+      .map(([key]) => ({ field: key, reason: 'not_recorded_or_unavailable' }))
+    return Buffer.byteLength(json) <= 12 * 1024
+      ? { schema: 1, qualification: false, facts: parsed, reason: null, unknownFields }
+      : unknown
+  } catch {
+    return unknown
+  }
+}
+
+/** @param {SupervisorConfig} cfg @param {RenderJob} job @param {RunEnd} result @param {ReturnType<typeof launcherRecords>} seen */
+function bootEvidenceConsole(cfg, job, result, seen) {
+  if (
+    seen.entered ||
+    !seen.boot ||
+    !seen.whole ||
+    result.cancelled ||
+    (!result.failed && !result.timedOut && !result.lingering && result.leader?.exitCode === 0)
+  )
+    return null
+  const secrets = [cfg.token, job.leaseToken, ...(cfg.tokenFile ? [cfg.tokenFile] : [])]
+  const old = seen.boot.read()
+  return { ...old, lines: old.lines.map((line) => safeConsole(line, secrets).text), whole: seen.whole.read(secrets) }
+}
+
+/** @param {ReturnType<typeof launcherRecords>} seen @param {DiagnosticStream} stream @param {Buffer} chunk */
+function observeBoot(seen, stream, chunk) {
+  try {
+    seen.whole?.take(stream, chunk)
+  } catch {
+    // Diagnostics never decide protocol, cancellation or acceptance.
+    seen.whole = null
+  }
+}
+
+/** @param {unknown} value */
+function validSourceHashes(value) {
+  if (typeof value !== 'string') return false
+  const names = [
+    'kernel.config',
+    'kernel-abi.patch',
+    'kernel-memory.patch',
+    'make-guest.sh',
+    'make-initrd.py',
+    'guest-init',
+    'guest-job',
+    'namespace-launch.py',
+    'landlock-launch.py',
+  ]
+  const entries = value.split(';')
+  return (
+    entries.length === names.length &&
+    names.every(
+      (name) =>
+        entries.filter((entry) => entry.startsWith(`${name}=`) && /^[a-f0-9]{64}$/u.test(entry.slice(name.length + 1)))
+          .length === 1,
+    )
+  )
+}
+
+/** @param {UmlConfig['diagnostics']} diagnostics */
+export function bootObservation(diagnostics) {
+  return diagnostics ? new WholeBootConsole() : null
+}
+
+/** @param {string} input @param {[string, unknown][]} entries */
+function validProvenanceEntries(input, entries) {
+  const keys = [
+    'declaredNodeImage',
+    'declaredLinuxArchive',
+    'measuredConfigSha256',
+    'measuredSourceHashes',
+    'measuredCompiler',
+    'measuredLinker',
+    'measuredPackages',
+    'measuredNode',
+    'measuredBrowser',
+    'measuredOptimization',
+  ]
+  const count = (input.match(/"(?:[^"\\]|\\.)*"\s*:/gu) ?? []).length
+  return (
+    count === keys.length &&
+    entries.length === keys.length &&
+    entries.every(([key, val]) => keys.includes(key) && safeProvenanceValue(val))
+  )
+}
+
+/** @param {unknown} val */
+function safeProvenanceValue(val) {
+  return (
+    val === null ||
+    (typeof val === 'string' &&
+      val.length <= 2048 &&
+      !/[^\x20-\x7e]/u.test(val) &&
+      !/(?:token|password|secret|authorization|bearer|https?:)/iu.test(val))
+  )
 }

@@ -298,6 +298,13 @@ export interface ThreadRead {
   /** The items of this page, by exact message id, with the run each started. */
   readonly messages: ReadonlyMap<string, string | null>
   readonly nextPosition: number | null
+  /**
+   * INC04-S03b B2 (0108): each listed run's `providerReportedModels` value, raw, for the runs that carried the field (a
+   * patched producer, patches/t3code/ade47301-provider-reported-models.patch). Absent for an unpatched producer. It is
+   * never part of the read's validity: a malformed value is judged where it is used (runner-model-report.ts) and leaves
+   * the lifecycle evidence above unchanged.
+   */
+  readonly modelReports?: ReadonlyMap<string, unknown>
 }
 
 const nonNegative = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0
@@ -401,6 +408,18 @@ function activeStatusError(runs: Map<string, string>, activeRunId: string | null
     : 'the read names an active run it lists as not active'
 }
 
+/** The raw `providerReportedModels` of each listed run that carried it (the runs are already decoded). */
+function modelReportsIn(list: unknown): Map<string, unknown> {
+  const reports = new Map<string, unknown>()
+  if (!Array.isArray(list)) return reports
+  for (const run of list) {
+    const id = isRecord(run) ? entityId(run.runId) : null
+    if (id !== null && isRecord(run) && Object.hasOwn(run, 'providerReportedModels'))
+      reports.set(id, run.providerReportedModels)
+  }
+  return reports
+}
+
 /** The decoded read of exactly `threadId`, or why it is not evidence. */
 export function decodeThreadRead(body: unknown, threadId: string): ThreadRead | { error: string } {
   if (!isRecord(body)) return { error: 'the read is not an object' }
@@ -413,7 +432,8 @@ export function decodeThreadRead(body: unknown, threadId: string): ThreadRead | 
   if (summary) return { error: summary }
   const next = nextOf(body)
   if (typeof next === 'object' && next !== null) return next
-  return { threadId, ...detail, runs, messages, nextPosition: next }
+  const modelReports = modelReportsIn(body.recentRuns)
+  return { threadId, ...detail, runs, messages, nextPosition: next, ...(modelReports.size > 0 ? { modelReports } : {}) }
 }
 
 /** The read's next page position (null when it has no more), or why its paging fields are malformed. */
@@ -442,4 +462,103 @@ export function runState(read: ThreadRead, runId: string): 'terminal' | 'running
   if (status === undefined) return 'unknown'
   if (TERMINAL.has(status)) return 'terminal'
   return ACTIVE.has(status) ? 'running' : 'unknown'
+}
+
+/** Public T3 pin: orchestratorMcp.ts:406-499, OrchestratorMcpService.ts:978-1013.
+ * The API has no final-answer phase. Select the last nonempty assistant_message of the exact completed run,
+ * matching provider-core/server/subagentProjection.ts:179-226, only after a complete scan.
+ */
+export interface CollectionItem {
+  readonly position: number
+  readonly itemId: string
+  readonly messageId: string | null
+  readonly runId: string | null
+  readonly type: string
+  readonly text: string | null
+  readonly eligible: boolean
+}
+export interface CollectionPage {
+  readonly read: ThreadRead
+  readonly items: readonly CollectionItem[]
+  readonly lastPosition: number | null
+}
+export const collectionReadCall = (
+  environmentId: string,
+  threadId: string,
+  maxBytes: number,
+  afterPosition?: number,
+): T3Call => ({
+  ...readCall(environmentId, threadId, afterPosition),
+  args: { ...readCall(environmentId, threadId, afterPosition).args, maxCharsPerItem: maxBytes },
+})
+
+const collectionId = (v: string | null): boolean => v === null || (v.length <= 1000 && v.isWellFormed())
+const ITEM_STATUSES = new Set([
+  'idle',
+  'pending',
+  'running',
+  'waiting',
+  'completed',
+  'failed',
+  'cancelled',
+  'interrupted',
+])
+function collectionFields(value: Record<string, unknown>, threadId: string): boolean {
+  return (
+    nonNegative(value.position) &&
+    Boolean(entityId(value.itemId)) &&
+    String(value.itemId).length <= 1000 &&
+    Boolean(str(value.type)) &&
+    value.sourceThreadId === threadId &&
+    value.visibility === 'local' &&
+    typeof value.textTruncated === 'boolean' &&
+    ITEM_STATUSES.has(String(value.status))
+  )
+}
+function collectionAssistant(value: Record<string, unknown>): boolean {
+  return (
+    value.status === 'completed' &&
+    value.textTruncated === false &&
+    value.nextTextOffset === null &&
+    typeof value.text === 'string' &&
+    value.text.isWellFormed() &&
+    !Object.hasOwn(value, 'senderThreadId') &&
+    !Object.hasOwn(value, 'subagentId')
+  )
+}
+function collectionItem(value: unknown, threadId: string): CollectionItem | null {
+  if (!isRecord(value) || !collectionFields(value, threadId)) return null
+  const ids = itemOf(value)
+  if (!ids || !collectionId(ids.messageId) || !collectionId(ids.runId)) return null
+  const eligible = value.type === 'assistant_message'
+  if (eligible && (!collectionAssistant(value) || !ids.messageId || !ids.runId)) return null
+  return {
+    position: Number(value.position),
+    itemId: String(value.itemId),
+    ...ids,
+    type: String(value.type),
+    text: eligible ? String(value.text) : null,
+    eligible,
+  }
+}
+function collectionItems(raw: readonly unknown[], threadId: string): CollectionItem[] | null {
+  const items: CollectionItem[] = []
+  for (const value of raw) {
+    const item = collectionItem(value, threadId)
+    if (!item || (items.at(-1)?.position ?? -1) >= item.position) return null
+    items.push(item)
+  }
+  return items
+}
+
+/** Strict bounded result-only projection. No raw body, reasoning or tool text escapes this decoder. */
+export function decodeCollectionPage(body: unknown, threadId: string): CollectionPage | null {
+  const read = decodeThreadRead(body, threadId)
+  if ('error' in read || !isRecord(body) || !Array.isArray(body.items) || body.items.length > T3_READ_PAGE) return null
+  if (Buffer.byteLength(JSON.stringify(body), 'utf8') > 262144) return null
+  const items = collectionItems(body.items, threadId)
+  if (!items) return null
+  const lastPosition = items.at(-1)?.position ?? null
+  if (body.nextPosition !== lastPosition || (body.hasMore && lastPosition === null)) return null
+  return { read, items, lastPosition }
 }

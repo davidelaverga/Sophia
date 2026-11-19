@@ -1,0 +1,263 @@
+diff --git a/dist/api/openai-responses-shared.js b/dist/api/openai-responses-shared.js
+index 53597d2c3becdd2c03d4fd265c213a36b403f26b..05478efda5efd57b809c1a9b19fc01fb01ec8fad 100644
+--- a/dist/api/openai-responses-shared.js
++++ b/dist/api/openai-responses-shared.js
+@@ -317,6 +317,52 @@ function appendCustomToolCallInput(block, nextInput, close) {
+     block.arguments = { [customInput.property]: nextInput };
+     return delta;
+ }
++// Sophia patch (INC04-S03A-R07-C1P): this call's provider usage provenance, judged from one terminal Responses `usage`
++// object alone. "complete" needs input_tokens, output_tokens and input_tokens_details.cached_tokens as finite
++// non-negative safe integers with cached_tokens <= input_tokens; cache_write_tokens may be absent or 0 (no separately
++// reported write class), and anything else there is an unqualified extension. Total and reasoning counts are
++// informational. A missing object is "absent"; anything not complete is "partial". Nothing is defaulted to zero.
++function responsesUsageProvenance(usage) {
++    if (usage === undefined || usage === null) return "absent";
++    if (typeof usage !== "object") return "partial";
++    const count = (value) => Number.isSafeInteger(value) && value >= 0;
++    const details = usage.input_tokens_details;
++    if (!count(usage.input_tokens) || !count(usage.output_tokens)) return "partial";
++    if (details === null || typeof details !== "object" || !count(details.cached_tokens)) return "partial";
++    if (details.cached_tokens > usage.input_tokens) return "partial";
++    if (details.cache_write_tokens !== undefined && details.cache_write_tokens !== 0) return "partial";
++    return "complete";
++}
++// Sophia patch (INC04-R07-C2B-PRODUCER-001): the reserved own property of a private call observation, present only when the
++// caller asked for one (openai-responses.js). Each fact is recorded once, as the provider sent it, for the adapter to
++// classify; nothing here is defaulted, derived or copied into the message's enumerable fields.
++export const C2B_OBSERVATION = "sophiaC2bObservation";
++/** The call observation of `message`, read as an own DATA property only (never a getter), or undefined. */
++export function c2bObservationOf(message) {
++    if (message === null || typeof message !== "object") return undefined;
++    const descriptor = Object.getOwnPropertyDescriptor(message, C2B_OBSERVATION);
++    return descriptor !== undefined && "value" in descriptor && descriptor.value !== null && typeof descriptor.value === "object"
++        ? descriptor.value
++        : undefined;
++}
++/** Only the three raw usage counts this slice keeps, each only when the provider sent a number. */
++function c2bRawUsage(usage) {
++    if (usage === null || typeof usage !== "object") return undefined;
++    const details = usage.input_tokens_details;
++    const cached = details !== null && typeof details === "object" ? details.cached_tokens : undefined;
++    const raw = {};
++    if (typeof usage.input_tokens === "number") raw.inputTotal = usage.input_tokens;
++    if (typeof cached === "number") raw.cacheRead = cached;
++    if (typeof usage.output_tokens === "number") raw.output = usage.output_tokens;
++    return raw;
++}
++/** The first actual provider terminal event of this call: its kind, its response id and its own raw counts. */
++function c2bTerminal(output, kind, response) {
++    const observed = c2bObservationOf(output);
++    if (observed === undefined || observed.terminal !== undefined) return;
++    const isObject = response !== null && typeof response === "object";
++    observed.terminal = { kind, hasId: isObject && "id" in response, id: isObject ? response.id : undefined, usage: isObject ? c2bRawUsage(response.usage) : undefined };
++}
+ export async function processResponsesStream(openaiStream, output, stream, model, options) {
+     let sawTerminalResponseEvent = false;
+     const outputSlots = new Map();
+@@ -451,6 +497,8 @@ export async function processResponsesStream(openaiStream, output, stream, model
+                 cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+             };
+         }
++        // Sophia patch: the provenance of THIS terminal response's usage, never one carried over from earlier data.
++        output.usageProvenance = responsesUsageProvenance(response?.usage);
+         calculateCost(model, output.usage);
+         if (options?.applyServiceTierPricing) {
+             const serviceTier = options.resolveServiceTier
+@@ -477,6 +525,12 @@ export async function processResponsesStream(openaiStream, output, stream, model
+     for await (const event of openaiStream) {
+         if (event.type === "response.created") {
+             output.responseId = event.response.id;
++            // Sophia patch: the response id as created, recorded once.
++            const observed = c2bObservationOf(output);
++            if (observed !== undefined && observed.created === undefined) {
++                const created = event.response !== null && typeof event.response === "object" ? event.response : undefined;
++                observed.created = { hasId: created !== undefined && "id" in created, id: created?.id };
++            }
+         }
+         else if (event.type === "response.output_item.added") {
+             createSlot(event.output_index, event.item);
+@@ -635,14 +689,34 @@ export async function processResponsesStream(openaiStream, output, stream, model
+             }
+         }
+         else if (event.type === "response.completed" || event.type === "response.incomplete") {
++            c2bTerminal(output, event.type === "response.completed" ? "completed" : "incomplete", event.response);
+             finalizeResponse(event.response);
+         }
+         else if (event.type === "error") {
++            c2bTerminal(output, "error_event", undefined);
+             throw new Error(`Error Code ${event.code}: ${event.message}` || "Unknown error");
+         }
+         else if (event.type === "response.failed") {
++            // Sophia patch: a failed response's own id and raw counts (C1P never copied its id).
++            c2bTerminal(output, "failed", event.response);
+             sawTerminalResponseEvent = true;
+             output.rawStopReason = event.response?.status;
++            // Sophia patch: usage the provider reported for this failed response is kept, under the same rule.
++            const failedUsage = event.response?.usage;
++            output.usageProvenance = responsesUsageProvenance(failedUsage);
++            if (output.usageProvenance === "complete") {
++                const cachedTokens = failedUsage.input_tokens_details.cached_tokens;
++                output.usage = {
++                    input: failedUsage.input_tokens - cachedTokens,
++                    output: failedUsage.output_tokens,
++                    cacheRead: cachedTokens,
++                    cacheWrite: 0,
++                    reasoning: failedUsage.output_tokens_details?.reasoning_tokens || 0,
++                    totalTokens: failedUsage.total_tokens || 0,
++                    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
++                };
++                calculateCost(model, output.usage);
++            }
+             const error = event.response?.error;
+             const details = event.response?.incomplete_details;
+             const msg = error
+@@ -686,4 +760,4 @@ function mapStopReason(status, incompleteReason) {
+         }
+     }
+ }
+-//# sourceMappingURL=openai-responses-shared.js.map
+\ No newline at end of file
++// Sophia patch: the original source map no longer describes this file, so it is not referenced.
+\ No newline at end of file
+diff --git a/dist/api/openai-responses.js b/dist/api/openai-responses.js
+index 1396c8d57ffb0e300382281a026d878e6a96b43a..a955a8a1fd371250205fc90a15435b6eb4ff07ba 100644
+--- a/dist/api/openai-responses.js
++++ b/dist/api/openai-responses.js
+@@ -10,7 +10,7 @@ import { getDeclaredTools, resolveTranscript, resolveTranscriptTools } from "../
+ import { createGrammarToolInputProperties } from "./constrained-sampling.js";
+ import { buildCopilotDynamicHeaders, hasCopilotVisionInput } from "./github-copilot-headers.js";
+ import { clampOpenAIPromptCacheKey } from "./openai-prompt-cache.js";
+-import { convertResponsesMessages, convertResponsesTools, processResponsesStream } from "./openai-responses-shared.js";
++import { C2B_OBSERVATION, c2bObservationOf, convertResponsesMessages, convertResponsesTools, processResponsesStream } from "./openai-responses-shared.js";
+ import { buildBaseOptions } from "./simple-options.js";
+ const OPENAI_TOOL_CALL_PROVIDERS = new Set(["openai", "openai-codex", "opencode"]);
+ // OpenAI Responses rejects max_output_tokens below 16: https://github.com/earendil-works/pi/issues/6265
+@@ -98,9 +98,17 @@ export const stream = (model, context, options) => {
+                 totalTokens: 0,
+                 cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+             },
++            // Sophia patch (INC04-S03A-R07-C1P): no provider usage is known until a terminal response reports it.
++            usageProvenance: "absent",
+             stopReason: "pending",
+             timestamp: Date.now(),
+         };
++        // Sophia patch (INC04-R07-C2B-PRODUCER-001): only when the caller asks for it, a private record of what this call's
++        // transport and provider actually showed. It is non-enumerable and non-configurable, so nothing that copies, spreads
++        // or serializes the message carries it; only a reader of this exact own property sees it.
++        if (options?.callObservation === true) {
++            Object.defineProperty(output, C2B_OBSERVATION, { value: {}, enumerable: false, writable: false, configurable: false });
++        }
+         try {
+             // Create OpenAI client
+             const apiKey = getClientApiKey(model.provider, options?.apiKey, options?.headers);
+@@ -119,11 +127,28 @@ export const stream = (model, context, options) => {
+                 ...(options?.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
+                 maxRetries: 0,
+             };
+-            const { data: openaiStream, response } = await retryProviderRequest(() => client.responses.create(params, requestOptions).withResponse(), {
+-                maxRetries: options?.maxRetries,
+-                maxRetryDelayMs: options?.maxRetryDelayMs,
+-                signal: options?.signal,
+-            });
++            // Sophia patch (INC04-R07-C2B-PRODUCER-001 R1): the actual request-rejection scope. Only the SDK's own HTTP
++            // rejection of this request, carried by its APIError with a numeric status, is a typed HTTP fact; nothing
++            // before the request (client, params, onPayload) or after its headers (onResponse, the stream, local ending
++            // checks) is inside it. The error is rethrown unchanged, so error and money handling stay as before.
++            let requested;
++            try {
++                requested = await retryProviderRequest(() => client.responses.create(params, requestOptions).withResponse(), {
++                    maxRetries: options?.maxRetries,
++                    maxRetryDelayMs: options?.maxRetryDelayMs,
++                    signal: options?.signal,
++                });
++            }
++            catch (requestError) {
++                c2bRequestRejection(output, requestError);
++                throw requestError;
++            }
++            const { data: openaiStream, response } = requested;
++            // Sophia patch: the transport answered with headers (an observable transport response, never acceptance or billing).
++            const observed = c2bObservationOf(output);
++            if (observed !== undefined && observed.transport === undefined) {
++                observed.transport = { status: response.status, requestId: response.headers.get("x-request-id") };
++            }
+             await options?.onResponse?.({ status: response.status, headers: headersToRecord(response.headers) }, model);
+             stream.push({ type: "start", partial: output });
+             await processResponsesStream(openaiStream, output, stream, model, {
+@@ -158,6 +183,21 @@ export const stream = (model, context, options) => {
+     })();
+     return stream;
+ };
++/**
++ * Sophia patch (INC04-R07-C2B-PRODUCER-001 R1): record the typed HTTP facts of the SDK's own rejection of this request,
++ * once, from its supported carrier only (OpenAI.APIError with a numeric status). Both fields are read as own DATA
++ * properties, never through a getter; a missing or non-string request id stays as found for the adapter to classify.
++ */
++function c2bRequestRejection(output, error) {
++    const observed = c2bObservationOf(output);
++    if (observed === undefined || observed.typedError !== undefined || !(error instanceof OpenAI.APIError))
++        return;
++    const status = Object.getOwnPropertyDescriptor(error, "status");
++    if (status === undefined || !("value" in status) || typeof status.value !== "number")
++        return;
++    const requestId = Object.getOwnPropertyDescriptor(error, "requestID");
++    observed.typedError = { status: status.value, requestId: requestId !== undefined && "value" in requestId ? requestId.value : undefined };
++}
+ export const streamSimple = (model, context, options) => {
+     getClientApiKey(model.provider, options?.apiKey, options?.headers);
+     const base = {
+@@ -169,6 +209,8 @@ export const streamSimple = (model, context, options) => {
+     return stream(model, context, {
+         ...base,
+         reasoningEffort,
++        // Sophia patch: the private call observation is forwarded only when asked for.
++        ...(options?.callObservation === true ? { callObservation: true } : {}),
+     });
+ };
+ function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId) {
+@@ -290,4 +332,4 @@ function applyServiceTierPricing(usage, serviceTier, model) {
+     usage.cost.cacheWrite *= multiplier;
+     usage.cost.total = usage.cost.input + usage.cost.output + usage.cost.cacheRead + usage.cost.cacheWrite;
+ }
+-//# sourceMappingURL=openai-responses.js.map
+\ No newline at end of file
++// Sophia patch: the original source map no longer describes this file, so it is not referenced.
+\ No newline at end of file
+diff --git a/dist/types.d.ts b/dist/types.d.ts
+index 5915ca64b161bc7bcebdb14d2ad1a2c18cde942e..fa8286bb05b5a47766ebcdbf4a5ecbfc2f2828eb 100644
+--- a/dist/types.d.ts
++++ b/dist/types.d.ts
+@@ -114,6 +114,13 @@ export interface StreamOptions extends ProviderRequestOptions<Model<Api>> {
+      * its body stream is consumed.
+      */
+     onResponse?: (response: ProviderResponse, model: Model<Api>) => void | Promise<void>;
++    /**
++     * Sophia patch (INC04-R07-C2B-PRODUCER-001): record a private call observation on the assistant message (openai-responses
++     * only): the transport status and request id, the response id as created and at its actual terminal event, that event's
++     * kind and its raw input/cached/output counts. It is a non-enumerable own property, never serialized, read only by the
++     * adapter. Absent or false: nothing is recorded and the message is unchanged.
++     */
++    callObservation?: boolean;
+     temperature?: number;
+     /**
+      * Arbitrary sampling parameters merged into the request body as-is, after the named request
+@@ -362,6 +369,11 @@ export interface AssistantMessage {
+     providerThinkingLevel?: string;
+     diagnostics?: AssistantMessageDiagnostic[];
+     usage: Usage;
++    /**
++     * Sophia patch (INC04-S03A-R07-C1P): whether this call's provider usage was reported completely, partially or not
++     * at all. Set by the openai-responses API only; absent for every other API.
++     */
++    usageProvenance?: "complete" | "partial" | "absent";
+     stopReason: StopReason;
+     deferred?: DeferredHandle;
+     errorMessage?: string;
+@@ -833,4 +845,4 @@ export interface ImagesModel<TApi extends ImagesApi> extends Omit<Model<Api>, "a
+     provider: ImagesProviderId;
+     output: ("text" | "image")[];
+ }
+-//# sourceMappingURL=types.d.ts.map
+\ No newline at end of file
++// Sophia patch: the original source map no longer describes this file, so it is not referenced.

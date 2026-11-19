@@ -5,12 +5,17 @@ import type pg from 'pg'
 import { integrationRoutes } from './integration.ts'
 import { memberRoutes } from './members.ts'
 import { reviewRuntimeRoutes } from './runtime.ts'
+import type { BoundOutputOption } from '../design.ts'
 
 export { COORDINATION_ROUTES } from './integration.ts'
 export { REVIEW_RUNTIME_ROUTES } from './runtime.ts'
 
-export function coordinationRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool }): void {
+/** `boundOutput` (A59): the server's bound-output option for the source reviewer's runtime routes; false by default. */
+export function coordinationRoutes(
+  app: FastifyInstance,
+  { pool, boundOutput = false }: { pool: pg.Pool; boundOutput?: BoundOutputOption },
+): void {
   memberRoutes(app, { pool })
-  reviewRuntimeRoutes(app, pool)
+  reviewRuntimeRoutes(app, pool, { boundOutput })
   integrationRoutes(app, pool)
 }

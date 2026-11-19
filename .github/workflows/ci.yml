@@ -12,11 +12,13 @@ on:
 permissions:
   contents: read
 
-# One run per branch at a time. A push and the pull request it updates share a group (the branch's name), so a later
-# run cancels the one it supersedes. main keeps every run: each commit there is a group of its own, since a group
-# without cancel-in-progress still drops a run left pending behind a newer one.
+# One run per branch and event at a time. A push and the pull request it updates are separate lanes (the event's name
+# leads the group), so they run side by side and neither cancels the other: the push proves the branch head, the pull
+# request its merge. Within a lane a later run cancels the one it supersedes; an older pull request run therefore lasts
+# until the next pull request event, not the next push. main keeps every run: each commit there is a group of its own,
+# since a group without cancel-in-progress still drops a run left pending behind a newer one.
 concurrency:
-  group: ci-${{ github.head_ref || (github.ref_name == 'main' && github.sha) || github.ref_name }}
+  group: ci-${{ github.event_name }}-${{ github.head_ref || (github.ref_name == 'main' && github.sha) || github.ref_name }}
   cancel-in-progress: ${{ github.ref_name != 'main' }}
 
 jobs:
@@ -30,7 +32,47 @@ jobs:
         with:
           node-version-file: .node-version
       - run: pnpm install --frozen-lockfile
-      - run: pnpm check
+      # PR519-CI-F2-OBSERVABILITY-001: the check's integration suite also writes TAP to one file in this directory, test
+      # by test as Node reports it, so a run cut off still leaves what had been reported by then. Nothing else is written
+      # there. The file is uploaded whether the check passed or not, and the upload never decides the job.
+      - name: Prepare the diagnostics directory
+        run: mkdir -p "$RUNNER_TEMP/sophia-ci-diagnostics"
+      # 25 minutes, below the job's 30, so the upload after it still runs when the check is cut off.
+      - id: canonical
+        timeout-minutes: 25
+        # Keep the command and its failure; the shell only captures bounded VERIFY evidence for the push lane.
+        shell: node scripts/ci/linux-runtime-record.mjs capture {0}
+        env:
+          SOPHIA_INTEGRATION_TAP: ${{ runner.temp }}/sophia-ci-diagnostics/integration.tap
+        run: pnpm check
+      - name: Upload the integration TAP report
+        if: always()
+        timeout-minutes: 3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integration-tap-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/sophia-ci-diagnostics/integration.tap
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Retain a guarded Linux runtime record after the failed check
+        id: linux_record
+        if: failure() && github.event_name == 'push' && steps.canonical.outcome == 'failure' && steps.canonical.outputs.capture_ready == 'true'
+        timeout-minutes: 1
+        env:
+          SOPHIA_CANONICAL_OUTCOME: ${{ steps.canonical.outcome }}
+          SOPHIA_CAPTURE_READY: ${{ steps.canonical.outputs.capture_ready }}
+          SOPHIA_CAPTURE_ID: ${{ steps.canonical.outputs.capture_id }}
+          SOPHIA_CAPTURE_SHA256: ${{ steps.canonical.outputs.capture_sha256 }}
+        run: node scripts/ci/linux-runtime-record.mjs produce
+      - name: Upload the unaccepted Linux runtime record
+        if: failure() && github.event_name == 'push' && steps.canonical.outcome == 'failure' && steps.linux_record.outputs.packet_ready == 'true'
+        timeout-minutes: 1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux-runtime-record-${{ github.run_id }}-${{ github.run_attempt }}-${{ steps.canonical.outputs.capture_id }}
+          path: ${{ steps.linux_record.outputs.packet_path }}
+          if-no-files-found: warn
+          retention-days: 7
       - name: Pinned dsh source and release provenance
         run: pnpm dsh:source --dir "$RUNNER_TEMP/dsh-src/deepseek-harness" --verify-release
 
@@ -75,6 +117,31 @@ jobs:
       # The supervisor against the real API and PostgreSQL: claim, fetch through the API, render confined, upload, settle;
       # and a design's capture the same way, gated, inspected and published (SDD-01-RF-0004).
       - run: node --test --test-concurrency=1 --test-timeout=180000 tests/integration/render-supervisor.test.mjs tests/integration/design-capture-supervisor.test.mjs
+      # Reuse this job's disposable PG after its renderer checks; verify the runtime before selecting real-PG wrappers.
+      - id: pg_wrapper_artifacts
+        name: Build and verify runtime artifacts for PostgreSQL wrappers
+        run: pnpm build && pnpm artifacts
+      - id: pg_wrappers
+        name: Authenticated observed-facts wrappers on PostgreSQL
+        shell: bash
+        run: |
+          test -n "${SOPHIA_DISPOSABLE_DATABASE_URL:-}"
+          mkdir -p "$RUNNER_TEMP/sophia-ci-diagnostics"
+          node --test --test-concurrency=1 --test-timeout=180000 --test-reporter=tap \
+            --test-name-pattern='^C2B: the closed observed facts at the three maintained wrappers, full worst-escaped envelope, real API and PostgreSQL$' tests/integration/call-evidence.test.mjs | \
+            tee "$RUNNER_TEMP/sophia-ci-diagnostics/pg-wrappers.tap"
+          node --input-type=module - "$RUNNER_TEMP/sophia-ci-diagnostics/pg-wrappers.tap" <<'NODE'
+          import assert from 'node:assert/strict'
+          import { readFileSync } from 'node:fs'
+          const tap = readFileSync(process.argv[2], 'utf8')
+          const names = tap.split('\n').filter(line => /^\s*ok \d+ - /.test(line)).map(line => line.replace(/^\s*ok \d+ - /, ''))
+          assert.ok(names.includes("C2B: the closed observed facts at the three maintained wrappers, full worst-escaped envelope, real API and PostgreSQL"), 'the exact PostgreSQL wrapper suite ran without a skip')
+          assert.ok(names.includes("C2B producer: the real runtime's observed facts reach the original ledger; replay and API restart keep them"), 'the maintained real runtime producer case ran without a skip')
+          const counts = Object.fromEntries([...tap.matchAll(/^# (tests|pass|fail|cancelled|skipped|todo) (\d+)$/gm)].map(([, key, value]) => [key, Number(value)]))
+          assert.ok(counts.tests > 0, 'selected tests ran')
+          assert.equal(counts.pass, counts.tests)
+          for (const key of ['fail', 'cancelled', 'skipped', 'todo']) assert.equal(counts[key], 0, key)
+          NODE
 
   database:
     name: SQL, persistence and API on PostgreSQL 16
@@ -106,7 +173,20 @@ jobs:
         run: pnpm test:sql
       # Two-connection races, lease fencing, idempotent retries, SSE and revocation over real HTTP.
       - id: db
+        env:
+          SOPHIA_HQUOTA_PHYSICAL_REQUIRED: '1'
+          SOPHIA_HQUOTA_PHYSICAL_REPORT: ${{ runner.temp }}/sophia-ci-diagnostics/hquota-physical.json
         run: pnpm test:db
+      - name: Retain the physical owner-host crossing report
+        id: hquota_report
+        if: always() && (steps.db.outcome == 'success' || steps.db.outcome == 'failure')
+        timeout-minutes: 1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: hquota-physical-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/sophia-ci-diagnostics/hquota-physical.json
+          if-no-files-found: error
+          retention-days: 7
       # S1-05A crossing: the real pinned dsh runtime against the real API, PostgreSQL and worker dispatch; and CON-01's
       # service-mode replies on the same path, the context recorded by the worker with the dispatcher never paused,
       # against a local provider double (no credential or provider call). One file at a time.
@@ -132,7 +212,7 @@ jobs:
           PHASES: >-
             install=${{ steps.install.outcome }} sql-pack=${{ steps.sql-pack.outcome }} sql=${{ steps.sql.outcome }}
             db=${{ steps.db.outcome }} artifacts=${{ steps.artifacts.outcome }} crossing=${{ steps.crossing.outcome }}
-            q13=${{ steps.q13.outcome }}
+            q13=${{ steps.q13.outcome }} hquota_report=${{ steps.hquota_report.outcome }}
         run: |
           failed=$(printf '%s\n' $PHASES | sed -n 's/=failure$//p' | tr '\n' ' ')
           echo "::error title=Failed phase::${failed:-a setup step before install} (outcomes: $PHASES)"
@@ -155,6 +235,10 @@ jobs:
     name: Live auth on local Supabase
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # This attempt's own project, workdir and host ports below the ephemeral range (scripts/supabase-local.ts): the
+    # defaults' 54320-54329 lie inside it, where an outgoing connection can hold a port before Docker binds it.
+    env:
+      SOPHIA_SUPABASE_ISOLATION: ${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0 (reads packageManager)
@@ -163,9 +247,15 @@ jobs:
           node-version-file: .node-version
       - run: pnpm install --frozen-lockfile
       # Supabase in Docker: ES256 signing key, db/migrations through the ledger runner, the API login.
-      - run: pnpm supabase:local
+      - id: supabase
+        run: pnpm supabase:local
       # Real GoTrue tokens verified through JWKS; tampered, legacy HS256 and publishable-key tokens rejected.
       - run: pnpm test:supabase
+      # Stops only the project this attempt started, recorded in its own workdir; anything else is refused untouched.
+      - name: Stop this attempt's Supabase project
+        if: always() && steps.supabase.outcome != 'skipped'
+        timeout-minutes: 3
+        run: node scripts/supabase-local.ts --stop
 
   studio-browser-part:
     name: The room in Chromium, part ${{ matrix.part }} of 3

@@ -6,8 +6,10 @@ import fs from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Duplex } from 'node:stream'
+// The built module: since INC04-R07-C2B-PRODUCER-001 reply-plugin imports the shared c2b-observation decoder at run time,
+// which type stripping of the source cannot resolve (a `.js` specifier); `pnpm build` precedes the tests.
 import { ReplyRelay } from '../../packages/dsh-bundle/dist/reply-child.js'
-import { projectReplyEvent, ReplyJournal, ReplyControlReader, ReplyAccounting, ReplyEmitter, checkReplyCall, createReplyAgent, observeReplyEvents, ReplyCallMeter, ReplyChildRuntime } from '../../packages/dsh-bundle/src/reply-plugin.ts'
+import { projectReplyEvent, ReplyJournal, ReplyControlReader, ReplyAccounting, ReplyEmitter, checkReplyCall, createReplyAgent, observeReplyEvents, ReplyCallMeter, ReplyChildRuntime } from '../../packages/dsh-bundle/dist/reply-plugin.js'
 const require = createRequire(new URL('../../packages/dsh-bundle/package.json', import.meta.url))
 const { AssistantStreamAccumulator, projectToolUpdates } = require('@deepseek-ai/dsh-llm')
 const identity = { runtimeUnitId: 'synthetic-unit', attemptId: 'attempt-1', nativeSessionId: 'sophia-attempt-1' }
@@ -1018,7 +1020,7 @@ const bootstrapEnv = () => ({ HOME: '/synthetic/attempt-1/home', TMPDIR: '/synth
   SOPHIA_RUNTIME_UNIT: identity.runtimeUnitId, SOPHIA_REPLY_FD: '3', SOPHIA_REPLY_NONCE: controlScope.nonce,
   DSH_TELEMETRY_DISABLED: '1' })
 const bootstrapFixture = async (custom = {}) => {
-  const module = await import('../../packages/dsh-bundle/src/reply-plugin.ts')
+  const module = await import('../../packages/dsh-bundle/dist/reply-plugin.js')
   const dir = fs.mkdtempSync(join(tmpdir(), 'con-reply-bootstrap-'))
   const hooks = new Map(), exits = [], lines = [], actions = []
   let start, dispose, journal, stream, opened = 0
@@ -1235,4 +1237,21 @@ test('reply bootstrap keeps actual Cordis subscriptions after unresolved native 
   } finally {
     await ctx.fiber.dispose(); await f.close()
   }
+})
+
+// INC04-R07-C2B-PRODUCER-001: the reply child provides no observation capability, so the patched adapter emits no frame
+// there; should one arrive anyway, the meter removes it (and a reserved key on a known chunk) before its consumer.
+test('C2B: the reply meter never passes an observation frame or a reserved key on, and its usage settles as before', async () => {
+  const f = metered()
+  f.calls.go()
+  const frame = { type: 'x-sophia-c2b-observation' }
+  Object.defineProperty(frame, 'sophiaC2bObservation', { value: { v: 1, frame: 'transport', sent: 'observable_transport_response' }, enumerable: false })
+  const delta = { type: 'text-delta', index: 0, text: 'synthetic-answer' }
+  const usage = usageChunk()
+  Object.defineProperty(usage, 'sophiaC2bObservation', { value: 'reply-private-canary', enumerable: true, configurable: true })
+  const chunks = await consumed(f.meter.stream(f.options, async function* () { yield frame; yield delta; yield usage }))
+  assert.deepEqual(chunks.map((c) => c.type), ['text-delta', 'usage'])
+  assert.equal(chunks[0], delta, 'an ordinary chunk is the same object')
+  assert.ok(!JSON.stringify(chunks).includes('reply-private-canary'))
+  assert.deepEqual(f.events.find((line) => line.t === 'settle'), { t: 'settle', n: 1, outcome: 'settled', used: { calls: 1, tokens: 5, priceMicros: 0 }, usage: { inputTokens: 2, outputTokens: 3 } })
 })

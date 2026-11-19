@@ -25,6 +25,7 @@ import {
   prepareRunnerSend,
   ProjectEventListener,
   recordRunnerAnswer,
+  recordRunnerModelReport,
   runnerFollowups,
   type OutboxRow,
   type OwnerRunner,
@@ -42,6 +43,7 @@ export interface RunnerDispatchOptions {
    * Whether new work (create, input) is sent. Off still sends already-admitted Stops, and maintains, reconciles and
    * observes what was already sent.
    */
+  readonly canPrepare?: (row: OutboxRow) => Promise<boolean>
   readonly sends: boolean
   readonly batchSize?: number
   readonly leaseSeconds?: number
@@ -72,6 +74,11 @@ async function sendClaimed(
   options: RunnerDispatchOptions,
   pass: RunnerPass,
 ) {
+  if (options.canPrepare && !(await options.canPrepare(row))) {
+    pass.lost += 1
+    options.log?.('runner original route unavailable; claim remains unprepared')
+    return
+  }
   let prepared: PrepareOutcome
   try {
     prepared = await prepareRunnerSend(pool, row.project_id, row.id, lease, options.port.journalId)
@@ -114,15 +121,30 @@ async function sendClaimed(
   }
 }
 
-/** Observe one operation and record what the read proves; a Stop's observation carries its barrier token. */
+/**
+ * Observe one operation and record what the read proves; a Stop's observation carries its barrier token.
+ * INC04-S03b B2 (0108): a create's or input's run observation first appends its reported models, or `absent` when it
+ * carried none, in its own statement. That append never decides the lifecycle: whatever its outcome (a missing
+ * function, a refused report, a lost connection), the status is recorded next, from the observation's own fields only.
+ * Its failure is logged as a fixed class with the operation id, never with database text, a report or a model id.
+ */
 async function observeOne(pool: pg.Pool, options: RunnerDispatchOptions, f: RunnerFollowup, pass: RunnerPass) {
   const journalId = options.port.journalId
   const seen = await options.port.observe({ envelope: f.envelope, digest: digestOf(f.envelope), journalId })
   const target = { projectId: f.projectId, operationId: f.operationId, leaseToken: null, journalId }
+  if (seen.kind === 'run' && f.kind !== 'stop') {
+    const appended = await recordRunnerModelReport(pool, target, seen.reportedModels ?? { state: 'absent' })
+    if (!appended.recorded)
+      options.log?.(`runner operation ${f.operationId}: model evidence not recorded (${appended.reason})`)
+  }
   await recordRunnerAnswer(
     pool,
     target,
-    seen.kind === 'unknown' ? { kind: 'unobserved' } : { ...seen, barrier: f.barrier },
+    seen.kind === 'unknown'
+      ? { kind: 'unobserved' }
+      : seen.kind === 'run'
+        ? { kind: 'run', status: seen.status, terminal: seen.terminal, barrier: f.barrier }
+        : { kind: 'no_active_run', barrier: f.barrier },
   )
   pass.observed += 1
 }
@@ -227,14 +249,23 @@ export class RunnerDispatcher {
   }
 }
 
-/**
- * SOPHIA_OWNER_RUNNER_DISPATCH: unset or `off` only. No owner-host transport is qualified yet (INC01-CC-003), so any
- * other value refuses to start rather than pretend a live route exists.
- */
-export function runnerDispatchFromEnv(env: { SOPHIA_OWNER_RUNNER_DISPATCH?: string | undefined }): 'off' {
-  const value = env.SOPHIA_OWNER_RUNNER_DISPATCH?.trim()
-  if (value === undefined || value === '' || value === 'off') return 'off'
-  throw new Error(
-    'SOPHIA_OWNER_RUNNER_DISPATCH is off or unset: no owner-host runner transport is qualified (INC01-CC-003)',
-  )
+/** Strict parser only; the stock entrypoint separately requires an explicit current qualified route. */
+export function runnerDispatchFromEnv(env: {
+  SOPHIA_OWNER_RUNNER_DISPATCH?: string | undefined
+  SOPHIA_OWNER_RUNNER_OWNER_ID?: string | undefined
+  SOPHIA_OWNER_RUNNER_ENVIRONMENT_REF?: string | undefined
+  SOPHIA_OWNER_RUNNER_JOURNAL_ID?: string | undefined
+}): 'off' | 'on' {
+  const value = env.SOPHIA_OWNER_RUNNER_DISPATCH
+  if (value === undefined || value === 'off') return 'off'
+  if (value === 'on') {
+    if (
+      !env.SOPHIA_OWNER_RUNNER_OWNER_ID ||
+      !env.SOPHIA_OWNER_RUNNER_ENVIRONMENT_REF ||
+      !env.SOPHIA_OWNER_RUNNER_JOURNAL_ID
+    )
+      throw new Error('INC01-CC-003: on requires an explicitly configured original owner route')
+    return 'on'
+  }
+  throw new Error('SOPHIA_OWNER_RUNNER_DISPATCH is on, off or unset')
 }

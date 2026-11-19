@@ -130,8 +130,12 @@ describe('member API contributions over HTTP (A48, 0094)', () => {
   }
   type World = Awaited<ReturnType<typeof world>>
 
-  /** Owner records over HTTP; the operator registers the runtime (migration owner) and it connects (synthetic). */
-  async function contributed(w: World) {
+  /**
+   * Owner records over HTTP; the operator registers the runtime (migration owner) and it connects (synthetic). With
+   * `admissible` (0105, S02a), the owner also declares protection over HTTP and the operator records the account's own
+   * qualification for its current credential: what a pinned contributed admission now needs. SYNTHETIC, not live.
+   */
+  async function contributed(w: World, { admissible = false }: { admissible?: boolean } = {}) {
     const account = await http(app, w.OWNER, 'POST /api/v1/me/api-accounts', { label: 'My API', totalCapUsd: 10 })
     assert.equal(account.status, 201, JSON.stringify(account.json))
     const conn = await http(app, w.OWNER, 'POST /api/v1/me/api-connections', {
@@ -160,6 +164,20 @@ describe('member API contributions over HTTP (A48, 0094)', () => {
       runtimeHello(c, who, { bundle: 'test', protocolVersion: 1, dshVersion: 'x', roles: [MD] }),
     )
     await withService(pool, (c) => recordRuntimeReady(c, who, { state: 'ready', reason: null, unrecovered: [] }))
+    if (admissible) {
+      const declared = await http(app, w.OWNER, `PATCH /api/v1/me/api-accounts/${account.json.accountId}`, {
+        expectedRevision: 1,
+        patch: {
+          protection: { applicability: 'none_applicable', operations: ['research'], roles: ['sophia-research-md-v1'] },
+        },
+      })
+      assert.equal(declared.status, 200, JSON.stringify(declared.json))
+      await owner.query(
+        `SELECT sophia.qualify_api_account($1, '{research}', 'operator_verified_call', 'synthetic: not live evidence',
+          now()-interval '1 minute', now()+interval '1 day')`,
+        [conn.json.connectionId],
+      )
+    }
     return {
       accountId: account.json.accountId as string,
       connectionId: conn.json.connectionId as string,
@@ -387,7 +405,7 @@ describe('member API contributions over HTTP (A48, 0094)', () => {
 
   it('pins through HTTP, funds a real admission by the contributor for model calls only, and clears without fallback', async () => {
     const w = await world()
-    const c = await contributed(w)
+    const c = await contributed(w, { admissible: true })
     const pkey = randomUUID()
     const pinned = await http(
       app,
@@ -1006,7 +1024,7 @@ describe('member API contributions over HTTP (A48, 0094)', () => {
 
   it('reads one project and task in every accepted path spelling, and pins and clears through any spelling', async (t) => {
     const w = await world()
-    const c = await contributed(w)
+    const c = await contributed(w, { admissible: true })
     const pkey = randomUUID()
     const pins = []
     for (const p of variants(w.projectId).toReversed())
@@ -1224,6 +1242,93 @@ describe('member API contributions over HTTP (A48, 0094)', () => {
       if (publicMessage) assert.equal(e.message, publicMessage, message)
     }
     assert.deepEqual([classifyDbError(pgErr('55000', 'Contribution unavailable: grant_paused')).status], [409])
+  })
+
+  // INC04-S01b (0104, A56): the owner's protection declaration and the operator's account qualification, read back to
+  // the owner alone. Values are the owner's; the qualification is a SYNTHETIC operator record, never live access.
+  it("declares, replays, withdraws and reads back the owner's own protection; others can neither write nor read it", async () => {
+    const w = await world()
+    const c = await contributed(w)
+    const path = `PATCH /api/v1/me/api-accounts/${c.accountId}` as const
+    const declaration = { applicability: 'none_applicable', operations: ['research'], roles: ['sophia-research-md-v1'] }
+    const key = randomUUID()
+    const first = await http(app, w.OWNER, path, { expectedRevision: 1, patch: { protection: declaration } }, key)
+    assert.equal(first.status, 200, JSON.stringify(first.json))
+    assert.equal(first.json.revision, 2)
+    const again = await http(app, w.OWNER, path, { expectedRevision: 1, patch: { protection: declaration } }, key)
+    assert.deepEqual([again.status, again.json], [200, first.json], 'the same key and request replay its receipt')
+    const changed = await http(
+      app,
+      w.OWNER,
+      path,
+      {
+        expectedRevision: 1,
+        patch: { protection: { ...declaration, applicability: 'protected', protectedConcurrency: 1 } },
+      },
+      key,
+    )
+    assert.equal(changed.json.code, 'idempotency_conflict')
+    for (const bad of [
+      { ...declaration, operations: ['research', 'review'] },
+      { ...declaration, owner: w.REQ },
+      { applicability: 'protected', operations: ['research'], roles: ['sophia-research-md-v1'], protectedSpendUsd: -1 },
+    ]) {
+      const r = await http(app, w.OWNER, path, { expectedRevision: 2, patch: { protection: bad } })
+      assert.equal(r.status, 422, JSON.stringify(bad))
+    }
+    const other = await http(app, w.REQ, path, { expectedRevision: 2, patch: { protection: declaration } })
+    assert.equal(other.status, 403)
+    // A cap edit below a declared protected amount is refused as any invalid account is; the declaration stands.
+    const protectedOne = await http(app, w.OWNER, path, {
+      expectedRevision: 2,
+      patch: {
+        protection: { ...declaration, applicability: 'protected', protectedConcurrency: 1, protectedSpendUsd: 5 },
+      },
+    })
+    assert.equal(protectedOne.status, 200)
+    const tooSmall = await http(app, w.OWNER, path, { expectedRevision: 3, patch: { totalCapUsd: 4 } })
+    assert.equal(tooSmall.status, 422, JSON.stringify(tooSmall.json))
+    const label = await http(app, w.OWNER, path, { expectedRevision: 3, patch: { label: 'My API (protected)' } })
+    assert.equal(label.json.revision, 4, 'the refused edit changed nothing; a valid one advances the revision')
+    const mine = await http(app, w.OWNER, 'GET /api/v1/me/api-resources')
+    assert.equal(mine.status, 200)
+    const accounts: Body[] = mine.json.accounts
+    const account = accounts.find((a: Body) => a.accountId === c.accountId)
+    assert.equal(account.protection.applicability, 'protected')
+    assert.equal(account.protection.protectedConcurrency, 1)
+    assert.equal(Number(account.protection.protectedSpendUsd), 5)
+    assert.equal(Number(account.totalCapUsd), 10, 'the refused cap edit left the cap as it was')
+    const connections: Body[] = mine.json.connections
+    const conn = connections.find((x: Body) => x.connectionId === c.connectionId)
+    assert.deepEqual(conn.accountQualification, {
+      state: 'none',
+      verification: null,
+      recordedBy: null,
+      observedAt: null,
+      expiresAt: null,
+      credentialRevision: null,
+      revoked: false,
+    })
+    // The operator records an account qualification (migration owner); the owner reads its state, never its evidence.
+    await owner.query(
+      `SELECT sophia.qualify_api_account($1, '{research}', 'operator_verified_call', 'SECRET-evidence-ref', now()-interval '1 minute', now()+interval '1 day')`,
+      [c.connectionId],
+    )
+    const read = await http(app, w.OWNER, 'GET /api/v1/me/api-resources')
+    const readConnections: Body[] = read.json.connections
+    const q = readConnections.find((x: Body) => x.connectionId === c.connectionId).accountQualification
+    assert.deepEqual(
+      [q.state, q.verification, q.recordedBy, q.credentialRevision],
+      ['current', 'operator_verified_call', 'operator', 1],
+    )
+    assert.equal(JSON.stringify(read.json).includes('SECRET'), false, 'no evidence reference reaches the owner')
+    const theirs = await http(app, w.REQ, 'GET /api/v1/me/api-resources')
+    assert.deepEqual([theirs.json.accounts, theirs.json.connections], [[], []], 'another member reads none of it')
+    const withdrawn = await http(app, w.OWNER, path, { expectedRevision: 4, patch: { protection: null } })
+    assert.equal(withdrawn.status, 200)
+    const afterwards = await http(app, w.OWNER, 'GET /api/v1/me/api-resources')
+    const finalAccounts: Body[] = afterwards.json.accounts
+    assert.equal(finalAccounts.find((a: Body) => a.accountId === c.accountId).protection, null)
   })
 })
 

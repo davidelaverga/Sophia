@@ -14,6 +14,11 @@
 import { createHash, randomBytes } from 'node:crypto'
 import {
   checkEnvelope,
+  collectionRequestValid,
+  sha256Hex,
+  type RunnerCollection,
+  type RunnerCollectionRequest,
+  type RunnerIdentity,
   digestOf,
   type NativeIdentity,
   type RunnerAnswer,
@@ -21,10 +26,11 @@ import {
   type RunnerOperationKind,
   type RunObservation,
 } from './runner-port.ts'
+import { checkReport } from './runner-model-report.ts'
 import { runState } from './t3-port-mapping.ts'
 
 export const OWNER_HOST_PROTOCOL_VERSION = 1
-export const EXCHANGE_KINDS = ['send', 'reconcile', 'observe'] as const
+export const EXCHANGE_KINDS = ['send', 'reconcile', 'observe', 'collect'] as const
 export type ExchangeKind = (typeof EXCHANGE_KINDS)[number]
 /** The database's bounds (0093): an exchange's deadline, in milliseconds. */
 export const EXCHANGE_DEADLINE_MIN_MS = 1000
@@ -112,7 +118,9 @@ export type HelloResult =
 
 /** What an exchange carries: the operation's whole RunnerIdentity, and where it belongs. */
 export interface ExchangeRequest {
-  readonly v: 1
+  readonly v: 1 | 2
+  /** Only v2 collect exchanges; never added to v1 requests or send digests. */
+  readonly collection?: RunnerCollectionRequest
   readonly kind: ExchangeKind
   readonly journalId: string
   readonly projectId: string
@@ -139,8 +147,12 @@ const REQUEST_KEYS = ['v', 'kind', 'journalId', 'projectId', 'operationId', 'dig
 
 /** Why a request's own fields are malformed (keys, version, kind, ids, digest), or null. */
 function requestFieldRefusal(v: unknown): string | null {
-  if (!isRecord(v) || !sameKeys(v, REQUEST_KEYS)) return 'a request has exactly its known fields'
-  if (v.v !== OWNER_HOST_PROTOCOL_VERSION) return 'unsupported request version'
+  if (!isRecord(v)) return 'a request has exactly its known fields'
+  const collection = v.kind === 'collect'
+  if (!sameKeys(v, collection ? [...REQUEST_KEYS, 'collection'] : REQUEST_KEYS))
+    return 'a request has exactly its known fields'
+  if (v.v !== (collection ? 2 : OWNER_HOST_PROTOCOL_VERSION)) return 'unsupported request version'
+  if (collection && !collectionRequestValid(v.collection)) return 'invalid collection bounds'
   if (!(EXCHANGE_KINDS as readonly unknown[]).includes(v.kind)) return 'unknown exchange kind'
   if (![v.journalId, v.projectId, v.operationId].every((id) => matches(id, UUID)))
     return 'a request names its journal, project and operation by id'
@@ -165,7 +177,7 @@ export function checkExchangeRequest(
 
 /** An exchange's key: a send is keyed by its operation (one per operation, ever); a read by a fresh id. */
 export const sendKey = (operationId: string): string => `send:${operationId}`
-export const readKey = (kind: 'reconcile' | 'observe', operationId: string, fresh: string): string =>
+export const readKey = (kind: 'reconcile' | 'observe' | 'collect', operationId: string, fresh: string): string =>
   `${kind}:${operationId}:${fresh}`
 
 export type ExchangeState = 'queued' | 'delivered' | 'go_granted' | 'answered' | 'denied' | 'lapsed' | 'cancelled'
@@ -195,6 +207,8 @@ export type SettleResult =
 
 /** The worker's side of the channel (sophia_worker). */
 export interface ExchangeStore {
+  /** Explicit transport support, not read authority. Missing/old stores must not enqueue collect. */
+  readonly collectionVersion?: 1
   enqueue(input: {
     readonly ownerId: string
     readonly environmentRef: string
@@ -231,7 +245,7 @@ export interface HostChannel {
   poll(limit: number, redeliverSeconds: number): Promise<Delivered[]>
   /** Asked immediately before the gateway acts on a send. Rechecked every time; fail closed on anything but `go`. */
   go(exchangeId: string): Promise<GoResult>
-  answer(exchangeId: string, answer: RunnerAnswer | RunObservation): Promise<AnswerResult>
+  answer(exchangeId: string, answer: RunnerAnswer | RunObservation | RunnerCollection): Promise<AnswerResult>
 }
 
 // ---- answers, as the worker checks what a host said ----
@@ -359,7 +373,9 @@ function statusState(status: string): 'terminal' | 'running' | 'unknown' {
  *   stop          `no_active_run` only: settlement proven by a complete, decoded read of the exact thread. A run
  *                 summary, whatever its status, is not that proof.
  *   create, input its own recorded run: a status the mapping knows, with `terminal` exactly as the mapping reads it.
- *                 Absence of an active run in the thread is not its run's state.
+ *                 Absence of an active run in the thread is not its run's state. INC04-S03b B2 (0108): it may carry
+ *                 one more key, `reportedModels`, checked on its own (runner-model-report checkReport): a malformed
+ *                 or oversized report becomes `malformed` with no content and never changes the checked status.
  *   any           `unknown`, with a reason.
  * A malformed, contradictory or operation-mismatched observation is null: the caller keeps it unknown. Nothing is
  * inferred from it, no native state is asserted, and the raw answer stays the exchange's evidence.
@@ -374,11 +390,14 @@ export function checkObservation(v: unknown, kind: RunnerOperationKind): RunObse
 
 /** A create's or input's own run: a status the mapping knows, with `terminal` exactly as the mapping reads it. */
 function ownRun(v: Fields): RunObservation | null {
-  if (v.kind !== 'run' || !sameKeys(v, ['kind', 'status', 'terminal'])) return null
+  const reported = Object.hasOwn(v, 'reportedModels')
+  if (v.kind !== 'run' || !sameKeys(v, ['kind', 'status', 'terminal', ...(reported ? ['reportedModels'] : [])]))
+    return null
   if (!text(v.status, 40) || typeof v.terminal !== 'boolean') return null
   const state = statusState(v.status)
   if (state === 'unknown' || (state === 'terminal') !== v.terminal) return null
-  return { kind: 'run', status: v.status, terminal: v.terminal }
+  const run = { kind: 'run', status: v.status, terminal: v.terminal } as const
+  return reported ? { ...run, reportedModels: checkReport(v.reportedModels) } : run
 }
 
 /** A short reason with no secret-shaped text: secrets, bearer tokens and long opaque runs are masked. */
@@ -387,4 +406,121 @@ export function redact(reason: string, max = 300): string {
     .replace(/bearer\s+\S+/gi, 'bearer [redacted]')
     .replace(/[A-Za-z0-9_\-+/=.]{32,}/g, '[redacted]')
     .slice(0, max)
+}
+
+/** A separate v2 read exchange; it carries existing identity plus bounded collection options only. */
+export function collectionExchangeRequest(identity: RunnerIdentity, request: RunnerCollectionRequest): ExchangeRequest {
+  return {
+    ...exchangeRequest('collect', identity.envelope, identity.journalId),
+    v: 2,
+    digest: identity.digest,
+    collection: request,
+  }
+}
+
+const COLLECTION_KEYS = [
+  'v',
+  'kind',
+  'operationId',
+  'bindingId',
+  'journalId',
+  'envelopeDigest',
+  'threadId',
+  'runId',
+  'inputMessageId',
+  'messageId',
+  'itemId',
+  'text',
+  'textSha256',
+  'byteLength',
+  'pages',
+  'lastPosition',
+  'coverageDigest',
+  'resultDigest',
+]
+const UNAVAILABLE_REASONS = new Set([
+  'unsupported',
+  'invalid_request',
+  'unavailable',
+  'scope',
+  'unaccepted',
+  'incomplete',
+  'invalid_result',
+])
+const boundedId = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0 && v.length <= 1000
+
+/** Validate content, byte/provenance digests and exact operation identity before exposing any host output. */
+export function checkCollection(
+  value: unknown,
+  identity: RunnerIdentity,
+  request: RunnerCollectionRequest,
+  native: NativeIdentity,
+): RunnerCollection | null {
+  if (
+    !collectionRequestValid(request) ||
+    !isRecord(value) ||
+    Buffer.byteLength(JSON.stringify(value), 'utf8') > EXCHANGE_BYTES_MAX ||
+    value.v !== 1
+  )
+    return null
+  if (value.kind === 'collection_unavailable') {
+    if (!collectionUnavailableValid(value)) return null
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- version, keys, kind and finite reason checked above
+    return value as unknown as RunnerCollection
+  }
+  if (!sameKeys(value, COLLECTION_KEYS) || value.kind !== 'collected') return null
+  if (!collectionMatches(value, identity, request, native)) return null
+  const { resultDigest, ...content } = value
+  if (digestOf(content) !== resultDigest) return null
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- exact keys, lineage, bounds, content and digests checked
+  return value as unknown as RunnerCollection
+}
+
+function collectionLineage(v: Record<string, unknown>, identity: RunnerIdentity, native: NativeIdentity): boolean {
+  return (
+    v.operationId === identity.envelope.operationId &&
+    v.bindingId === identity.envelope.bindingId &&
+    v.journalId === identity.journalId &&
+    v.envelopeDigest === identity.digest &&
+    v.threadId === native.threadId &&
+    v.inputMessageId === native.messageId &&
+    boundedId(v.runId) &&
+    boundedId(v.messageId) &&
+    boundedId(v.itemId) &&
+    v.messageId !== v.inputMessageId &&
+    identity.envelope.kind !== 'stop'
+  )
+}
+
+function collectionContent(v: Record<string, unknown>, request: RunnerCollectionRequest): boolean {
+  return (
+    typeof v.text === 'string' &&
+    v.text.isWellFormed() &&
+    v.text.trim().length > 0 &&
+    Buffer.byteLength(v.text, 'utf8') === v.byteLength &&
+    v.byteLength <= request.maxBytes &&
+    sha256Hex(v.text) === v.textSha256 &&
+    Number.isSafeInteger(v.pages) &&
+    Number(v.pages) >= 2 &&
+    Number(v.pages) <= request.maxPages &&
+    Number.isSafeInteger(v.lastPosition) &&
+    Number(v.lastPosition) >= 0
+  )
+}
+
+function collectionUnavailableValid(value: Record<string, unknown>): boolean {
+  return sameKeys(value, ['v', 'kind', 'reason']) && UNAVAILABLE_REASONS.has(String(value.reason))
+}
+
+function collectionMatches(
+  value: Record<string, unknown>,
+  identity: RunnerIdentity,
+  request: RunnerCollectionRequest,
+  native: NativeIdentity,
+): boolean {
+  return (
+    collectionLineage(value, identity, native) &&
+    collectionContent(value, request) &&
+    matches(value.coverageDigest, HEX64)
+  )
 }

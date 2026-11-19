@@ -1,0 +1,3913 @@
+{
+  "label": "R07 C4/C5 frozen independent expectations (copied, not generated). Synthetic controlled fixtures only: not AC evidence, not a qualified issuer, clock, bound or provider fact.",
+  "contract": "R07-C4C5-PRECODE-R2+ADDENDUM-001",
+  "provenance": {
+    "vectors_source": {
+      "file": "VECTORS-r2.json",
+      "bytes": 84833,
+      "sha256": "ce226935c321f10daa887e14bb503009bdd5a67075ec201bcfb22d6b29b07e47",
+      "packet_zip_sha256": "8f911ece846a65de7df2df8fdea9f45d54bbfa2681881231244c5b4388264f6b"
+    },
+    "witness_source": {
+      "file": "TRANSITION-WITNESSES.json",
+      "bytes": 3031,
+      "sha256": "a6d6ec87cb5f56d425f8bde00091d04db61e62cf9b1316ac4b9713ac9cc93325"
+    },
+    "addendum": {
+      "file": "ADDENDUM.md",
+      "bytes": 5688,
+      "sha256": "a306d9e1717966b75d542f77356e32af5be97bf1c116cf32e2b18a2cd10f6e77"
+    },
+    "combined_identity": {
+      "file": "COMBINED-CONTRACT-IDENTITY.json",
+      "sha256": "9f568bd39ddf0ad4aba2b6fa972b7b6a131188aeb31e791a210033b370196397"
+    },
+    "precode_md_sha256": "81ae5014e5021c6e19fdd29f3225675377ce7af3f850c9610f20846398813973",
+    "precode_json_sha256": "9e6c09bab49708d31763728fad16368a3892cc7e12b2d0710422bace45878757",
+    "canonical": "sha256 of JSON with sorted keys, no whitespace, UTF-8 (no ASCII escaping)",
+    "vectors_canonical_sha256": "7ba94ab4a3afcea2bdc96ec092e6ac0a3818eb0a4d4d3ad3fc9402eb3cc9198e",
+    "vectors_header_canonical_sha256": "8ef29e9e990271ada56bd886d25ef49f632a4d4be77485ee7ad339184faae4d1",
+    "witnesses_canonical_sha256": "b65789e4100f7ef9aba627fb43382f19ab5190855006a3c829a72ac6fd18c021",
+    "vector_count": 64,
+    "witness_cases": [
+      "FG01_NONE_TO_KNOWN",
+      "FG02_EXACT_REPLAY_LOST_REPLY",
+      "FG03_SAME_KNOWN_FACTS_NEW_PROVENANCE",
+      "FG04_DIFFERING_KNOWN_COUNT",
+      "FG05_DIFFERING_KNOWN_FINALITY"
+    ]
+  },
+  "input_encoding": {
+    "item": "name -> key and reservationId; projectId \"synthetic-project\"; dimension \"openai.output_tokens\"; created_at -> createdAt; count -> count (null when absent); final true + final_at -> finality {basis provider_terminal_known, finalAt}; bound -> bound (null when absent); truth_n1[name] -> n1",
+    "money_state_ignored": "state and money_ended_at are money/ledger facts and are never inputs (contract: money state never establishes finality)",
+    "released_never_left": "state released_never_left is encoded as its qualified finality: basis never_left_release, finalAt = created_at, count final_total 0 (R2 finality rule never_left_release => final_total 0)",
+    "attribution": "atts[name] -> {itemKey name, observationId of the projected observation, coverage, q (null unless reflected), n1, conflict, issuerQualified true, evidenceDigest synthetic sha256}",
+    "observation": "obs -> {id \"obs\", kind, value, window, asOf, freshUntil, semantics, dimension openai.output_tokens}; earlier_q -> priorQ; scope_active false -> scopeQualified false",
+    "registry": "registry[W] -> {windowKey W, scopeId \"synthetic-scope\", qualRevision 1, dimension, unit, start, end, semantics, measurementBasis}",
+    "append": "time/append vectors: candidate on registered window {start,end}, receivedAt = now, issuer scope = registration scope; delta -> ClockBound {delta, qualifiedBasis \"synthetic-qualified-fixture-clock\"}",
+    "expected_keys": "snake_case expected keys map to camelCase result fields by a fixed table in the test; only keys present in a frozen expectation are asserted"
+  },
+  "supersession": [
+    {
+      "clause": "ADDENDUM clause 1",
+      "supersedes": "PRECODE-R2 §6 \"a second, different finality payload is a conflict\" and TEST-MATRIX-r2 T-FINALITY-CONFLICT always-conflict expectation",
+      "historical_expectation": "any different payload for the same original effect -> conflict",
+      "historical_status": "superseded; preserved here, not asserted",
+      "corrected_expectation": "FG01 none->known extends; FG02 exact replay same receipt; FG03 compatible provenance; FG04/FG05 known-fact conflicts sticky",
+      "asserted_by": "FG01..FG05 tests"
+    },
+    {
+      "clause": "ADDENDUM clause 3",
+      "vector": "P-SKEW-CURRENT",
+      "historical_expectation": "time_state current and append accepted with delta 5",
+      "historical_status": "retained only under the clause-3 precondition (qualified server-held clock basis, already-received measurement)",
+      "corrected_expectation": "a nonzero delta without a qualified basis is refused (clock_unqualified); with one, the frozen expectation holds",
+      "asserted_by": "P-SKEW-CURRENT vector test and clock qualification test"
+    },
+    {
+      "clause": "ADDENDUM clause 2",
+      "vector": null,
+      "historical_expectation": "\"every write carries approval_ref_digest\"",
+      "historical_status": "wording only; no numeric vector affected",
+      "corrected_expectation": "observation/attribution authority is derived registered custody; modeled as the issuerQualified/issuer-scope input, never a caller claim",
+      "asserted_by": "V24 and issuer_unqualified tests"
+    },
+    {
+      "clause": "ADDENDUM boundary (E03)",
+      "vector": "P-TIE-EQUIVALENT",
+      "historical_expectation": "known current projection",
+      "historical_status": "retained",
+      "corrected_expectation": "equivalent candidates keep every projection and the union of diagnostics/completeness",
+      "asserted_by": "P-TIE-EQUIVALENT vector test plus diagnostics assertion"
+    }
+  ],
+  "fg_instant_encoding": {
+    "unit": "minutes since 2026-11-15T00:00:00Z (synthetic)",
+    "T1_final_at": 570,
+    "T2_final_at": 600,
+    "window": [0, 1440],
+    "item_created_at": 300,
+    "observation_as_of": 600,
+    "now": 600
+  },
+  "fg_synthetic_digests": {
+    "payload:R1-none-E1": "727815ab9e9c922b30627018f38e60b447dbe57e8ae14ee8792d1fa221628674",
+    "payload:R2-known4000-E2": "beea79c617936672166fd5af8841883c1924a98d396575a2e281936106331931",
+    "payload:R3-known4000-E3": "6940ffd16f22618006dff802a45f1d53329ae618e516d61afb8ab8a1af045b71",
+    "payload:R4-known4001-E4": "086e501aaf6473bb16645d6a6a20507f0aa22620e8229743d907ec0ed15cc2f9",
+    "payload:R5-terminalT2-E5": "779cffd927170267ab328aaa6ff0bbf74dca36860dcd5d55bc16e29efb2ddae8",
+    "evidence:E1": "626b635768c5d0055bbc29b81f43964cb74ec1035dcf67acd9a472c70b65c202",
+    "evidence:E2": "679006c7274d135fbc39d6a67051a240d754fd065cfcbdb491f390dcc12e2d68",
+    "evidence:E3": "4b870c1cad6cfdf85fad702f46f03f2321be825620e0de69a068a03dc2c134eb",
+    "evidence:E4": "759242578bac9b485353eb81894bc2a36c612cad1164caffd7375a82066d8e1e",
+    "evidence:E5": "60c9d829cfe393ac85e8c5cd54a7aba56c9d1ae258ed3cc5f413e924031f1844",
+    "approval:synthetic": "f7d8ba1d05cf4043a6150b2c92a861427272a6005278703bb62ed29c773ad2ff",
+    "attribution-evidence:synthetic": "093e4645bf88839017955e91a1795c940ed2c4cdf3f3185e4acc7248e3ed3225"
+  },
+  "vectors_header": {
+    "model": "PRECODE-R2.md reference arithmetic r2 (ARITHMETIC CONSISTENCY EVIDENCE ONLY)",
+    "unknown_encoding": null,
+    "unit_of_dimension": {
+      "openai.output_tokens": "tokens",
+      "openai.input_tokens": "tokens",
+      "openai.input_cached_tokens": "tokens",
+      "openai.model_requests": "requests"
+    }
+  },
+  "vectors": [
+    {
+      "id": "V01",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "fully reflected settled; open b not reflected",
+      "requires": ["DEP-C2 bound"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "c",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 1000
+            },
+            "final": true,
+            "created_at": 100,
+            "final_at": 120
+          },
+          {
+            "name": "b",
+            "state": "reserved",
+            "bound": 16000,
+            "created_at": 300
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          },
+          "c": {
+            "coverage": "reflected",
+            "q": 1000
+          },
+          "b": {
+            "coverage": "not_reflected"
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": 16000,
+        "effective_ceiling": 50000,
+        "status": "bounded",
+        "effective_floor": 34000
+      },
+      "forbidden": ["X=17800"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V02",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "nothing reflected",
+      "requires": ["DEP-C2 bound"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "c",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 1000
+            },
+            "final": true,
+            "created_at": 100,
+            "final_at": 120
+          },
+          {
+            "name": "b",
+            "state": "reserved",
+            "bound": 16000,
+            "created_at": 300
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "not_reflected"
+          },
+          "c": {
+            "coverage": "not_reflected"
+          },
+          "b": {
+            "coverage": "not_reflected"
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 1800,
+        "X_ceiling": 17800,
+        "effective_ceiling": 48200,
+        "status": "bounded",
+        "effective_floor": 32200
+      },
+      "forbidden": ["effective 50000"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V03",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "per-call partial",
+      "requires": ["DEP-C2 bound"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "c",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 1000
+            },
+            "final": true,
+            "created_at": 100,
+            "final_at": 120
+          },
+          {
+            "name": "b",
+            "state": "reserved",
+            "bound": 16000,
+            "created_at": 300
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          },
+          "c": {
+            "coverage": "reflected",
+            "q": 600
+          },
+          "b": {
+            "coverage": "reflected",
+            "q": 3000
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 400,
+        "X_ceiling": 13400,
+        "effective_ceiling": 49600,
+        "status": "bounded",
+        "effective_floor": 36600
+      },
+      "forbidden": ["c full or none"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V04",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "unknown coverage for c",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "c",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 1000
+            },
+            "final": true,
+            "created_at": 100,
+            "final_at": 120
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          }
+        }
+      },
+      "expected": {
+        "reasons": ["coverage_unknown:#1"],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": null,
+        "effective_ceiling": 50000,
+        "status": "bounded_unknown_ceiling",
+        "effective_floor": null,
+        "admits": false
+      },
+      "forbidden": ["missing Att as not_reflected"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V05a",
+      "finding": "retained (F03 pair)",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "validated final whole-effect zero, no Att",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "z",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 0
+            },
+            "final": true,
+            "created_at": 200,
+            "final_at": 210
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": 0,
+        "effective_ceiling": 50000,
+        "status": "exact",
+        "effective_floor": 50000
+      },
+      "forbidden": ["z positive"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V05b",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "missing usage is not zero",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "m",
+            "state": "settled",
+            "final": true,
+            "created_at": 220,
+            "final_at": 230
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          },
+          "m": {
+            "coverage": "reflected",
+            "q": 0
+          }
+        }
+      },
+      "expected": {
+        "reasons": ["ceiling_unknown:#1"],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": null,
+        "effective_ceiling": 50000,
+        "status": "bounded_unknown_ceiling",
+        "effective_floor": null,
+        "admits": false
+      },
+      "forbidden": ["m as 0"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V05c",
+      "finding": "retained (F03 pair)",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "final zero with consistent q0",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "z",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 0
+            },
+            "final": true,
+            "created_at": 200,
+            "final_at": 210
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          },
+          "z": {
+            "coverage": "reflected",
+            "q": 0
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": 0,
+        "effective_ceiling": 50000,
+        "status": "exact",
+        "effective_floor": 50000
+      },
+      "forbidden": [],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "CX-ZERO-POSITIVE-ATT",
+      "finding": "retained (F03)",
+      "pair_of": "V05c",
+      "r1_mapping": "unchanged id",
+      "title": "final zero with q1",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "z",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 0
+            },
+            "final": true,
+            "created_at": 200,
+            "final_at": 210
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          },
+          "z": {
+            "coverage": "reflected",
+            "q": 1
+          }
+        }
+      },
+      "expected": {
+        "reasons": ["q_exceeds_used:#1"],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": null,
+        "effective_ceiling": 50000,
+        "status": "bounded_unknown_ceiling",
+        "effective_floor": null,
+        "admits": false
+      },
+      "forbidden": ["zero shortcut hiding q1"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "CX-ZERO-CONFLICT-ATT",
+      "finding": "retained (F03)",
+      "pair_of": "V05a",
+      "r1_mapping": "unchanged id",
+      "title": "final zero, conflicted Att",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "z",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 0
+            },
+            "final": true,
+            "created_at": 200,
+            "final_at": 210
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          },
+          "z": {
+            "coverage": "reflected",
+            "q": 0,
+            "conflict": true
+          }
+        }
+      },
+      "expected": {
+        "reasons": ["att_conflict:#1"],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": null,
+        "effective_ceiling": 50000,
+        "status": "bounded_unknown_ceiling",
+        "effective_floor": null,
+        "admits": false
+      },
+      "forbidden": ["bypassing att_conflict"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "CX-ZERO-MISMATCH-ATT",
+      "finding": "retained (F03)",
+      "pair_of": "V05c",
+      "r1_mapping": "unchanged id",
+      "title": "final zero, N1 mismatch",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "z",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 0
+            },
+            "final": true,
+            "created_at": 200,
+            "final_at": 210
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          },
+          "z": {
+            "coverage": "reflected",
+            "q": 0,
+            "n1": "s:aaa"
+          }
+        },
+        "truth_n1": {
+          "z": "s:bbb"
+        }
+      },
+      "expected": {
+        "reasons": ["att_correlation_conflict:#1"],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": null,
+        "effective_ceiling": 50000,
+        "status": "bounded_unknown_ceiling",
+        "effective_floor": null,
+        "admits": false
+      },
+      "forbidden": ["bypassing correlation"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V06",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "fixed-epoch q regression",
+      "requires": ["none"],
+      "inputs": {
+        "obs_t3": {
+          "kind": "remaining_at",
+          "value": 48000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 900,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 900,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "c",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 1000
+            },
+            "final": true,
+            "created_at": 100,
+            "final_at": 120
+          }
+        ],
+        "atts_t3": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          },
+          "c": {
+            "coverage": "reflected",
+            "q": 400
+          }
+        },
+        "earlier_q": {
+          "c": 1000,
+          "a": 800
+        }
+      },
+      "expected": {
+        "reasons": ["coverage_regression:#1"],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": null,
+        "effective_ceiling": 48000,
+        "status": "bounded_unknown_ceiling",
+        "effective_floor": null,
+        "admits": false
+      },
+      "forbidden": ["latest q"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V07",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "independent windows; minute current at now 100",
+      "requires": ["none"],
+      "inputs": {
+        "minute": {
+          "obs": {
+            "kind": "remaining_at",
+            "value": 200000,
+            "window": {
+              "start": 50,
+              "end": 110
+            },
+            "as_of": 100,
+            "fresh_until": 1000000,
+            "semantics": "fixed_epoch"
+          },
+          "now": 100,
+          "items": [
+            {
+              "name": "a",
+              "state": "settled",
+              "count": {
+                "kind": "final_total",
+                "value": 800
+              },
+              "final": true,
+              "created_at": 60,
+              "final_at": 70
+            },
+            {
+              "name": "c",
+              "state": "settled",
+              "count": {
+                "kind": "final_total",
+                "value": 1000
+              },
+              "final": true,
+              "created_at": 100,
+              "final_at": 120
+            }
+          ],
+          "atts": {
+            "a": {
+              "coverage": "reflected",
+              "q": 800
+            }
+          }
+        },
+        "day": {
+          "obs": {
+            "kind": "remaining_at",
+            "value": 2000000,
+            "window": {
+              "start": 0,
+              "end": 1440
+            },
+            "as_of": 600,
+            "fresh_until": 1000000,
+            "semantics": "fixed_epoch"
+          },
+          "now": 600,
+          "items": [
+            {
+              "name": "a",
+              "state": "settled",
+              "count": {
+                "kind": "final_total",
+                "value": 800
+              },
+              "final": true,
+              "created_at": 60,
+              "final_at": 70
+            },
+            {
+              "name": "c",
+              "state": "settled",
+              "count": {
+                "kind": "final_total",
+                "value": 1000
+              },
+              "final": true,
+              "created_at": 100,
+              "final_at": 120
+            }
+          ],
+          "atts": {
+            "a": {
+              "coverage": "reflected",
+              "q": 800
+            },
+            "c": {
+              "coverage": "not_reflected"
+            }
+          }
+        }
+      },
+      "expected": {
+        "minute": {
+          "reasons": ["coverage_unknown:#1"],
+          "flags": [],
+          "freshness": "current",
+          "usable_current": true,
+          "X_floor": 0,
+          "X_ceiling": null,
+          "effective_ceiling": 200000,
+          "status": "bounded_unknown_ceiling",
+          "effective_floor": null,
+          "admits": false
+        },
+        "day": {
+          "reasons": [],
+          "flags": [],
+          "freshness": "current",
+          "usable_current": true,
+          "X_floor": 1000,
+          "X_ceiling": 1000,
+          "effective_ceiling": 1999000,
+          "status": "exact",
+          "effective_floor": 1999000
+        }
+      },
+      "forbidden": ["summing windows"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V07h",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "minute observation read at now 600: historical",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 200000,
+          "window": {
+            "start": 50,
+            "end": 110
+          },
+          "as_of": 100,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "historical",
+        "usable_current": false,
+        "X_floor": 0,
+        "X_ceiling": 0,
+        "effective_ceiling": 200000,
+        "status": "exact",
+        "effective_floor": 200000
+      },
+      "forbidden": ["closed window as quota"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V08",
+      "finding": "retained (fixture time corrected: before-read as_of 350 = now 350, R1-F02)",
+      "pair_of": null,
+      "r1_mapping": "same id; R1 before-read had as_of 600 > now 350 (a future observation under R1-F02); corrected to 350",
+      "title": "reserved -> settled keeps the Att",
+      "requires": ["DEP-C2 bound (before)"],
+      "inputs": {
+        "before": {
+          "obs": {
+            "kind": "remaining_at",
+            "value": 50000,
+            "window": {
+              "start": 0,
+              "end": 1440
+            },
+            "as_of": 350,
+            "fresh_until": 1000000,
+            "semantics": "fixed_epoch"
+          },
+          "now": 350,
+          "items": [
+            {
+              "name": "b",
+              "state": "reserved",
+              "bound": 16000,
+              "created_at": 300,
+              "count": {
+                "kind": "so_far",
+                "value": 3000
+              }
+            }
+          ],
+          "atts": {
+            "b": {
+              "coverage": "reflected",
+              "q": 3000
+            }
+          }
+        },
+        "after": {
+          "obs": {
+            "kind": "remaining_at",
+            "value": 50000,
+            "window": {
+              "start": 0,
+              "end": 1440
+            },
+            "as_of": 600,
+            "fresh_until": 1000000,
+            "semantics": "fixed_epoch"
+          },
+          "now": 600,
+          "items": [
+            {
+              "name": "b",
+              "state": "settled",
+              "bound": 16000,
+              "created_at": 300,
+              "count": {
+                "kind": "final_total",
+                "value": 4200
+              },
+              "final": true,
+              "final_at": 400
+            }
+          ],
+          "atts": {
+            "b": {
+              "coverage": "reflected",
+              "q": 3000
+            }
+          }
+        }
+      },
+      "expected": {
+        "before": {
+          "reasons": [],
+          "flags": [],
+          "freshness": "current",
+          "usable_current": true,
+          "X_floor": 0,
+          "X_ceiling": 13000,
+          "effective_ceiling": 50000,
+          "status": "bounded",
+          "effective_floor": 37000
+        },
+        "after": {
+          "reasons": [],
+          "flags": [],
+          "freshness": "current",
+          "usable_current": true,
+          "X_floor": 1200,
+          "X_ceiling": 1200,
+          "effective_ceiling": 48800,
+          "status": "exact",
+          "effective_floor": 48800
+        }
+      },
+      "forbidden": ["dropping b at settle"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V09",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "settled final overrun 18000 above bound 16000",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "b",
+            "state": "settled",
+            "bound": 16000,
+            "created_at": 300,
+            "count": {
+              "kind": "final_total",
+              "value": 18000
+            },
+            "final": true,
+            "final_at": 400
+          }
+        ],
+        "atts": {
+          "b": {
+            "coverage": "reflected",
+            "q": 3000
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": ["used_exceeds_bound:#0"],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 15000,
+        "X_ceiling": 15000,
+        "effective_ceiling": 35000,
+        "status": "exact",
+        "effective_floor": 35000
+      },
+      "forbidden": ["clipping to the bound"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "CX-OVER-OPEN",
+      "finding": "retained (F01)",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "open, so-far 18000 above bound 16000, q3000",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "b",
+            "state": "uncertain",
+            "bound": 16000,
+            "created_at": 300,
+            "count": {
+              "kind": "so_far",
+              "value": 18000
+            }
+          }
+        ],
+        "atts": {
+          "b": {
+            "coverage": "reflected",
+            "q": 3000
+          }
+        }
+      },
+      "expected": {
+        "reasons": ["future_exposure_unknown:#0"],
+        "flags": ["bound_contradicted:#0"],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 15000,
+        "X_ceiling": null,
+        "effective_ceiling": 35000,
+        "status": "bounded_unknown_ceiling",
+        "effective_floor": null,
+        "admits": false
+      },
+      "forbidden": ["X 13000"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-OVER-OPEN-QUALIFIED",
+      "finding": "retained (F01 pair)",
+      "pair_of": "CX-OVER-OPEN",
+      "r1_mapping": "unchanged id",
+      "title": "open, so-far 12000 within bound 16000",
+      "requires": ["DEP-C2 bound"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "b",
+            "state": "uncertain",
+            "bound": 16000,
+            "created_at": 300,
+            "count": {
+              "kind": "so_far",
+              "value": 12000
+            }
+          }
+        ],
+        "atts": {
+          "b": {
+            "coverage": "reflected",
+            "q": 3000
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 9000,
+        "X_ceiling": 13000,
+        "effective_ceiling": 41000,
+        "status": "bounded",
+        "effective_floor": 37000
+      },
+      "forbidden": [],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "CX-CONSUMED-NO-FUTURE-BOUND",
+      "finding": "retained (F01)",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "consumed V9000, so-far 4000, no bound, q3000",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "consumed_in_window",
+          "value": 9000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "r",
+            "state": "reserved",
+            "count": {
+              "kind": "so_far",
+              "value": 4000
+            },
+            "created_at": 300
+          }
+        ],
+        "atts": {
+          "r": {
+            "coverage": "reflected",
+            "q": 3000
+          }
+        }
+      },
+      "expected": {
+        "reasons": ["ceiling_unknown:#0"],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 1000,
+        "X_ceiling": null,
+        "attributed": 3000,
+        "coverage_complete": true,
+        "attributed_is_lower_bound": false,
+        "unattributed": 6000
+      },
+      "forbidden": ["S 0"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-CONSUMED-WITH-BOUND",
+      "finding": "retained (F01 pair)",
+      "pair_of": "CX-CONSUMED-NO-FUTURE-BOUND",
+      "r1_mapping": "unchanged id",
+      "title": "same with bound 16000",
+      "requires": ["DEP-C2 bound"],
+      "inputs": {
+        "obs": {
+          "kind": "consumed_in_window",
+          "value": 9000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "r",
+            "state": "reserved",
+            "count": {
+              "kind": "so_far",
+              "value": 4000
+            },
+            "created_at": 300,
+            "bound": 16000
+          }
+        ],
+        "atts": {
+          "r": {
+            "coverage": "reflected",
+            "q": 3000
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 1000,
+        "X_ceiling": 13000,
+        "attributed": 3000,
+        "coverage_complete": true,
+        "attributed_is_lower_bound": false,
+        "unattributed": 6000
+      },
+      "forbidden": [],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V10",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "q exceeds final total",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "c",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 1000
+            },
+            "final": true,
+            "created_at": 100,
+            "final_at": 120
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          },
+          "c": {
+            "coverage": "reflected",
+            "q": 1200
+          }
+        }
+      },
+      "expected": {
+        "reasons": ["q_exceeds_used:#1"],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": null,
+        "effective_ceiling": 50000,
+        "status": "bounded_unknown_ceiling",
+        "effective_floor": null,
+        "admits": false
+      },
+      "forbidden": ["clipping q"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V11a",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "consumed residue unattributed (complete coverage)",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "consumed_in_window",
+          "value": 9000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "c",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 1000
+            },
+            "final": true,
+            "created_at": 100,
+            "final_at": 120
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          },
+          "c": {
+            "coverage": "reflected",
+            "q": 1000
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": 0,
+        "attributed": 1800,
+        "coverage_complete": true,
+        "attributed_is_lower_bound": false,
+        "unattributed": 7200
+      },
+      "forbidden": ["charging 7200 to the latest task"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V11b",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "S above V: fact_conflict",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "consumed_in_window",
+          "value": 9000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "c",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 9200
+            },
+            "final": true,
+            "created_at": 100,
+            "final_at": 120
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          },
+          "c": {
+            "coverage": "reflected",
+            "q": 9200
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": 0,
+        "attributed": 10000,
+        "coverage_complete": true,
+        "attributed_is_lower_bound": false,
+        "fact_conflict": true,
+        "unattributed": null
+      },
+      "forbidden": ["clipping"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V12",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "possible overrun",
+      "requires": ["DEP-C2 bound"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 10000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "c",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 1000
+            },
+            "final": true,
+            "created_at": 100,
+            "final_at": 120
+          },
+          {
+            "name": "b",
+            "state": "reserved",
+            "bound": 16000,
+            "created_at": 300
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          },
+          "c": {
+            "coverage": "reflected",
+            "q": 600
+          },
+          "b": {
+            "coverage": "reflected",
+            "q": 3000
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 400,
+        "X_ceiling": 13400,
+        "effective_ceiling": 9600,
+        "status": "bounded",
+        "effective_floor": -3400,
+        "possible_over_by": 3400
+      },
+      "forbidden": ["effective 0"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V13",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "new epoch e2: b held at ceiling, nothing released",
+      "requires": ["DEP-C2 bound"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 1440,
+            "end": 2880
+          },
+          "as_of": 1500,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 1500,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "c",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 1000
+            },
+            "final": true,
+            "created_at": 100,
+            "final_at": 120
+          },
+          {
+            "name": "b",
+            "state": "reserved",
+            "bound": 16000,
+            "created_at": 300
+          }
+        ],
+        "atts": {
+          "b": {
+            "coverage": "not_reflected"
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": 16000,
+        "effective_ceiling": 50000,
+        "status": "bounded",
+        "effective_floor": 34000,
+        "reservations_after": {
+          "b": "reserved"
+        },
+        "wallet_change": 0
+      },
+      "forbidden": ["releasing b"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V13u",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "new epoch, b without bound",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 1440,
+            "end": 2880
+          },
+          "as_of": 1500,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 1500,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "c",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 1000
+            },
+            "final": true,
+            "created_at": 100,
+            "final_at": 120
+          },
+          {
+            "name": "b",
+            "state": "reserved",
+            "bound": null,
+            "created_at": 300
+          }
+        ],
+        "atts": {
+          "b": {
+            "coverage": "not_reflected"
+          }
+        }
+      },
+      "expected": {
+        "reasons": ["ceiling_unknown:#2"],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": null,
+        "effective_ceiling": 50000,
+        "status": "bounded_unknown_ceiling",
+        "effective_floor": null,
+        "admits": false
+      },
+      "forbidden": ["excluding b"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "CX-UNCERTAIN-ENDED",
+      "finding": "retained (F02)",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "uncertain, money ended 400, no finality",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 1440,
+            "end": 2880
+          },
+          "as_of": 1500,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 1500,
+        "items": [
+          {
+            "name": "u",
+            "state": "uncertain",
+            "created_at": 300,
+            "money_ended_at": 400
+          }
+        ],
+        "atts": {}
+      },
+      "expected": {
+        "reasons": ["coverage_unknown:#0"],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": null,
+        "effective_ceiling": 50000,
+        "status": "bounded_unknown_ceiling",
+        "effective_floor": null,
+        "admits": false
+      },
+      "forbidden": ["outside by ended_at"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-UNCERTAIN-FINAL",
+      "finding": "retained (F02 pair)",
+      "pair_of": "CX-UNCERTAIN-ENDED",
+      "r1_mapping": "unchanged id",
+      "title": "same with qualified finality",
+      "requires": ["finality (DEP-T1)"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 1440,
+            "end": 2880
+          },
+          "as_of": 1500,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 1500,
+        "items": [
+          {
+            "name": "u",
+            "state": "uncertain",
+            "created_at": 300,
+            "money_ended_at": 400,
+            "final": true,
+            "final_at": 400,
+            "count": {
+              "kind": "final_total",
+              "value": 500
+            }
+          }
+        ],
+        "atts": {}
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": 0,
+        "effective_ceiling": 50000,
+        "status": "exact",
+        "effective_floor": 50000
+      },
+      "forbidden": [],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-UNCERTAIN-BOUNDED",
+      "finding": "retained (F02 pair)",
+      "pair_of": "CX-UNCERTAIN-ENDED",
+      "r1_mapping": "unchanged id",
+      "title": "same with bound 16000",
+      "requires": ["DEP-C2 bound"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 1440,
+            "end": 2880
+          },
+          "as_of": 1500,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 1500,
+        "items": [
+          {
+            "name": "u",
+            "state": "uncertain",
+            "created_at": 300,
+            "money_ended_at": 400,
+            "bound": 16000
+          }
+        ],
+        "atts": {
+          "u": {
+            "coverage": "not_reflected"
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": 16000,
+        "effective_ceiling": 50000,
+        "status": "bounded",
+        "effective_floor": 34000
+      },
+      "forbidden": [],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V15",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "stale observation",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 700,
+          "semantics": "fixed_epoch"
+        },
+        "now": 800,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "stale",
+        "usable_current": false,
+        "X_floor": 0,
+        "X_ceiling": 0,
+        "effective_ceiling": 50000,
+        "status": "exact",
+        "effective_floor": 50000
+      },
+      "forbidden": ["stale as current"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V16",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "withdrawn scope",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "scope_active": false
+      },
+      "expected": {
+        "status": "scope_unqualified",
+        "reasons": ["scope_unqualified"],
+        "freshness": "n/a",
+        "usable_current": false
+      },
+      "forbidden": ["using V"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V17",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "cross-project aliases",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "p2",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 500
+            },
+            "final": true,
+            "created_at": 400,
+            "final_at": 410
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          },
+          "p2": {
+            "coverage": "not_reflected"
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 500,
+        "X_ceiling": 500,
+        "effective_ceiling": 49500,
+        "status": "exact",
+        "effective_floor": 49500,
+        "K3": "separate scope (alias_unknown)"
+      },
+      "forbidden": ["merging K3"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V20",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "the e9 state: no bound",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "b",
+            "state": "reserved",
+            "bound": null,
+            "created_at": 300
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          },
+          "b": {
+            "coverage": "reflected",
+            "q": 3000
+          }
+        }
+      },
+      "expected": {
+        "reasons": ["ceiling_unknown:#1"],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": null,
+        "effective_ceiling": 50000,
+        "status": "bounded_unknown_ceiling",
+        "effective_floor": null,
+        "admits": false
+      },
+      "forbidden": ["estimate as bound"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V21",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "uncertain open item with bound",
+      "requires": ["DEP-C2 bound"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "b",
+            "state": "uncertain",
+            "bound": 16000,
+            "created_at": 300
+          }
+        ],
+        "atts": {
+          "b": {
+            "coverage": "reflected",
+            "q": 3000
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": 13000,
+        "effective_ceiling": 50000,
+        "status": "bounded",
+        "effective_floor": 37000
+      },
+      "forbidden": ["settled 0"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V22",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "released never-left",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "x",
+            "state": "released_never_left",
+            "created_at": 500
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": 0,
+        "effective_ceiling": 50000,
+        "status": "exact",
+        "effective_floor": 50000
+      },
+      "forbidden": ["release on timeout"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V23",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "N1 mismatch",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "c",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 1000
+            },
+            "final": true,
+            "created_at": 100,
+            "final_at": 120
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          },
+          "c": {
+            "coverage": "reflected",
+            "q": 1000,
+            "n1": "s:aaa"
+          }
+        },
+        "truth_n1": {
+          "c": "s:bbb"
+        }
+      },
+      "expected": {
+        "reasons": ["att_correlation_conflict:#1"],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": null,
+        "effective_ceiling": 50000,
+        "status": "bounded_unknown_ceiling",
+        "effective_floor": null,
+        "admits": false
+      },
+      "forbidden": ["q for another call"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "V24",
+      "finding": "retained",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "issuer of another scope refused at append",
+      "requires": ["none"],
+      "inputs": {
+        "append": {
+          "issuer_scope": "sigma2",
+          "observation_scope": "sigma1"
+        }
+      },
+      "expected": {
+        "append": "refused",
+        "code": "issuer_unqualified",
+        "rows_written": 0
+      },
+      "forbidden": ["accepting"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "CX-SEQUENTIAL-ISSUERS",
+      "finding": "retained (F05)",
+      "pair_of": null,
+      "r1_mapping": "unchanged id",
+      "title": "I1 50000@600, I2 49800@650",
+      "requires": ["none"],
+      "inputs": {
+        "registry": {
+          "W": {
+            "dimension": "openai.output_tokens",
+            "unit": "tokens",
+            "start": 0,
+            "end": 1440,
+            "semantics": "fixed_epoch",
+            "measurement_basis": "issuer_local"
+          }
+        },
+        "observations": [
+          {
+            "id": "o1",
+            "issuer": "I1",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 600,
+            "value": 50000,
+            "measurement_id": null,
+            "fresh_until": 1000000
+          },
+          {
+            "id": "o2",
+            "issuer": "I2",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 650,
+            "value": 49800,
+            "measurement_id": null,
+            "fresh_until": 1000000
+          }
+        ],
+        "now": 700
+      },
+      "expected": {
+        "conflicts": [],
+        "regressions": [],
+        "current": {
+          "status": "known",
+          "observations": ["o2"],
+          "projection": {
+            "reasons": [],
+            "flags": [],
+            "freshness": "current",
+            "usable_current": true,
+            "X_floor": 0,
+            "X_ceiling": 0,
+            "effective_ceiling": 49800,
+            "status": "exact",
+            "effective_floor": 49800
+          }
+        }
+      },
+      "forbidden": ["conflict"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-COMPARABLE-CONFLICT",
+      "finding": "retained (F05 pair)",
+      "pair_of": "CX-SEQUENTIAL-ISSUERS",
+      "r1_mapping": "unchanged id",
+      "title": "same as_of, no ids, same registered window",
+      "requires": ["none"],
+      "inputs": {
+        "registry": {
+          "W": {
+            "dimension": "openai.output_tokens",
+            "unit": "tokens",
+            "start": 0,
+            "end": 1440,
+            "semantics": "fixed_epoch",
+            "measurement_basis": "issuer_local"
+          }
+        },
+        "observations": [
+          {
+            "id": "o1",
+            "issuer": "I1",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 600,
+            "value": 50000,
+            "measurement_id": null,
+            "fresh_until": 1000000
+          },
+          {
+            "id": "o2",
+            "issuer": "I2",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 600,
+            "value": 49800,
+            "measurement_id": null,
+            "fresh_until": 1000000
+          }
+        ],
+        "now": 700
+      },
+      "expected": {
+        "conflicts": [["o1", "o2"]],
+        "regressions": [],
+        "current": {
+          "status": "unknown",
+          "reason": "conflict_or_regression"
+        }
+      },
+      "forbidden": ["picking either"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-MEASUREMENT-ID",
+      "finding": "STRICTER CORRECTION (R1-F03)",
+      "pair_of": "CX-SEQUENTIAL-ISSUERS",
+      "r1_mapping": "same id; R1 expected a conflict; R2 expects ordinary sequential (current o2 49800); shared-namespace conflict moved to P-SHARED-NAMESPACE",
+      "title": "I1 m7@600 50000 and I2 m7@640 49800 under issuer_local namespaces: NOT comparable; ordinary sequential",
+      "requires": ["none"],
+      "inputs": {
+        "registry": {
+          "W": {
+            "dimension": "openai.output_tokens",
+            "unit": "tokens",
+            "start": 0,
+            "end": 1440,
+            "semantics": "fixed_epoch",
+            "measurement_basis": "issuer_local"
+          }
+        },
+        "observations": [
+          {
+            "id": "o1",
+            "issuer": "I1",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 600,
+            "value": 50000,
+            "measurement_id": "m7",
+            "fresh_until": 1000000
+          },
+          {
+            "id": "o2",
+            "issuer": "I2",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 640,
+            "value": 49800,
+            "measurement_id": "m7",
+            "fresh_until": 1000000
+          }
+        ],
+        "now": 700
+      },
+      "expected": {
+        "conflicts": [],
+        "regressions": [],
+        "current": {
+          "status": "known",
+          "observations": ["o2"],
+          "projection": {
+            "reasons": [],
+            "flags": [],
+            "freshness": "current",
+            "usable_current": true,
+            "X_floor": 0,
+            "X_ceiling": 0,
+            "effective_ceiling": 49800,
+            "status": "exact",
+            "effective_floor": 49800
+          }
+        }
+      },
+      "forbidden": ["treating cross-issuer m7 as the same measurement"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-OUT-OF-ORDER",
+      "finding": "retained (F05 pair)",
+      "pair_of": "CX-SEQUENTIAL-ISSUERS",
+      "r1_mapping": "unchanged id",
+      "title": "arrival 650 then 600",
+      "requires": ["none"],
+      "inputs": {
+        "registry": {
+          "W": {
+            "dimension": "openai.output_tokens",
+            "unit": "tokens",
+            "start": 0,
+            "end": 1440,
+            "semantics": "fixed_epoch",
+            "measurement_basis": "issuer_local"
+          }
+        },
+        "observations": [
+          {
+            "id": "o2",
+            "issuer": "I2",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 650,
+            "value": 49800,
+            "measurement_id": null,
+            "fresh_until": 1000000
+          },
+          {
+            "id": "o1",
+            "issuer": "I1",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 600,
+            "value": 50000,
+            "measurement_id": null,
+            "fresh_until": 1000000
+          }
+        ],
+        "now": 700
+      },
+      "expected": {
+        "conflicts": [],
+        "regressions": [],
+        "current": {
+          "status": "known",
+          "observations": ["o2"],
+          "projection": {
+            "reasons": [],
+            "flags": [],
+            "freshness": "current",
+            "usable_current": true,
+            "X_floor": 0,
+            "X_ceiling": 0,
+            "effective_ceiling": 49800,
+            "status": "exact",
+            "effective_floor": 49800
+          }
+        }
+      },
+      "forbidden": ["arrival order"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-FIXED-REGRESSION",
+      "finding": "retained (F05 pair)",
+      "pair_of": "CX-SEQUENTIAL-ISSUERS",
+      "r1_mapping": "unchanged id",
+      "title": "fixed epoch remaining rises",
+      "requires": ["none"],
+      "inputs": {
+        "registry": {
+          "W": {
+            "dimension": "openai.output_tokens",
+            "unit": "tokens",
+            "start": 0,
+            "end": 1440,
+            "semantics": "fixed_epoch",
+            "measurement_basis": "issuer_local"
+          }
+        },
+        "observations": [
+          {
+            "id": "o1",
+            "issuer": "I1",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 650,
+            "value": 49800,
+            "measurement_id": null,
+            "fresh_until": 1000000
+          },
+          {
+            "id": "o2",
+            "issuer": "I2",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 700,
+            "value": 50500,
+            "measurement_id": null,
+            "fresh_until": 1000000
+          }
+        ],
+        "now": 710
+      },
+      "expected": {
+        "conflicts": [],
+        "regressions": [["o1", "o2"]],
+        "current": {
+          "status": "unknown",
+          "reason": "conflict_or_regression"
+        }
+      },
+      "forbidden": ["50500 current"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-ROLLING",
+      "finding": "retained (F05 pair)",
+      "pair_of": "CX-SEQUENTIAL-ISSUERS",
+      "r1_mapping": "unchanged id",
+      "title": "rolling window may rise",
+      "requires": ["window-semantics qualification"],
+      "inputs": {
+        "registry": {
+          "W": {
+            "dimension": "openai.output_tokens",
+            "unit": "tokens",
+            "start": 0,
+            "end": 1440,
+            "semantics": "rolling",
+            "measurement_basis": "issuer_local"
+          }
+        },
+        "observations": [
+          {
+            "id": "o1",
+            "issuer": "I1",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 650,
+            "value": 49800,
+            "measurement_id": null,
+            "fresh_until": 1000000
+          },
+          {
+            "id": "o2",
+            "issuer": "I2",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 700,
+            "value": 50500,
+            "measurement_id": null,
+            "fresh_until": 1000000
+          }
+        ],
+        "now": 710
+      },
+      "expected": {
+        "conflicts": [],
+        "regressions": [],
+        "current": {
+          "status": "known",
+          "observations": ["o2"],
+          "projection": {
+            "reasons": [],
+            "flags": [],
+            "freshness": "current",
+            "usable_current": true,
+            "X_floor": 0,
+            "X_ceiling": 0,
+            "effective_ceiling": 50500,
+            "status": "exact",
+            "effective_floor": 50500
+          }
+        }
+      },
+      "forbidden": [],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "R1-CX-EXACT-WITHOUT-FINALITY",
+      "finding": "R1-F01",
+      "pair_of": null,
+      "r1_mapping": "new",
+      "title": "final_total 4000 claimed without finality, bound 16000, q3000",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 800,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "e",
+            "state": "reserved",
+            "count": {
+              "kind": "final_total",
+              "value": 4000
+            },
+            "bound": 16000,
+            "created_at": 300
+          }
+        ],
+        "atts": {
+          "e": {
+            "coverage": "reflected",
+            "q": 3000
+          }
+        }
+      },
+      "expected": {
+        "reasons": ["count_finality_inconsistent:#0"],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 1000,
+        "X_ceiling": 13000,
+        "effective_ceiling": 49000,
+        "status": "bounded",
+        "effective_floor": 37000
+      },
+      "forbidden": ["c_hi 4000 / effective 49000 exact"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-FINAL-TOTAL-QUALIFIED",
+      "finding": "R1-F01 pair",
+      "pair_of": "R1-CX-EXACT-WITHOUT-FINALITY",
+      "r1_mapping": "new",
+      "title": "the same 4000 as a qualified final whole-effect total (finality at 400)",
+      "requires": ["finality (DEP-T1)"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 800,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "e",
+            "state": "reserved",
+            "count": {
+              "kind": "final_total",
+              "value": 4000
+            },
+            "bound": 16000,
+            "created_at": 300,
+            "final": true,
+            "final_at": 400
+          }
+        ],
+        "atts": {
+          "e": {
+            "coverage": "reflected",
+            "q": 3000
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 1000,
+        "X_ceiling": 1000,
+        "effective_ceiling": 49000,
+        "status": "exact",
+        "effective_floor": 49000
+      },
+      "forbidden": [],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-SO-FAR-WITH-BOUND",
+      "finding": "R1-F01 pair",
+      "pair_of": "R1-CX-EXACT-WITHOUT-FINALITY",
+      "r1_mapping": "new",
+      "title": "4000 typed so_far, bound 16000, q3000",
+      "requires": ["DEP-C2 bound"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 800,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "e",
+            "state": "reserved",
+            "count": {
+              "kind": "so_far",
+              "value": 4000
+            },
+            "bound": 16000,
+            "created_at": 300
+          }
+        ],
+        "atts": {
+          "e": {
+            "coverage": "reflected",
+            "q": 3000
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 1000,
+        "X_ceiling": 13000,
+        "effective_ceiling": 49000,
+        "status": "bounded",
+        "effective_floor": 37000
+      },
+      "forbidden": [],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-SO-FAR-NO-BOUND",
+      "finding": "R1-F01 pair",
+      "pair_of": "R1-CX-EXACT-WITHOUT-FINALITY",
+      "r1_mapping": "new",
+      "title": "4000 so_far, no bound",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "remaining_at",
+          "value": 50000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 800,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "e",
+            "state": "reserved",
+            "count": {
+              "kind": "so_far",
+              "value": 4000
+            },
+            "bound": null,
+            "created_at": 300
+          }
+        ],
+        "atts": {
+          "e": {
+            "coverage": "reflected",
+            "q": 3000
+          }
+        }
+      },
+      "expected": {
+        "reasons": ["ceiling_unknown:#0"],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 1000,
+        "X_ceiling": null,
+        "effective_ceiling": 49000,
+        "status": "bounded_unknown_ceiling",
+        "effective_floor": null,
+        "admits": false
+      },
+      "forbidden": [],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "R1-CX-FUTURE-ASOF",
+      "finding": "R1-F02",
+      "pair_of": null,
+      "r1_mapping": "new",
+      "title": "as_of 700 > now 600 (δ=0)",
+      "requires": ["none"],
+      "inputs": {
+        "window": {
+          "start": 0,
+          "end": 1440
+        },
+        "as_of": 700,
+        "fresh_until": 800,
+        "now": 600
+      },
+      "expected": {
+        "time_state": "future",
+        "append": "obs_from_future"
+      },
+      "forbidden": ["current"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-ASOF-EQUALS-NOW",
+      "finding": "R1-F02 pair",
+      "pair_of": "R1-CX-FUTURE-ASOF",
+      "r1_mapping": "new",
+      "title": "as_of 600 = now 600",
+      "requires": ["none"],
+      "inputs": {
+        "window": {
+          "start": 0,
+          "end": 1440
+        },
+        "as_of": 600,
+        "fresh_until": 800,
+        "now": 600
+      },
+      "expected": {
+        "time_state": "current",
+        "append": "accepted"
+      },
+      "forbidden": [],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "R1-CX-FUTURE-WINDOW",
+      "finding": "R1-F02",
+      "pair_of": null,
+      "r1_mapping": "new",
+      "title": "window [1440,2880) at now 600",
+      "requires": ["none"],
+      "inputs": {
+        "window": {
+          "start": 1440,
+          "end": 2880
+        },
+        "as_of": 1500,
+        "fresh_until": 1600,
+        "now": 600
+      },
+      "expected": {
+        "time_state": "future",
+        "append": "obs_from_future"
+      },
+      "forbidden": ["current"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-WINDOW-START-BOUNDARY",
+      "finding": "R1-F02 pair",
+      "pair_of": "R1-CX-FUTURE-WINDOW",
+      "r1_mapping": "new",
+      "title": "now = start 1440, as_of 1440",
+      "requires": ["none"],
+      "inputs": {
+        "window": {
+          "start": 1440,
+          "end": 2880
+        },
+        "as_of": 1440,
+        "fresh_until": 1600,
+        "now": 1440
+      },
+      "expected": {
+        "time_state": "current",
+        "append": "accepted"
+      },
+      "forbidden": [],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-WINDOW-END-BOUNDARY",
+      "finding": "R1-F02 pair",
+      "pair_of": "R1-CX-FUTURE-WINDOW",
+      "r1_mapping": "new",
+      "title": "now = end 1440 for window [0,1440): historical",
+      "requires": ["none"],
+      "inputs": {
+        "window": {
+          "start": 0,
+          "end": 1440
+        },
+        "as_of": 1439,
+        "fresh_until": 2000,
+        "now": 1440
+      },
+      "expected": {
+        "time_state": "historical",
+        "append": "accepted"
+      },
+      "forbidden": ["current"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-FRESH-BOUNDARY",
+      "finding": "R1-F02 pair",
+      "pair_of": "R1-CX-FUTURE-ASOF",
+      "r1_mapping": "new",
+      "title": "now = fresh_until 800: stale",
+      "requires": ["none"],
+      "inputs": {
+        "window": {
+          "start": 0,
+          "end": 1440
+        },
+        "as_of": 600,
+        "fresh_until": 800,
+        "now": 800
+      },
+      "expected": {
+        "time_state": "stale",
+        "append": "accepted"
+      },
+      "forbidden": ["current"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-SKEW-CONSERVATIVE",
+      "finding": "R1-F02 pair",
+      "pair_of": "R1-CX-FUTURE-WINDOW",
+      "r1_mapping": "new",
+      "title": "δ=5 (labelled qualification): now 1443 inside [1440,2880) locally but within δ of start: not_open",
+      "requires": ["Q7 clock qualification"],
+      "inputs": {
+        "window": {
+          "start": 1440,
+          "end": 2880
+        },
+        "as_of": 1442,
+        "fresh_until": 1600,
+        "now": 1443,
+        "delta": 5
+      },
+      "expected": {
+        "time_state": "not_open",
+        "append": "accepted"
+      },
+      "forbidden": ["current while within δ of start"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-SKEW-CURRENT",
+      "finding": "R1-F02 pair",
+      "pair_of": "R1-CX-FUTURE-ASOF",
+      "r1_mapping": "new",
+      "title": "δ=5: now 1450, as_of 1452 (within δ ahead) -> current",
+      "requires": ["Q7 clock qualification"],
+      "inputs": {
+        "window": {
+          "start": 1440,
+          "end": 2880
+        },
+        "as_of": 1452,
+        "fresh_until": 1600,
+        "now": 1450,
+        "delta": 5
+      },
+      "expected": {
+        "time_state": "current",
+        "append": "accepted"
+      },
+      "forbidden": [],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "R1-CX-INCOMPATIBLE-WINDOW-BASIS",
+      "finding": "R1-F03",
+      "pair_of": null,
+      "r1_mapping": "new",
+      "title": "I2 appends window [60,1500) rolling against registered [0,1440) fixed",
+      "requires": ["none"],
+      "inputs": {
+        "registry": {
+          "W": {
+            "dimension": "openai.output_tokens",
+            "unit": "tokens",
+            "start": 0,
+            "end": 1440,
+            "semantics": "fixed_epoch",
+            "measurement_basis": "issuer_local"
+          }
+        },
+        "I1": {
+          "window": [0, 1440],
+          "semantics": "fixed_epoch"
+        },
+        "I2": {
+          "window": [60, 1500],
+          "semantics": "rolling"
+        }
+      },
+      "expected": {
+        "I1_append": "accepted",
+        "I2_append": "obs_window_mismatch",
+        "comparison": "never compared: I2 never stored"
+      },
+      "forbidden": ["comparing them as one snapshot"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-CONSISTENT-WINDOW-CONFLICT",
+      "finding": "R1-F03 pair",
+      "pair_of": "R1-CX-INCOMPATIBLE-WINDOW-BASIS",
+      "r1_mapping": "new",
+      "title": "I2 on the SAME registered window, same as_of, no ids, 49800: sticky comparable conflict",
+      "requires": ["none"],
+      "inputs": {
+        "registry": {
+          "W": {
+            "dimension": "openai.output_tokens",
+            "unit": "tokens",
+            "start": 0,
+            "end": 1440,
+            "semantics": "fixed_epoch",
+            "measurement_basis": "issuer_local"
+          }
+        },
+        "observations": [
+          {
+            "id": "o1",
+            "issuer": "I1",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 600,
+            "value": 50000,
+            "measurement_id": null,
+            "fresh_until": 1000000
+          },
+          {
+            "id": "o2",
+            "issuer": "I2",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 600,
+            "value": 49800,
+            "measurement_id": null,
+            "fresh_until": 1000000
+          }
+        ],
+        "now": 700
+      },
+      "expected": {
+        "conflicts": [["o1", "o2"]],
+        "regressions": [],
+        "current": {
+          "status": "unknown",
+          "reason": "conflict_or_regression"
+        }
+      },
+      "forbidden": [],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "R1-CX-UNIT-DIMENSION",
+      "finding": "R1-F03",
+      "pair_of": null,
+      "r1_mapping": "new",
+      "title": "dimension openai.output_tokens with unit requests",
+      "requires": ["none"],
+      "inputs": {
+        "dimension": "openai.output_tokens",
+        "unit": "requests"
+      },
+      "expected": {
+        "append": "obs_unit_mismatch"
+      },
+      "forbidden": ["accepting"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-UNIT-MATCH",
+      "finding": "R1-F03 pair",
+      "pair_of": "R1-CX-UNIT-DIMENSION",
+      "r1_mapping": "new",
+      "title": "openai.output_tokens with unit tokens",
+      "requires": ["none"],
+      "inputs": {
+        "dimension": "openai.output_tokens",
+        "unit": "tokens"
+      },
+      "expected": {
+        "append": "accepted"
+      },
+      "forbidden": [],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "R1-CX-MEASUREMENT-NAMESPACE",
+      "finding": "R1-F03",
+      "pair_of": null,
+      "r1_mapping": "new (same inputs as corrected P-MEASUREMENT-ID)",
+      "title": "issuer-local m7 from I1 and I2 are different measurements",
+      "requires": ["none"],
+      "inputs": {
+        "registry": {
+          "W": {
+            "dimension": "openai.output_tokens",
+            "unit": "tokens",
+            "start": 0,
+            "end": 1440,
+            "semantics": "fixed_epoch",
+            "measurement_basis": "issuer_local"
+          }
+        },
+        "observations": [
+          {
+            "id": "o1",
+            "issuer": "I1",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 600,
+            "value": 50000,
+            "measurement_id": "m7",
+            "fresh_until": 1000000
+          },
+          {
+            "id": "o2",
+            "issuer": "I2",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 640,
+            "value": 49800,
+            "measurement_id": "m7",
+            "fresh_until": 1000000
+          }
+        ],
+        "now": 700
+      },
+      "expected": {
+        "conflicts": [],
+        "regressions": [],
+        "current": {
+          "status": "known",
+          "observations": ["o2"],
+          "projection": {
+            "reasons": [],
+            "flags": [],
+            "freshness": "current",
+            "usable_current": true,
+            "X_floor": 0,
+            "X_ceiling": 0,
+            "effective_ceiling": 49800,
+            "status": "exact",
+            "effective_floor": 49800
+          }
+        }
+      },
+      "forbidden": ["conflict from the shared opaque id"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-SHARED-NAMESPACE",
+      "finding": "R1-F03 pair",
+      "pair_of": "R1-CX-MEASUREMENT-NAMESPACE",
+      "r1_mapping": "new",
+      "title": "the window's measurement basis is a QUALIFIED shared namespace: same m7 is the same measurement -> conflict",
+      "requires": ["namespace qualification"],
+      "inputs": {
+        "registry": {
+          "W": {
+            "dimension": "openai.output_tokens",
+            "unit": "tokens",
+            "start": 0,
+            "end": 1440,
+            "semantics": "fixed_epoch",
+            "measurement_basis": "shared_qualified"
+          }
+        },
+        "observations": [
+          {
+            "id": "o1",
+            "issuer": "I1",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 600,
+            "value": 50000,
+            "measurement_id": "m7",
+            "fresh_until": 1000000
+          },
+          {
+            "id": "o2",
+            "issuer": "I2",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 640,
+            "value": 49800,
+            "measurement_id": "m7",
+            "fresh_until": 1000000
+          }
+        ],
+        "now": 700
+      },
+      "expected": {
+        "conflicts": [["o1", "o2"]],
+        "regressions": [],
+        "current": {
+          "status": "unknown",
+          "reason": "conflict_or_regression"
+        }
+      },
+      "forbidden": [],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "R1-CX-EQUAL-V-DIFFERENT-OBSERVATION-Q",
+      "finding": "R1-F03",
+      "pair_of": null,
+      "r1_mapping": "new",
+      "title": "equal V 50000 @600, different issuer-local ids, q 1000 vs 0: no issuer-order choice",
+      "requires": ["none"],
+      "inputs": {
+        "registry": {
+          "W": {
+            "dimension": "openai.output_tokens",
+            "unit": "tokens",
+            "start": 0,
+            "end": 1440,
+            "semantics": "fixed_epoch",
+            "measurement_basis": "issuer_local"
+          }
+        },
+        "observations": [
+          {
+            "id": "m1o",
+            "issuer": "I1",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 600,
+            "value": 50000,
+            "measurement_id": "m1",
+            "fresh_until": 800
+          },
+          {
+            "id": "m2o",
+            "issuer": "I2",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 600,
+            "value": 50000,
+            "measurement_id": "m2",
+            "fresh_until": 800
+          }
+        ],
+        "now": 700,
+        "per_observation": {
+          "m1o": {
+            "items": [
+              {
+                "name": "t",
+                "state": "settled",
+                "count": {
+                  "kind": "final_total",
+                  "value": 1000
+                },
+                "final": true,
+                "created_at": 100,
+                "final_at": 120
+              }
+            ],
+            "atts": {
+              "t": {
+                "coverage": "reflected",
+                "q": 1000
+              }
+            }
+          },
+          "m2o": {
+            "items": [
+              {
+                "name": "t",
+                "state": "settled",
+                "count": {
+                  "kind": "final_total",
+                  "value": 1000
+                },
+                "final": true,
+                "created_at": 100,
+                "final_at": 120
+              }
+            ],
+            "atts": {
+              "t": {
+                "coverage": "reflected",
+                "q": 0
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "conflicts": [],
+        "regressions": [],
+        "current": {
+          "status": "tie_bounded",
+          "reason": "incomparable_tie",
+          "observations": ["m1o", "m2o"],
+          "effective_floor": 49000,
+          "effective_ceiling": 50000,
+          "each_projection_retained": {
+            "m1o": {
+              "reasons": [],
+              "flags": [],
+              "freshness": "current",
+              "usable_current": true,
+              "X_floor": 0,
+              "X_ceiling": 0,
+              "effective_ceiling": 50000,
+              "status": "exact",
+              "effective_floor": 50000
+            },
+            "m2o": {
+              "reasons": [],
+              "flags": [],
+              "freshness": "current",
+              "usable_current": true,
+              "X_floor": 1000,
+              "X_ceiling": 1000,
+              "effective_ceiling": 49000,
+              "status": "exact",
+              "effective_floor": 49000
+            }
+          }
+        }
+      },
+      "forbidden": ["choosing I1 by issuer order"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-TIE-EQUIVALENT",
+      "finding": "R1-F03 pair",
+      "pair_of": "R1-CX-EQUAL-V-DIFFERENT-OBSERVATION-Q",
+      "r1_mapping": "new",
+      "title": "same tie, both q 1000: projection-equivalent -> known",
+      "requires": ["none"],
+      "inputs": {
+        "registry": {
+          "W": {
+            "dimension": "openai.output_tokens",
+            "unit": "tokens",
+            "start": 0,
+            "end": 1440,
+            "semantics": "fixed_epoch",
+            "measurement_basis": "issuer_local"
+          }
+        },
+        "observations": [
+          {
+            "id": "m1o",
+            "issuer": "I1",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 600,
+            "value": 50000,
+            "measurement_id": "m1",
+            "fresh_until": 800
+          },
+          {
+            "id": "m2o",
+            "issuer": "I2",
+            "window_key": "W",
+            "qual_revision": 1,
+            "kind": "remaining_at",
+            "as_of": 600,
+            "value": 50000,
+            "measurement_id": "m2",
+            "fresh_until": 800
+          }
+        ],
+        "now": 700,
+        "per_observation": {
+          "m1o": {
+            "items": [
+              {
+                "name": "t",
+                "state": "settled",
+                "count": {
+                  "kind": "final_total",
+                  "value": 1000
+                },
+                "final": true,
+                "created_at": 100,
+                "final_at": 120
+              }
+            ],
+            "atts": {
+              "t": {
+                "coverage": "reflected",
+                "q": 1000
+              }
+            }
+          },
+          "m2o": {
+            "items": [
+              {
+                "name": "t",
+                "state": "settled",
+                "count": {
+                  "kind": "final_total",
+                  "value": 1000
+                },
+                "final": true,
+                "created_at": 100,
+                "final_at": 120
+              }
+            ],
+            "atts": {
+              "t": {
+                "coverage": "reflected",
+                "q": 1000
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "conflicts": [],
+        "regressions": [],
+        "current": {
+          "status": "known",
+          "observations": ["m1o", "m2o"],
+          "projection": {
+            "reasons": [],
+            "flags": [],
+            "freshness": "current",
+            "usable_current": true,
+            "X_floor": 0,
+            "X_ceiling": 0,
+            "effective_ceiling": 50000,
+            "status": "exact",
+            "effective_floor": 50000
+          }
+        }
+      },
+      "forbidden": [],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "R1-CX-MISSING-ATT-LOWER-BOUND-FLAG",
+      "finding": "P03",
+      "pair_of": null,
+      "r1_mapping": "new",
+      "title": "consumed V9000: a q800, c no Att",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "consumed_in_window",
+          "value": 9000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "c",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 1000
+            },
+            "final": true,
+            "created_at": 100,
+            "final_at": 120
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          }
+        }
+      },
+      "expected": {
+        "reasons": ["coverage_unknown:#1"],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 0,
+        "X_ceiling": null,
+        "attributed": 800,
+        "coverage_complete": false,
+        "attributed_is_lower_bound": true,
+        "unattributed": 8200
+      },
+      "forbidden": ["coverage_complete true"],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    },
+    {
+      "id": "P-ATT-COMPLETE",
+      "finding": "P03 pair",
+      "pair_of": "R1-CX-MISSING-ATT-LOWER-BOUND-FLAG",
+      "r1_mapping": "new",
+      "title": "both Atts: complete coverage",
+      "requires": ["none"],
+      "inputs": {
+        "obs": {
+          "kind": "consumed_in_window",
+          "value": 9000,
+          "window": {
+            "start": 0,
+            "end": 1440
+          },
+          "as_of": 600,
+          "fresh_until": 1000000,
+          "semantics": "fixed_epoch"
+        },
+        "now": 600,
+        "items": [
+          {
+            "name": "a",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 800
+            },
+            "final": true,
+            "created_at": 60,
+            "final_at": 70
+          },
+          {
+            "name": "c",
+            "state": "settled",
+            "count": {
+              "kind": "final_total",
+              "value": 1000
+            },
+            "final": true,
+            "created_at": 100,
+            "final_at": 120
+          }
+        ],
+        "atts": {
+          "a": {
+            "coverage": "reflected",
+            "q": 800
+          },
+          "c": {
+            "coverage": "not_reflected"
+          }
+        }
+      },
+      "expected": {
+        "reasons": [],
+        "flags": [],
+        "freshness": "current",
+        "usable_current": true,
+        "X_floor": 1000,
+        "X_ceiling": 1000,
+        "attributed": 800,
+        "coverage_complete": true,
+        "attributed_is_lower_bound": false,
+        "unattributed": 8200
+      },
+      "forbidden": [],
+      "label": "SYNTHETIC controlled_fixture; qualified clock assumption stated per vector (default δ=0); arithmetic consistency only"
+    }
+  ],
+  "transition_witnesses": {
+    "kind": "Independent immutable-knowledge transition witnesses, NOT executed product/SQL/PG tests",
+    "subject": {
+      "project": "synthetic-original-project",
+      "reservation": "synthetic-original-reservation",
+      "dimension": "openai.output_tokens",
+      "basis": "provider_terminal_known",
+      "final_at": "2026-11-15T09:30:00.000000Z"
+    },
+    "cases": [
+      {
+        "id": "FG01_NONE_TO_KNOWN",
+        "sequence": [
+          {
+            "event": "R1",
+            "count_kind": "none",
+            "final_count": null,
+            "evidence": "E1"
+          },
+          {
+            "event": "R2",
+            "count_kind": "final_total",
+            "final_count": 4000,
+            "evidence": "E2"
+          }
+        ],
+        "current_R2_rule_result": "Second different finality payload at same(project,reservation,dimension) becomes conflict. Only finality.append may supply final_total, so no nonconflicting knowledge-gain path exists.",
+        "required_result": "Two immutable receipts retained; compatible count knowledge extends none→4000. No conflicting-known witness, no money/state/spent/commitment/history rewrite. Existing finality fields remain exact.",
+        "capacity_example": {
+          "V": 50000,
+          "q": 3000,
+          "so_far": 4000,
+          "qualified_bound": 16000,
+          "before_X": [1000, 13000],
+          "before_effective": [37000, 49000],
+          "after_X": [1000, 1000],
+          "after_effective": [49000, 49000]
+        }
+      },
+      {
+        "id": "FG02_EXACT_REPLAY_LOST_REPLY",
+        "sequence": ["appendR2known4000 commits, replylost", "retryexactR2payload", "retryexactR2payload"],
+        "required_result": "SameR2receipt/replaytrue, no new knowledge/history sequence/witness for that exact payload. Originalnone receipt remains immutable."
+      },
+      {
+        "id": "FG03_SAME_KNOWN_FACTS_NEW_PROVENANCE",
+        "sequence": ["known4000/E2", "same finality+4000/E3"],
+        "required_result": "Keep added authorized provenance in an immutable receipt/link; do not invent a known-count/terminal contradiction merely because evidence/approval reference differs. No new money effect."
+      },
+      {
+        "id": "FG04_DIFFERING_KNOWN_COUNT",
+        "sequence": ["known4000/E2", "qualified known4001/E4"],
+        "required_result": "Retain firstknown4000 and competingknown4001 plus sticky semantic conflict; affected projection restrictive/unknown. Exactcompetingpayloadretry returnssameconflictreceipt. Never erase/replaceknowntruth or money."
+      },
+      {
+        "id": "FG05_DIFFERING_KNOWN_FINALITY",
+        "sequence": ["known original terminal/final_at T1", "incompatible known terminal/final_at T2"],
+        "required_result": "Retain genuine known-field conflict and evidence. Unknown/absent fields may improve; incompatible known semantic fields may not silently overwrite."
+      }
+    ]
+  }
+}

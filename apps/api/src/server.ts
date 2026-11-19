@@ -1,6 +1,9 @@
+import { ownerHostEnrollmentFromEnv } from './owner-host-config.ts'
 // Entry point: `node src/server.ts` (Node 24 strips types; no build step).
 import { checkRoleSafety, createPool } from '@sophia/persistence'
 import { buildApp } from './app.ts'
+import { apiContributionsFromEnv } from './api-contribution-config.ts'
+import { ownerRunnerResultsFromEnv } from './native-result-config.ts'
 import { createActorVerifier } from './auth.ts'
 import { personalCompanionFrom } from './companion-config.ts'
 import { parseOrigins } from './cors.ts'
@@ -17,6 +20,9 @@ function required(name: string): string {
   return v
 }
 
+const ownerHostEnrollment = ownerHostEnrollmentFromEnv(process.env.SOPHIA_OWNER_HOST_ENROLLMENT)
+const ownerRunnerResults = ownerRunnerResultsFromEnv(process.env.SOPHIA_OWNER_RUNNER_RESULTS)
+const apiContributions = apiContributionsFromEnv(process.env.SOPHIA_API_CONTRIBUTIONS)
 const pool = createPool(required('SOPHIA_API_DATABASE_URL'), { connectionTimeoutMillis: RENDER_BODY_MS })
 await checkRoleSafety(pool) // refuse to start as an owner, superuser or BYPASSRLS login
 
@@ -85,8 +91,20 @@ function ownerRunnerAdmissionsFromEnv(): 'off' | 'admit' {
   if (value !== 'admit') throw new Error('SOPHIA_OWNER_RUNNERS is off, admit or unset')
   return value
 }
+/**
+ * C2 bound output (INC04-R07, A59, 0115): unset or off serves no bound step and refuses an opted reserve; on serves the
+ * nine bound steps and makes /ready require 0115's wrappers. It never qualifies a profile: each opted call still needs a
+ * qualified, active profile in 0113. Unset in every deployed environment.
+ */
+function boundOutputFromEnv(): boolean {
+  const value = optional('SOPHIA_BOUND_OUTPUT')
+  if (value === undefined || value === 'off') return false
+  if (value !== 'on') throw new Error('SOPHIA_BOUND_OUTPUT is on, off or unset')
+  return true
+}
 const app = buildApp({
   pool,
+  ownerHostEnrollment,
   logger: true,
   corsOrigins,
   ...(invites ? { invites } : {}),
@@ -101,6 +119,10 @@ const app = buildApp({
   // Voice qualification evidence (A45, 0085): on only by the operator's batch, with 0085 applied.
   voiceQualification: voiceQualificationFromEnv(),
   ownerRunnerAdmissions: ownerRunnerAdmissionsFromEnv(),
+  boundOutput: boundOutputFromEnv(),
+  // A48 metadata, contribution controls and funding pins only; unset/off preserves the closed stock boundary.
+  apiContributions,
+  ownerRunnerResults,
   ...(mediaBridgeTokenSha256 ? { mediaBridgeTokenSha256 } : {}),
   ...(livekitUrl
     ? { livekit: { url: livekitUrl, apiKey: required('LIVEKIT_API_KEY'), apiSecret: required('LIVEKIT_API_SECRET') } }

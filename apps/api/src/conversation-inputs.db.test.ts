@@ -12,7 +12,7 @@ import { after, before, describe, it } from 'node:test'
 import type { FastifyInstance } from 'fastify'
 import { SignJWT } from 'jose'
 import pg from 'pg'
-import { createPool } from '@sophia/persistence'
+import { atomicAdmissionInstalled, createPool } from '@sophia/persistence'
 import { createTestDatabase, registerRuntime, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
@@ -284,7 +284,89 @@ describe('A49 over HTTP on a database without 0095', () => {
     const ready = await call('/ready', { at: bareServers.on, get: true })
     assert.deepEqual([ready.status, ready.json], [503, { ready: false, reason: 'schema' }])
     const old = await call('/ready', { at: bareServers.conversationsOnly, get: true })
-    assert.equal(old.status, 200, 'conversations alone require nothing of 0095')
+    // INC04-S02a coherent: this database also lacks 0105, which every API requires whatever its switches say; that
+    // conversations alone need nothing of 0095 is shown below, on a database with the whole core.
+    assert.deepEqual(
+      [old.status, old.json],
+      [503, { ready: false, reason: 'schema' }],
+      'conversations alone: not ready without the core atomic admission (0105)',
+    )
+  })
+})
+
+// Its own database, made and dropped before the main suite (0070's cluster-wide assembler role, as above): every
+// migration installed, then ONE 0095 writer hidden by a committed, reversible rename. A SYNTHETIC missing capability,
+// never a claim that 0095 was absent: the function object, its ACL and its body are kept and restored.
+describe('A49 readiness on a database with the whole core and one 0095 writer SYNTHETICALLY hidden', () => {
+  const WRITER = 'start_conversation_input(uuid,text,text,text,text,text)'
+  const HIDDEN_WRITER = 'start_conversation_input__hidden_synthetic'
+  let full: TestDatabase
+  let fullPool: pg.Pool
+  let fullOwner: pg.Pool
+  const apps: Record<'on' | 'conversationsOnly' | 'off', string> = Object.create(null)
+  const opened: FastifyInstance[] = []
+
+  before(async () => {
+    full = await createTestDatabase(undefined, { assembler: false })
+    fullPool = createPool(full.apiUrl, { max: 2 })
+    fullOwner = new pg.Pool({ connectionString: full.ownerUrl, max: 1 })
+    for (const [name, deps] of [
+      ['on', { conversations: true, conversationInputs: true }],
+      ['conversationsOnly', { conversations: true }],
+      ['off', {}],
+    ] as const) {
+      const app = buildApp({ pool: fullPool, verifyActor, ...deps })
+      opened.push(app)
+      apps[name] = await listen(app)
+    }
+  })
+  after(async () => {
+    for (const a of opened) await a.close()
+    await fullPool.end()
+    await fullOwner.end()
+    await full.drop()
+  })
+
+  const readyAt = async (at: string) => (await call('/ready', { at, get: true })).status
+  const identity = async (signature: string) =>
+    (
+      await fullOwner.query<{ oid: string; acl: string | null; src: string; definer: boolean }>(
+        `SELECT p.oid::text AS oid, p.proacl::text AS acl, p.prosrc AS src, p.prosecdef AS definer
+           FROM pg_catalog.pg_proc p WHERE p.oid = to_regprocedure($1)`,
+        [signature],
+      )
+    ).rows[0]
+
+  it('is ready with inputs off, alone or with conversations, and not with inputs on; restored, all are ready', async () => {
+    assert.equal(await atomicAdmissionInstalled(fullPool), true, 'the core atomic admission is installed')
+    assert.deepEqual(
+      [await readyAt(apps.on), await readyAt(apps.conversationsOnly), await readyAt(apps.off)],
+      [200, 200, 200],
+    )
+    const original = await identity(`sophia.${WRITER}`)
+    assert.ok(original)
+    await fullOwner.query(`ALTER FUNCTION sophia.${WRITER} RENAME TO ${HIDDEN_WRITER}`)
+    try {
+      assert.deepEqual(
+        await identity(`sophia.${HIDDEN_WRITER}(uuid,text,text,text,text,text)`),
+        original,
+        'the same object',
+      )
+      assert.equal(await atomicAdmissionInstalled(fullPool), true, 'the core is untouched')
+      assert.equal(await readyAt(apps.conversationsOnly), 200, 'conversations alone require nothing of 0095')
+      assert.equal(await readyAt(apps.off), 200, 'off: nothing of 0095')
+      const on = await call('/ready', { at: apps.on, get: true })
+      assert.deepEqual([on.status, on.json], [503, { ready: false, reason: 'schema' }], 'inputs on: not ready')
+    } finally {
+      await fullOwner.query(
+        `ALTER FUNCTION sophia.${HIDDEN_WRITER}(uuid,text,text,text,text,text) RENAME TO start_conversation_input`,
+      )
+    }
+    assert.deepEqual(await identity(`sophia.${WRITER}`), original, 'restored: the same object, ACL and body')
+    assert.deepEqual(
+      [await readyAt(apps.on), await readyAt(apps.conversationsOnly), await readyAt(apps.off)],
+      [200, 200, 200],
+    )
   })
 })
 
