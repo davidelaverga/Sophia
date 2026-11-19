@@ -1485,7 +1485,7 @@
 /* A meter fills to its value as it appears. */
 .capacity-meter-fill {
   transform-origin: left;
-  animation: meter-fill var(--motion-flourish) var(--ease) 0.15s both;
+  animation: meter-fill 0.8s var(--ease) 0.15s both;
 }
 @keyframes meter-fill {
   from {
@@ -1915,11 +1915,11 @@
    rest leaning toward each other; hovering one makes the other hop back. With less motion asked, they only lean. */
 .resource-tile[data-buddy='right'] .tool-logo > * {
   transform: rotate(6deg) translateX(1px);
-  animation: buddy-hello-right var(--motion-sweep) var(--ease) 0.3s both;
+  animation: buddy-hello-right 1.6s var(--ease) 0.3s both;
 }
 .resource-tile[data-buddy='left'] .tool-logo > * {
   transform: rotate(-6deg) translateX(-1px);
-  animation: buddy-hello-left var(--motion-sweep) var(--ease) 0.3s both;
+  animation: buddy-hello-left 1.6s var(--ease) 0.3s both;
 }
 .resource-tile[data-buddy='both'] .tool-logo > * {
   animation: buddy-hop var(--motion-long) var(--ease) 0.3s both;
@@ -2028,7 +2028,7 @@
     0 0 / 300% 100%;
   mask: radial-gradient(circle, #000 1.2px, transparent 1.8px) 0 0 / 6px 6px;
   -webkit-mask: radial-gradient(circle, #000 1.2px, transparent 1.8px) 0 0 / 6px 6px;
-  animation: ultra-sweep var(--motion-sweep) var(--ease) both;
+  animation: ultra-sweep 1.6s var(--ease) both;
 }
 @keyframes ultra-sweep {
   from {

@@ -186,7 +186,7 @@
   --motion-slow: 400ms; /* a panel or a section arriving */
   --motion-slower: 500ms; /* a large arrival: a tile, a lane, a drawn thread */
   --motion-long: 600ms; /* a place's entrance, a hop */
-  --motion-flourish: 900ms; /* a one-off flourish: an ignition, a birth, a fill */
+  --motion-flourish: 900ms; /* a one-off flourish: an ignition, a birth */
   --motion-sweep: 1.4s; /* a long one-shot sweep (ResourceTile.tsx mirrors it) */
   --motion-pulse: 1.6s; /* the alive pulse: looking, listening, loading */
   --motion-breath: 2.4s; /* a waiting mark's breath */
@@ -1360,7 +1360,7 @@ button.mark:hover {
 .umbral-sophia {
   fill: var(--mark-sophia);
   filter: var(--glow-mark);
-  transition: filter var(--motion-flourish) var(--ease);
+  transition: filter 1s var(--ease);
 }
 .umbral[data-live] .umbral-sophia {
   filter: var(--glow-mark-live);

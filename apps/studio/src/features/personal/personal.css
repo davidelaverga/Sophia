@@ -310,7 +310,7 @@
   height: 1px;
   background: var(--line);
   transform-origin: left;
-  animation: hw-draw var(--motion-long) var(--ease) both;
+  animation: hw-draw 700ms var(--ease) both;
   animation-delay: calc(var(--d, 220ms) + var(--i, 0) * 60ms);
 }
 .places .hw-index > li:last-child::after {
