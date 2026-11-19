@@ -233,6 +233,9 @@ interface Props {
   /** Opened by "Join the room": join as soon as the room can. */
   joinOnOpen?: boolean
   onJoinHandled?: () => void
+  /** Opened by Home's first run «With a team» (home-first-run.md): the Invite sheet opens as soon as it can. */
+  inviteOnOpen?: boolean
+  onInviteHandled?: () => void
   /**
    * The Resources view's content, once something serves the project's resources (SCM-01/02); until then the view says
    * it is coming. The resource fixture fills it (fixtures/resources.tsx).
@@ -420,10 +423,15 @@ function useProject(projectId: string, identity: Props['identity']) {
   return { snapshot, feed, connection, checkedAt, room, membership }
 }
 
-/** The two sheets the shell opens itself: inviting, and the project's search. */
-function useShellSheets() {
-  const [inviting, setInviting] = useState(false)
+/** The two sheets the shell opens itself: inviting (at once when the project was opened to invite), and search. */
+function useShellSheets({ inviteOnOpen = false, onInviteHandled }: Pick<Props, 'inviteOnOpen' | 'onInviteHandled'>) {
+  const [inviting, setInviting] = useState(inviteOnOpen)
   const [searching, setSearching] = useState(false)
+  useEffect(() => {
+    if (!inviteOnOpen) return
+    setInviting(true)
+    onInviteHandled?.()
+  }, [inviteOnOpen, onInviteHandled])
   return {
     inviting,
     setInviting,
@@ -572,7 +580,7 @@ function ShellTitle(p: {
 export function ProjectShell(props: Props) {
   const { projectId, view, identity, account, onShow, onLeave, onWork, onSignOut } = props
   const { snapshot, feed, connection, checkedAt, room, membership } = useProject(projectId, identity)
-  const { inviting, setInviting, searching, setSearching, invite, search } = useShellSheets()
+  const { inviting, setInviting, searching, setSearching, invite, search } = useShellSheets(props)
   const { loaded, blocked, shown } = doorOf(snapshot)
   const dockAt = useDockPlace(room, snapshot.data, () => onShow('studio'), dockShown(view, blocked))
   const work = useTasksWork(props, feed, membership, blocked, searching)

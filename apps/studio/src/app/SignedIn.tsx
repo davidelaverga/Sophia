@@ -132,7 +132,8 @@ function useSayings(input: {
 
 /**
  * "Join the room" from Work: the project joins as soon as it can, on that opening only (joinStands). Leaving it before
- * then (home, Back, a closed door) drops the request, so a later visit never joins on its own.
+ * then (home, Back, a closed door) drops the request, so a later visit never joins on its own. It carries the other
+ * ask a project opens with: its Invite sheet.
  */
 function useJoinRequest(onScreen: string | null) {
   const [joining, setJoining] = useState<string | null>(null)
@@ -140,8 +141,21 @@ function useJoinRequest(onScreen: string | null) {
   useEffect(() => {
     if (joining !== stands) setJoining(stands)
   }, [joining, stands])
-  return { joining: stands, ask: setJoining, handled: () => setJoining(null) }
+  // A project opened to invite (Home's first run, «With a team»; home-first-run.md): asked once, let go as its shell
+  // opens the Invite sheet.
+  const [inviting, setInviting] = useState<string | null>(null)
+  return {
+    joining: stands,
+    ask: setJoining,
+    handled: () => setJoining(null),
+    inviting,
+    askInvite: setInviting,
+    inviteHandled: () => setInviting(null),
+  }
 }
+
+/** What a project is asked to do as it opens: join its room, or open its Invite sheet. */
+type OpenAsks = ReturnType<typeof useJoinRequest>
 
 /**
  * One call, and the project or place on screen with it: opening another project leaves the call (the toast says
@@ -213,14 +227,13 @@ interface ShellsProps {
   identity: Identity
   account: React.ReactNode
   routing: ReturnType<typeof useProjectRoute>
-  joining: string | null
-  onJoinHandled: () => void
+  asks: OpenAsks
   onCall: (projectId: string, next: ProjectCall | null, note?: string | null) => void
   onSignOut: () => void
 }
 
 function ProjectShells(props: ShellsProps) {
-  const { ids, onScreen, identity, account, routing, joining, onJoinHandled, onCall, onSignOut } = props
+  const { ids, onScreen, identity, account, routing, asks, onCall, onSignOut } = props
   const { route, show, leave, goTo } = routing
   return (
     <>
@@ -240,8 +253,10 @@ function ProjectShells(props: ShellsProps) {
               background={id !== onScreen}
               routed={id === route.projectId}
               onCall={(next, note) => onCall(id, next, note)}
-              joinOnOpen={joining === id}
-              onJoinHandled={onJoinHandled}
+              joinOnOpen={asks.joining === id}
+              onJoinHandled={asks.handled}
+              inviteOnOpen={asks.inviting === id}
+              onInviteHandled={asks.inviteHandled}
               // A51's catalog of native resources, read only, where the build reads it (NATIVE_RESOURCES, off by
               // default): keyed by account and project, so another's rows never show here (INC01-DES-002).
               resources={
@@ -270,9 +285,14 @@ function ProjectShells(props: ShellsProps) {
  */
 /** A project opened from the places: the call joined with it when asked (the join request), then the project. */
 const opening =
-  (ask: (projectId: string | null) => void, open: (projectId: string) => void) =>
-  (projectId: string, joins: boolean) => {
+  (
+    ask: (projectId: string | null) => void,
+    open: (projectId: string) => void,
+    askInvite: (projectId: string | null) => void = () => undefined,
+  ) =>
+  (projectId: string, joins: boolean, invites = false) => {
     ask(joins ? projectId : null)
+    askInvite(invites ? projectId : null)
     open(projectId)
   }
 
@@ -324,7 +344,7 @@ function SignedIn(props: SignedInProps) {
   const join = useJoinRequest(route.projectId)
   const [lock, setLock, lockedNow] = useLock(accountOf(identity), call?.projectId ?? null)
   const project = route.projectId
-  const openProject = opening(join.ask, open)
+  const openProject = opening(join.ask, open, join.askInvite)
   useProviderReturn({ call, project, place: route.place, setLock, goTo, say: toast.show })
   useOneCallInSight(call, project, leaveFor)
   useSayings({ ended, say: toast.show, project, notice, viewer: identity.name, open: openProject })
@@ -344,8 +364,7 @@ function SignedIn(props: SignedInProps) {
         identity={identity}
         account={<AccountMenu identity={identity} where="project" actions={actions} />}
         routing={routing}
-        joining={join.joining}
-        onJoinHandled={join.handled}
+        asks={join}
         onCall={reportCall}
         onSignOut={out.signOut}
       />

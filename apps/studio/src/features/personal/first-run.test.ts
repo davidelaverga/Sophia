@@ -98,16 +98,17 @@ describe('the name it offers', () => {
   })
 })
 
-describe('where its end is remembered', () => {
-  const store = () => {
-    const kept = new Map<string, string>()
-    return {
-      kept,
-      getItem: (k: string) => kept.get(k) ?? null,
-      setItem: (k: string, v: string) => void kept.set(k, v),
-    }
+/** A browser's storage, kept in a map. */
+const store = () => {
+  const kept = new Map<string, string>()
+  return {
+    kept,
+    getItem: (k: string) => kept.get(k) ?? null,
+    setItem: (k: string, v: string) => void kept.set(k, v),
   }
+}
 
+describe('where its end is remembered', () => {
   it('per account, on this browser', () => {
     const s = store()
     assert.equal(readFirstRunDone(s, 'acc-1'), false)

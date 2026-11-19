@@ -14,6 +14,10 @@
 // needs you on the right (the vision flag; the demo's some); absent, the Studio's own Home, her light alone.
 // `since=some|more|later|mine|seen`: what changed in each project since you last looked, read as Home reads it (below);
 // `sinceFail=1`: its first read fails.
+// `first=new|named`: Home's guided first run (home-first-run.md), with a name not chosen yet (the profile's «Luis Pérez»)
+// or chosen; absent, it never shows (Home as it is today). The profile's save is recorded as "name <name>", the project's
+// creation as "create <title>", and what follows as "open <id>" and, with a team, "invite <id>". `archived=1`: one
+// archived project.
 import { requestAddress } from '../src/features/resources/link.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -46,6 +50,7 @@ import { useCallSeen, useSaidOnce, useSinceNews } from '../src/features/personal
 import { turnShown } from '../src/features/personal/turn-shown.ts'
 import { needsAnswer } from './fixture-api.ts'
 import { InvitedBand } from '../src/features/access/InvitedBand.tsx'
+import { FirstRun, useFirstRun } from '../src/features/personal/FirstRun.tsx'
 
 declare global {
   interface Window {
@@ -428,6 +433,43 @@ if (SINCE) {
     return Promise.resolve(new Response(body, { status: 503, headers: { 'content-type': 'application/json' } }))
   }
 }
+/**
+ * `first=new|named`: GET/PUT /api/v1/me/profile, POST /api/v1/projects and GET /api/v1/projects/archived answered as
+ * the API would (`archived=1`: one archived project), each write recorded in `homeFixture.pressed`.
+ */
+const FIRST = query.get('first')
+const CREATED = '00000000-0000-4000-8000-0000000000f1'
+if (FIRST) {
+  const real = window.fetch.bind(window)
+  let profile = { displayName: 'Luis Pérez', chosen: FIRST === 'named', revision: 1 }
+  const archived = query.get('archived') === '1' ? [project(6, 'Old pilot')] : []
+  window.fetch = async (input, init) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const { pathname } = new URL(url, window.location.href)
+    /** A field of the body sent, as text. */
+    const sent = (key: string): string => {
+      const body: unknown = JSON.parse(typeof init?.body === 'string' ? init.body : '{}')
+      const value: unknown = typeof body === 'object' && body !== null ? Reflect.get(body, key) : undefined
+      return typeof value === 'string' ? value : ''
+    }
+    if (pathname === '/api/v1/me/profile' && init?.method === 'PUT') {
+      const displayName = sent('displayName')
+      pressed.push(`name ${displayName}`)
+      profile = { displayName, chosen: true, revision: profile.revision + 1 }
+      return json(profile)
+    }
+    if (pathname === '/api/v1/me/profile') return json(profile)
+    if (pathname === '/api/v1/projects/archived') return json({ projects: archived, personalEpoch: 1 })
+    if (pathname === '/api/v1/projects' && init?.method === 'POST') {
+      pressed.push(`create ${sent('title')}`)
+      return json({ projectId: CREATED, cursor: '1' })
+    }
+    return real(input, init)
+  }
+}
+/** The account Home's first run reads as: its token names the reader, as a signed-in token's subject does. */
+const FIRST_IDENTITY = { ...SINCE_ACCOUNT, name: 'luis@sophia.test', role: 'admin' }
+
 /** The band Home shows with `invited=1`: the person's own invitations, read and accepted as the Studio does. */
 const INVITED_BAND = INVITED ? (
   <InvitedBand
@@ -593,6 +635,23 @@ function useSays(projects: readonly ProjectSummary[] | undefined, away: boolean,
   return says
 }
 
+/** `first=…`: Home's first run, the Studio's own; what it opens is recorded ("open <id>", "invite <id>"). */
+function useFixtureFirstRun(projects: readonly ProjectSummary[] | undefined) {
+  const first = useFirstRun(FIRST_IDENTITY, projects, FIRST !== null)
+  if (!first.shows) return undefined
+  return (
+    <FirstRun
+      identity={FIRST_IDENTITY}
+      profile={first.profile}
+      onEnd={first.end}
+      onCreated={(projectId, team) => {
+        first.end()
+        pressed.push(`open ${projectId}`, ...(team ? [`invite ${projectId}`] : []))
+      }}
+    />
+  )
+}
+
 /** Home, with a way to step away from it (as going to another place does), for the checks of what stops out of sight. */
 function Home() {
   const [away, setAway] = useState(query.has('away'))
@@ -600,6 +659,7 @@ function Home() {
   const projects = SETS[shown]
   const inCall = useCall()
   const says = useSays(projects, away, inCall)
+  const firstRun = useFixtureFirstRun(projects)
   const fromApi = useNeeds(
     'fixture-token',
     {
@@ -641,6 +701,7 @@ function Home() {
           count={workCount(projects)}
           locked={locked}
           {...{ hidden: away, here: !away, invited: INVITED_BAND, answers }}
+          firstRun={firstRun}
           needs={
             fromApi.seen ?? (needs ? { items: needs, open: (need) => pressed.push(`need ${need.id}`) } : undefined)
           }
