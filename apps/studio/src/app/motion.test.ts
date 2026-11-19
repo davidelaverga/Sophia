@@ -80,6 +80,13 @@ const ALLOWED = new Map<string, string>([
   ['src/app/theme.css  toast-time 8s linear forwards', 'a toast’s life: Toast.tsx SHOWN_MS'],
   ['src/app/theme.css  reaction-rise 4s var(--ease) both', 'a call reaction’s float and fade'],
   ['src/features/personal/personal.css  ps-pulse 1.2s var(--ease)', 'the padlock’s pulse, between two steps'],
+  // One-shots off the scale by more than ~40 ms or ~15 %: kept as they were rather than moved.
+  ['src/features/personal/personal.css  hw-draw 700ms var(--ease) both', 'Personal’s line drawing in, 0.1 s past long'],
+  ['src/features/resources/resources.css  buddy-hello-right 1.6s var(--ease) 0.3s both', 'the buddies’ wave'],
+  ['src/features/resources/resources.css  buddy-hello-left 1.6s var(--ease) 0.3s both', 'the buddies’ wave'],
+  ['src/features/resources/resources.css  ultra-sweep 1.6s var(--ease) both', 'the ultra effort’s sweep'],
+  ['src/features/resources/resources.css  meter-fill 0.8s var(--ease) 0.15s both', 'a meter filling to its value'],
+  ['src/app/theme.css  filter 1s var(--ease)', 'the Umbral mark’s light coming up'],
   // Reduced motion: next to nothing, so the end events still fire.
   ['src/app/theme.css  0.01s', 'reduced motion'],
   ['src/features/personal/personal.css  1ms !important', 'reduced motion'],
@@ -106,6 +113,33 @@ function handWritten(): string[] {
       ),
     )
 }
+
+describe('what the fence calls by hand', () => {
+  const flagged = (item: string, longhand?: string) => byHand(item, longhand)
+
+  it('a token it does not know, a fallback, a calc or a local property in the duration slot', () => {
+    assert.equal(flagged('color var(--fast) var(--ease)'), true)
+    assert.equal(flagged('opacity var(--base)'), true)
+    assert.equal(flagged('color var(--motion-fast, 999ms) var(--ease)'), true)
+    assert.equal(flagged('color calc(300ms) var(--ease)'), true)
+    assert.equal(flagged('arrive var(--dur) var(--ease) both'), true)
+    assert.equal(flagged('var(--fast)', '-duration'), true)
+  })
+
+  it('a linear() curve, a cubic-bezier or a keyword ease', () => {
+    assert.equal(flagged('opacity var(--motion-fast) linear(0, 0.5, 1)'), true)
+    assert.equal(flagged('opacity var(--motion-fast) cubic-bezier(0.2, 0, 0, 1)'), true)
+    assert.equal(flagged('opacity var(--motion-fast) ease-in-out'), true)
+  })
+
+  it('not a token on the scale, nothing, a zero, or a delay after the duration', () => {
+    assert.equal(flagged('color var(--motion-fast) var(--ease)'), false)
+    assert.equal(flagged('spin var(--motion-pulse) linear infinite'), false)
+    assert.equal(flagged('visibility 0s var(--motion-base)'), false)
+    assert.equal(flagged('hw-in var(--motion-slower) var(--ease) var(--d) both'), false)
+    assert.equal(flagged('none'), false)
+  })
+})
 
 describe('one motion vocabulary', () => {
   const found = handWritten()
