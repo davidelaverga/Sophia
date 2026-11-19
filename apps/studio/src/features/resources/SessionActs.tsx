@@ -44,6 +44,8 @@ import {
   type Offer,
 } from './receipts.ts'
 import type { Resource } from './resource.ts'
+import { UndoHold } from './UndoHold.tsx'
+import { pendingHold, undoableHold } from './undo-hold.ts'
 import {
   currentSaid,
   guidanceWithheld,
@@ -430,6 +432,16 @@ export function SessionActs({ target, offer, acts, keys, observed = null }: Prop
         )}
         {latestShown && <Steps known={latestShown} retryable={retryable} onRetry={() => retry(latestShown)} />}
       </div>
+      {/* A confirmed Hold from here, taken back by the same Resume for a few seconds (docs/plans/undo-hold.md); keyed
+          by its exact execution, so its windows are this sheet's for this execution, none carried to another. */}
+      <UndoHold
+        key={executionOf(target)}
+        pending={pendingHold(known, target)}
+        hold={acts.canSend ? undoableHold(known, target, allowed) : null}
+        tip={allowed.find((o) => o.kind === 'resume')?.tip}
+        onUndo={() => send('resume')}
+        status={focus.status}
+      />
       <Earlier
         known={known.filter((k) => k !== latest && unresolved(k))}
         shown={target}
