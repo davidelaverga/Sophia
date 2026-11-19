@@ -12,6 +12,7 @@
 // bar at all times (it writes to the room before Sophia's conversation is open), so stray typing lands in it and never
 // starts a camera, a microphone or a shared screen.
 import { createContext, useContext, useEffect, useRef } from 'react'
+import { startedByTyping } from './type-tip.ts'
 
 export interface KeyLike {
   key: string
@@ -152,7 +153,11 @@ export function useShortcuts(bindings: Readonly<Record<string, (() => void) | un
         typesText(e) && !e.defaultPrevented
           ? strayField(e.target instanceof HTMLElement ? e.target : null, e.key)
           : null
-      if (sink && FIELDS.has(sink.tagName)) sink.focus()
+      if (sink && FIELDS.has(sink.tagName)) {
+        sink.focus()
+        // A message started without clicking the bar: its tip has nothing left to say (type-anywhere-tip.md).
+        startedByTyping(sink)
+      }
       const key = shortcutKey(keyLike(e))
       const run = key ? current.current[key] : undefined
       if (!run) return
