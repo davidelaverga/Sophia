@@ -11,7 +11,7 @@ import {
   type Offer,
   type Receipt,
 } from './receipts.ts'
-import { UNDO_HOLD, UNDO_MS, undoableHold, undoUntil } from './undo-hold.ts'
+import { endUndo, UNDO_HOLD, UNDO_MS, undoableHold, undoUntil } from './undo-hold.ts'
 
 const target: CommandTarget = {
   project_id: 'p',
@@ -130,6 +130,20 @@ describe('undo-hold · how long', () => {
   it('each Hold has its own window', () => {
     assert.equal(undoUntil('op-a', 0), 6000)
     assert.equal(undoUntil('op-b', 4000), 10000)
+  })
+})
+
+describe('undo-hold · ended early', () => {
+  it('a Hold whose Undo ended (closed, turned, taken) is not offered again inside its six seconds', () => {
+    assert.equal(undoUntil('op-left', 1000), 7000)
+    endUndo('op-left')
+    assert.ok(undoUntil('op-left', 2000) <= 2000)
+  })
+
+  it('ending one leaves the others', () => {
+    undoUntil('op-kept', 0)
+    endUndo('op-other')
+    assert.equal(undoUntil('op-kept', 1000), 6000)
   })
 })
 

@@ -35,3 +35,8 @@ export function undoUntil(operationId: string, now: number): number {
   firstOffered.set(operationId, since)
   return since + UNDO_MS
 }
+
+/** A Hold's Undo ended before its time (taken, its sheet closed or turned, another execution shown): never offered again. */
+export function endUndo(operationId: string): void {
+  firstOffered.set(operationId, Number.NEGATIVE_INFINITY)
+}
