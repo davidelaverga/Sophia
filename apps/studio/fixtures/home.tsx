@@ -15,9 +15,9 @@
 // `since=some|more|later|mine|seen`: what changed in each project since you last looked, read as Home reads it (below);
 // `sinceFail=1`: its first read fails.
 // `first=new|named`: Home's guided first run (home-first-run.md), with a name not chosen yet (the profile's «Luis Pérez»)
-// or chosen; absent, it never shows (Home as it is today). The profile's save is recorded as "name <name>", the project's
-// creation as "create <title>", and what follows as "open <id>" and, with a team, "invite <id>". `archived=1`: one
-// archived project.
+// or chosen; absent, it never shows (Home as it is today). Its API and the rest of its switches: first-run-api.ts. What
+// follows a creation is recorded as "open <id>" and, with a team, "invite <id>"; one made after the first run ended, as
+// "added <id>" (the projects read again).
 import { requestAddress } from '../src/features/resources/link.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -51,6 +51,7 @@ import { turnShown } from '../src/features/personal/turn-shown.ts'
 import { needsAnswer } from './fixture-api.ts'
 import { InvitedBand } from '../src/features/access/InvitedBand.tsx'
 import { FirstRun, useFirstRun } from '../src/features/personal/FirstRun.tsx'
+import { installFirstRunApi } from './first-run-api.ts'
 
 declare global {
   interface Window {
@@ -75,6 +76,10 @@ declare global {
       sinceReads: () => string[]
       /** `call=<id>`: the call ends with Home open, as Leave in the places' bar ends it. */
       hangUp: () => void
+      /** `profile=hold|save=hold|create=hold` (first-run-api.ts): the first run's held answers go through. */
+      firstRelease: () => void
+      /** Each save of the name sent, as "<key> r<revision>". */
+      firstPuts: () => string[]
     }
   }
 }
@@ -112,6 +117,8 @@ window.homeFixture = {
   reread: (next) => answerWith(next),
   sinceReads: () => [...sinceReads],
   hangUp: () => hangUp(),
+  firstRelease: () => firstApi.release(),
+  firstPuts: () => firstApi.puts(),
   // Where the focus lands on the way back from Personal (focus.ts): an element's id, else its tag.
   landing: () => {
     const at = homeRowFor('personal')
@@ -433,40 +440,9 @@ if (SINCE) {
     return Promise.resolve(new Response(body, { status: 503, headers: { 'content-type': 'application/json' } }))
   }
 }
-/**
- * `first=new|named`: GET/PUT /api/v1/me/profile, POST /api/v1/projects and GET /api/v1/projects/archived answered as
- * the API would (`archived=1`: one archived project), each write recorded in `homeFixture.pressed`.
- */
+/** `first=…`: the API Home's first run reads and writes, answered in the page (first-run-api.ts). */
 const FIRST = query.get('first')
-const CREATED = '00000000-0000-4000-8000-0000000000f1'
-if (FIRST) {
-  const real = window.fetch.bind(window)
-  let profile = { displayName: 'Luis Pérez', chosen: FIRST === 'named', revision: 1 }
-  const archived = query.get('archived') === '1' ? [project(6, 'Old pilot')] : []
-  window.fetch = async (input, init) => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-    const { pathname } = new URL(url, window.location.href)
-    /** A field of the body sent, as text. */
-    const sent = (key: string): string => {
-      const body: unknown = JSON.parse(typeof init?.body === 'string' ? init.body : '{}')
-      const value: unknown = typeof body === 'object' && body !== null ? Reflect.get(body, key) : undefined
-      return typeof value === 'string' ? value : ''
-    }
-    if (pathname === '/api/v1/me/profile' && init?.method === 'PUT') {
-      const displayName = sent('displayName')
-      pressed.push(`name ${displayName}`)
-      profile = { displayName, chosen: true, revision: profile.revision + 1 }
-      return json(profile)
-    }
-    if (pathname === '/api/v1/me/profile') return json(profile)
-    if (pathname === '/api/v1/projects/archived') return json({ projects: archived, personalEpoch: 1 })
-    if (pathname === '/api/v1/projects' && init?.method === 'POST') {
-      pressed.push(`create ${sent('title')}`)
-      return json({ projectId: CREATED, cursor: '1' })
-    }
-    return real(input, init)
-  }
-}
+const firstApi = installFirstRunApi(query, pressed, project(6, 'Old pilot'))
 /** The account Home's first run reads as: its token names the reader, as a signed-in token's subject does. */
 const FIRST_IDENTITY = { ...SINCE_ACCOUNT, name: 'luis@sophia.test', role: 'admin' }
 
@@ -648,6 +624,7 @@ function useFixtureFirstRun(projects: readonly ProjectSummary[] | undefined) {
         first.end()
         pressed.push(`open ${projectId}`, ...(team ? [`invite ${projectId}`] : []))
       }}
+      onAdded={(projectId) => pressed.push(`added ${projectId}`)}
     />
   )
 }

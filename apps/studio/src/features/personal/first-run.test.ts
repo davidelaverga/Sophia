@@ -3,7 +3,11 @@ import { describe, it } from 'node:test'
 import {
   afterSkip,
   afterStep,
+  arrivedMidRun,
+  endedElsewhere,
+  endsOnEscape,
   FIRST_RUN,
+  firstRunHolds,
   firstRunKey,
   firstRunShows,
   firstSteps,
@@ -11,6 +15,7 @@ import {
   profileFacts,
   readFirstRunDone,
   rememberFirstRunDone,
+  savedFrom,
   stepAt,
   type FirstRunFacts,
 } from './first-run.ts'
@@ -46,8 +51,49 @@ describe('when the first run shows', () => {
 
   it('never on a guess: projects, archived ones or the profile still being read (or a read that failed)', () => {
     assert.equal(firstRunShows(facts({ projects: undefined })), false)
-    assert.equal(firstRunShows(facts({ archived: undefined })), false)
+    assert.equal(firstRunShows(facts({ archived: 'reading' })), false)
+    assert.equal(firstRunShows(facts({ archived: 'failed' })), false)
     assert.equal(firstRunShows(facts({ profile: 'reading' })), false)
+  })
+})
+
+describe('while it can’t tell yet', () => {
+  it('holds the place under the greeting while the archived ones or the profile are read, with no projects', () => {
+    assert.equal(firstRunHolds(facts({ archived: 'reading' })), true)
+    assert.equal(firstRunHolds(facts({ profile: 'reading' })), true)
+  })
+
+  it('holds nothing once it can tell, once it ended, with projects, or while the projects are still read', () => {
+    assert.equal(firstRunHolds(facts()), false)
+    assert.equal(firstRunHolds(facts({ archived: 'failed' })), false)
+    assert.equal(firstRunHolds(facts({ archived: 'reading', done: true })), false)
+    assert.equal(firstRunHolds(facts({ archived: 'reading', projects: ONE })), false)
+    assert.equal(firstRunHolds(facts({ archived: 'reading', projects: undefined })), false)
+  })
+})
+
+describe('how it ends', () => {
+  const key = { key: 'Escape', isComposing: false, defaultPrevented: false }
+  it('Escape ends it, unless an input method is composing, it was handled, or a dialog or a menu is open', () => {
+    assert.equal(endsOnEscape(key, false), true)
+    assert.equal(endsOnEscape({ ...key, key: 'Enter' }, false), false)
+    assert.equal(endsOnEscape({ ...key, isComposing: true }, false), false)
+    assert.equal(endsOnEscape({ ...key, defaultPrevented: true }, false), false)
+    assert.equal(endsOnEscape(key, true), false)
+  })
+
+  it('a project arriving while it shows ends it, so it is remembered', () => {
+    assert.equal(arrivedMidRun(true, ONE), true)
+    assert.equal(arrivedMidRun(true, NONE), false)
+    assert.equal(arrivedMidRun(true, undefined), false)
+    assert.equal(arrivedMidRun(false, ONE), false)
+  })
+
+  it('ended in another tab of this browser, for this account, it ends here', () => {
+    assert.equal(endedElsewhere({ key: firstRunKey('acc-1'), newValue: 'done' }, 'acc-1'), true)
+    assert.equal(endedElsewhere({ key: firstRunKey('acc-2'), newValue: 'done' }, 'acc-1'), false)
+    assert.equal(endedElsewhere({ key: firstRunKey('acc-1'), newValue: null }, 'acc-1'), false)
+    assert.equal(endedElsewhere({ key: null, newValue: null }, 'acc-1'), false)
   })
 })
 
@@ -73,6 +119,13 @@ describe('which steps it asks', () => {
     assert.equal(stepAt(['how', 'project'], 'project'), 'project')
     // Saved: the profile now says chosen, the name step leaves the list, and the person is on the next one.
     assert.equal(stepAt(['how', 'project'], 'name'), 'how')
+  })
+
+  it('a name saved moves on only from the name: a step reached meanwhile is never taken back', () => {
+    assert.equal(savedFrom(null), 'how')
+    assert.equal(savedFrom('name'), 'how')
+    assert.equal(savedFrom('how'), 'how')
+    assert.equal(savedFrom('project'), 'project')
   })
 
   it('advances one step at a time, and ends after the project', () => {
