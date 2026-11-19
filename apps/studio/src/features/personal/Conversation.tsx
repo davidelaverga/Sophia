@@ -2,12 +2,13 @@
 // side's first turn marked by its half of Umbral, times on hover (a tap on touch), "Note this" on the person's own turns with its short form in their own
 // words, "Copy" on hers, Sophia's suggested note (keep it or let it go), and the wait for her reply.
 import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
-import type { PersonalSuggestion, PersonalTurn } from '@sophia/contracts'
+import type { PersonalSuggestion } from '@sophia/contracts'
+import type { ShownTurn } from '../../api/personal.ts'
 import { Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
 import { onScreen } from '../../app/shortcuts.ts'
 import { UMBRAL } from '../light/threshold.ts'
 import type { Way } from './arrive.ts'
-import { daysOf, notePrefill, opensHere, RECORDED, suggestionFor, type Row } from './conversation-view.ts'
+import { clockOf, daysOf, notePrefill, opensHere, RECORDED, suggestionFor, type Row } from './conversation-view.ts'
 import { copyWords, CopyStillWriting } from './copy.ts'
 import type { Week } from './extras.ts'
 import { FindLens, Marked, type Lens } from './Find.tsx'
@@ -31,6 +32,8 @@ export interface ConversationActions {
   waits: (key: string) => boolean
   /** The page of days before those shown (a long conversation). */
   readEarlier: () => Promise<void>
+  /** The space read again, after its latest controlled read failed (the stale line's Try again). */
+  readAgain: () => void
 }
 
 const dayId = (key: string) => `c-${key}`
@@ -55,7 +58,7 @@ export function Who({ who }: { who: keyof typeof HALF }) {
 }
 
 function NoteForm(props: {
-  turn: PersonalTurn
+  turn: ShownTurn
   suggestion: PersonalSuggestion | null
   /** Words a refused keep had: the form opens with them instead of the prefill. */
   words: string | null
@@ -274,7 +277,7 @@ function Ways({ ways, label, onStart }: { ways: readonly Way[]; label: string; o
 
 interface RowProps {
   row: Row
-  turns: readonly PersonalTurn[]
+  turns: readonly ShownTurn[]
   noteAt: string | null
   setNoteAt: Dispatch<SetStateAction<string | null>>
   onDays: () => void
@@ -288,6 +291,60 @@ function Intro({ text }: { text: string }) {
       <span className="sr-only">Sophia: </span>
       <div className="body">{text}</div>
     </div>
+  )
+}
+
+/**
+ * How a controlled message's answer stands, under it, in the quiet status line, and what was kept aside of an answer
+ * to it: its owner reads it here, read-only, in its own words (never as part of the conversation).
+ */
+function Control({ row }: { row: Extract<Row, { kind: 'control' }> }) {
+  const [open, setOpen] = useState(false)
+  const many = row.kept.length > 1
+  const id = `c-kept-${row.turnId}`
+  return (
+    <>
+      <p className="c3-failed" data-control={row.turnId}>
+        {row.line}
+        {row.line && row.kept.length > 0 && ' · '}
+        {row.kept.length > 0 && (
+          <button
+            className="text-button"
+            type="button"
+            aria-expanded={open}
+            aria-controls={id}
+            onClick={() => setOpen((now) => !now)}
+          >
+            {open ? 'Hide' : many ? `Show the ${String(row.kept.length)} kept answers` : 'Show the kept answer'}
+          </button>
+        )}
+      </p>
+      <div id={id} data-kept={row.turnId} hidden={!open}>
+        {row.kept.map((k) => (
+          <p className="c3-kept" key={k.callId}>
+            Kept aside at {clockOf(new Date(k.at))}: <q>{k.text}</q>
+            {k.suggestion && (
+              <>
+                {' '}
+                · Suggested note: <q>{k.suggestion}</q>
+              </>
+            )}
+          </p>
+        ))}
+      </div>
+    </>
+  )
+}
+
+/** A controlled space whose latest read failed: what shows is as of its last whole read, and it can be read again. */
+function Stale({ asOf, onRetry }: { asOf: string; onRetry: () => void }) {
+  return (
+    <p className="c3-failed" data-stale>
+      Couldn’t read the latest; the last full read ended at {clockOf(new Date(asOf))}.{' '}
+      <button className="text-button" type="button" onClick={onRetry}>
+        Try again
+      </button>
+    </p>
   )
 }
 
@@ -356,6 +413,19 @@ function RowView({ row, turns, noteAt, setNoteAt, onDays, actions }: RowProps) {
     }
     return <Failed onRetry={retry} waiting={actions.waits(row.turnId)} />
   }
+  return <Said row={row} actions={actions} />
+}
+
+/** What follows a turn besides its reply: her suggested note, or how a controlled message stands, or a stale read. */
+function Said({
+  row,
+  actions,
+}: {
+  row: Extract<Row, { kind: 'suggestion' | 'control' | 'stale' }>
+  actions: ConversationActions
+}) {
+  if (row.kind === 'control') return <Control row={row} />
+  if (row.kind === 'stale') return <Stale asOf={row.asOf} onRetry={actions.readAgain} />
   return <Suggestion row={row} actions={actions} />
 }
 
@@ -541,7 +611,7 @@ function Earlier(props: {
 
 interface ConversationProps {
   rows: readonly Row[]
-  turns: readonly PersonalTurn[]
+  turns: readonly ShownTurn[]
   /** The scrolling list; the space scrolls it to the latest turn. */
   list: RefObject<HTMLDivElement | null>
   earlier: boolean

@@ -285,8 +285,10 @@ export {
 export {
   PERSONAL_CONTROLLED_PAGE,
   readPersonalControlledExport,
+  readPersonalControlledSpace,
   readPersonalControlledTurns,
   type PersonalControlledExportPage,
+  type PersonalControlledSpaceRead,
   type PersonalControlledTurn,
   type PersonalControlledTurnPage,
 } from './personal.ts'

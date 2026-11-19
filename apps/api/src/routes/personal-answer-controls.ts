@@ -11,6 +11,11 @@
 //
 // The owner is the verified token's subject, never a field; the schemas are closed (A54). A52, A53 and the old Personal
 // routes are untouched; those reads refuse an owner with controlled inputs (routes/personal.ts).
+//
+// A55 (R3): GET /api/v1/personal/answer-controls/space is the whole initial read of such a space, versioned
+// (personal_controlled_space_v1): the companion's state exactly as the old space reports it, revision, epoch, the days
+// of the whole conversation in the reader's time zone, the newest controlled page with its inputs' views, notes and
+// carried notes, all from one read snapshot. Effect-free: it prepares, reserves and wakes nothing.
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import { DomainError } from '@sophia/domain'
@@ -21,6 +26,7 @@ import {
   readPersonalAnswerControl,
   readPersonalAnswerControlLog,
   readPersonalControlledExport,
+  readPersonalControlledSpace,
   readPersonalControlledTurns,
   readPersonalEpoch,
   withActor,
@@ -139,6 +145,7 @@ export function personalAnswerControlRoutes(
   logRoute(app, all)
   turnsRoute(app, all)
   exportRoute(app, all)
+  spaceRoute(app, all)
 }
 
 interface ControlBody {
@@ -283,6 +290,40 @@ function turnsRoute(app: FastifyInstance, { pool, installed }: Deps): void {
       if (!Number.isSafeInteger(at)) throw new DomainError('invalid_request', 'The cursor is beyond the largest turn')
       const page = after !== undefined ? { after: at } : before !== undefined ? { before: at } : {}
       return withActor(pool, req.actorId, 'read', (c) => readPersonalControlledTurns(c, page))
+    },
+  )
+}
+
+/** An IANA time zone's shape, as the old space accepts it (routes/personal.ts); the database says if it knows it. */
+const TIME_ZONE_PATTERN = '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+){0,2}$'
+
+/**
+ * A55: the whole initial read of a space with controlled inputs, in one read snapshot. Its days are counted in the
+ * reader's time zone (UTC without one) over the whole conversation, as the old space counts them; its companion is
+ * live only to whom it answers live, exactly as there. Served to any owner once 0103 is installed. Effect-free.
+ */
+function spaceRoute(app: FastifyInstance, { pool, installed, companion }: Deps): void {
+  app.get<{ Querystring: { timeZone?: string } }>(
+    '/api/v1/personal/answer-controls/space',
+    {
+      schema: {
+        querystring: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { timeZone: { type: 'string', maxLength: 64, pattern: TIME_ZONE_PATTERN } },
+        },
+        response: { 200: { $ref: 'PersonalControlledSpace#' } },
+      },
+    },
+    async (req) => {
+      await installed()
+      const timeZone = req.query.timeZone ?? 'UTC'
+      const space = await withActor(pool, req.actorId, 'read', (c) => readPersonalControlledSpace(c, timeZone))
+      return {
+        spaceContract: 'personal_controlled_space_v1' as const,
+        companion: companion?.serves(req.actorId) ? companion.mode : 'unavailable',
+        ...space,
+      }
     },
   )
 }

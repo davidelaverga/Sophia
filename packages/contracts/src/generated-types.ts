@@ -387,6 +387,7 @@ export type PersonalAnswerControlLog = { "items": ReadonlyArray<PersonalAnswerCo
 export type PersonalControlledTurn = { "id": string; "seq": number; "author": "person" | "sophia"; "text": string; "createdAt": string; "replyTo": string | null; "reply": "pending" | "answered" | "failed" | "recorded" | "withdrawn" | null; "suggestion": PersonalSuggestion | null; "input": { "inputId": string; "control": "active" | "held" | "withdrawn"; "revision": number; } | null; "prompt": "eligible" | "excluded"; "activity": boolean; };
 export type PersonalControlledTurnPage = { "revision": number; "epoch": number; "turns": ReadonlyArray<PersonalControlledTurn>; "earlier": boolean; "pending": boolean; };
 export type PersonalControlledExport = { "exportedAt": string; "epoch": number; "turns": ReadonlyArray<PersonalControlledTurn>; "next": number | null; "inputs": ReadonlyArray<PersonalAnswerControlView>; "notes": ReadonlyArray<PersonalNote>; "releases": ReadonlyArray<PersonalRelease>; };
+export type PersonalControlledSpace = { "spaceContract": "personal_controlled_space_v1"; "companion": "rehearsal" | "live" | "unavailable"; "revision": number; "epoch": number; "days": number; "turns": ReadonlyArray<PersonalControlledTurn>; "earlier": boolean; "pending": boolean; "inputs": ReadonlyArray<PersonalAnswerControlView>; "notes": ReadonlyArray<PersonalNote>; "releases": ReadonlyArray<PersonalRelease>; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -613,4 +614,5 @@ export interface Operations {
   "readPersonalAnswerControlLog": { method: "GET"; path: "/api/v1/personal/answer-controls/log"; request: undefined; response: PersonalAnswerControlLog; };
   "readPersonalControlledTurns": { method: "GET"; path: "/api/v1/personal/answer-controls/turns"; request: undefined; response: PersonalControlledTurnPage; };
   "exportPersonalControlled": { method: "GET"; path: "/api/v1/personal/answer-controls/export"; request: undefined; response: PersonalControlledExport; };
+  "getPersonalControlledSpace": { method: "GET"; path: "/api/v1/personal/answer-controls/space"; request: undefined; response: PersonalControlledSpace; };
 }

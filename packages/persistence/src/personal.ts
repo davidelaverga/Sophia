@@ -684,6 +684,16 @@ export async function readPersonalControlledExport(
   ])
   const turns = rows.slice(0, limit).map(controlledTurnOf)
   const next = rows.length > limit ? (turns.at(-1)?.seq ?? null) : null
+  const inputs = await inputViewsOf(c, turns)
+  const { epoch } = await readSpaceState(c)
+  return { epoch, turns, next, inputs, notes: await readNotes(c), releases: await readReleases(c) }
+}
+
+/** Each automatic input whose turn is among `turns`, in turn order, as it stands (personal_answer_control_view). */
+async function inputViewsOf(
+  c: pg.PoolClient,
+  turns: PersonalControlledTurn[],
+): Promise<Array<Record<string, unknown>>> {
   const inputs: Array<Record<string, unknown>> = []
   for (const turn of turns) {
     if (!turn.input) continue
@@ -693,6 +703,44 @@ export async function readPersonalControlledExport(
     )
     inputs.push(onlyRow(view.rows, 'personal_answer_control_view').view)
   }
-  const { epoch } = await readSpaceState(c)
-  return { epoch, turns, next, inputs, notes: await readNotes(c), releases: await readReleases(c) }
+  return inputs
+}
+
+/** The whole initial read of a controlled space (A55), without the companion's state (the API adds it). */
+export interface PersonalControlledSpaceRead {
+  revision: number
+  epoch: number
+  /** The days on which the person wrote, over the whole conversation, as `timeZone` counts them (readDays). */
+  days: number
+  turns: PersonalControlledTurn[]
+  earlier: boolean
+  pending: boolean
+  /** Each automatic input whose turn is on this page, as it stands (personal_answer_control_view). */
+  inputs: Array<Record<string, unknown>>
+  notes: PersonalNote[]
+  releases: PersonalRelease[]
+}
+
+/**
+ * The calling person's space with controlled inputs, read whole (A55): the newest controlled page with its pending
+ * and earlier flags and the views of its inputs, the days of the whole conversation in `timeZone` (the same count as
+ * readPersonalSpace), and the notes and carried notes. Call inside one withActor(..., "read"): one snapshot.
+ */
+export async function readPersonalControlledSpace(
+  c: pg.PoolClient,
+  timeZone = 'UTC',
+): Promise<PersonalControlledSpaceRead> {
+  const days = await readDays(c, timeZone)
+  const page = await readPersonalControlledTurns(c, {})
+  return {
+    revision: page.revision,
+    epoch: page.epoch,
+    days,
+    turns: page.turns,
+    earlier: page.earlier,
+    pending: page.pending,
+    inputs: await inputViewsOf(c, page.turns),
+    notes: await readNotes(c),
+    releases: await readReleases(c),
+  }
 }
