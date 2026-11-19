@@ -11,7 +11,7 @@ import {
   type Offer,
   type Receipt,
 } from './receipts.ts'
-import { endUndo, UNDO_HOLD, UNDO_MS, undoableHold, undoUntil } from './undo-hold.ts'
+import { pendingHold, UNDO_HOLD, UNDO_MS, undoableHold, undoWatch } from './undo-hold.ts'
 
 const target: CommandTarget = {
   project_id: 'p',
@@ -118,32 +118,60 @@ describe('undo-hold · which Hold an Undo takes back', () => {
   })
 })
 
-describe('undo-hold · how long', () => {
-  it('6 seconds from when a Hold is first offered, and coming back does not restart it', () => {
-    assert.equal(UNDO_MS, 6000)
-    const until = undoUntil('op-once', 1000)
-    assert.equal(until, 7000)
-    assert.equal(undoUntil('op-once', 5000), 7000) // seen again (the sheet reopened): the same end
-    assert.equal(undoUntil('op-once', 9000), 7000)
+describe('undo-hold · a Hold on its way', () => {
+  it('the latest control for the execution shown, a Hold not yet settled nor refused', () => {
+    const hold = command('hold', 'op-p')
+    assert.equal(pendingHold([sending(hold)], target), 'op-p')
+    assert.equal(pendingHold([pending(hold)], target), 'op-p')
+    assert.equal(pendingHold([lost(sending(hold))], target), 'op-p')
   })
 
-  it('each Hold has its own window', () => {
-    assert.equal(undoUntil('op-a', 0), 6000)
-    assert.equal(undoUntil('op-b', 4000), 10000)
+  it('none once settled or refused, after a later control, or for another execution', () => {
+    const hold = command('hold')
+    assert.equal(pendingHold([settled(hold, 'held')], target), null)
+    assert.equal(pendingHold([refused(hold)], target), null)
+    assert.equal(pendingHold([pending(hold), sending(command('stop'))], target), null)
+    assert.equal(pendingHold([pending(hold)], { ...target, attempt_id: 'attempt-4' }), null)
+    assert.equal(pendingHold([pending(hold)], null), null)
   })
 })
 
-describe('undo-hold · ended early', () => {
-  it('a Hold whose Undo ended (closed, turned, taken) is not offered again inside its six seconds', () => {
-    assert.equal(undoUntil('op-left', 1000), 7000)
-    endUndo('op-left')
-    assert.ok(undoUntil('op-left', 2000) <= 2000)
+describe('undo-hold · when and how long, for one sheet', () => {
+  it('only a Hold this sheet saw on its way: one already settled when it came is never offered', () => {
+    const watch = undoWatch()
+    assert.equal(watch.offer('op-old', 1000), null)
+    const fresh = undoWatch()
+    assert.equal(fresh.offer('op-settled-elsewhere', 0), null)
   })
 
-  it('ending one leaves the others', () => {
-    undoUntil('op-kept', 0)
-    endUndo('op-other')
-    assert.equal(undoUntil('op-kept', 1000), 6000)
+  it('6 seconds from when it is first offered, the same end when asked again, none after', () => {
+    assert.equal(UNDO_MS, 6000)
+    const watch = undoWatch()
+    watch.see('op-h')
+    assert.equal(watch.offer('op-h', 1000), 7000)
+    assert.equal(watch.offer('op-h', 5000), 7000) // back after a moment out of offer: the same end
+    assert.equal(watch.offer('op-h', 7000), null)
+    assert.equal(watch.offer('op-h', 9000), null)
+  })
+
+  it('nothing for no Hold; each Hold its own window; see(null) is nothing', () => {
+    const watch = undoWatch()
+    watch.see(null)
+    assert.equal(watch.offer(null, 0), null)
+    watch.see('op-a')
+    watch.see('op-b')
+    assert.equal(watch.offer('op-a', 0), 6000)
+    assert.equal(watch.offer('op-b', 4000), 10000)
+  })
+
+  it('a window over is forgotten, whichever Hold is asked next: nothing grows', () => {
+    const watch = undoWatch()
+    watch.see('op-gone')
+    watch.offer('op-gone', 0)
+    assert.equal(watch.size(), 1)
+    assert.equal(watch.offer(null, 6000), null) // swept on any ask
+    assert.equal(watch.size(), 0)
+    assert.equal(watch.offer('op-gone', 6500), null)
   })
 })
 
