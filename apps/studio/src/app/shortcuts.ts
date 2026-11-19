@@ -12,6 +12,7 @@
 // bar at all times (it writes to the room before Sophia's conversation is open), so stray typing lands in it and never
 // starts a camera, a microphone or a shared screen.
 import { createContext, useContext, useEffect, useRef } from 'react'
+import { startedByTyping } from './type-tip.ts'
 
 export interface KeyLike {
   key: string
@@ -104,6 +105,15 @@ export function typingSink<T extends Field>(fields: Iterable<T>): T | null {
   return null
 }
 
+/**
+ * Whether a letter typed now would be stray text for this field: no sheet up, and the focus on no control or on a
+ * control of the field's own part (not a field, not a dock or header button, where a letter is a shortcut).
+ */
+export function strayNow(field: HTMLElement): boolean {
+  const at = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  return !modalOnScreen() && strayFrom(focusAt(at, field), 'a')
+}
+
 /** Where stray typing goes: the chat's foot on screen (typingSink), when the key is stray (strayFrom). */
 function strayField(target: HTMLElement | null, key: string): HTMLElement | null {
   if (modalOnScreen()) return null
@@ -152,7 +162,12 @@ export function useShortcuts(bindings: Readonly<Record<string, (() => void) | un
         typesText(e) && !e.defaultPrevented
           ? strayField(e.target instanceof HTMLElement ? e.target : null, e.key)
           : null
-      if (sink && FIELDS.has(sink.tagName)) sink.focus()
+      if (sink && FIELDS.has(sink.tagName)) {
+        sink.focus()
+        // A message started without clicking the bar, once the caret is really there: its tip has nothing left to say
+        // (type-anywhere-tip.md).
+        if (document.activeElement === sink) startedByTyping(sink)
+      }
       const key = shortcutKey(keyLike(e))
       const run = key ? current.current[key] : undefined
       if (!run) return
