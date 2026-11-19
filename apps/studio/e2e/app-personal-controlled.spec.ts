@@ -594,6 +594,34 @@ async function r2Crossing(context: BrowserContext) {
 
 const r2Old = (page: Page) => page.getByText('An older, private question from before.')
 
+test('controlled · a refresh on its way keeps earlier days read while it was waiting', async ({ context }) => {
+  const h = histories('answered')
+  const world = controlledWorld(h)
+  world.space = () => ({ json: space(h, { earlier: true }) })
+  world.before = () => r2Page(7, 1)
+  world.view = (inputId) => (inputId === IN.v ? { json: view(IN.v, R2_OLD) } : refusal(422, 'not_found', 'never'))
+  const served = await serve(context, world)
+  const page = await signedIn(context)
+  await page.clock.install()
+  await openPersonal(page)
+  await showsHistories(page, h)
+
+  world.space = () => 'hold'
+  await page.clock.fastForward(21_000)
+  await expect.poll(served.holding).toBe(1)
+  await page.locator('.c3-day').first().click()
+  await page.getByRole('menuitem', { name: 'Show earlier days' }).click()
+  await expect(r2Old(page)).toBeVisible()
+
+  // The refreshed result settles the cost at the same revision and epoch. The earlier days must still be shown.
+  world.space = () => ({ json: space(h, { earlier: true, inputs: viewsOf(h, { settled: true }) }) })
+  served.release()
+  await expect(statusOf(page, h.w)).not.toContainText('cost not settled yet')
+  await expect(r2Old(page)).toBeVisible()
+  expect(served.ledger.filter((read) => read.includes('/answer-controls/turns?before=11')).length).toBeGreaterThan(1)
+  expect(asked(served.ledger)).toMatchObject({ legacyAfterPin: 0, writes: [] })
+})
+
 test('R2 · read more joins the read it was read for, when that read is still the one shown', async ({ context }) => {
   const { page, ledger, more, letThrough } = await r2Crossing(context)
   expect(await more()).toBe('11')
