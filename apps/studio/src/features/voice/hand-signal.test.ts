@@ -39,7 +39,9 @@ function setup(sends: 'ok' | 'fail' | number = 'ok') {
     return sending
   }
   let changes = 0
-  const options = { retryMs: 5, now: () => clock }
+  /** Each raise said as a new one (`onRaised`), by identity. */
+  const raises: string[] = []
+  const options = { retryMs: 5, now: () => clock, onRaised: (identity: string) => raises.push(identity) }
   const signal = handSignal(room as unknown as Pick<Room, 'on'>, publish, () => (changes += 1), options)
   const from = (who: object, value: unknown, topic = HAND_TOPIC) =>
     emit(RoomEvent.DataReceived, bytes(value), who, undefined, topic)
@@ -54,6 +56,7 @@ function setup(sends: 'ok' | 'fail' | number = 'ok') {
     taken,
     tick,
     refuse,
+    raises,
     changes: () => changes,
     settled: () => sending.catch(() => undefined),
   }
@@ -227,5 +230,57 @@ describe('handSignal', () => {
     await assert.rejects(signal.set(true))
     assert.equal(signal.mine(), false)
     assert.ok(changes() > before)
+  })
+})
+
+describe('handSignal · a raise said as a new one (hand-and-sync-announced.md)', () => {
+  it('another member’s raise is said once; said again, nothing; lowered and raised again, said again', () => {
+    const { from, raises } = setup()
+    from(marco, { hand: true })
+    from(marco, { hand: true }) // told again, or an answer: the same raise
+    assert.deepEqual(raises, ['m'])
+    from(marco, { hand: false })
+    assert.deepEqual(raises, ['m'])
+    from(marco, { hand: true })
+    from(lucia, { hand: true })
+    assert.deepEqual(raises, ['m', 'm', 'l'])
+  })
+
+  it('mine, a guest’s, Sophia’s, or one on another topic is never said', async () => {
+    const { signal, from, raises } = setup()
+    await signal.set(true)
+    from(guest, { hand: true })
+    from(SOPHIA, { hand: true })
+    from(marco, { hand: true }, 'sophia.reaction')
+    assert.deepEqual(raises, [])
+  })
+
+  it('back from a drop, a hand raised before and heard again is not said; a raise after the window is', async () => {
+    const { from, emit, settled, raises, tick } = setup()
+    from(marco, { hand: true })
+    emit(RoomEvent.Reconnected)
+    await settled()
+    // The answer to the ask: Marco's hand, still raised from before the drop.
+    tick(300)
+    from(marco, { hand: true })
+    assert.deepEqual(raises, ['m'])
+    // Someone whose hand was down before the drop raises it now: a new raise.
+    from(lucia, { hand: true })
+    assert.deepEqual(raises, ['m', 'l'])
+    // Long after, Marco lowers and raises again: a new raise.
+    tick(10_000)
+    from(marco, { hand: false })
+    from(marco, { hand: true })
+    assert.deepEqual(raises, ['m', 'l', 'm'])
+  })
+
+  it('back from a drop, a hand from before that only comes back after the window is a new raise', async () => {
+    const { from, emit, settled, raises, tick } = setup()
+    from(marco, { hand: true })
+    emit(RoomEvent.Reconnected)
+    await settled()
+    tick(10_000)
+    from(marco, { hand: true })
+    assert.deepEqual(raises, ['m', 'm'])
   })
 })
