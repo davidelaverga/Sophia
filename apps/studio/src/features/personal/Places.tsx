@@ -61,7 +61,7 @@ import {
 import { usePlaceMotion } from './usePlaceMotion.ts'
 import type { Handed } from './handed.ts'
 import { Welcome } from './Welcome.tsx'
-import { FirstRun, useFirstRun } from './FirstRun.tsx'
+import { FirstRun, FirstRunHeld, useFirstRun } from './FirstRun.tsx'
 import { WorkSpace } from './WorkSpace.tsx'
 import { useArchivedWork } from '../studio/Archive.tsx'
 import { personalFailure } from './write-words.ts'
@@ -421,12 +421,14 @@ function useHomeSays(v: View, answers: boolean | undefined): Said[] {
 }
 
 /**
- * Home's guided first run (home-first-run.md), while it shows: made, the project opens, with its Invite sheet when the
- * person works with a team.
+ * Home's guided first run (home-first-run.md): its place held while it can't tell yet, then the run while it shows.
+ * Made, the project opens, with its Invite sheet when the person works with a team; made after it ended, the projects
+ * are read again and nobody is taken into it.
  */
 function useHomeFirstRun(v: View) {
   const { identity, onOpenProject } = v.props
   const first = useFirstRun(identity, v.projects.data?.projects)
+  if (first.holds) return <FirstRunHeld />
   if (!first.shows) return undefined
   return (
     <FirstRun
@@ -437,6 +439,7 @@ function useHomeFirstRun(v: View) {
         first.end()
         onOpenProject(id, false, team)
       }}
+      onAdded={() => void v.projects.refetch()}
     />
   )
 }

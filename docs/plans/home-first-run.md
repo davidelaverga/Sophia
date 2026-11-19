@@ -10,10 +10,14 @@ what to call them, whether they work alone or with a team, and the first project
 - Only while the profile has been read or is known not to answer: never over a read still on its way.
 - Only until it ends: finished (the project created), «Not now, just talk to Sophia», or Escape. After that it never
   shows again on this browser. Skipping a step moves on; it is not the end.
-- A project that arrives meanwhile (an invitation accepted from the band, another tab) ends it: Home is as today.
+- A project that arrives meanwhile (an invitation accepted from the band, another tab) ends it, remembered as any end
+  is: Home is as today. Ended in another tab of this browser (a `storage` event on its key), it ends here too.
+- While it can't tell yet (no projects, not ended, the archived list or the profile still being read), the place under
+  the greeting is **held** (`firstRunHolds`): Home is never shown as today and then swapped for the first run.
 
-Pure rules: `features/personal/first-run.ts` (`firstRunShows`, `firstSteps`, `stepAt`, `afterStep`, `profileFacts`,
-`namePrefill`), tested in `first-run.test.ts`.
+Pure rules: `features/personal/first-run.ts` (`firstRunShows`, `firstRunHolds`, `firstSteps`, `stepAt`, `afterStep`,
+`savedFrom`, `endsOnEscape`, `arrivedMidRun`, `endedElsewhere`, `profileFacts`, `namePrefill`), tested in
+`first-run.test.ts`; when it shows, `useFirstRun.ts`.
 
 ## The steps
 
@@ -32,10 +36,15 @@ Pure rules: `features/personal/first-run.ts` (`firstRunShows`, `firstSteps`, `st
 - **The name**: the profile, exactly where «Your name» in the account menu saves it (`PUT /api/v1/me/profile`,
   `ProfileUpdate` over the revision read, one key per edit through `useAdmission`). Saved, the profile's cache takes
   the answer, so the account menu and the members' lists read the same name. A refusal is said in place
-  (`saveWords`); no reply offers Try again with the same key.
+  (`saveWords`); no reply holds the name as sent (read-only) and the press itself says Try again, with the same key
+  (one Try again, not two). A name changed elsewhere (409 `stale_revision`) is read again and said in «Your name»'s
+  words (`conflictWords`, `CONFLICT_UNREAD` when that read fails), the typed name kept for the next Continue. While
+  the save waits, Skip waits too; a save that lands moves on only from the name (`savedFrom`).
 - **The project**: the existing create-project action (`createProject`, one key per intent, `useAdmission`), as
   Work's «Start a project» does. Created, the project opens; with «With a team» its Invite sheet opens over it
-  (`inviteOnOpen`, the same one-shot as Join's `joinOnOpen`).
+  (`inviteOnOpen`, the same one-shot as Join's `joinOnOpen`, dropped as Join's is once the person is elsewhere).
+  Made after the first run ended (Escape or «Not now» while «Creating…»), nobody is taken into it: the projects are
+  read again, as Work's NewProject does.
 - **That it ended**: per browser, `localStorage['sophia.home.firstRun.v1.<account>'] = 'done'`, read and written in
   try/catch (blocked storage: it may show again on the next load, never breaks Home). The profile has no field for it
   (`displayName`, `chosen`, `revision`) and no new API is in scope. On another browser a person with no projects may
@@ -50,8 +59,11 @@ Pure rules: `features/personal/first-run.ts` (`firstRunShows`, `firstSteps`, `st
   step's title (`tabIndex=-1`), so the next region is read from its heading.
 - Order inside a step: field, then its primary press, then Skip / Not now. Step 2: «On my own», «With a team», «Skip».
 - Enter submits a step's form (Continue, Start the project); on step 2 Enter presses the focused choice.
-- Escape, anywhere in the first run, ends it as «Not now» does: Home as today, focus on «You and Sophia»'s heading.
-  Nothing traps: every step has its way out, and the focus never stays on something removed.
+- Escape anywhere on Home ends it as «Not now» does (not while an input method composes, not over a dialog or a
+  menu, not while Home is out of sight): Home as today; when the focus was in the first run, it goes to «You and
+  Sophia»'s heading. Nothing traps: every step has its way out, and the focus never stays on something removed.
+- A name's problem describes its field (`aria-describedby`) and is said politely as it comes (a live region mounted
+  all along), not as an alert at every key; refusals and no reply are alerts once, in the error ink (`--rose`).
 
 ## Look
 

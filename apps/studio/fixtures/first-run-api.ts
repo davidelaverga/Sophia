@@ -34,24 +34,25 @@ export interface FirstRunApi {
   puts: () => string[]
 }
 
-export function installFirstRunApi(query: URLSearchParams, pressed: string[], old: ProjectSummary): FirstRunApi {
-  const first = query.get('first')
-  const puts: string[] = []
+/** Answers held until `release()`, and every later one let through at once. */
+function holder() {
   const held: (() => void)[] = []
   let holding = true
-  const later = (answer: () => Response) =>
-    holding ? new Promise<Response>((resolve) => held.push(() => resolve(answer()))) : Promise.resolve(answer())
-  const api = {
+  return {
+    later: (answer: () => Response) =>
+      holding ? new Promise<Response>((resolve) => held.push(() => resolve(answer()))) : Promise.resolve(answer()),
     release: () => {
       holding = false
       for (const go of held.splice(0)) go()
     },
-    puts: () => [...puts],
   }
-  if (!first) return api
-  let profile = { displayName: 'Luis Pérez', chosen: first === 'named', revision: 1 }
+}
+
+/** The profile's save (PUT /api/v1/me/profile), as `save=…` says it goes. */
+function profileSaves(query: URLSearchParams, pressed: string[], later: (answer: () => Response) => Promise<Response>) {
+  let profile = { displayName: 'Luis Pérez', chosen: query.get('first') === 'named', revision: 1 }
   let save = query.get('save')
-  const real = window.fetch.bind(window)
+  const puts: string[] = []
   const saved = (init: RequestInit | undefined) => {
     const displayName = sentField(init, 'displayName')
     if (Number(sentField(init, 'expectedRevision')) !== profile.revision)
@@ -73,6 +74,17 @@ export function installFirstRunApi(query: URLSearchParams, pressed: string[], ol
     }
     return save === 'hold' ? later(() => saved(init)) : Promise.resolve(saved(init))
   }
+  const read = (): Promise<Response> => {
+    if (query.get('profile') === '404') return Promise.resolve(refusal(404, 'not_found', 'Not found'))
+    return query.get('profile') === 'hold' ? later(() => json(profile)) : Promise.resolve(json(profile))
+  }
+  return { put, read, puts: () => [...puts] }
+}
+
+export function installFirstRunApi(query: URLSearchParams, pressed: string[], old: ProjectSummary): FirstRunApi {
+  const { later, release } = holder()
+  const profile = profileSaves(query, pressed, later)
+  if (!query.get('first')) return { release, puts: profile.puts }
   const archived = () =>
     query.get('archived') === 'fail'
       ? refusal(503, 'dependency_unavailable', 'The service is away')
@@ -81,19 +93,17 @@ export function installFirstRunApi(query: URLSearchParams, pressed: string[], ol
     pressed.push(`create ${sentField(init, 'title')}`)
     return json({ projectId: CREATED, cursor: '1' })
   }
+  const create = (init: RequestInit | undefined) =>
+    query.get('create') === 'hold' ? later(() => created(init)) : Promise.resolve(created(init))
+  const real = window.fetch.bind(window)
   window.fetch = (input, init) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-    const { pathname } = new URL(url, window.location.href)
-    const method = init?.method ?? 'GET'
-    if (pathname === '/api/v1/me/profile' && method === 'PUT') return put(init)
-    if (pathname === '/api/v1/me/profile') {
-      if (query.get('profile') === '404') return Promise.resolve(refusal(404, 'not_found', 'Not found'))
-      return query.get('profile') === 'hold' ? later(() => json(profile)) : Promise.resolve(json(profile))
-    }
-    if (pathname === '/api/v1/projects/archived') return Promise.resolve(archived())
-    if (pathname === '/api/v1/projects' && method === 'POST')
-      return query.get('create') === 'hold' ? later(() => created(init)) : Promise.resolve(created(init))
+    const route = `${init?.method ?? 'GET'} ${new URL(url, window.location.href).pathname}`
+    if (route === 'PUT /api/v1/me/profile') return profile.put(init)
+    if (route === 'GET /api/v1/me/profile') return profile.read()
+    if (route === 'GET /api/v1/projects/archived') return Promise.resolve(archived())
+    if (route === 'POST /api/v1/projects') return create(init)
     return real(input, init)
   }
-  return api
+  return { release, puts: profile.puts }
 }

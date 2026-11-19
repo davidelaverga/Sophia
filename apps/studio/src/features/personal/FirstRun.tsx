@@ -1,32 +1,30 @@
 // Home's guided first run (docs/plans/home-first-run.md): under the greeting, the first time, with no projects, one
 // step at a time: the name (saved where «Your name» saves it), alone or with a team, and the first project (the
 // existing create-project action). Each step is a region named by its title, which takes the focus as the step comes;
-// Enter submits a step, Skip moves on, and Escape anywhere ends it as «Not now» does. The rules and words: first-run.ts.
+// Enter submits a step, Skip moves on, and Escape anywhere on Home ends it as «Not now» does. When it shows: useFirstRun.
+// The rules and words: first-run.ts.
 import type { Profile, ProfileUpdate, ProjectCreated } from '@sophia/contracts'
 import { Button, Card, Field } from '@sophia/ui'
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { ApiError, createProject } from '../../api/client.ts'
-import { updateMyProfile } from '../../api/profile.ts'
+import { getMyProfile, updateMyProfile } from '../../api/profile.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
-import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { nameProblem, saveWords } from '../../app/profile-view.ts'
+import { CONFLICT_UNREAD, conflictWords, nameProblem, saveWords } from '../../app/profile-view.ts'
+import { modalOnScreen, onScreen } from '../../app/shortcuts.ts'
 import { profileKey, useMyProfile } from '../../app/useMyProfile.ts'
+import { useMounted } from '../../app/useMounted.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
-import { AdmissionNote } from '../access/AdmissionNote.tsx'
-import { useArchivedRead } from '../studio/Archive.tsx'
+import { NO_REPLY } from '../access/AdmissionNote.tsx'
 import {
   afterSkip,
   afterStep,
-  browserStore,
+  endsOnEscape,
   FIRST_RUN,
-  firstRunShows,
   firstSteps,
   namePrefill,
-  profileFacts,
-  readFirstRunDone,
-  rememberFirstRunDone,
+  savedFrom,
   stepAt,
   WAITING,
   type FirstStep,
@@ -34,30 +32,10 @@ import {
 } from './first-run.ts'
 import { useCapped } from './useCapped.ts'
 
+export { useFirstRun } from './useFirstRun.ts'
+
 /** The most characters a project's title holds, as Work's «Start a project» holds it. */
 const TITLE_MOST = 180
-
-/**
- * Whether Home shows its first run, and how it ends: read from the projects, the archived ones (asked only while none is
- * active), the profile, and this browser's memory of an end. `enabled` false: never (a fixture's Home as it is today).
- */
-export function useFirstRun(identity: Identity, projects: readonly unknown[] | undefined, enabled = true) {
-  const account = accountOf(identity)
-  const [done, setDone] = useState(() => !enabled || readFirstRunDone(browserStore(), account))
-  const none = enabled && !done && projects?.length === 0
-  const archived = useArchivedRead(identity, none)
-  const { profile, trouble } = useMyProfile(identity, none)
-  const facts = profileFacts(profile, trouble)
-  return {
-    shows: firstRunShows({ done, projects, archived: archived.data?.projects, profile: facts }),
-    profile: facts,
-    /** It ended (finished, «Not now», Escape): remembered on this browser, and Home is as it is today. */
-    end: () => {
-      rememberFirstRunDone(browserStore(), account)
-      setDone(true)
-    },
-  }
-}
 
 interface Props {
   identity: Identity
@@ -66,20 +44,14 @@ interface Props {
   onEnd: () => void
   /** The project was made: it opens, with «Invite people» when the person said they work with a team. */
   onCreated: (projectId: string, team: boolean) => void
+  /** A project made after the first run ended (Escape, «Not now» while it was created): nobody is taken into it. */
+  onAdded: (projectId: string) => void
 }
 
+type Heading = RefObject<HTMLHeadingElement | null>
+
 /** A step: a region named by its title, which takes the focus as the step comes (not on the first one shown). */
-function Step({
-  id,
-  title,
-  heading,
-  children,
-}: {
-  id: string
-  title: string
-  heading: RefObject<HTMLHeadingElement | null>
-  children: ReactNode
-}) {
+function Step({ id, title, heading, children }: { id: string; title: string; heading: Heading; children: ReactNode }) {
   return (
     <section className="hw-first" aria-labelledby={id}>
       <h3 id={id} className="hw-first-title" tabIndex={-1} ref={heading}>
@@ -90,15 +62,23 @@ function Step({
   )
 }
 
-/** A save or a creation that didn't go through, said under its field; a wait that goes on, said too. */
-function Trouble<A, R>({ state, words, retry }: { state: AdmissionState<A, R>; words?: string; retry: () => void }) {
+/**
+ * A write that didn't go through, said under its field: a refusal in words, no reply in one line (the press itself
+ * says Try again, with the same key), a wait that goes on.
+ */
+function Trouble<A, R>({ state, words }: { state: AdmissionState<A, R>; words: string | null }) {
   const slow = useSlow(state.status === 'sending')
   if (slow) return <p className="hw-first-note">{SLOW_NOTE}</p>
-  if (state.status === 'rejected' && words) return <p role="alert">{words}</p>
-  if (state.status !== 'rejected' && state.status !== 'unknown') return null
+  if (state.status === 'unknown')
+    return (
+      <p className="hw-first-error" role="alert">
+        {NO_REPLY}
+      </p>
+    )
+  if (state.status !== 'rejected' || words === null) return null
   return (
-    <p role="alert">
-      <AdmissionNote state={state} onRetry={retry} />
+    <p className="hw-first-error" role="alert">
+      {words}
     </p>
   )
 }
@@ -107,10 +87,27 @@ function Trouble<A, R>({ state, words, retry }: { state: AdmissionState<A, R>; w
 const pressWords = (status: AdmissionState<unknown, unknown>['status'], own: string, waiting: string) =>
   status === 'sending' ? waiting : status === 'unknown' ? WAITING.unknown : own
 
-/** Saves the name where «Your name» saves it: over the revision read, one key per edit. */
+/** After a name changed elsewhere: the name kept now, read afresh (as «Your name» reads it), or that read failed. */
+type Conflict = { words: string } | 'reading' | 'failed' | null
+
+/**
+ * Saves the name where «Your name» saves it: over the revision read, one key per edit. A name changed elsewhere is
+ * read again and said as «Your name» says it; the typed name is kept, and the next Continue goes over the new revision.
+ */
 function useNameSave(identity: Identity, onSaved: () => void) {
   const client = useQueryClient()
-  const { profile, reread } = useMyProfile(identity)
+  const { profile } = useMyProfile(identity)
+  const [conflict, setConflict] = useState<Conflict>(null)
+  const readFresh = async () => {
+    setConflict('reading')
+    try {
+      const now = await getMyProfile(identity.token)
+      client.setQueryData(profileKey(identity), now)
+      setConflict({ words: conflictWords(now.displayName) })
+    } catch {
+      setConflict('failed')
+    }
+  }
   const save = useAdmission(async (key: string, body: ProfileUpdate): Promise<Profile> => {
     try {
       const kept = await updateMyProfile(identity.token, key, body)
@@ -120,12 +117,38 @@ function useNameSave(identity: Identity, onSaved: () => void) {
       onSaved()
       return kept
     } catch (err: unknown) {
-      // Changed elsewhere since the read: read it again, so the next Continue goes over the revision now kept.
-      if (err instanceof ApiError && err.code === 'stale_revision') void reread()
+      if (err instanceof ApiError && err.code === 'stale_revision') void readFresh()
       throw err
     }
   })
-  return { profile, save }
+  return { profile, save, conflict, readFresh: () => void readFresh(), clear: () => setConflict(null) }
+}
+
+type NameSave = ReturnType<typeof useNameSave>
+
+/** What a save that didn't keep the name says: a refusal in the profile's words; a conflict as «Your name» says it. */
+function refusedWords(save: NameSave['save']): string | null {
+  const { state } = save
+  if (state.status !== 'rejected' || state.error.code === 'stale_revision') return null
+  return saveWords(state.error, state.args.displayName)
+}
+
+function ConflictNote({ conflict, readFresh }: { conflict: Conflict; readFresh: () => void }) {
+  if (conflict === null || conflict === 'reading') return null
+  if (conflict === 'failed')
+    return (
+      <p className="hw-first-error" role="alert">
+        {CONFLICT_UNREAD}{' '}
+        <button type="button" className="text-button" onClick={readFresh}>
+          {WAITING.unknown}
+        </button>
+      </p>
+    )
+  return (
+    <p className="hw-first-note" role="status">
+      {conflict.words}
+    </p>
+  )
 }
 
 function NameStep({
@@ -134,22 +157,20 @@ function NameStep({
   onNext,
 }: {
   identity: Identity
-  heading: RefObject<HTMLHeadingElement | null>
-  onNext: () => void
+  heading: Heading
+  onNext: (saved: boolean) => void
 }) {
-  const { profile, save } = useNameSave(identity, onNext)
+  const named = useNameSave(identity, () => onNext(true))
+  const { profile, save, conflict } = named
   const [typed, setTyped] = useState(() => namePrefill(profile?.displayName ?? null, identity))
   const problem = nameProblem(typed)
   const { status } = save.state
-  const waiting = status === 'sending'
+  const waiting = status === 'sending' || conflict === 'reading'
   const send = () => {
-    if (!profile || waiting || problem !== null || typed.trim() === '') return
+    if (!profile || waiting || conflict === 'failed' || problem !== null || typed.trim() === '') return
+    named.clear()
     void save.send({ displayName: typed.trim(), expectedRevision: profile.revision })
   }
-  const refused =
-    save.state.status === 'rejected' && save.state.error.code !== 'stale_revision'
-      ? saveWords(save.state.error, save.state.args.displayName)
-      : undefined
   return (
     <Step id="hw-first-name" title={FIRST_RUN.name.title} heading={heading}>
       <label className="field-label" htmlFor="hw-first-name-field">
@@ -167,18 +188,24 @@ function NameStep({
           id="hw-first-name-field"
           value={typed}
           autoComplete="name"
-          readOnly={waiting}
+          // After no reply the name waits as it was sent: Try again sends the same one, under the same key.
+          readOnly={waiting || status === 'unknown'}
           aria-invalid={problem !== null || undefined}
+          aria-describedby={problem ? 'hw-first-name-problem' : undefined}
           onChange={(e) => setTyped(e.target.value)}
         />
         <Button kind="primary" type="submit" size="lg" disabled={waiting || problem !== null || typed.trim() === ''}>
           {pressWords(status, FIRST_RUN.name.go, WAITING.name)}
         </Button>
       </Field>
-      {problem && <p role="alert">{problem}</p>}
-      <Trouble state={save.state} {...(refused !== undefined && { words: refused })} retry={() => void save.retry()} />
+      {/* Mounted all along, so a problem is said once as it comes, politely, not as an alert at every key. */}
+      <p id="hw-first-name-problem" className="hw-first-error" aria-live="polite">
+        {problem}
+      </p>
+      <Trouble state={save.state} words={refusedWords(save)} />
+      <ConflictNote conflict={conflict} readFresh={named.readFresh} />
       <div className="hw-first-acts">
-        <Button kind="ghost" onClick={onNext}>
+        <Button kind="ghost" disabled={waiting} onClick={() => onNext(false)}>
           {FIRST_RUN.skip}
         </Button>
       </div>
@@ -186,13 +213,7 @@ function NameStep({
   )
 }
 
-function HowStep({
-  heading,
-  onChoose,
-}: {
-  heading: RefObject<HTMLHeadingElement | null>
-  onChoose: (team: boolean) => void
-}) {
+function HowStep({ heading, onChoose }: { heading: Heading; onChoose: (team: boolean) => void }) {
   const { alone, team } = FIRST_RUN.how
   return (
     <Step id="hw-first-how" title={FIRST_RUN.how.title} heading={heading}>
@@ -213,26 +234,33 @@ function HowStep({
   )
 }
 
-function ProjectStep({
-  token,
-  heading,
-  onCreated,
-  onNotNow,
-}: {
+interface ProjectProps {
   token: string
-  heading: RefObject<HTMLHeadingElement | null>
+  heading: Heading
   onCreated: (projectId: string) => void
+  onAdded: (projectId: string) => void
   onNotNow: () => void
-}) {
+}
+
+/**
+ * The first project, made by the existing create-project action. Made while the step is still on screen, it opens;
+ * made after the first run ended (Escape, «Not now»), nobody is taken into it: the projects are read again
+ * (WorkSpace's NewProject does the same).
+ */
+function ProjectStep({ token, heading, onCreated, onAdded, onNotNow }: ProjectProps) {
   const [title, setTitle] = useState('')
   const capping = useCapped(TITLE_MOST, title, setTitle)
   const admission = useAdmission<string, ProjectCreated>((key, t) => createProject(token, key, t))
+  const open = useMounted()
   const { status } = admission.state
   const submit = async () => {
     if (status === 'sending' || !title.trim()) return
     const created = await admission.send(title.trim())
-    if (created) onCreated(created.projectId)
+    if (!created) return
+    if (open.current) onCreated(created.projectId)
+    else onAdded(created.projectId)
   }
+  const words = admission.state.status === 'rejected' ? admission.state.error.message : null
   return (
     <Step id="hw-first-project" title={FIRST_RUN.project.title} heading={heading}>
       <label className="field-label" htmlFor="hw-first-project-field">
@@ -251,7 +279,7 @@ function ProjectStep({
           {pressWords(status, FIRST_RUN.project.go, WAITING.project)}
         </Button>
       </Field>
-      <Trouble state={admission.state} retry={() => void submit()} />
+      <Trouble state={admission.state} words={words} />
       <div className="hw-first-acts">
         <Button kind="text" onClick={onNotNow}>
           {FIRST_RUN.project.notNow}
@@ -259,6 +287,11 @@ function ProjectStep({
       </div>
     </Step>
   )
+}
+
+/** The first run's place under the greeting, held while it can't tell yet whether it shows: Home is never swapped. */
+export function FirstRunHeld() {
+  return <div className="hw-first-held" aria-busy="true" />
 }
 
 /** The focus goes to each new step's title as it comes; the first step shown leaves the focus where Home put it. */
@@ -273,20 +306,38 @@ function useTitleFocus(step: FirstStep) {
   return heading
 }
 
-export function FirstRun({ identity, profile, onEnd, onCreated }: Props) {
+/**
+ * Escape anywhere on Home ends the first run, as «Not now» does: not while an input method composes, nor over a
+ * dialog or a menu (they keep their Escape), nor while Home is out of sight (another place is).
+ */
+function useEscapeEnds(root: RefObject<HTMLDivElement | null>, onEnd: () => void) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target instanceof Element ? e.target : null
+      const overlaid = modalOnScreen() || (t !== null && t.closest('[role="dialog"], [role="menu"]') !== null)
+      if (!root.current || !onScreen(root.current) || !endsOnEscape(e, overlaid)) return
+      e.preventDefault()
+      onEnd()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [root, onEnd])
+}
+
+export function FirstRun({ identity, profile, onEnd, onCreated, onAdded }: Props) {
   const [at, setAt] = useState<FirstStep | null>(null)
   const [team, setTeam] = useState(false)
   const step = stepAt(firstSteps(profile), at)
   const heading = useTitleFocus(step)
+  const root = useRef<HTMLDivElement>(null)
+  useEscapeEnds(root, onEnd)
   const next = () => setAt(afterStep(step) ?? step)
-  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== 'Escape' || e.defaultPrevented) return
-    e.preventDefault()
-    onEnd()
-  }
   return (
-    <div className="hw-first-run" onKeyDown={onKey}>
-      {step === 'name' && <NameStep identity={identity} heading={heading} onNext={next} />}
+    <div className="hw-first-run" ref={root}>
+      {step === 'name' && (
+        // A save that lands moves on only from the name: a step reached meanwhile is never taken back.
+        <NameStep identity={identity} heading={heading} onNext={(saved) => (saved ? setAt(savedFrom) : next())} />
+      )}
       {step === 'how' && (
         <HowStep
           heading={heading}
@@ -301,6 +352,7 @@ export function FirstRun({ identity, profile, onEnd, onCreated }: Props) {
           token={identity.token}
           heading={heading}
           onCreated={(projectId) => onCreated(projectId, team)}
+          onAdded={onAdded}
           onNotNow={onEnd}
         />
       )}

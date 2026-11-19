@@ -50,7 +50,7 @@ import { useCallSeen, useSaidOnce, useSinceNews } from '../src/features/personal
 import { turnShown } from '../src/features/personal/turn-shown.ts'
 import { needsAnswer } from './fixture-api.ts'
 import { InvitedBand } from '../src/features/access/InvitedBand.tsx'
-import { FirstRun, useFirstRun } from '../src/features/personal/FirstRun.tsx'
+import { FirstRun, FirstRunHeld, useFirstRun } from '../src/features/personal/FirstRun.tsx'
 import { installFirstRunApi } from './first-run-api.ts'
 
 declare global {
@@ -614,6 +614,7 @@ function useSays(projects: readonly ProjectSummary[] | undefined, away: boolean,
 /** `first=…`: Home's first run, the Studio's own; what it opens is recorded ("open <id>", "invite <id>"). */
 function useFixtureFirstRun(projects: readonly ProjectSummary[] | undefined) {
   const first = useFirstRun(FIRST_IDENTITY, projects, FIRST !== null)
+  if (first.holds) return <FirstRunHeld />
   if (!first.shows) return undefined
   return (
     <FirstRun

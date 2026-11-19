@@ -144,11 +144,15 @@ function useJoinRequest(onScreen: string | null) {
   // A project opened to invite (Home's first run, «With a team»; home-first-run.md): asked once, let go as its shell
   // opens the Invite sheet.
   const [inviting, setInviting] = useState<string | null>(null)
+  const invites = joinStands(inviting, onScreen)
+  useEffect(() => {
+    if (inviting !== invites) setInviting(invites)
+  }, [inviting, invites])
   return {
     joining: stands,
     ask: setJoining,
     handled: () => setJoining(null),
-    inviting,
+    inviting: invites,
     askInvite: setInviting,
     inviteHandled: () => setInviting(null),
   }

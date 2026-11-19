@@ -314,11 +314,23 @@
 .places .hw-first .field {
   width: 100%;
 }
-.places .hw-first [role='alert'],
-.places .hw-first-note {
+.places .hw-first-note,
+.places .hw-first-error {
   margin-top: 10px;
   font-size: var(--type-small);
   color: var(--text-2);
+}
+/* What went wrong reads in the Studio's error ink (.form-error's), not as a quiet note. */
+.places .hw-first-error {
+  color: var(--rose);
+}
+.places .hw-first-error:empty {
+  margin: 0;
+}
+/* The first run's place, held while Home can't tell yet whether it shows: nothing under the greeting moves twice. */
+.places .hw-first-held {
+  min-height: 160px;
+  margin-top: 48px;
 }
 .places .hw-first-choices {
   display: grid;

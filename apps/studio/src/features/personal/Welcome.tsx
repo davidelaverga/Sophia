@@ -630,13 +630,24 @@ function Today(props: Props & { line: RefObject<HTMLElement | null>; onTalk: (t:
  * The first run ended (Escape, «Not now»): the focus it held is never left on what was removed. It goes to You and
  * Sophia's heading, where Home as it is today begins.
  */
-function useFocusAfterFirstRun(running: boolean) {
+function useFocusAfterFirstRun(home: RefObject<HTMLDivElement | null>, running: boolean) {
   const was = useRef(running)
+  // Whether the focus was in the first run: only then is it put back, never taken from where Home put it.
+  const held = useRef(false)
+  useEffect(() => {
+    const el = home.current
+    const onFocus = (e: FocusEvent) => {
+      held.current = e.target instanceof Element && e.target.closest('.hw-first-run') !== null
+    }
+    el?.addEventListener('focusin', onFocus)
+    return () => el?.removeEventListener('focusin', onFocus)
+  }, [home])
   useLayoutEffect(() => {
     const ended = was.current && !running
     was.current = running
     const fell = document.activeElement === null || document.activeElement === document.body
-    if (ended && fell) document.getElementById('hw-you-h')?.focus({ preventScroll: true })
+    if (ended && fell && held.current) document.getElementById('hw-you-h')?.focus({ preventScroll: true })
+    if (ended) held.current = false
   }, [running])
 }
 
@@ -644,11 +655,11 @@ export function Welcome(props: Props) {
   const [talk, setTalk] = useState<Talk>({ writing: false })
   const line = useRef<HTMLElement | null>(null)
   const firstRun = props.firstRun ?? null
-  useFocusAfterFirstRun(firstRun !== null)
   // Mounted where it is read: on one column right after the greeting, in the document as on the screen, so a keyboard
   // and a screen reader meet it where the eye does (docs/plans/home-phone-needs.md); beside the words otherwise.
   const oneColumn = useMedia(ONE_COLUMN)
   const home = useRef<HTMLDivElement>(null)
+  useFocusAfterFirstRun(home, firstRun !== null)
   useNeedsFocus(home, oneColumn)
   const needs = props.needs && (
     <NeedsYou needs={props.needs.items} now={onService(props.now, props.needs.skew)} onOpen={props.needs.open} />
