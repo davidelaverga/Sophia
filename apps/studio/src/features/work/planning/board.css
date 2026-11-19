@@ -20,10 +20,10 @@
   background: var(--plane-2);
   box-shadow: var(--elev-turn);
   color: var(--text-2);
-  animation: arrive 0.25s var(--ease) both;
+  animation: arrive var(--motion-base) var(--ease) both;
   transition:
-    color var(--fast) var(--ease),
-    transform var(--fast) var(--ease);
+    color var(--motion-fast) var(--ease),
+    transform var(--motion-fast) var(--ease);
 }
 .rail-turn:hover {
   color: var(--text);
@@ -81,8 +81,8 @@
 }
 .goal-rail[data-thumb-ready]::after {
   transition:
-    transform 0.42s var(--ease),
-    width 0.42s var(--ease);
+    transform var(--motion-slow) var(--ease),
+    width var(--motion-slow) var(--ease);
 }
 .goal-chip {
   display: grid;
@@ -96,13 +96,13 @@
   color: var(--text-2);
   text-align: left;
   scroll-snap-align: start;
-  animation: arrive 0.4s var(--ease) both;
+  animation: arrive var(--motion-slow) var(--ease) both;
   animation-delay: calc(var(--i, 0) * 50ms);
   transition:
-    background-color var(--base) var(--ease),
-    border-color var(--base) var(--ease),
-    color var(--base) var(--ease),
-    transform var(--fast) var(--ease);
+    background-color var(--motion-base) var(--ease),
+    border-color var(--motion-base) var(--ease),
+    color var(--motion-base) var(--ease),
+    transform var(--motion-fast) var(--ease);
 }
 .goal-chip:hover {
   background: rgb(var(--ink-rgb) / 0.05);
@@ -204,7 +204,7 @@
   justify-content: space-between;
   gap: 4px 16px;
   padding: 0 2px;
-  animation: arrive 0.45s var(--ease) both;
+  animation: arrive var(--motion-slow) var(--ease) both;
 }
 .board-next {
   display: flex;
@@ -264,7 +264,7 @@
 .lane-fold .icon {
   flex: none;
   color: var(--text-3);
-  transition: transform var(--base) var(--ease);
+  transition: transform var(--motion-base) var(--ease);
 }
 .lane-fold[aria-expanded='true'] .icon {
   transform: rotate(180deg);
@@ -380,11 +380,11 @@
     var(--elev-task);
   color: var(--text);
   text-align: left;
-  animation: tile-in 0.5s var(--ease) both;
+  animation: tile-in var(--motion-slower) var(--ease) both;
   animation-delay: calc(var(--lane-delay, 0ms) + var(--i, 0) * 50ms + 120ms);
   transition:
-    box-shadow var(--base) var(--ease),
-    transform var(--base) var(--ease);
+    box-shadow var(--motion-base) var(--ease),
+    transform var(--motion-base) var(--ease);
 }
 /* Where the keyboard is wins over a tile's own dashed edge (free, unknown), whatever their order. */
 .task-tile:focus-visible,
@@ -422,7 +422,7 @@
     border-radius: inherit;
     pointer-events: none;
     opacity: 0;
-    transition: opacity var(--base) var(--ease);
+    transition: opacity var(--motion-base) var(--ease);
   }
   .task-tile::before {
     inset: 0;
@@ -481,7 +481,7 @@
   width: 100%;
   height: 100%;
   font-size: 11px; /* an initial: a glyph sized to its circle, not text on the scale */
-  transition: transform var(--base) var(--ease);
+  transition: transform var(--motion-base) var(--ease);
 }
 .task-who .tool-logo.sm {
   position: absolute;
@@ -623,7 +623,7 @@
   background: rgb(var(--ink-rgb) / 0.03);
   color: var(--text);
   text-align: left;
-  transition: background-color var(--fast) var(--ease);
+  transition: background-color var(--motion-fast) var(--ease);
 }
 .task-link:hover {
   background: rgb(var(--ink-rgb) / 0.07);
@@ -700,12 +700,12 @@
 }
 .task-tile {
   transition:
-    border-color var(--fast) var(--ease),
-    background-color var(--fast) var(--ease),
-    box-shadow var(--base) var(--ease),
-    transform var(--base) var(--ease),
-    opacity var(--base) var(--ease),
-    filter var(--base) var(--ease);
+    border-color var(--motion-fast) var(--ease),
+    background-color var(--motion-fast) var(--ease),
+    box-shadow var(--motion-base) var(--ease),
+    transform var(--motion-base) var(--ease),
+    opacity var(--motion-base) var(--ease),
+    filter var(--motion-base) var(--ease);
 }
 /* What changed since the last look: a lavender breath along its edge, and a small dot at its corner. */
 .task-tile[data-changed] {
@@ -721,7 +721,7 @@
   border-radius: 50%;
   background: var(--halo-text);
   box-shadow: var(--glow-spark);
-  animation: changed-breathe 2.4s var(--ease) infinite alternate;
+  animation: changed-breathe var(--motion-breath) var(--ease) infinite alternate;
 }
 @keyframes changed-breathe {
   from {
@@ -798,7 +798,7 @@
   font-size: var(--type-small);
 }
 .board-closed-toggle .icon {
-  transition: transform var(--base) var(--ease);
+  transition: transform var(--motion-base) var(--ease);
 }
 .board-closed-toggle[aria-expanded='true'] .icon {
   transform: rotate(180deg);
@@ -985,7 +985,7 @@
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
   filter: var(--glow-thread);
-  animation: thread-draw 0.5s var(--ease) forwards;
+  animation: thread-draw var(--motion-slower) var(--ease) forwards;
 }
 @keyframes thread-draw {
   to {
@@ -1022,7 +1022,7 @@
 /* The task waited on looks up as its thread arrives. */
 .task-tile[data-lit] .task-who .avatar,
 .task-tile[data-lit] .task-who .plan-nobody {
-  animation: task-look-up 0.6s var(--ease) 0.25s both;
+  animation: task-look-up var(--motion-long) var(--ease) 0.25s both;
 }
 @keyframes task-look-up {
   40% {
@@ -1132,8 +1132,8 @@
   color: var(--text-2);
   font-size: var(--type-body);
   transition:
-    background-color var(--fast) var(--ease),
-    border-color var(--fast) var(--ease);
+    background-color var(--motion-fast) var(--ease),
+    border-color var(--motion-fast) var(--ease);
 }
 .decision-pill[data-mine] {
   border-color: rgb(var(--amber-rgb) / 0.4);
@@ -1144,7 +1144,7 @@
   background: rgb(var(--amber-rgb) / 0.16);
 }
 .decision-pill .icon {
-  transition: transform var(--fast) var(--ease);
+  transition: transform var(--motion-fast) var(--ease);
 }
 .decision-pill[aria-expanded='true'] .icon {
   transform: rotate(180deg);
@@ -1162,7 +1162,7 @@
   inset: 0;
   border-radius: 50%;
   background: currentColor;
-  animation: waiting-ping 2.4s var(--ease) infinite;
+  animation: waiting-ping var(--motion-breath) var(--ease) infinite;
 }
 .board-decisions {
   display: grid;
@@ -1229,7 +1229,7 @@
   border: 1px solid rgb(var(--halo-text-rgb) / 0.2);
   border-radius: var(--r-3);
   background: linear-gradient(90deg, rgb(var(--halo-text-rgb) / 0.07), rgb(var(--halo-text-rgb) / 0.02));
-  animation: arrive 0.4s var(--ease) both;
+  animation: arrive var(--motion-slow) var(--ease) both;
 }
 .review-result:focus-visible {
   outline: none;
@@ -1410,8 +1410,8 @@
   color: var(--halo-text);
   font-size: var(--type-body);
   transition:
-    background-color var(--fast) var(--ease),
-    transform var(--fast) var(--ease);
+    background-color var(--motion-fast) var(--ease),
+    transform var(--motion-fast) var(--ease);
 }
 .ask-chip:hover {
   background: rgb(var(--halo-rgb) / 0.14);
@@ -1446,8 +1446,8 @@
 
 /* A task that changes lanes travels there; the board itself fades between goals. */
 ::view-transition-group(*) {
-  animation-duration: 0.45s;
-  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  animation-duration: var(--motion-slow);
+  animation-timing-function: var(--ease);
 }
 
 /* ---- A goal over its board: its actions at the top right, out of the reading line. ---- */

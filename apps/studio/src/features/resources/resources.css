@@ -117,7 +117,7 @@
   min-width: 0;
   box-shadow: var(--rim);
   text-align: left;
-  animation: arrive 0.4s var(--ease) both;
+  animation: arrive var(--motion-slow) var(--ease) both;
   animation-delay: calc(var(--i, 0) * 40ms);
 }
 /* On paper its rim, then the contact a card rests on (light-shadows.md): this list replaces the card's own. As light
@@ -268,7 +268,7 @@
 }
 .resource-sort-button .icon {
   color: var(--text-3);
-  transition: transform var(--fast) var(--ease);
+  transition: transform var(--motion-fast) var(--ease);
 }
 .resource-sort-button[aria-expanded='true'] .icon {
   transform: rotate(180deg);
@@ -458,7 +458,7 @@
     radial-gradient(circle at 30% 25%, var(--claude-spark) 0.9px, transparent 1.4px),
     radial-gradient(circle at 62% 75%, var(--claude-spark) 0.9px, transparent 1.4px),
     radial-gradient(circle at 86% 25%, var(--claude-spark) 0.9px, transparent 1.4px);
-  animation: effort-twinkle 1.8s ease-in-out infinite alternate;
+  animation: effort-twinkle 1.8s var(--ease-in-out) infinite alternate;
 }
 /* GPT at ultra: a gradient from deep blue to violet, sparks drifting along it. */
 .effort[data-look='gpt'][data-alive] .effort-fill {
@@ -476,7 +476,7 @@
   background-size: 50% 100%;
   animation:
     effort-sparks 4s linear infinite,
-    effort-twinkle 1.4s ease-in-out infinite alternate;
+    effort-twinkle 1.4s var(--ease-in-out) infinite alternate;
 }
 /* The picker's stops: a small mark at each level, as each tool's own picker has; gone where its top look takes over. */
 .effort-stop {
@@ -551,7 +551,7 @@
   width: 12px;
   height: 12px;
   color: var(--text-3);
-  transition: transform var(--fast) var(--ease);
+  transition: transform var(--motion-fast) var(--ease);
 }
 .effort-button[aria-expanded='true'] .icon {
   transform: rotate(180deg);
@@ -573,7 +573,7 @@
   color: var(--text-2);
   font-family: var(--sans);
   font-size: var(--type-body);
-  animation: arrive 0.3s var(--ease) both;
+  animation: arrive var(--motion-medium) var(--ease) both;
 }
 .effort-asked-dot {
   width: 6px;
@@ -584,7 +584,7 @@
 }
 /* The runtime on it: the dot breathes. Done: teal. A stop not confirmed: amber, still. */
 .effort-asked[data-tone='moving'] .effort-asked-dot {
-  animation: effort-breathe 1.2s ease-in-out infinite alternate;
+  animation: effort-breathe 1.2s var(--ease-in-out) infinite alternate;
 }
 .effort-asked[data-tone='done'] {
   color: var(--teal);
@@ -628,7 +628,7 @@
   border: 1px solid var(--line);
   border-radius: var(--r-3);
   background: color-mix(in srgb, var(--tool-accent) 4%, var(--plane-2));
-  animation: arrive 0.25s var(--ease) both;
+  animation: arrive var(--motion-base) var(--ease) both;
 }
 .effort-picker-level {
   display: flex;
@@ -662,7 +662,7 @@
 }
 .effort-scale .effort-fill {
   border-radius: var(--r-2);
-  transition: width var(--fast) var(--ease);
+  transition: width var(--motion-fast) var(--ease);
 }
 /* On touch, the bar and the scale reach wider than they draw (36–40 px, CONTRIBUTING): their look stays thin. */
 @media (pointer: coarse) {
@@ -693,7 +693,7 @@
   border-radius: 50%;
   background: var(--core);
   box-shadow: var(--elev-knob);
-  transition: left var(--fast) var(--ease);
+  transition: left var(--motion-fast) var(--ease);
 }
 .effort-picker-foot {
   display: flex;
@@ -943,14 +943,14 @@
   text-decoration-color: var(--line-2);
   text-underline-offset: 3px;
   cursor: pointer;
-  transition: text-decoration-color var(--fast) var(--ease);
+  transition: text-decoration-color var(--motion-fast) var(--ease);
 }
 .resource-work-link .icon,
 .task-who-link .icon {
   width: 12px;
   height: 12px;
   color: var(--text-3);
-  transition: transform var(--fast) var(--ease);
+  transition: transform var(--motion-fast) var(--ease);
 }
 .resource-work-link:hover,
 .task-who-link:hover {
@@ -1070,7 +1070,7 @@
   background: rgb(var(--teal-rgb) / 0.06);
   color: var(--text-2);
   font-size: var(--type-body);
-  animation: arrive 0.4s var(--ease) both;
+  animation: arrive var(--motion-slow) var(--ease) both;
 }
 .capacity-room-words {
   flex: 1;
@@ -1088,7 +1088,7 @@
 .readiness-toggle .icon {
   width: 12px;
   height: 12px;
-  transition: transform var(--fast) var(--ease);
+  transition: transform var(--motion-fast) var(--ease);
 }
 .capacity-toggle[aria-expanded='true'] .icon,
 .readiness-toggle[aria-expanded='true'] .icon {
@@ -1279,8 +1279,8 @@
   font-size: var(--type-small);
   cursor: pointer;
   transition:
-    border-color var(--fast) var(--ease),
-    color var(--fast) var(--ease);
+    border-color var(--motion-fast) var(--ease),
+    color var(--motion-fast) var(--ease);
 }
 .session-act-toggle:hover,
 .session-act-toggle[aria-expanded='true'] {
@@ -1290,7 +1290,7 @@
 .session-act-toggle .icon {
   width: 12px;
   height: 12px;
-  transition: transform var(--fast) var(--ease);
+  transition: transform var(--motion-fast) var(--ease);
 }
 .session-act-toggle[aria-expanded='true'] .icon {
   transform: rotate(180deg);
@@ -1304,7 +1304,7 @@
   /* Last in its row, under what the session reported, as before its toggle moved with the owner's controls. */
   order: 1;
   margin-top: 6px;
-  animation: arrive 0.3s var(--ease) both;
+  animation: arrive var(--motion-medium) var(--ease) both;
 }
 .session-acts {
   display: grid;
@@ -1330,7 +1330,7 @@
   font: inherit;
   font-size: var(--type-small);
   cursor: pointer;
-  transition: color var(--fast) var(--ease);
+  transition: color var(--motion-fast) var(--ease);
 }
 .session-earlier-toggle:hover,
 .session-earlier-toggle[aria-expanded='true'] {
@@ -1339,7 +1339,7 @@
 .session-earlier-toggle .icon {
   width: 11px;
   height: 11px;
-  transition: transform var(--fast) var(--ease);
+  transition: transform var(--motion-fast) var(--ease);
 }
 .session-earlier-toggle[aria-expanded='true'] .icon {
   transform: rotate(180deg);
@@ -1358,7 +1358,7 @@
   border-left: 1px solid var(--line-2);
   margin-left: 2px;
   list-style: none;
-  animation: arrive 0.3s var(--ease) both;
+  animation: arrive var(--motion-medium) var(--ease) both;
 }
 .session-earlier-list li {
   position: relative;
@@ -1435,7 +1435,7 @@
     border-radius: inherit;
     pointer-events: none;
     opacity: 0;
-    transition: opacity var(--base) var(--ease);
+    transition: opacity var(--motion-base) var(--ease);
   }
   .resource-tile::before {
     inset: 0;
@@ -1478,8 +1478,8 @@
   view-transition-class: resource-tile;
 }
 ::view-transition-group(.resource-tile) {
-  animation-duration: 280ms;
-  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  animation-duration: var(--motion-medium);
+  animation-timing-function: var(--ease);
 }
 
 /* A meter fills to its value as it appears. */
@@ -1504,7 +1504,7 @@
   inset: 0;
   border-radius: 50%;
   border: 1px solid var(--amber);
-  animation: waiting-ping 2.4s var(--ease) infinite;
+  animation: waiting-ping var(--motion-breath) var(--ease) infinite;
 }
 /* ---- The work views' type, on their shared pieces: the app's tag and a request's quiet line keep to the scale
    here (theme.css: --type-*), so a view shows at most five sizes. ---- */
@@ -1538,7 +1538,7 @@
   background: linear-gradient(90deg, rgb(var(--halo-rgb) / 0.12), rgb(var(--halo-rgb) / 0.03));
   color: var(--text);
   font-size: var(--type-body);
-  animation: arrive 0.5s var(--ease) 0.2s both;
+  animation: arrive var(--motion-slower) var(--ease) 0.2s both;
 }
 .away-line .field-label {
   margin-right: 6px;
@@ -1585,7 +1585,7 @@
   font: inherit;
   font-size: var(--type-small);
   cursor: pointer;
-  transition: background-color var(--fast) var(--ease);
+  transition: background-color var(--motion-fast) var(--ease);
 }
 .away-line-seen:hover {
   background: rgb(var(--ink-rgb) / 0.14);
@@ -1620,7 +1620,7 @@
   border-radius: 50%;
   background: radial-gradient(circle, var(--core), var(--halo) 70%);
   box-shadow: var(--glow-spark);
-  animation: ask-light 2.8s var(--ease) infinite alternate;
+  animation: ask-light var(--motion-breath-slow) var(--ease) infinite alternate;
 }
 @keyframes ask-light {
   to {
@@ -1639,7 +1639,7 @@
   border-radius: 50%;
   background: var(--halo-text);
   box-shadow: var(--glow-spark);
-  animation: away-breathe 2.4s var(--ease) infinite alternate;
+  animation: away-breathe var(--motion-breath) var(--ease) infinite alternate;
 }
 @keyframes away-breathe {
   to {
@@ -1689,7 +1689,7 @@
   padding: 12px;
   border-radius: var(--r-3);
   background: rgb(var(--ink-rgb) / 0.03);
-  animation: arrive 0.3s var(--ease) both;
+  animation: arrive var(--motion-medium) var(--ease) both;
 }
 .act-steps ol {
   display: grid;
@@ -1708,7 +1708,7 @@
   font-size: var(--type-small);
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  transition: color var(--base) var(--ease);
+  transition: color var(--motion-base) var(--ease);
 }
 .act-steps li::before {
   content: '';
@@ -1730,7 +1730,7 @@
   border-radius: 999px;
   background: var(--teal);
   box-shadow: var(--glow-running);
-  transition: width 0.5s var(--ease);
+  transition: width var(--motion-slower) var(--ease);
 }
 .act-steps li[data-reached] {
   color: var(--teal);
@@ -1786,7 +1786,7 @@
   background: conic-gradient(var(--teal) calc(var(--fresh, 0) * 360deg), rgb(var(--teal-rgb) / 0.12) 0);
   /* A fine stroke at its edge (closest-side: a bare `circle` reaches the corners and swells into the picture). */
   mask: radial-gradient(circle closest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
-  transition: --fresh var(--base) var(--ease);
+  transition: --fresh var(--motion-base) var(--ease);
 }
 .live-ring[data-live][data-waiting]::before {
   background: conic-gradient(var(--amber) calc(var(--fresh, 0) * 360deg), rgb(var(--amber-rgb) / 0.12) 0);
@@ -1836,7 +1836,7 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: attention-sweep 1.4s var(--ease) 0.3s both;
+  animation: attention-sweep var(--motion-sweep) var(--ease) 0.3s both;
 }
 @keyframes attention-sweep {
   from {
@@ -1854,7 +1854,7 @@
   animation: none;
 }
 .resource-sheet .sheet-body > * {
-  animation: arrive 0.4s var(--ease) both;
+  animation: arrive var(--motion-slow) var(--ease) both;
 }
 .resource-sheet .sheet-body > :nth-child(2) {
   animation-delay: 40ms;
@@ -1873,7 +1873,7 @@
 /* Added beside the arrival, never instead of it: replacing it would play the arrival again when the flash ends. */
 .resource-tile[data-changed] {
   animation-name: arrive, tile-changed;
-  animation-duration: 0.4s, 1.4s;
+  animation-duration: var(--motion-slow), var(--motion-sweep);
   animation-fill-mode: both, none;
   animation-delay: calc(var(--i, 0) * 40ms), 0s;
 }
@@ -1898,7 +1898,7 @@
   );
 }
 .resource-sheet-head .tool-logo {
-  animation: logo-in 0.45s var(--ease) both;
+  animation: logo-in var(--motion-slow) var(--ease) both;
 }
 @keyframes logo-in {
   from {
@@ -1910,7 +1910,7 @@
   box-shadow: var(--glow-full);
 }
 .tool-logo.lg {
-  transition: transform var(--fast) var(--ease);
+  transition: transform var(--motion-fast) var(--ease);
 }
 @media (hover: hover) {
   .resource-tile:hover .tool-logo.lg {
@@ -1929,7 +1929,7 @@
   animation: buddy-hello-left 1.6s var(--ease) 0.3s both;
 }
 .resource-tile[data-buddy='both'] .tool-logo > * {
-  animation: buddy-hop 0.6s var(--ease) 0.3s both;
+  animation: buddy-hop var(--motion-long) var(--ease) 0.3s both;
 }
 @keyframes buddy-hello-right {
   0% {
@@ -1997,10 +1997,10 @@
 /* Hover one, and its neighbour answers. */
 @media (hover: hover) {
   .resource-grid > li:has(.resource-tile[data-buddy='right']:hover) + li .resource-tile[data-buddy] .tool-logo > * {
-    animation: buddy-hop-left 0.6s var(--ease);
+    animation: buddy-hop-left var(--motion-long) var(--ease);
   }
   .resource-grid > li:has(+ li .resource-tile[data-buddy='left']:hover) .resource-tile[data-buddy] .tool-logo > * {
-    animation: buddy-hop-right 0.6s var(--ease);
+    animation: buddy-hop-right var(--motion-long) var(--ease);
   }
 }
 
@@ -2137,7 +2137,7 @@
   color: var(--text-2);
   font-size: var(--type-small);
   white-space: nowrap;
-  animation: arrive var(--base) var(--ease) both;
+  animation: arrive var(--motion-base) var(--ease) both;
 }
 .copy-link-hand input {
   flex: 1;

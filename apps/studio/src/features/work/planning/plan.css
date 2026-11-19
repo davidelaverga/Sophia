@@ -10,7 +10,7 @@
   border: 1px solid rgb(var(--amber-rgb) / 0.18);
   border-radius: var(--r-3);
   background: linear-gradient(90deg, rgb(var(--amber-rgb) / 0.07), rgb(var(--amber-rgb) / 0.02));
-  animation: arrive 0.4s var(--ease) both;
+  animation: arrive var(--motion-slow) var(--ease) both;
 }
 .plan-ask-body {
   display: grid;
@@ -41,9 +41,9 @@
 .plan-choice {
   height: 32px;
   transition:
-    background-color var(--fast) var(--ease),
-    border-color var(--fast) var(--ease),
-    transform var(--fast) var(--ease);
+    background-color var(--motion-fast) var(--ease),
+    border-color var(--motion-fast) var(--ease),
+    transform var(--motion-fast) var(--ease);
 }
 .plan-choice:not(:disabled):hover {
   border-color: rgb(var(--amber-rgb) / 0.45);
@@ -74,7 +74,7 @@
 /* Each step arrives: its words are keyed by the step; a block, so its rise plays as well as its fade. */
 .plan-ask-said > span {
   display: block;
-  animation: arrive 0.3s var(--ease) both;
+  animation: arrive var(--motion-medium) var(--ease) both;
 }
 .plan-ask-said[data-state='recorded'] {
   color: var(--teal);
@@ -105,7 +105,7 @@
   height: 8px;
   border-radius: 50%;
   border: 1.5px solid var(--text-3);
-  transition: box-shadow var(--base) var(--ease);
+  transition: box-shadow var(--motion-base) var(--ease);
 }
 .plan-mark[data-mark='waiting'] {
   border-color: var(--amber);
@@ -117,7 +117,7 @@
   inset: -1.5px;
   border-radius: 50%;
   background: var(--amber);
-  animation: waiting-ping 2.4s var(--ease) infinite;
+  animation: waiting-ping var(--motion-breath) var(--ease) infinite;
 }
 .plan-mark[data-mark='working'] {
   border-color: var(--teal);
@@ -190,7 +190,7 @@
   color: var(--text-3);
 }
 .goal-criteria-button .icon {
-  transition: transform var(--fast) var(--ease);
+  transition: transform var(--motion-fast) var(--ease);
 }
 .goal-criteria-button[aria-expanded='true'] .icon {
   transform: rotate(180deg);
@@ -207,7 +207,7 @@
   color: var(--text-3);
 }
 .plan-fold-button .icon {
-  transition: transform var(--fast) var(--ease);
+  transition: transform var(--motion-fast) var(--ease);
 }
 .plan-fold-button[aria-expanded='true'] .icon {
   transform: rotate(180deg);
@@ -215,7 +215,7 @@
 .plan-fold-body {
   display: grid;
   gap: 10px;
-  animation: arrive 0.3s var(--ease) both;
+  animation: arrive var(--motion-medium) var(--ease) both;
 }
 .plan-assumed,
 .plan-decided {
