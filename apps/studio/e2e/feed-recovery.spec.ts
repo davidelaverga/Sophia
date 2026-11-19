@@ -135,7 +135,8 @@ test('feed · Up to date says when it last heard from the project: checked secon
   await page.evaluate(() => window.fixture?.stallStream())
   await page.waitForTimeout(8000)
   await expect(pill(page)).toHaveAttribute('data-state', 'live')
-  await expect(pill(page)).toHaveText('Up to date')
+  // What the pill's status says is its word alone: the help is its tip, never in the live region.
+  await expect(pill(page).getByRole('status')).toHaveText('Up to date')
   const help = await helpOnHover(page)
   expect(help, 'the help counts the seconds since the last bytes').toMatch(/^Up to date · checked \d+ s ago$/)
   const seconds = Number(/(\d+) s ago$/.exec(help ?? '')?.[1])
@@ -155,6 +156,8 @@ test('feed · Up to date’s help is reached by keyboard: focused, the tip shows
   await page.keyboard.press('Shift')
   await pill(page).focus()
   await expect(pill(page)).toBeFocused()
+  await expect(pill(page)).toHaveAccessibleName('Up to date')
+  await expect(pill(page).getByRole('status'), 'the help stays out of the live region').toHaveText('Up to date')
   await expect(pill(page)).toHaveAccessibleDescription(/^Up to date · checked (just now|\d+ s ago)$/)
   await expect(pill(page).locator('.tip')).toHaveText(/^Up to date · checked (just now|\d+ s ago)$/)
   await expect(pill(page).locator('.tip')).toHaveCSS('opacity', '1')

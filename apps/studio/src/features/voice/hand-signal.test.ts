@@ -283,4 +283,19 @@ describe('handSignal · a raise said as a new one (hand-and-sync-announced.md)',
     from(marco, { hand: true })
     assert.deepEqual(raises, ['m', 'm'])
   })
+
+  it('each hand from before a drop has its own window: a later drop never stretches an earlier one’s (review P3)', async () => {
+    const { from, emit, settled, raises, tick } = setup()
+    from(marco, { hand: true })
+    emit(RoomEvent.Reconnected) // Marco is kept until 5 s; he lowered during the drop, so he never answers
+    await settled()
+    tick(4000)
+    from(lucia, { hand: true })
+    emit(RoomEvent.Reconnected) // a second drop at 4 s keeps Lucía until 9 s
+    await settled()
+    tick(2000)
+    // At 6 s Marco raises: his window from the first drop is over, so this is a new raise.
+    from(marco, { hand: true })
+    assert.deepEqual(raises, ['m', 'l', 'm'])
+  })
 })

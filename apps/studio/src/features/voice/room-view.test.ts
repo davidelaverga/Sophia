@@ -164,8 +164,13 @@ describe('room stage', () => {
   })
 
   it('says a raised hand with the name the tile shows (hand-and-sync-announced.md)', () => {
-    assert.equal(handRaisedLine('marco@x.com'), 'Marco raised their hand.')
-    assert.equal(handRaisedLine('Lucía'), 'Lucía raised their hand.')
+    assert.equal(handRaisedLine(['marco@x.com']), 'Marco raised their hand.')
+    assert.equal(handRaisedLine(['Lucía']), 'Lucía raised their hand.')
+  })
+
+  it('says hands raised together in one sentence (review P3 on hand-and-sync-announced)', () => {
+    assert.equal(handRaisedLine(['marco@x.com', 'Lucía']), 'Marco and Lucía raised their hands.')
+    assert.equal(handRaisedLine(['marco@x.com', 'Lucía', 'ana@x.com']), 'Marco, Lucía and Ana raised their hands.')
   })
 
   it('lets a shared screen take the stage, then cameras, then the light', () => {
