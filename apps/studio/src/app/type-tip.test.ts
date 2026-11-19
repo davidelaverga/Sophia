@@ -1,7 +1,19 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { KEYS_TIP_KEY, onceTip, SHOWINGS } from './keys-tip.ts'
-import { roomBar, startedByTyping, TYPE_TIP_KEY, TYPE_TIP_LINE, typeTipShows, type TypeTipMoment } from './type-tip.ts'
+import {
+  barMessagesRoom,
+  onRoomBars,
+  roomBar,
+  roomBarMounted,
+  roomBarsNow,
+  startedByTyping,
+  turnAtLoad,
+  TYPE_TIP_KEY,
+  TYPE_TIP_LINE,
+  typeTipShows,
+  type TypeTipMoment,
+} from './type-tip.ts'
 
 /** A store as the browser's: what was set is read back. */
 const memory = () => {
@@ -20,16 +32,22 @@ const blocked = {
 
 /** The room with its panel open, the keys' tip had, nothing in the way: the moment the line is true. */
 const clear: TypeTipMoment = {
-  keysTipSeen: true,
+  keysTipDoneAtLoad: true,
   touch: false,
   barTakesTyping: true,
   fieldFocused: false,
   modal: false,
-  coversControl: false,
+  coversControl: () => false,
 }
 
 /** An element as the page has it, matching the room's bar or not. */
-const field = (isRoomBar: boolean) => ({ matches: (selector: string) => isRoomBar && selector === '[data-chat-entry]' })
+const field = (isRoomBar: boolean, target: string | null = 'room') => ({
+  matches: (selector: string) => isRoomBar && selector === '[data-chat-entry]',
+  closest: (selector: string) =>
+    selector === '.message-bar' && target !== null
+      ? { getAttribute: (name: string) => (name === 'data-target' ? target : null) }
+      : null,
+})
 
 describe('the typing tip says what is true (type-anywhere-tip.md)', () => {
   it('says Luis’s line, verbatim', () => {
@@ -39,16 +57,78 @@ describe('the typing tip says what is true (type-anywhere-tip.md)', () => {
     assert.equal(typeTipShows(clear), true)
   })
   it('waits for the keys’ tip to have had its turn: never both, the keys first', () => {
-    assert.equal(typeTipShows({ ...clear, keysTipSeen: false }), false)
+    assert.equal(typeTipShows({ ...clear, keysTipDoneAtLoad: false }), false)
   })
   it('waits while the bar is off screen, a field has the caret, a sheet is up, or its box meets a control', () => {
     assert.equal(typeTipShows({ ...clear, barTakesTyping: false }), false)
     assert.equal(typeTipShows({ ...clear, fieldFocused: true }), false)
     assert.equal(typeTipShows({ ...clear, modal: true }), false)
-    assert.equal(typeTipShows({ ...clear, coversControl: true }), false)
+    assert.equal(typeTipShows({ ...clear, coversControl: () => true }), false)
+  })
+  it('measures the controls last, and only once everything cheaper allows it (review P2)', () => {
+    let measured = 0
+    const covers = () => {
+      measured += 1
+      return false
+    }
+    for (const no of [
+      { keysTipDoneAtLoad: false },
+      { touch: true },
+      { barTakesTyping: false },
+      { fieldFocused: true },
+      { modal: true },
+    ]) {
+      assert.equal(typeTipShows({ ...clear, ...no, coversControl: covers }), false)
+    }
+    assert.equal(measured, 0)
+    assert.equal(typeTipShows({ ...clear, coversControl: covers }), true)
+    assert.equal(measured, 1)
   })
   it('never shows on a touch screen', () => {
     assert.equal(typeTipShows({ ...clear, touch: true }), false)
+  })
+})
+
+describe('the bar writes to the room: the line is true only then (review P2)', () => {
+  it('is the room’s bar with its target the room', () => {
+    assert.equal(barMessagesRoom(field(true, 'room')), true)
+  })
+  it('is not, while the bar writes to Sophia («Message Sophia…»), nor a field that is not the room’s bar', () => {
+    assert.equal(barMessagesRoom(field(true, 'sophia')), false)
+    assert.equal(barMessagesRoom(field(true, null)), false)
+    assert.equal(barMessagesRoom(field(false, 'room')), false)
+    assert.equal(barMessagesRoom(null), false)
+  })
+})
+
+describe('one lesson per visit: the typing tip’s turn is read once, at load (review P3)', () => {
+  it('a keys’ tip ended during this visit leaves the typing tip for a later one', () => {
+    const store = memory()
+    const keys = onceTip(KEYS_TIP_KEY, () => store)
+    const turn = turnAtLoad(keys)
+    assert.equal(turn(), false)
+    keys.end()
+    assert.equal(turn(), false, 'the same visit')
+    assert.equal(turnAtLoad(onceTip(KEYS_TIP_KEY, () => store))(), true, 'the next visit')
+  })
+})
+
+describe('the watch runs only where the room’s bar is mounted (review P2)', () => {
+  it('follows the bars as they mount and unmount, and says so', () => {
+    let told = 0
+    const stop = onRoomBars(() => {
+      told += 1
+    })
+    assert.equal(roomBarsNow(), false)
+    const first = roomBarMounted()
+    const second = roomBarMounted()
+    assert.equal(roomBarsNow(), true)
+    first()
+    assert.equal(roomBarsNow(), true)
+    second()
+    assert.equal(roomBarsNow(), false)
+    assert.equal(told, 4)
+    stop()
   })
 })
 
