@@ -31,7 +31,7 @@ import { shortName, type FloorView, type RoomParticipant } from './room-view.ts'
 import { LookingIndicator, SophiaControls } from './SophiaControls.tsx'
 import type { SophiaView } from './sophia-view.ts'
 import { SOUND_BLOCKED, soundView } from './sound-view.ts'
-import type { HandSaid, ProjectRoom } from './useProjectRoom.ts'
+import type { ProjectRoom } from './useProjectRoom.ts'
 import { DockWord } from './DockWord.tsx'
 import { useMedia } from '../../app/useMedia.ts'
 
@@ -95,19 +95,6 @@ export function DockNote({ note, className }: { note: string | null; className: 
 }
 
 /**
- * Another's raised hand, said to a screen reader (hand-and-sync-announced.md): a polite line out of sight, there before
- * it speaks (a live region added with its words is often not read), never taking the focus. Its own region, not the
- * dock's note, which a hand would overwrite. Each turn is a new node, so the same words said again are read again.
- */
-function HandSaidLine({ said }: { said: HandSaid | null }) {
-  return (
-    <p className="hand-said sr-only" role="status">
-      {said && <span key={said.turn}>{said.line}</span>}
-    </p>
-  )
-}
-
-/**
  * Its part gone after a deploy (stale-part-call.md): only Reload is offered, beside the note. Try again could never
  * succeed in this tab, which keeps the failed part until a reload (Luis 2026-10-22).
  */
@@ -126,7 +113,6 @@ export function RoomDock(props: Props) {
     <>
       {/* Beside the dock, not in it: the dock's measured height (--dock-h) is the dock's alone. */}
       <Reactions shown={room.reactions} />
-      <HandSaidLine said={room.handSaid} />
       <div ref={wrap} className="dock-wrap">
         <LookingIndicator text={props.sophia.looking} />
         {/* What stopped a device, or why this person is out of the call: a failed join, or a call that ended. */}

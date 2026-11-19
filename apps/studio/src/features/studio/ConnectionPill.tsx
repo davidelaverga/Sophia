@@ -58,21 +58,27 @@ function useAskedAt() {
 
 export function ConnectionPill({ connection, checkedAt }: Props) {
   const { askedAt, handlers } = useAskedAt()
-  const helpId = useId()
-  const help = askedAt === null ? CONNECTION[connection] : connectionHelp(connection, checkedAt(), askedAt)
+  const id = useId()
+  const word = CONNECTION[connection]
+  const help = askedAt === null ? word : connectionHelp(connection, checkedAt(), askedAt)
   return (
+    // Reached by keyboard and named by its word. The help, read as the focus arrives as the pointer's is on hover, is
+    // its description only when it says more than the word (never «Reconnecting, Reconnecting»).
     <span
-      role="status"
+      role="group"
       className="connection has-tip"
       data-state={connection}
-      // Reached by keyboard: its help is read as the focus arrives, as the pointer's is on hover.
       tabIndex={0}
-      aria-describedby={helpId}
+      aria-labelledby={`${id}-word`}
+      aria-describedby={help === word ? undefined : `${id}-help`}
       {...handlers}
     >
       <span className="connection-dot" aria-hidden />
-      <span className="connection-label">{CONNECTION[connection]}</span>
-      <Tip id={helpId} label={help} side="bottom" align="end" />
+      {/* The live region is the word alone: the help never enters what a change of state announces. */}
+      <span id={`${id}-word`} className="connection-label" role="status">
+        {word}
+      </span>
+      <Tip id={`${id}-help`} label={help} side="bottom" align="end" />
     </span>
   )
 }

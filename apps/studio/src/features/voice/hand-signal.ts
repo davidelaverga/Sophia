@@ -60,18 +60,18 @@ const ASK_TRIES = 4
  */
 const REHEARD_MS = 5000
 
-/** The hands forgotten after a drop, and until when one heard again is still the same raise. */
+/** The hands forgotten after a drop, each with its own deadline: until then, one heard again is still the same raise. */
 function forgottenHands(now: () => number) {
-  const before = new Set<string>()
-  let until = 0
+  const until = new Map<string, number>()
   return {
-    keep: (identity: string) => {
-      before.add(identity)
-      until = now() + REHEARD_MS
-    },
+    keep: (identity: string) => void until.set(identity, now() + REHEARD_MS),
     /** Whether a raise heard now is one from before the drop; asked once, it is no longer kept. */
-    heardAgain: (identity: string) => before.delete(identity) && now() <= until,
-    drop: (identity: string) => void before.delete(identity),
+    heardAgain: (identity: string) => {
+      const deadline = until.get(identity)
+      until.delete(identity)
+      return deadline !== undefined && now() <= deadline
+    },
+    drop: (identity: string) => void until.delete(identity),
   }
 }
 

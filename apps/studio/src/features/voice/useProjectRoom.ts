@@ -25,14 +25,8 @@ import { micOnJoin, rememberMic } from './mic-preference.ts'
 import type { Heard } from './reaction-channel.ts'
 import { paced, shownAfter, SHOWN_FOR_MS, type Reaction, type ReactionEmoji } from './reactions.ts'
 import type { Level } from './people-volume.ts'
-import {
-  handRaisedLine,
-  HOST_STOPPED_SCREEN,
-  mediaMessage,
-  type Device,
-  type DockStatus,
-  type RoomParticipant,
-} from './room-view.ts'
+import { gatherRaises } from './hand-said.ts'
+import { HOST_STOPPED_SCREEN, mediaMessage, type Device, type DockStatus, type RoomParticipant } from './room-view.ts'
 import type { SophiaSignal } from './sophia-view.ts'
 
 export type { VideoFeed } from './livekit-room.ts'
@@ -545,23 +539,32 @@ function useConversation(connection: { current: RoomConnection | null }, silence
 const HAND_SAID_MS = SHOWN_FOR_MS
 
 /**
- * Another's raised hand, said to a screen reader (hand-and-sync-announced.md): the line, keyed by its turn so the same
- * words said again are a new node a screen reader reads, for a few seconds.
+ * Others' raised hands, said to a screen reader (hand-and-sync-announced.md): raises arriving together in one line
+ * (gatherRaises), keyed by its turn so the same words said again are a new node, for a few seconds.
  */
 function useHandSaid() {
   const [said, setSaid] = useState<HandSaid | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  useEffect(() => () => clearTimeout(timer.current), [])
-  const raised = (name: string) => {
-    clearTimeout(timer.current)
-    setSaid((last) => ({ line: handRaisedLine(name), turn: (last?.turn ?? 0) + 1 }))
-    timer.current = setTimeout(() => setSaid(null), HAND_SAID_MS)
-  }
+  const [gather] = useState(() =>
+    gatherRaises((line) => {
+      clearTimeout(timer.current)
+      setSaid((last) => ({ line, turn: (last?.turn ?? 0) + 1 }))
+      timer.current = setTimeout(() => setSaid(null), HAND_SAID_MS)
+    }),
+  )
+  useEffect(
+    () => () => {
+      gather.clear()
+      clearTimeout(timer.current)
+    },
+    [gather],
+  )
   const clear = () => {
+    gather.clear()
     clearTimeout(timer.current)
     setSaid(null)
   }
-  return { said, raised, clear }
+  return { said, raised: gather.raised, clear }
 }
 
 /** How long «You're muted» stays said. */
