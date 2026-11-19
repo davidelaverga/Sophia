@@ -44,6 +44,8 @@ import {
   type Offer,
 } from './receipts.ts'
 import type { Resource } from './resource.ts'
+import { UndoHold } from './UndoHold.tsx'
+import { undoableHold } from './undo-hold.ts'
 import {
   currentSaid,
   guidanceWithheld,
@@ -430,6 +432,12 @@ export function SessionActs({ target, offer, acts, keys, observed = null }: Prop
         )}
         {latestShown && <Steps known={latestShown} retryable={retryable} onRetry={() => retry(latestShown)} />}
       </div>
+      {/* A confirmed Hold from here, taken back by the same Resume for a few seconds (docs/plans/undo-hold.md). */}
+      <UndoHold
+        hold={acts.canSend ? undoableHold(known, target, allowed) : null}
+        onUndo={() => send('resume')}
+        status={focus.status}
+      />
       <Earlier
         known={known.filter((k) => k !== latest && unresolved(k))}
         shown={target}

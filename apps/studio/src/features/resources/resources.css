@@ -1676,6 +1676,13 @@
 .act-note {
   font-size: var(--type-body);
 }
+/* Undo after Hold (UndoHold): its live region stays mounted; empty, it takes no row, so the commands don't move. */
+.act-undo:empty {
+  position: absolute;
+}
+.act-undo p {
+  animation: arrive 0.3s var(--ease) both;
+}
 .act-steps {
   display: grid;
   gap: 8px;
