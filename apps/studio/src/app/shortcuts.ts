@@ -105,6 +105,15 @@ export function typingSink<T extends Field>(fields: Iterable<T>): T | null {
   return null
 }
 
+/**
+ * Whether a letter typed now would be stray text for this field: no sheet up, and the focus on no control or on a
+ * control of the field's own part (not a field, not a dock or header button, where a letter is a shortcut).
+ */
+export function strayNow(field: HTMLElement): boolean {
+  const at = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  return !modalOnScreen() && strayFrom(focusAt(at, field), 'a')
+}
+
 /** Where stray typing goes: the chat's foot on screen (typingSink), when the key is stray (strayFrom). */
 function strayField(target: HTMLElement | null, key: string): HTMLElement | null {
   if (modalOnScreen()) return null
@@ -155,8 +164,9 @@ export function useShortcuts(bindings: Readonly<Record<string, (() => void) | un
           : null
       if (sink && FIELDS.has(sink.tagName)) {
         sink.focus()
-        // A message started without clicking the bar: its tip has nothing left to say (type-anywhere-tip.md).
-        startedByTyping(sink)
+        // A message started without clicking the bar, once the caret is really there: its tip has nothing left to say
+        // (type-anywhere-tip.md).
+        if (document.activeElement === sink) startedByTyping(sink)
       }
       const key = shortcutKey(keyLike(e))
       const run = key ? current.current[key] : undefined

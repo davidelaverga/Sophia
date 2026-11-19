@@ -7,8 +7,16 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type
 import { createPortal } from 'react-dom'
 import { Icon, Tip } from '@sophia/ui'
 import { keysTip, meets, type OnceTip } from './keys-tip.ts'
-import { modalOnScreen, onScreen, typingSink } from './shortcuts.ts'
-import { roomBar, TYPE_TIP_LINE, typeTip, typeTipShows } from './type-tip.ts'
+import { modalOnScreen, onScreen, strayNow, typingSink } from './shortcuts.ts'
+import {
+  barMessagesRoom,
+  onRoomBars,
+  roomBarsNow,
+  TYPE_TIP_LINE,
+  typeTip,
+  typeTipShows,
+  typeTipTurn,
+} from './type-tip.ts'
 import { useMedia } from './useMedia.ts'
 
 /** No keyboard to speak of: a phone or a tablet. */
@@ -40,15 +48,21 @@ type Clear = (covers: () => boolean) => boolean
 /** The keys' tip: `?` opens the index now (no sheet up, no field focused, none on screen taking stray typing). */
 const keysClear: Clear = (covers) => !modalOnScreen() && !fieldFocused() && sinkNow() === null && !covers()
 
-/** The typing tip: the room's bar takes stray typing now, nothing in the way (type-tip.ts). */
+/** The bar typing would go to, if a letter typed now lands in the room's bar and the bar writes to the room. */
+const roomTakesTyping = () => {
+  const sink = sinkNow()
+  return !!sink && barMessagesRoom(sink) && strayNow(sink)
+}
+
+/** The typing tip: a letter typed now would message the room, nothing in the way (type-tip.ts); controls last. */
 const typeClear: Clear = (covers) =>
   typeTipShows({
-    keysTipSeen: keysTip.seenNow(),
+    keysTipDoneAtLoad: typeTipTurn(),
     touch: window.matchMedia(TOUCH).matches,
-    barTakesTyping: roomBar(sinkNow()),
+    barTakesTyping: roomTakesTyping(),
     fieldFocused: fieldFocused(),
     modal: modalOnScreen(),
-    coversControl: covers(),
+    coversControl: covers,
   })
 
 /**
@@ -73,7 +87,7 @@ function useClear(on: boolean, tip: RefObject<HTMLDivElement | null>, clear: Cle
       subtree: true,
       childList: true,
       attributes: true,
-      attributeFilter: ['class', 'hidden', 'inert', 'aria-modal', 'data-typing-sink'],
+      attributeFilter: ['class', 'hidden', 'inert', 'aria-modal', 'data-typing-sink', 'data-target'],
     })
     const events = ['resize', 'focusin', 'focusout'] as const
     for (const e of events) window.addEventListener(e, read)
@@ -92,23 +106,63 @@ const useSeen = (once: OnceTip) => useSyncExternalStore(once.onSeen, once.seenNo
 interface CornerTipProps {
   once: OnceTip
   clear: Clear
-  /** Whether it may have its turn yet (the typing tip waits for the keys'). */
+  /** Whether it may have its turn, and the page be watched for it, now (the typing tip: its turn, a bar mounted). */
   turn?: boolean
   line: ReactNode
   /** Its status's class: each tip has its own, mounted all along. */
   status: string
+  /** Where it is drawn when it comes back on the same page, outside the status: said once, then only shown. */
+  quiet?: string
+}
+
+/** The tip as it shows: its line, and Dismiss. */
+function TipBox({
+  boxRef,
+  line,
+  onDismiss,
+}: {
+  boxRef: RefObject<HTMLDivElement | null>
+  line: ReactNode
+  onDismiss: () => void
+}) {
+  return (
+    <div ref={boxRef} className="keys-tip arrive">
+      {line}
+      <button type="button" className="round has-tip" aria-label="Dismiss" onClick={onDismiss}>
+        <Icon name="close" />
+        <Tip label="Dismiss" side="top" align="end" />
+      </button>
+    </div>
+  )
+}
+
+/**
+ * Where it shows now: in the status (said) the first time it comes on this page, outside it (only shown) when it comes
+ * back, for a tip that has a quiet place. Its comings are followed as it renders.
+ */
+function useSaid(shown: boolean, quiet: string | undefined): { said: boolean; again: boolean } {
+  const [comings, setComings] = useState(0)
+  const [wasShown, setWasShown] = useState(false)
+  if (shown !== wasShown) {
+    setWasShown(shown)
+    if (shown) setComings((n) => n + 1)
+  }
+  const unsaid = comings > 1 && quiet !== undefined
+  return { said: shown && !unsaid, again: shown && unsaid }
 }
 
 /** One line in the bottom-left corner, once per browser, with Dismiss. */
-function CornerTip({ once, clear, turn = true, line, status }: CornerTipProps) {
+function CornerTip({ once, clear, turn = true, line, status, quiet }: CornerTipProps) {
   const seen = useSeen(once)
   const touch = useMedia(TOUCH)
   const tip = useRef<HTMLDivElement>(null)
   const on = turn && !seen && !touch
   const shown = useClear(on, tip, clear) && on
+  const { said, again } = useSaid(shown, quiet)
   useEffect(() => {
     if (shown) once.countShowing()
   }, [shown, once])
+  const box = <TipBox boxRef={tip} line={line} onDismiss={once.end} />
   return createPortal(
     <>
       {/* Unseen while it waits: the same box, measured against the controls, never read or reached. */}
@@ -119,16 +173,9 @@ function CornerTip({ once, clear, turn = true, line, status }: CornerTipProps) {
         </div>
       )}
       <div className={status} role="status">
-        {shown && (
-          <div ref={tip} className="keys-tip arrive">
-            {line}
-            <button type="button" className="round has-tip" aria-label="Dismiss" onClick={once.end}>
-              <Icon name="close" />
-              <Tip label="Dismiss" side="top" align="end" />
-            </button>
-          </div>
-        )}
+        {said && box}
       </div>
+      {quiet !== undefined && <div className={quiet}>{again && box}</div>}
     </>,
     document.body,
   )
@@ -146,8 +193,17 @@ export function KeysTip() {
 
 const TYPE_LINE = <p>{TYPE_TIP_LINE}</p>
 
-/** Typing anywhere in the room says so, once: after the keys' tip, never with it. */
+/** Typing anywhere in the room says so, once: in a visit after the keys' tip, and only while a room's bar is mounted. */
 export function TypeTip() {
-  const keysSeen = useSeen(keysTip)
-  return <CornerTip once={typeTip} clear={typeClear} turn={keysSeen} line={TYPE_LINE} status="type-tip-status" />
+  const bars = useSyncExternalStore(onRoomBars, roomBarsNow, () => false)
+  return (
+    <CornerTip
+      once={typeTip}
+      clear={typeClear}
+      turn={typeTipTurn() && bars}
+      line={TYPE_LINE}
+      status="type-tip-status"
+      quiet="type-tip-again"
+    />
+  )
 }
