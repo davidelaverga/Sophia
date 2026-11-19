@@ -80,10 +80,13 @@ function heardHands(onChange: () => void) {
 
 /**
  * This person's hand: what they chose (`mine`) and each change's turn. A lowering after a drop is sent again every
- * `retryMs` until it goes, while no newer choice and no end of the call has come.
+ * `retryMs` until it goes, while no newer choice and no end of the call has come; one still unsent when the call drops
+ * again is sent after that reconnect too (Codex P2 on #523), so others never keep a hand this person sees lowered.
  */
 function ownHand(publish: Publish, onChange: () => void, retryMs: number) {
   let mine = false
+  /** A lowering others haven't been told of yet. */
+  let unsent = false
   let turn = 0
   let retry: ReturnType<typeof setTimeout> | undefined
   const newTurn = () => {
@@ -92,30 +95,43 @@ function ownHand(publish: Publish, onChange: () => void, retryMs: number) {
     return turn
   }
   const lowerUntilSent = (which: number) => {
-    publish(encodeHand(false)).catch(() => {
-      if (which === turn) retry = setTimeout(() => lowerUntilSent(which), retryMs)
-    })
+    publish(encodeHand(false))
+      .then(() => {
+        if (which === turn) unsent = false
+      })
+      .catch(() => {
+        if (which === turn) retry = setTimeout(() => lowerUntilSent(which), retryMs)
+      })
   }
   return {
     mine: () => mine,
     stop: () => void newTurn(),
-    /** Back from a drop: lowered here at once, and said so until it goes, if it was raised. */
+    /** Back from a drop: lowered here at once, and said so until it goes, if it was raised or its lowering is unsent. */
     lower: () => {
       const which = newTurn()
-      if (!mine) return
-      mine = false
-      onChange()
-      lowerUntilSent(which)
+      if (mine) {
+        mine = false
+        unsent = true
+        onChange()
+      }
+      if (unsent) lowerUntilSent(which)
     },
     set: async (raised: boolean) => {
       if (raised === mine) return
       const which = newTurn()
+      const owed = unsent
       mine = raised
+      unsent = false
       onChange()
       try {
         await publish(encodeHand(raised))
       } catch (err) {
-        if (which === turn) mine = !raised
+        if (which === turn) {
+          mine = !raised
+          // A raise refused while a lowering was owed: others may still see the hand from before, so it is owed still.
+          unsent = owed
+          if (owed) lowerUntilSent(newTurn())
+        }
         onChange()
         throw err
       }
