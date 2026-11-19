@@ -164,7 +164,7 @@ function shownBack(space: SpaceRead | undefined, back: ReadBackState | null) {
  * its views; it is let go, and Show earlier days reads against the read shown now.
  */
 async function readControlledBack(client: QueryClient, identity: Identity, read: ControlledRead, signal: AbortSignal) {
-  const before = read.back[0]?.page.turns[0]?.seq ?? read.turns[0]?.seq
+  const before = readBackFrom(read) ?? read.turns[0]?.seq
   if (before === undefined) return
   const viewed: ViewsRead = { views: new Map(), at: new Map() }
   const window = await readControlledWindow(identity.token, before, read, viewed, signal)
@@ -179,6 +179,10 @@ async function readControlledBack(client: QueryClient, identity: Identity, read:
       viewAt: new Map([...now.viewAt, ...viewed.at]),
     }
     client.setQueryData<SpaceRead>(key, joined)
+    // A refresh already on its way planned fewer days. Start it again from the new read-back boundary.
+    if (client.getQueryState(key)?.fetchStatus !== 'idle') {
+      void client.invalidateQueries({ queryKey: key, exact: true }, { cancelRefetch: true })
+    }
   } else await client.invalidateQueries({ queryKey: key, exact: true })
 }
 
