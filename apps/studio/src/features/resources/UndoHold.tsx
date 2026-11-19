@@ -1,7 +1,7 @@
-// Undo after Hold, where the Hold was pressed (docs/plans/undo-hold.md): «Put on hold.» with Undo for a few seconds,
-// under the commands' status line. Its own polite live region, mounted before anything is said; nothing hands the
-// focus to it, and when it leaves while it has the focus, for any reason, the focus goes to the status line, never the
-// page. Which Hold, and for how long, are undo-hold.ts's; its windows are this sheet's own (SessionActs keys it by the
+// Undo after Hold, where the Hold was pressed (docs/plans/undo-hold.md): the button alone for a few seconds, under
+// the commands' status line, which already says «Held.». Its own polite live region, mounted before anything is
+// said; nothing hands the focus to it, and when it leaves while it has the focus, for any reason, the focus goes to
+// the status line, never the page. Which Hold, and for how long, are undo-hold.ts's; its windows are this sheet's own (SessionActs keys it by the
 // execution shown), so a sheet closed, turned or showing another attempt starts with none.
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { Tip } from '@sophia/ui'
@@ -59,7 +59,6 @@ export function UndoHold({ pending, hold, tip, onUndo, status }: Props) {
     <div className="act-undo" role="status" aria-live="polite">
       {shown && (
         <p className="act-note">
-          {UNDO_HOLD.said}{' '}
           <button
             type="button"
             className={tip ? 'text-button has-tip' : 'text-button'}

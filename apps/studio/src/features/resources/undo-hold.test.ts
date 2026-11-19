@@ -177,6 +177,6 @@ describe('undo-hold · when and how long, for one sheet', () => {
 
 describe('undo-hold · words', () => {
   it('kept in one place', () => {
-    assert.deepEqual(UNDO_HOLD, { said: 'Put on hold.', act: 'Undo' })
+    assert.deepEqual(UNDO_HOLD, { act: 'Undo' })
   })
 })

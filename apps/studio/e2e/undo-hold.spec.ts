@@ -1,4 +1,4 @@
-// Undo after Hold (docs/plans/undo-hold.md): once a Hold from a task's sheet is confirmed, «Put on hold.» offers Undo
+// Undo after Hold (docs/plans/undo-hold.md): once a Hold from a task's sheet is confirmed, an Undo is offered
 // for about six seconds, beside it, on the Tasks fixture page. Undo is the Resume press.
 import { expect, test, type Page } from '@playwright/test'
 
@@ -19,7 +19,8 @@ test('undo hold · H holds, Undo is offered without the focus, and Undo resumes 
   await page.keyboard.press('h')
   await expect(sheet.locator('.act-steps')).toContainText('Held.')
   const line = sheet.locator('.act-undo')
-  await expect(line).toContainText('Put on hold.')
+  // Only the button: the status line above already says «Held.» (Luis, 2026-11-19).
+  await expect(line).toHaveText('Undo')
   const undo = line.getByRole('button', { name: 'Undo' })
   await expect(undo).toBeVisible()
   // Said politely, in a live region of its own; nothing hands it the focus.

@@ -16,7 +16,7 @@
 ## What changes
 
 - Once a Hold sent from this page is **settled** (its runtime confirmed it: «Held.») and the view offers Resume, the
-  sheet says «Put on hold.» with a text button «Undo», for 6 seconds.
+  sheet offers a text button «Undo», for 6 seconds. No line of its own: the status line above already says «Held.»
 - **Undo is Resume**: the same `acts.send('resume', target)` the Resume press makes, to the same exact execution. Its
   receipts are said in the status line as any Resume's; a refusal (someone changed the task meanwhile, a 409) says the
   existing words, «This changed before it was sent. Nothing was sent.» After an Undo nothing else is added: the task's
@@ -47,7 +47,7 @@
 - Taking back a Hold still on its way: Resume can't be sent before its view says held.
 - An Undo for Stop (it asks first) or for guidance.
 - The board's tiles, Resources' rows, the goal's own Hold (LFE-07.2).
-- Copy is proposed: Luis approves «Put on hold.» / «Undo».
+- Copy: Luis approved «Undo» alone (2026-11-19); «Put on hold.» was dropped as it repeated the status line.
 
 ## Checks (written first)
 

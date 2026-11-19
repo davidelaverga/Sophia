@@ -6,7 +6,7 @@
 import { sameTarget, unresolved, type CommandTarget, type Known, type Offer } from './receipts.ts'
 
 /** The line and its press. Proposed copy, Luis approves. */
-export const UNDO_HOLD = { said: 'Put on hold.', act: 'Undo' } as const
+export const UNDO_HOLD = { act: 'Undo' } as const
 
 /** How long an Undo is offered, from when its Hold is first offered one. */
 export const UNDO_MS = 6000
