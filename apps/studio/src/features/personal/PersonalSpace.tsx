@@ -13,13 +13,8 @@ import {
   useSyncExternalStore,
   type RefObject,
 } from 'react'
-import type {
-  PersonalNote,
-  PersonalSpace as Space,
-  PersonalSuggestion,
-  PersonalTurn,
-  ProjectSummary,
-} from '@sophia/contracts'
+import type { PersonalNote, PersonalSuggestion, ProjectSummary } from '@sophia/contracts'
+import { isControlled, type ShownTurn, type SpaceRead as Space } from '../../api/personal.ts'
 import { Icon, Tip } from '@sophia/ui'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { Conversation, Who, type ConversationActions } from './Conversation.tsx'
@@ -62,6 +57,11 @@ interface Props {
   /** A long conversation read back, before what the space lists. */
   readBack: ReadBack
   read: Read
+  /**
+   * A controlled space whose latest read failed (Places): when the read shown was made, and how to read it again. Its
+   * rows say so; nothing read before is passed off as current.
+   */
+  stale?: { asOf: string; retry: () => void } | null
   /** Undefined until the projects have loaded. */
   projects: readonly ProjectSummary[] | undefined
   /** How the projects' read stands: the notes' carry menu says a failed one, with Try again. */
@@ -174,6 +174,7 @@ function useActions(
     openNotes: () => props.notes.set(true),
     retry: (turnId) => presses.press(turnId, () => writes.retry(turnId).catch(onFailed)),
     readEarlier: () => props.readBack.readMore().catch(onFailed),
+    readAgain: () => props.stale?.retry(),
     // Whether it was kept: a refused note's words go back into its form.
     keepNote: (text, turnId, suggestion) => kept(writes.keep(text, turnId, suggestion?.id ?? null)),
     write: (text) => kept(writes.keep(text, null, null)),
@@ -235,7 +236,7 @@ function Edge({ edge, onCross }: { edge: Props['edge']; onCross: () => void }) {
 }
 
 /** Coming back after a quiet spell, the person is welcomed by Sophia: asked once per visit, and only when due. */
-function useWelcomeBack(props: Props, turns: readonly PersonalTurn[]) {
+function useWelcomeBack(props: Props, turns: readonly ShownTurn[]) {
   const { hidden, space, writes, name } = props
   const asked = useRef(false)
   const due = !!space && space.companion !== 'unavailable' && welcomeDue(turns, new Date())
@@ -250,7 +251,7 @@ function useWelcomeBack(props: Props, turns: readonly PersonalTurn[]) {
   }, [hidden, due, writes, name])
 }
 
-const NO_TURNS: readonly PersonalTurn[] = []
+const NO_TURNS: readonly ShownTurn[] = []
 
 /**
  * The conversation's rows, none until the space has loaded. A wait that outlasted any answer comes from the server as
@@ -263,6 +264,8 @@ function useRows(props: Props) {
   const earlier = readBack.more
   const loaded = !!space
   const answers = space?.companion !== 'unavailable'
+  const views = space && isControlled(space) ? space.views : undefined
+  const stale = props.stale?.asOf ?? null
   const ready = useMemo(() => readyFor(projects ?? [], now), [projects, now])
   // A message on its way from before an erasure isn't shown over the space after it (it will be refused).
   const sending = writes.sending && writes.sending.epoch === space?.epoch ? writes.sending : null
@@ -279,9 +282,11 @@ function useRows(props: Props) {
             whole: !earlier,
             answers,
             ready,
+            views,
+            stale,
           })
         : [],
-    [loaded, turns, sending, writes.welcoming, name, earlier, now, answers, ready],
+    [loaded, turns, sending, writes.welcoming, name, earlier, now, answers, ready, views, stale],
   )
   return { turns, rows }
 }
@@ -381,9 +386,9 @@ function Head({
  * that failed. Each load (the first read after opening or unlocking) is the baseline, so nothing already there is read
  * out. The line ends in a no-break space every other time, so the same words twice in a row are said twice.
  */
-function useHeard(space: Space | undefined, turns: readonly PersonalTurn[], writing: boolean): string {
+function useHeard(space: Space | undefined, turns: readonly ShownTurn[], writing: boolean): string {
   const [said, setSaid] = useState({ text: '', count: 0 })
-  const last = useRef<{ turns: readonly PersonalTurn[] | null; writing: boolean }>({ turns: null, writing: false })
+  const last = useRef<{ turns: readonly ShownTurn[] | null; writing: boolean }>({ turns: null, writing: false })
   const loaded = space !== undefined
   useEffect(() => {
     if (!loaded) {
@@ -518,7 +523,7 @@ function afterGrowth(
 }
 
 /** What makes the conversation grow, from what it holds. */
-const grows = (turns: readonly PersonalTurn[], sending: unknown, writing: boolean, hidden: boolean): Grows => ({
+const grows = (turns: readonly ShownTurn[], sending: unknown, writing: boolean, hidden: boolean): Grows => ({
   newest: turns.at(-1)?.seq ?? 0,
   hers: turns.at(-1)?.author === 'sophia',
   sending,
