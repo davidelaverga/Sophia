@@ -25,10 +25,23 @@ import { micOnJoin, rememberMic } from './mic-preference.ts'
 import type { Heard } from './reaction-channel.ts'
 import { paced, shownAfter, SHOWN_FOR_MS, type Reaction, type ReactionEmoji } from './reactions.ts'
 import type { Level } from './people-volume.ts'
-import { HOST_STOPPED_SCREEN, mediaMessage, type Device, type DockStatus, type RoomParticipant } from './room-view.ts'
+import {
+  handRaisedLine,
+  HOST_STOPPED_SCREEN,
+  mediaMessage,
+  type Device,
+  type DockStatus,
+  type RoomParticipant,
+} from './room-view.ts'
 import type { SophiaSignal } from './sophia-view.ts'
 
 export type { VideoFeed } from './livekit-room.ts'
+
+/** A raised hand's line for a screen reader, and its turn: the same words said again are a new line. */
+export interface HandSaid {
+  line: string
+  turn: number
+}
 
 export interface LeaveHow {
   pressed: true
@@ -105,6 +118,8 @@ export interface ProjectRoom {
   backgroundsSupported: () => Promise<boolean>
   /** Reactions on screen, this person's own and the room's, each for a few seconds (call-reactions.md). */
   reactions: Reaction[]
+  /** Another's raised hand, said politely to a screen reader for a few seconds (hand-and-sync-announced.md); else null. */
+  handSaid: HandSaid | null
   /** Speech was just heard on this person's muted microphone: «You're muted», for a few seconds (muted-speech.md). */
   mutedHint: boolean
   /** React: shown here at once and sent to everyone in the call; at most one every 400 ms. */
@@ -381,6 +396,9 @@ function heardWhile(current: () => boolean, ports: JoinPorts): RoomCallbacks {
     onReaction: (heard) => {
       if (current()) typedChat.onReaction(heard)
     },
+    onHandRaised: (name) => {
+      if (current()) typedChat.onHandRaised(name)
+    },
     onSpeakingMuted: () => {
       if (current()) typedChat.onSpeakingMuted()
     },
@@ -498,10 +516,12 @@ function useConversation(connection: { current: RoomConnection | null }, silence
   const live = useCaptions(arrival)
   const reacting = useReactions(connection)
   const muted = useMutedHint()
+  const hands = useHandSaid()
   const interrupted = () => {
     typedChat.interrupted()
     live.interrupted()
     reacting.clear()
+    hands.clear()
     // The hint is its call's: out of it, nothing is muted (Codex P2 on #357).
     muted.clear()
   }
@@ -515,8 +535,33 @@ function useConversation(connection: { current: RoomConnection | null }, silence
     react: reacting.react,
     mutedHint: muted.shown,
     onSpeakingMuted: muted.heard,
+    handSaid: hands.said,
+    onHandRaised: hands.raised,
     interrupted,
   }
+}
+
+/** How long a raised hand's line stays in the polite region: as long as a reaction shows. */
+const HAND_SAID_MS = SHOWN_FOR_MS
+
+/**
+ * Another's raised hand, said to a screen reader (hand-and-sync-announced.md): the line, keyed by its turn so the same
+ * words said again are a new node a screen reader reads, for a few seconds.
+ */
+function useHandSaid() {
+  const [said, setSaid] = useState<HandSaid | null>(null)
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(timer.current), [])
+  const raised = (name: string) => {
+    clearTimeout(timer.current)
+    setSaid((last) => ({ line: handRaisedLine(name), turn: (last?.turn ?? 0) + 1 }))
+    timer.current = setTimeout(() => setSaid(null), HAND_SAID_MS)
+  }
+  const clear = () => {
+    clearTimeout(timer.current)
+    setSaid(null)
+  }
+  return { said, raised, clear }
 }
 
 /** How long «You're muted» stays said. */
@@ -541,8 +586,20 @@ function useMutedHint() {
 
 /** What the conversation gives the room: the chat, the notices, the captions, the reactions, and text mode. */
 function conversationParts(c: ReturnType<typeof useConversation>) {
-  const { chat, notices, captions, reactions, react, mutedHint, textMode, textModeNow, setTextMode, sendChat } = c
-  return { chat, notices, captions, reactions, react, mutedHint, textMode, textModeNow, setTextMode, sendChat }
+  const { chat, notices, captions, reactions, react, mutedHint, handSaid, textMode, textModeNow, setTextMode } = c
+  return {
+    chat,
+    notices,
+    captions,
+    reactions,
+    react,
+    mutedHint,
+    handSaid,
+    textMode,
+    textModeNow,
+    setTextMode,
+    sendChat: c.sendChat,
+  }
 }
 
 /** Reactions on screen (call-reactions.md): this person's own and the room's, each for a few seconds, the newest twelve. */

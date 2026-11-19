@@ -145,6 +145,12 @@ export function shortName(name: string): string {
 }
 
 /**
+ * What a screen reader is told when another person raises their hand (hand-and-sync-announced.md), with the name the
+ * tile shows. Proposed words, for Luis to approve: changed here alone.
+ */
+export const handRaisedLine = (name: string): string => `${shortName(name)} raised their hand.`
+
+/**
  * The one thing that sets someone apart in the room, or null: the floor, a guest, speaking, a listener. A guest
  * stays marked as one while they speak: a visitor chooses their own name, and that word is what tells them from a
  * member of the same name.
