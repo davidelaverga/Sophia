@@ -111,9 +111,19 @@ test('settings · a choice is a small box beside its words on one line, and the 
     expect(box?.width ?? 0).toBeLessThanOrEqual(20)
     expect(row?.height ?? 99).toBeLessThanOrEqual(32)
   }
-  const said = sheet(page).locator('.account-names > span')
-  const first = await said.first().boundingBox()
-  const last = await said.last().boundingBox()
+  // Both lines are read in one turn of the page: the sheet's body arrives with a 3px rise, and two separate reads could
+  // each catch it at a different point and see an overlap that is never on screen.
+  const said = await sheet(page)
+    .locator('.account-names > span')
+    .evaluateAll((spans) =>
+      spans.map((el) => {
+        const r = el.getBoundingClientRect()
+        return { y: r.y, height: r.height }
+      }),
+    )
+  expect(said.length, 'the account says each thing on its line').toBeGreaterThanOrEqual(2)
+  const first = said[0]
+  const last = said[said.length - 1]
   if (!first || !last) throw new Error('the account says nothing')
   expect(last.y).toBeGreaterThanOrEqual(first.y + first.height - 1)
 })
