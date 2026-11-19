@@ -158,6 +158,7 @@ test('hand · another’s raised hand is said politely, once, and the focus stay
   await expect(raise(page)).toHaveAttribute('aria-pressed', 'false')
   await page.evaluate(() => window.fixture?.echoHand?.(1))
   await expect(seat(page, 'Marco')).not.toContainText('Hand raised')
+  // Fixed wait kept: a negative check; nothing in the page marks that a lowering was not said.
   await page.waitForTimeout(1000)
   await expect(said, 'a lowering is not said').toHaveText('')
 })
