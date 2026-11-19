@@ -1,0 +1,1422 @@
+{
+  "id": "A54",
+  "goal": "INC03-CC-003-A3",
+  "title": "Personal answer control: the owner cancels or replaces an admitted automatic answer, and reads the controlled conversation, its inputs and their withheld answers, versioned",
+  "why": [
+    "SOPHIA-INC-2026-11 INC-03, INC03-CC-003 A3 (AC03-12 backend): the HTTP boundary of migration 0103. Its generated output is regenerated with `pnpm --filter @sophia/contracts generate`, never by hand.",
+    "New paths and versioned schemas only. A10, A52 and A53 are unchanged: their bodies, routes, receipts and replay bytes mean what they meant, no A53 decision is appended or reinterpreted, and no old enum is widened. A space with controlled inputs is read only through these reads; the old unversioned reads refuse it (503 projection_unavailable) rather than show a turn they cannot represent.",
+    "Control is its own revisioned state, independent of A53's decision sequence, so an input admitted at decision seq 100 is still controllable. Every write names its key, its epoch and the revision it expects; a replay returns its remembered receipt, a refused admission included, before any flag or profile is read.",
+    "Served whenever 0103 is installed: cancel, the reads, the log, the export and replay need neither personalAnswers nor the replacement admission gate, nor a live companion. Only a fresh admission of a replacement needs personalAnswers and personalAnswerReplacementAdmission (both off by default) and the companion's current profile.",
+    "Nothing here undoes an external effect: possible means possibly external, not sent; a settled cost is not a recovered answer; an answer of withdrawn work is withheld for its owner, never published."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalAnswerControlRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "controlContract": {
+            "type": "string",
+            "enum": ["personal_answer_control_v1"]
+          },
+          "action": {
+            "type": "string",
+            "enum": ["cancel", "replace"]
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        },
+        "required": ["controlContract", "action", "expectedRevision"],
+        "description": "A control of the owner's own automatic answer input, under its own key and the control revision it expects (0 for an input never controlled). cancel withdraws it; replace withdraws it and keeps `text` as a new correlated input (text is required for replace and refused for cancel: 422). Closed: no profile, payer, route, model, audience or project."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalAnswerAdmitRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "controlContract": {
+            "type": "string",
+            "enum": ["personal_answer_control_v1"]
+          },
+          "controlId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          }
+        },
+        "required": ["controlContract", "controlId", "expectedRevision"],
+        "description": "The owner's explicit admission of a held replacement: the path names the replacement, controlId the owner's own replace that created it."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalAnswerPrior",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "financial": {
+            "type": "string",
+            "enum": ["none", "unresolved", "settled"]
+          },
+          "effect": {
+            "type": "string",
+            "enum": ["none", "possible"]
+          },
+          "answer": {
+            "type": "string",
+            "enum": ["none", "in_progress", "published", "kept_unpublished", "withheld", "no_answer", "unknown"]
+          }
+        },
+        "required": ["financial", "effect", "answer"],
+        "description": "What the original's calls stand at: their money (none bound, any unresolved, or all settled or released), whether any may have had an external effect (possible is not proof that anything was sent), and what became of the answer. A settled cost is not a recovered answer: unknown stays unknown."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalAnswerControlReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": ["control_answer_input", "admit_answer_input"]
+          },
+          "controlContract": {
+            "type": "string",
+            "enum": ["personal_answer_control_v1"]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "epoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "controlId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "controlSeq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "inputId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "turnId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["cancel", "replace", "admit"]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["applied", "refused"]
+          },
+          "revisionBefore": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "revisionAfter": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["before_reservation", "before_launch", "after_launch", "after_publication", "before_admission"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prior": {
+            "$ref": "#/components/schemas/PersonalAnswerPrior"
+          },
+          "heldReason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "prior_in_progress",
+                  "prior_cost_unresolved",
+                  "admission_off",
+                  "profile_unavailable",
+                  "payer_unavailable"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replacement": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "inputId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "turnId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "seq": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": ["active", "held"]
+                  },
+                  "heldReason": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "prior_in_progress",
+                          "prior_cost_unresolved",
+                          "admission_off",
+                          "profile_unavailable",
+                          "payer_unavailable"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "decision": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/PersonalAnswerDecision"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["inputId", "turnId", "seq", "state", "heldReason", "decision"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonalAnswerDecision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "operation",
+          "controlContract",
+          "revision",
+          "epoch",
+          "controlId",
+          "controlSeq",
+          "inputId",
+          "turnId",
+          "action",
+          "outcome",
+          "revisionBefore",
+          "revisionAfter",
+          "phase",
+          "prior",
+          "heldReason",
+          "replacement"
+        ],
+        "description": "What a control or an admission remembers, and every replay of it returns: its own outcome and snapshot at that moment, never a later observation, a refreshed profile or flag. A refused admission (outcome refused, heldReason) is remembered as such. decision is present on an admission only."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalAnswerControlCall",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "callId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "financial": {
+            "type": "string",
+            "enum": ["reserved_active", "reserved_orphan", "uncertain", "settled", "released"]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z][a-z_]{0,39}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "launch": {
+            "type": "string",
+            "enum": ["untagged", "tagged", "launching", "denied", "refused"]
+          },
+          "answer": {
+            "type": "string",
+            "enum": ["none", "in_progress", "published", "kept_unpublished", "withheld", "no_answer", "unknown"]
+          },
+          "possibleEffect": {
+            "type": "boolean"
+          }
+        },
+        "required": ["callId", "financial", "reason", "launch", "answer", "possibleEffect"],
+        "description": "One call bound to the input's turn: its money (no amount), its launch fence (untagged: reserved before 0103 or by an older process) and its answer. launching means its launch was granted, not that anything was sent."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalAnswerWithheld",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "callId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "suggestion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": ["late_settlement", "kept_transfer"]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["callId", "text", "suggestion", "source", "at"],
+        "description": "An answer of withdrawn work, kept for its owner only and never published."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalAnswerControlView",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "inputId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "turnId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reply": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["pending", "answered", "failed", "recorded", "withdrawn"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decisions": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/PersonalAnswerDecision"
+            }
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "routeId": {
+                    "type": "string"
+                  },
+                  "profileDigest": {
+                    "type": "string",
+                    "pattern": "^sha256:[0-9a-f]{64}$"
+                  }
+                },
+                "required": ["routeId", "profileDigest"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "control": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": ["active", "held", "withdrawn"]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "heldReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "prior_in_progress",
+                      "prior_cost_unresolved",
+                      "admission_off",
+                      "profile_unavailable",
+                      "payer_unavailable"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "withdrawnPhase": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "before_reservation",
+                      "before_launch",
+                      "after_launch",
+                      "after_publication",
+                      "before_admission"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "replaces": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "replacedBy": {
+                "type": "array",
+                "maxItems": 1000,
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
+            "required": ["state", "revision", "heldReason", "withdrawnPhase", "replaces", "replacedBy"]
+          },
+          "prior": {
+            "$ref": "#/components/schemas/PersonalAnswerPrior"
+          },
+          "calls": {
+            "type": "array",
+            "maxItems": 1000,
+            "items": {
+              "$ref": "#/components/schemas/PersonalAnswerControlCall"
+            }
+          },
+          "withheld": {
+            "type": "array",
+            "maxItems": 1000,
+            "items": {
+              "$ref": "#/components/schemas/PersonalAnswerWithheld"
+            }
+          }
+        },
+        "required": [
+          "inputId",
+          "turnId",
+          "seq",
+          "createdAt",
+          "reply",
+          "decisions",
+          "route",
+          "control",
+          "prior",
+          "calls",
+          "withheld"
+        ],
+        "description": "The owner's automatic input as it stands now: its whole admission history (A53 decisions, no profile), the one non-secret reference to the frozen profile it was admitted under (its route and digest), its control, its calls and every answer withheld from it. A current observation: it never rewrites a receipt."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalAnswerControlLogItem",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "controlId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "controlSeq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "action": {
+            "type": "string",
+            "enum": ["cancel", "replace", "admit"]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["applied", "refused"]
+          },
+          "inputId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "turnId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revisionBefore": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "revisionAfter": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["before_reservation", "before_launch", "after_launch", "after_publication", "before_admission"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prior": {
+            "$ref": "#/components/schemas/PersonalAnswerPrior"
+          },
+          "replacementInputId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replacementState": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["active", "held"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "heldReason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "prior_in_progress",
+                  "prior_cost_unresolved",
+                  "admission_off",
+                  "profile_unavailable",
+                  "payer_unavailable"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "controlId",
+          "controlSeq",
+          "action",
+          "outcome",
+          "inputId",
+          "turnId",
+          "revisionBefore",
+          "revisionAfter",
+          "phase",
+          "prior",
+          "replacementInputId",
+          "replacementState",
+          "heldReason",
+          "at"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalAnswerControlLog",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/PersonalAnswerControlLogItem"
+            }
+          },
+          "next": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["items", "next"],
+        "description": "The owner's control operations after `after` (a controlSeq), oldest first; next is where the next page starts (pass it as after), null on the last."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalControlledTurn",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "author": {
+            "type": "string",
+            "enum": ["person", "sophia"]
+          },
+          "text": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "replyTo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reply": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["pending", "answered", "failed", "recorded", "withdrawn"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "suggestion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonalSuggestion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "input": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "inputId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "control": {
+                    "type": "string",
+                    "enum": ["active", "held", "withdrawn"]
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  }
+                },
+                "required": ["inputId", "control", "revision"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prompt": {
+            "type": "string",
+            "enum": ["eligible", "excluded"]
+          },
+          "activity": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "seq",
+          "author",
+          "text",
+          "createdAt",
+          "replyTo",
+          "reply",
+          "suggestion",
+          "input",
+          "prompt",
+          "activity"
+        ],
+        "description": "A turn as it is kept, in a conversation with controlled inputs: reply may be withdrawn (the owner withdrew it before its answer was written); input is its automatic input's control; prompt says whether the companion reads it as context (a withdrawn input and every answer to it are excluded); activity whether it counts as activity (a held or never-admitted replacement does not)."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalControlledTurnPage",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "epoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "turns": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/PersonalControlledTurn"
+            }
+          },
+          "earlier": {
+            "type": "boolean"
+          },
+          "pending": {
+            "type": "boolean"
+          }
+        },
+        "required": ["revision", "epoch", "turns", "earlier", "pending"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalControlledExport",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "exportedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "epoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "turns": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/PersonalControlledTurn"
+            }
+          },
+          "next": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inputs": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/PersonalAnswerControlView"
+            }
+          },
+          "notes": {
+            "type": "array",
+            "maxItems": 2000,
+            "items": {
+              "$ref": "#/components/schemas/PersonalNote"
+            }
+          },
+          "releases": {
+            "type": "array",
+            "maxItems": 2000,
+            "items": {
+              "$ref": "#/components/schemas/PersonalRelease"
+            }
+          }
+        },
+        "required": ["exportedAt", "epoch", "turns", "next", "inputs", "notes", "releases"],
+        "description": "One page of everything the space keeps, versioned for controlled inputs: the turns after `after`, every automatic input on the page as it stands (admission history, control, calls, withheld answers), and the notes and carried notes. Read against the epoch it began in."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1personal~1answers~1{inputId}~1control",
+      "value": {
+        "post": {
+          "operationId": "controlPersonalAnswer",
+          "summary": "Cancel or replace the owner's own admitted automatic answer input, or cancel a held replacement, under its own key and expected control revision. Before its call launched, the original never runs; after, its possible effects are reported, never undone, and its late answer is withheld. A replacement is kept at once, admitted only when the original's money is resolved and paid admission is on, else held with its reason. Served whenever 0103 is installed, whatever the admission flags.",
+          "tags": ["personal"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC03-CC-003-A3",
+          "parameters": [
+            {
+              "name": "inputId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            },
+            {
+              "name": "x-sophia-personal-epoch",
+              "in": "header",
+              "required": true,
+              "description": "The epoch of the space the write is made against. A write made against another epoch, so one issued before an erasure however late it arrives, is refused (409 request_erased) and writes nothing.",
+              "schema": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]{0,14})$"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalAnswerControlRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "202": {
+              "description": "Applied: the receipt of this control (a replay returns it as it was, wakes nothing and reads no flag or profile)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalAnswerControlReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted: a guest",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Idempotency key reused with a different request (idempotency_conflict); a write against an epoch an erasure has since moved, or under a key from before it (request_erased); a stale expectedRevision (stale_revision); or an input in a state this operation does not apply to (invalid_state: withdrawn, waiting for A53, record-only, held for a replace, not held for an admission)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema (unknown fields, a missing or other controlContract, text with cancel or none with replace), or the input, or the replace that names it, is not the caller's or unknown (not_found): they read alike",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "0103 is not installed on this database (projection_unavailable), or the database is unavailable (unavailable): never an empty or legacy answer",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "get": {
+          "operationId": "readPersonalAnswerControl",
+          "summary": "The owner's own automatic input as it stands now: admission history, control, calls, withheld answers. Effect-free; served whenever 0103 is installed.",
+          "tags": ["personal"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC03-CC-003-A3",
+          "parameters": [
+            {
+              "name": "inputId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalAnswerControlView"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted: a guest",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or the input is not the caller's or unknown (not_found)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "0103 is not installed on this database (projection_unavailable), or the database is unavailable (unavailable): never an empty or legacy answer",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1personal~1answers~1{inputId}~1control~1admit",
+      "value": {
+        "post": {
+          "operationId": "admitPersonalAnswer",
+          "summary": "Admit a held replacement the owner's own replace created, under its own key and expected revision: applied only when the original's money is resolved (nothing reserved or uncertain) and paid admission is on under the current profile; otherwise refused with its reason, and that refusal is what every replay returns.",
+          "tags": ["personal"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC03-CC-003-A3",
+          "parameters": [
+            {
+              "name": "inputId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            },
+            {
+              "name": "x-sophia-personal-epoch",
+              "in": "header",
+              "required": true,
+              "description": "The epoch of the space the write is made against. A write made against another epoch, so one issued before an erasure however late it arrives, is refused (409 request_erased) and writes nothing.",
+              "schema": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]{0,14})$"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalAnswerAdmitRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "202": {
+              "description": "The receipt: outcome applied (with its decision) or refused (with heldReason)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalAnswerControlReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted: a guest",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Idempotency key reused with a different request (idempotency_conflict); a write against an epoch an erasure has since moved, or under a key from before it (request_erased); a stale expectedRevision (stale_revision); or an input in a state this operation does not apply to (invalid_state: withdrawn, waiting for A53, record-only, held for a replace, not held for an admission)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema (unknown fields, a missing or other controlContract, text with cancel or none with replace), or the input, or the replace that names it, is not the caller's or unknown (not_found): they read alike",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "0103 is not installed on this database (projection_unavailable), or the database is unavailable (unavailable): never an empty or legacy answer",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1personal~1answer-controls~1log",
+      "value": {
+        "get": {
+          "operationId": "readPersonalAnswerControlLog",
+          "summary": "The owner's control operations, a page at a time, oldest first. Effect-free.",
+          "tags": ["personal"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC03-CC-003-A3",
+          "parameters": [
+            {
+              "name": "after",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]{0,15})$"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalAnswerControlLog"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted: a guest",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "0103 is not installed on this database (projection_unavailable), or the database is unavailable (unavailable): never an empty or legacy answer",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1personal~1answer-controls~1turns",
+      "value": {
+        "get": {
+          "operationId": "readPersonalControlledTurns",
+          "summary": "The conversation as it is kept, with controlled inputs: the newest page, the turns after `after` (polling) or before `before` (reading back). The only reads of a space with controlled inputs: the old unversioned ones answer 503 projection_unavailable for it.",
+          "tags": ["personal"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC03-CC-003-A3",
+          "parameters": [
+            {
+              "name": "after",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]{0,15})$"
+              }
+            },
+            {
+              "name": "before",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalControlledTurnPage"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted: a guest",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or names both after and before",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "0103 is not installed on this database (projection_unavailable), or the database is unavailable (unavailable): never an empty or legacy answer",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1personal~1answer-controls~1export",
+      "value": {
+        "get": {
+          "operationId": "exportPersonalControlled",
+          "summary": "Everything the space keeps, versioned for controlled inputs, a page at a time, against the epoch the copy began in.",
+          "tags": ["personal"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC03-CC-003-A3",
+          "parameters": [
+            {
+              "name": "after",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]{0,15})$"
+              }
+            },
+            {
+              "name": "x-sophia-personal-epoch",
+              "in": "header",
+              "required": true,
+              "description": "The epoch of the space the copy began in: a page asked for after an erasure is refused (409 request_erased).",
+              "schema": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]{0,14})$"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalControlledExport"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted: a guest",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "An erasure came since the copy began (request_erased)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "0103 is not installed on this database (projection_unavailable), or the database is unavailable (unavailable): never an empty or legacy answer",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
