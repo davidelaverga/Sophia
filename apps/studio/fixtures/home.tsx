@@ -44,6 +44,7 @@ import { newMeeting, nothingSince, updatesWindowOf } from './meeting-data.ts'
 import '../src/app/theme.css'
 import '../src/features/personal/personal.css'
 import { bootTheme } from '../src/app/theme.ts'
+import { retryRead } from '../src/app/account-cache.ts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useNeeds } from '../src/features/personal/useNeeds.ts'
 import { useCallSeen, useSaidOnce, useSinceNews } from '../src/features/personal/useSinceNews.ts'
@@ -453,7 +454,8 @@ const INVITED_BAND = INVITED ? (
     onOpen={(projectId) => pressed.push(`open ${projectId}`)}
   />
 ) : undefined
-const client = new QueryClient()
+// Read as the app reads: never again after a refusal the API marks final (account-cache.ts's retryRead).
+const client = new QueryClient({ defaultOptions: { queries: { retry: retryRead } } })
 
 const yesterday = new Date(NOW.getTime() - 26 * 3_600_000).toISOString()
 // The demo's Personal: its last words minutes ago, as Home's «Continue» says them.
