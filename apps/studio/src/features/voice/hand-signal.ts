@@ -54,24 +54,57 @@ const ASK_PACE_MS = 1000
  */
 const ASK_TRIES = 4
 
-/** What others said: each raised hand with the count of packets heard when it was, which only grows. */
-function heardHands(onChange: () => void) {
+/**
+ * How long after a drop's forget a hand from before, heard again, is still the same raise (the ask's answer), not a new
+ * one said to a screen reader (hand-and-sync-announced.md).
+ */
+const REHEARD_MS = 5000
+
+/** The hands forgotten after a drop, each with its own deadline: until then, one heard again is still the same raise. */
+function forgottenHands(now: () => number) {
+  const until = new Map<string, number>()
+  return {
+    keep: (identity: string) => void until.set(identity, now() + REHEARD_MS),
+    /** Whether a raise heard now is one from before the drop; asked once, it is no longer kept. */
+    heardAgain: (identity: string) => {
+      const deadline = until.get(identity)
+      until.delete(identity)
+      return deadline !== undefined && now() <= deadline
+    },
+    drop: (identity: string) => void until.delete(identity),
+  }
+}
+
+/**
+ * What others said: each raised hand with the count of packets heard when it was, which only grows. A hand going up
+ * is said to `onRaised` once: never when it was already up, nor when it is one from before a drop heard again.
+ */
+function heardHands(onChange: () => void, onRaised: (identity: string) => void, now: () => number) {
   const heard = new Map<string, number>()
+  const forgotten = forgottenHands(now)
   let received = 0
   return {
     said: (identity: string, hand: boolean) => {
       received += 1
+      const rising = hand && !heard.has(identity)
       if (hand) heard.set(identity, received)
       else heard.delete(identity)
+      if (!hand) forgotten.drop(identity)
+      else if (rising && !forgotten.heardAgain(identity)) onRaised(identity)
       onChange()
     },
     left: (identity: string) => {
+      forgotten.drop(identity)
       if (heard.delete(identity)) onChange()
     },
     /** How many were heard so far: what a forget after a drop counts up to. */
     count: () => received,
     forget: (upTo: number) => {
-      for (const [identity, at] of heard) if (at <= upTo) heard.delete(identity)
+      for (const [identity, at] of heard) {
+        if (at > upTo) continue
+        heard.delete(identity)
+        forgotten.keep(identity)
+      }
       onChange()
     },
     raised: (identity: string) => heard.has(identity),
@@ -139,14 +172,23 @@ function ownHand(publish: Publish, onChange: () => void, retryMs: number) {
   }
 }
 
+export interface HandOptions {
+  retryMs?: number
+  now?: () => number
+  /** Another member's hand went up, by their identity: once per raise (hand-and-sync-announced.md). */
+  onRaised?: (identity: string) => void
+}
+
+const noRaise = () => undefined
+
 export function handSignal(
   room: Pick<Room, 'on'>,
   publish: Publish,
   onChange: () => void,
-  { retryMs = 2000, now = Date.now } = {},
+  { retryMs = 2000, now = Date.now, onRaised = noRaise }: HandOptions = {},
 ): HandSignal {
   const own = ownHand(publish, onChange, retryMs)
-  const hands = heardHands(onChange)
+  const hands = heardHands(onChange, onRaised, now)
   const answered = new Map<string, number>()
   const tell = (to: string) => void publish(encodeHand(true), [to]).catch(() => undefined)
   const answer = (asker: string) => {

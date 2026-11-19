@@ -205,6 +205,7 @@ test.describe('default build: the read flag off', () => {
     await expect(nav(page).getByRole('link', { name: 'Resources', exact: true })).toHaveCount(0)
     await expect(page).toHaveURL(new RegExp(`/p/${PROJECT}(/studio)?`))
     await settled(page)
+    // Fixed wait kept: negative check: no read may follow in this window, and no event marks an absence
     await page.waitForTimeout(1000)
     expect(await page.evaluate(() => window.catalogAsked?.length ?? 0)).toBe(0)
   })
@@ -356,6 +357,7 @@ async function stayThenSignOut(context: BrowserContext, on: string) {
   await expect(choice).toBeVisible()
   await toConversations(page)
   // Nothing signed out, nothing read, the call live with its switches, both drafts exactly as they were.
+  // Fixed wait kept: negative check: nothing signs out or reads in this window
   await page.waitForTimeout(800)
   expect(logouts).toEqual([])
   expect(await page.evaluate(() => window.catalogAsked?.length ?? 0)).toBe(asked)
@@ -413,6 +415,7 @@ async function signOutFails(context: BrowserContext, on: string) {
   await expect(toast.getByRole('button', { name: 'Try again' })).toBeVisible()
   await expect(account(page)).toBeVisible()
   await expect(notice).toHaveAttribute('data-read', 'refused')
+  // Fixed wait kept: negative check: no read may follow in this window, and no event marks an absence
   await page.waitForTimeout(1000)
   await expect(tiles(page)).toHaveCount(0)
   expect(await page.evaluate(() => window.catalogAsked?.length ?? 0)).toBe(asked)
@@ -470,6 +473,7 @@ async function settledInCall(context: BrowserContext, on: string, phone: boolean
   // Leave from the dock: the call ends here, and nothing rejoins it.
   await page.getByRole('group', { name: 'Project room' }).getByRole('button', { name: 'Leave the room' }).click()
   await expect(leaveRoom(page)).toHaveCount(0)
+  // Fixed wait kept: negative check: nothing rejoins the call after Leave
   await page.waitForTimeout(800)
   await expect(leaveRoom(page)).toHaveCount(0)
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(phone ? 390 : 1280)

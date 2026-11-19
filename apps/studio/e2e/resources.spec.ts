@@ -525,6 +525,7 @@ test('live · ages and countdowns move on while the page is open, and a tick fla
   await page.clock.fastForward('01:00')
   await expect(claude).toContainText('resets in 54 min')
   // Read once, inside the time a flash would last: the words moved, not the state, so no tile says it changed.
+  // Fixed wait kept: negative check: no tile flashes as changed inside the flash’s time
   await page.waitForTimeout(300)
   expect(await grid(page).locator('[data-changed]').count()).toBe(0)
   await open(page, 'Davide · Codex')
@@ -737,6 +738,7 @@ test('a secret: “ultracode” typed on the view sends a wave across the tiles,
   const view = page.locator('section.resources')
   await search(page).focus()
   await page.keyboard.type('ultracode') // typed, key by key, in a field: typing, nothing more
+  // Fixed wait kept: negative check: typing in a field never wakes ultracode
   await page.waitForTimeout(200)
   expect(await view.getAttribute('data-ultra')).toBeNull()
   await search(page).fill('')
@@ -783,6 +785,7 @@ test('@phone · one tile to a row: no neighbours to greet', async ({ page }) => 
   await sortBy(page, 'Tool')
   // Once the order has glided into place, the two Claude Codes follow each other, a row apart: no greeting.
   await expect(grid(page).getByRole('button').nth(1)).toHaveAttribute('aria-label', 'Luis · Claude Code')
+  // Fixed wait kept: negative check: no greeting once the order has glided into place
   await page.waitForTimeout(300)
   expect(await page.locator('.resource-tile[data-buddy]').count()).toBe(0)
 })
@@ -906,6 +909,7 @@ test('Codex’s review · a dragged tile becomes the Tab stop; Alt at an end cha
   await page.goto(`${PAGE}?more=1`)
   await tile(page, 'Davide · Claude Code').focus()
   await page.keyboard.press('Alt+Home') // already first
+  // Fixed wait kept: negative check: Alt+Home on the first tile freezes nothing
   await page.waitForTimeout(200)
   await expect(sortButton(page)).toHaveText('SortAttention') // still live, not frozen
   await tile(page, 'Luis · Claude Code').dragTo(tile(page, 'Davide · Codex'))
@@ -1103,6 +1107,7 @@ test('effort · a restart, step by step: asked, its work kept as it stops, start
   // Said for a moment, then let go, while live reads keep arriving: none of them holds it there.
   for (let left = 3200; left > 3194; left--) {
     await page.evaluate((n) => window.resourcesFixture?.spendCredits?.(n), left)
+    // Fixed wait kept: live reads spaced as the service sends them; the spacing is the subject
     await page.waitForTimeout(900)
   }
   await expect(worker.getByRole('status')).toHaveCount(0, { timeout: 500 })
@@ -1343,6 +1348,7 @@ test('motion · glides cut short by the next one leave no error behind', async (
     .getByRole('tablist', { name: 'Show' })
     .evaluate((list) => list.querySelectorAll<HTMLButtonElement>('[role="tab"]').forEach((tab) => tab.click()))
   await expect(filter(page, 'Mine 2')).toHaveAttribute('aria-selected', 'true')
+  // Fixed wait kept: negative check: no promise is rejected in this window
   await page.waitForTimeout(500)
   expect(await page.evaluate(() => String(Reflect.get(window, 'rejected')))).toBe('')
 })

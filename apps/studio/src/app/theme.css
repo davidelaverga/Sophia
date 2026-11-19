@@ -176,9 +176,21 @@
   --r-2: 6px;
   --r-3: 8px;
   --r-4: 12px;
+  /* Motion (docs/plans/motion-tokens.md): every transition and animation runs for one of these and eases on one of
+     the two curves (or linear); motion.test.ts fences the rest. One-shots by what moves, then the ambient loops. */
   --ease: cubic-bezier(0.2, 0, 0, 1);
-  --fast: 140ms;
-  --base: 220ms;
+  --ease-in-out: ease-in-out;
+  --motion-fast: 140ms; /* a state: hover, colour, a small turn */
+  --motion-base: 220ms; /* a small piece: a veil, a slide, a sheet on the phone */
+  --motion-medium: 300ms; /* a compact arrival: a popover, a row, a toast */
+  --motion-slow: 400ms; /* a panel or a section arriving */
+  --motion-slower: 500ms; /* a large arrival: a tile, a lane, a drawn thread */
+  --motion-long: 600ms; /* a place's entrance, a hop */
+  --motion-flourish: 900ms; /* a one-off flourish: an ignition, a birth */
+  --motion-sweep: 1.4s; /* a long one-shot sweep (ResourceTile.tsx mirrors it) */
+  --motion-pulse: 1.6s; /* the alive pulse: looking, listening, loading */
+  --motion-breath: 2.4s; /* a waiting mark's breath */
+  --motion-breath-slow: 2.8s; /* a slower breath: the glow forming, a question's light */
   --gutter: max(16px, 3vw);
   --topbar: 48px;
   /* The widest a page's column goes (docs/plans/widths.md): a wide screen is used, not left bare at the sides. */
@@ -458,9 +470,9 @@
   --gc-breath: calc(var(--gc-depth) * (2 * var(--gc-b) - 1));
   animation:
     gc-drift 48s linear infinite,
-    gc-breathe 6.5s ease-in-out infinite alternate,
-    gc-call 2.4s ease-in-out infinite alternate paused;
-  transition: 1.4s ease;
+    gc-breathe 6.5s var(--ease-in-out) infinite alternate,
+    gc-call var(--motion-breath) var(--ease-in-out) infinite alternate paused;
+  transition: var(--motion-sweep) ease;
   transition-property:
     --gc-reach, --gc-stir, --gc-heart, --gc-depth, --gc-dim, --gc-glow, --gc-lean, --gc-op, --gc-tint, --gc-sat,
     --gc-lit, --gc-forming, --gc-calling;
@@ -538,7 +550,7 @@
 :root[data-theme='light'] .light[data-mark] {
   --gc-op: 0;
   animation-play-state: paused;
-  transition-duration: 0.6s;
+  transition-duration: var(--motion-long);
 }
 /* Read, not heard: no voice moves anything inside her (the levels are cut at the source too, RoomStage). */
 :root[data-theme='light'] .room-stage[data-conversation-mode='text'] > .light {
@@ -621,14 +633,14 @@
       rgb(106 86 212) 84%,
       rgb(var(--core-rgb))
     );
-  transition: --gc-swirl 0.3s linear;
+  transition: --gc-swirl var(--motion-medium) linear;
 }
 /* Thinking, a slow dim and clear over 11 s, from the start each time; joining, the light inside her forming. */
 :root[data-theme='light'] .light[data-mode='think']::before {
-  animation: gc-ponder 11s ease-in-out infinite alternate;
+  animation: gc-ponder 11s var(--ease-in-out) infinite alternate;
 }
 :root[data-theme='light'] .light[data-presence='joining']::before {
-  animation: gc-form 2.8s ease-in-out infinite alternate;
+  animation: gc-form var(--motion-breath-slow) var(--ease-in-out) infinite alternate;
 }
 /* The glass: its glint, a soft sheen above and below, a translucent rim; a grounding shadow and her glow, which her
    breath and her voice lift. */
@@ -871,7 +883,7 @@ kbd {
   }
 }
 .arrive {
-  animation: arrive 0.36s var(--ease) both;
+  animation: arrive var(--motion-slow) var(--ease) both;
 }
 
 /* Labels that swap in place (SwapLabel): one cell, the current one visible. */
@@ -881,8 +893,8 @@ kbd {
 .swap > * {
   grid-area: 1 / 1;
   transition:
-    opacity var(--base) var(--ease),
-    transform var(--base) var(--ease);
+    opacity var(--motion-base) var(--ease),
+    transform var(--motion-base) var(--ease);
 }
 .swap > [aria-hidden='true'] {
   opacity: 0;
@@ -936,9 +948,9 @@ button:disabled,
   white-space: nowrap;
   box-shadow: var(--lift);
   transition:
-    background var(--fast) var(--ease),
-    border-color var(--fast) var(--ease),
-    color var(--fast) var(--ease);
+    background var(--motion-fast) var(--ease),
+    border-color var(--motion-fast) var(--ease),
+    color var(--motion-fast) var(--ease);
 }
 .pill:hover:not(:disabled, [aria-disabled='true']) {
   background: rgb(var(--ink-rgb) / 0.08);
@@ -1031,8 +1043,8 @@ select option {
   font-size: 13px;
   font-weight: 500;
   transition:
-    color var(--fast) var(--ease),
-    background var(--fast) var(--ease);
+    color var(--motion-fast) var(--ease),
+    background var(--motion-fast) var(--ease);
 }
 .ghost:hover {
   color: var(--text);
@@ -1056,9 +1068,9 @@ select option {
   background: var(--control-quiet);
   color: var(--text-2);
   transition:
-    background var(--fast) var(--ease),
-    color var(--fast) var(--ease),
-    border-color var(--fast) var(--ease);
+    background var(--motion-fast) var(--ease),
+    color var(--motion-fast) var(--ease),
+    border-color var(--motion-fast) var(--ease);
 }
 .round:hover {
   color: var(--text);
@@ -1095,7 +1107,7 @@ select option {
   text-decoration: underline;
   text-decoration-color: rgb(var(--halo-text-rgb) / 0.35);
   text-underline-offset: 3px;
-  transition: text-decoration-color var(--fast) var(--ease);
+  transition: text-decoration-color var(--motion-fast) var(--ease);
 }
 /* Under the pointer the underline wakes from a third of its ink to the ink; a text button that is disabled (a command
    sending) keeps still, as a pill does (Codex on #253). */
@@ -1148,8 +1160,8 @@ textarea {
   color: var(--text);
   font-size: var(--type-body);
   transition:
-    border-color var(--fast) var(--ease),
-    background var(--fast) var(--ease);
+    border-color var(--motion-fast) var(--ease),
+    background var(--motion-fast) var(--ease);
 }
 /* A placeholder is words read before typing: the third ink, as Home's (the personal composer's is brighter). */
 input::placeholder,
@@ -1232,8 +1244,8 @@ input[type='checkbox']:hover:not(:disabled) {
   opacity: 0;
   transform: translate(-50%, 2px);
   transition:
-    opacity var(--fast) var(--ease),
-    transform var(--fast) var(--ease);
+    opacity var(--motion-fast) var(--ease),
+    transform var(--motion-fast) var(--ease);
 }
 .tip[data-side='bottom'] {
   top: calc(100% + 8px);
@@ -1331,7 +1343,7 @@ input[type='checkbox']:hover:not(:disabled) {
   border-radius: var(--r-2);
   background: none;
   color: var(--text);
-  transition: background var(--fast) var(--ease);
+  transition: background var(--motion-fast) var(--ease);
 }
 button.mark:hover {
   background: rgb(var(--ink-rgb) / 0.05);
@@ -1395,8 +1407,8 @@ button.mark:hover {
   font-weight: 500;
   white-space: nowrap;
   transition:
-    color var(--fast) var(--ease),
-    background var(--fast) var(--ease);
+    color var(--motion-fast) var(--ease),
+    background var(--motion-fast) var(--ease);
 }
 .crumb:hover {
   color: var(--text);
@@ -1445,7 +1457,7 @@ button.mark:hover {
   font-size: 13px;
   font-weight: 500;
   text-decoration: none;
-  transition: color var(--fast) var(--ease);
+  transition: color var(--motion-fast) var(--ease);
 }
 .view-nav a:hover {
   color: var(--text-2);
@@ -1482,8 +1494,8 @@ button.mark:hover {
 }
 .view-nav[data-thumb-ready]::after {
   transition:
-    transform var(--base) var(--ease),
-    width var(--base) var(--ease);
+    transform var(--motion-base) var(--ease),
+    width var(--motion-base) var(--ease);
 }
 .topbar-end {
   display: flex;
@@ -1509,7 +1521,7 @@ button.mark:hover {
   height: 6px;
   border-radius: 50%;
   background: var(--text-4);
-  transition: background var(--base) var(--ease);
+  transition: background var(--motion-base) var(--ease);
 }
 .connection[data-state='live'] .connection-dot {
   background: var(--teal);
@@ -1521,6 +1533,16 @@ button.mark:hover {
 }
 .connection[data-state='denied'] .connection-dot {
   background: var(--rose);
+}
+/* Its help is a tip in the app's own type (hand-and-sync-announced.md): not the pill's mono capitals. The focus ring
+   keeps to the pill, not the margin after it. */
+.connection .tip {
+  font-family: var(--sans);
+  letter-spacing: normal;
+  text-transform: none;
+}
+.connection:focus-visible {
+  border-radius: var(--r-1);
 }
 /* The account, in every bar: the avatar opens a menu (AccountMenu). */
 .account {
@@ -1560,7 +1582,7 @@ button.mark:hover {
   border: 1px solid var(--line-2);
   background: var(--plane-2);
   box-shadow: var(--elev-menu);
-  animation: arrive var(--base) var(--ease) both;
+  animation: arrive var(--motion-base) var(--ease) both;
 }
 /* In a field (the resources' sort) the plane's box is the field's padding box, 1 px inside its edge: one more pixel,
    so the 6 px are from the field as seen. (CI read 5 at rest; the runs that passed had caught the arrival mid-way.) */
@@ -1769,7 +1791,7 @@ img.avatar {
 }
 .threshold .umbral-sophia {
   fill: var(--mark-sophia);
-  animation: threshold-breathe 4.8s ease-in-out 1.2s infinite alternate;
+  animation: threshold-breathe 4.8s var(--ease-in-out) 1.2s infinite alternate;
 }
 @keyframes threshold-breathe {
   from {
@@ -1887,9 +1909,9 @@ img.avatar {
   box-shadow: var(--lift);
   color: var(--text);
   transition:
-    border-color 140ms,
-    background 140ms,
-    transform 140ms;
+    border-color var(--motion-fast),
+    background var(--motion-fast),
+    transform var(--motion-fast);
 }
 .provider:hover:not(:disabled) {
   border-color: rgb(var(--halo-text-rgb) / 0.45);
@@ -1980,7 +2002,7 @@ img.avatar {
   box-shadow: var(--lift);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
-  transition: border-color var(--fast) var(--ease);
+  transition: border-color var(--motion-fast) var(--ease);
 }
 /* The input takes the row's height: on touch it grows with the 40px button beside it, so their words share a line. */
 .field input {
@@ -2061,8 +2083,8 @@ img.avatar {
   box-shadow: var(--lift);
   text-align: left;
   transition:
-    border-color var(--fast) var(--ease),
-    background var(--fast) var(--ease);
+    border-color var(--motion-fast) var(--ease),
+    background var(--motion-fast) var(--ease);
 }
 .identity-grid button:hover {
   border-color: rgb(var(--warm-rgb) / 0.36);
@@ -2130,7 +2152,7 @@ img.avatar {
   border-radius: var(--r-2);
   background: none;
   text-align: left;
-  transition: background var(--fast) var(--ease);
+  transition: background var(--motion-fast) var(--ease);
 }
 .recent button:hover {
   background: var(--state-hover);
@@ -2225,9 +2247,9 @@ img.avatar {
 }
 .segmented[data-thumb-ready]::before {
   transition:
-    transform var(--base) var(--ease),
-    width var(--base) var(--ease),
-    height var(--base) var(--ease);
+    transform var(--motion-base) var(--ease),
+    width var(--motion-base) var(--ease),
+    height var(--motion-base) var(--ease);
 }
 .segmented button {
   position: relative;
@@ -2241,7 +2263,7 @@ img.avatar {
   color: var(--text-3);
   font-size: 13px;
   font-weight: 500;
-  transition: color var(--fast) var(--ease);
+  transition: color var(--motion-fast) var(--ease);
 }
 /* Under the pointer an option not yet on reads in the ink: a step above wherever its box rests it (Knowledge's filters
    rest at the second ink already). The one on is on. */
@@ -2286,7 +2308,7 @@ img.avatar {
   align-items: center;
   gap: 12px;
   transform: translateY(-50%);
-  animation: arrive 0.5s var(--ease) both;
+  animation: arrive var(--motion-slower) var(--ease) both;
 }
 .presence[data-side='left'] {
   left: max(var(--gutter), 50% - var(--lr) * 2.6);
@@ -2311,9 +2333,9 @@ img.avatar {
   font-size: 13px;
   font-weight: 600;
   transition:
-    border-color var(--base) var(--ease),
-    box-shadow var(--base) var(--ease),
-    color var(--base) var(--ease);
+    border-color var(--motion-base) var(--ease),
+    box-shadow var(--motion-base) var(--ease),
+    color var(--motion-base) var(--ease);
 }
 .presence[data-floor] .orbit {
   color: var(--text);
@@ -2333,8 +2355,8 @@ img.avatar {
       0 0 0 calc(2px + var(--level, 0) * 3px) rgb(var(--warm-rgb) / 0.12),
       0 0 24px rgb(var(--warm-rgb) / calc(0.1 + var(--level, 0) * 0.36));
     transition:
-      border-color var(--base) var(--ease),
-      color var(--base) var(--ease);
+      border-color var(--motion-base) var(--ease),
+      color var(--motion-base) var(--ease);
   }
 }
 .ignite {
@@ -2343,7 +2365,7 @@ img.avatar {
   border-radius: 50%;
   border: 1px solid rgb(var(--warm-rgb) / 0.8);
   opacity: 0;
-  animation: ignite 0.9s var(--ease);
+  animation: ignite var(--motion-flourish) var(--ease);
   pointer-events: none;
 }
 @keyframes ignite {
@@ -2378,7 +2400,7 @@ img.avatar {
 .who .role {
   color: var(--text-3);
   font-size: 12px;
-  transition: color var(--base) var(--ease);
+  transition: color var(--motion-base) var(--ease);
 }
 .presence[data-floor] .role {
   color: rgb(var(--warm-rgb) / 0.85);
@@ -2393,7 +2415,7 @@ img.avatar {
   gap: 2px;
   height: 14px;
   opacity: 0;
-  transition: opacity var(--base) var(--ease);
+  transition: opacity var(--motion-base) var(--ease);
 }
 .presence[data-speaking] .meter {
   opacity: 1;
@@ -2479,7 +2501,7 @@ img.avatar {
   box-shadow: var(--lift), var(--elev-dock);
 }
 .stage-made.born {
-  animation: made-born 0.9s var(--ease) both;
+  animation: made-born var(--motion-flourish) var(--ease) both;
 }
 @keyframes made-born {
   from {
@@ -2631,14 +2653,14 @@ img.avatar {
   transform: translateX(-50%);
   text-align: center;
   pointer-events: none;
-  animation: veil var(--base) var(--ease) both;
+  animation: veil var(--motion-base) var(--ease) both;
 }
 .stage-caption {
   margin: 0;
   color: var(--text);
   font-size: 15px;
   text-wrap: balance;
-  transition: color var(--base) var(--ease);
+  transition: color var(--motion-base) var(--ease);
 }
 .stage-caption[data-older] {
   color: var(--text-3);
@@ -2743,8 +2765,8 @@ img.avatar {
   border-radius: var(--r-4);
   background: var(--glass);
   transition:
-    border-color var(--fast) var(--ease),
-    box-shadow var(--fast) var(--ease);
+    border-color var(--motion-fast) var(--ease),
+    box-shadow var(--motion-fast) var(--ease);
 }
 .message-bar:focus-within {
   border-color: rgb(var(--halo-text-rgb) / 0.55);
@@ -2777,8 +2799,8 @@ img.avatar {
   background: var(--core);
   color: var(--void);
   transition:
-    background var(--fast) var(--ease),
-    color var(--fast) var(--ease);
+    background var(--motion-fast) var(--ease),
+    color var(--motion-fast) var(--ease);
 }
 .send:hover:not(:disabled) {
   background: var(--core-hover);
@@ -3141,7 +3163,7 @@ button.contribution-quote:hover {
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow: var(--lift), var(--elev-dock);
-  animation: rise 0.45s var(--ease) 0.1s backwards;
+  animation: rise var(--motion-slow) var(--ease) 0.1s backwards;
 }
 @keyframes rise {
   from {
@@ -3392,8 +3414,8 @@ button.contribution-quote:hover {
   background: none;
   color: var(--text-3);
   transition:
-    background var(--fast) var(--ease),
-    color var(--fast) var(--ease);
+    background var(--motion-fast) var(--ease),
+    color var(--motion-fast) var(--ease);
 }
 .device-open:hover,
 .device-open[aria-expanded='true'] {
@@ -3596,7 +3618,7 @@ button.contribution-quote:hover {
   height: 7px;
   border-radius: 50%;
   background: var(--warm);
-  animation: sophia-looking 1.6s ease-in-out infinite;
+  animation: sophia-looking var(--motion-pulse) var(--ease-in-out) infinite;
 }
 @keyframes sophia-looking {
   50% {
@@ -3798,9 +3820,9 @@ button.contribution-quote:hover {
 .card.live {
   cursor: pointer;
   transition:
-    border-color var(--fast) var(--ease),
-    background-color var(--fast) var(--ease),
-    transform var(--fast) var(--ease);
+    border-color var(--motion-fast) var(--ease),
+    background-color var(--motion-fast) var(--ease),
+    transform var(--motion-fast) var(--ease);
 }
 .card.live:hover {
   border-color: var(--card-edge-hover, var(--line-2));
@@ -3831,10 +3853,10 @@ button.contribution-quote:hover {
   border-radius: var(--r-4);
   border: 1px solid var(--line);
   background: var(--surface-well);
-  animation: arrive 0.4s var(--ease) both;
+  animation: arrive var(--motion-slow) var(--ease) both;
   transition:
-    border-color var(--base) var(--ease),
-    box-shadow var(--base) var(--ease);
+    border-color var(--motion-base) var(--ease),
+    box-shadow var(--motion-base) var(--ease);
 }
 .tile[data-floor] {
   border-color: rgb(var(--warm-rgb) / 0.5);
@@ -3848,7 +3870,7 @@ button.contribution-quote:hover {
     box-shadow:
       0 0 0 1px rgb(var(--warm-rgb) / 0.6),
       0 0 calc(16px + var(--level, 0) * 36px) rgb(var(--warm-rgb) / calc(0.08 + var(--level, 0) * 0.24));
-    transition: border-color var(--base) var(--ease);
+    transition: border-color var(--motion-base) var(--ease);
   }
 }
 .sophia-tile {
@@ -3937,7 +3959,7 @@ button.contribution-quote:hover {
   border-radius: var(--r-4);
   border: 1px solid var(--line);
   background: #000;
-  animation: arrive 0.4s var(--ease) both;
+  animation: arrive var(--motion-slow) var(--ease) both;
 }
 .screen-main figcaption {
   position: absolute;
@@ -4010,7 +4032,7 @@ button.contribution-quote:hover {
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow: var(--lift), var(--elev-mini-dock);
-  animation: rise 0.4s var(--ease) backwards;
+  animation: rise var(--motion-slow) var(--ease) backwards;
 }
 .mini-dock .pill {
   border-color: transparent;
@@ -4294,8 +4316,8 @@ button.contribution-quote:hover {
   pointer-events: none;
   transform: translate(-50%, 8px);
   transition:
-    opacity var(--base) var(--ease),
-    transform var(--base) var(--ease);
+    opacity var(--motion-base) var(--ease),
+    transform var(--motion-base) var(--ease);
 }
 .toast[data-shown] {
   opacity: 1;
@@ -4384,7 +4406,7 @@ button.contribution-quote:hover {
   border-radius: 50%;
   background: var(--warm);
   box-shadow: 0 0 0 3px rgb(var(--warm-rgb) / 0.16);
-  animation: door-breathe 2.4s var(--ease) infinite;
+  animation: door-breathe var(--motion-breath) var(--ease) infinite;
 }
 @keyframes door-breathe {
   50% {
@@ -4535,7 +4557,7 @@ button.contribution-quote:hover {
   inset: 0;
   z-index: 50;
   background: var(--veil);
-  animation: veil var(--base) var(--ease) both;
+  animation: veil var(--motion-base) var(--ease) both;
 }
 /* The palette (docs/plans/commands.md): a dialog in the middle of the screen, high; the kit's search field over rows
    with a menu's measures (32, 13 px). */
@@ -4643,7 +4665,7 @@ button.contribution-quote:hover {
   border-left: 1px solid var(--line-2);
   background: var(--sheet-plane);
   box-shadow: var(--elev-sheet);
-  animation: slide var(--base) var(--ease) both;
+  animation: slide var(--motion-base) var(--ease) both;
 }
 .sheet:focus-visible {
   outline: none;
@@ -4717,7 +4739,7 @@ button.contribution-quote:hover {
   color: var(--text-3);
   font-size: 13px;
   font-weight: 500;
-  transition: color var(--fast) var(--ease);
+  transition: color var(--motion-fast) var(--ease);
 }
 .tabs > button:hover {
   color: var(--text-2);
@@ -4743,7 +4765,7 @@ button.contribution-quote:hover {
   grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   padding-top: 18px;
-  animation: arrive 0.3s var(--ease) both;
+  animation: arrive var(--motion-medium) var(--ease) both;
 }
 .sheet-lead {
   color: var(--text-2);
@@ -4904,7 +4926,7 @@ button.contribution-quote:hover {
   color: var(--text-3);
   font-size: var(--type-small);
   cursor: pointer;
-  transition: color var(--fast) var(--ease);
+  transition: color var(--motion-fast) var(--ease);
 }
 .closed-invitations > summary:hover {
   color: var(--text-2);
@@ -4992,7 +5014,7 @@ button.contribution-quote:hover {
   gap: 6px;
   padding: 18px 0;
   border-bottom: 1px solid var(--line);
-  animation: arrive 0.4s var(--ease) both;
+  animation: arrive var(--motion-slow) var(--ease) both;
 }
 .goal-meta {
   display: flex;
@@ -5123,7 +5145,7 @@ button.contribution-quote:hover {
   height: 10px;
   border-radius: var(--r-1);
   background: linear-gradient(90deg, var(--line) 30%, var(--line-2) 50%, var(--line) 70%) 0 0 / 300% 100%;
-  animation: skeleton-light 1.6s linear infinite;
+  animation: skeleton-light var(--motion-pulse) linear infinite;
   animation-delay: inherit;
 }
 .skeleton-shape > span:first-child {
@@ -5248,7 +5270,7 @@ button.contribution-quote:hover {
   padding: 7px 0;
   font-size: var(--type-small);
   color: var(--text-2);
-  animation: arrive 0.4s var(--ease) both;
+  animation: arrive var(--motion-slow) var(--ease) both;
 }
 .event .muted {
   font-family: var(--mono);
@@ -5855,7 +5877,7 @@ button.contribution-quote:hover {
   min-height: 0;
   border-left: 1px solid var(--line-2);
   background: var(--surface-well);
-  animation: slide var(--base) var(--ease) both;
+  animation: slide var(--motion-base) var(--ease) both;
 }
 /* The tabs sit in the lens bar's band (16 px down, 36 px tall), so the two rows of words share a line. Close's
    mark, not its box, ends on the gutter. */
@@ -6107,7 +6129,7 @@ button.contribution-quote:hover {
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow: var(--lift), var(--elev-dock);
-  animation: rise 0.45s var(--ease) 0.1s backwards;
+  animation: rise var(--motion-slow) var(--ease) 0.1s backwards;
 }
 /* Something new behind a closed panel: a dot of Sophia's violet on its toggle. */
 .toggle-dot {
@@ -6168,7 +6190,7 @@ button.contribution-quote:hover {
   border-radius: var(--r-4);
   border: 1px solid var(--line-2);
   background: var(--surface-well);
-  animation: arrive 0.4s var(--ease) both;
+  animation: arrive var(--motion-slow) var(--ease) both;
 }
 .report-main-head {
   display: flex;
@@ -6226,7 +6248,7 @@ button.contribution-quote:hover {
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow: var(--lift);
-  animation: arrive 0.3s var(--ease) both;
+  animation: arrive var(--motion-medium) var(--ease) both;
 }
 .showing-words {
   flex: 1;
@@ -6315,7 +6337,7 @@ button.contribution-quote:hover {
 }
 .report-main-body .md [data-spoken] {
   box-shadow: -10px 0 0 -8px var(--halo);
-  transition: box-shadow var(--base) var(--ease);
+  transition: box-shadow var(--motion-base) var(--ease);
 }
 .report-sections {
   display: flex;
@@ -6604,7 +6626,7 @@ button.contribution-quote:hover {
   font-size: var(--type-body);
   font-variant-numeric: tabular-nums;
   text-align: left;
-  transition: background var(--fast) var(--ease);
+  transition: background var(--motion-fast) var(--ease);
 }
 .meeting-row:hover {
   background: var(--line);
@@ -6942,7 +6964,7 @@ button.contribution-quote:hover {
   border-bottom: 0;
   border-radius: 8px;
   box-shadow: 0 1px 0 var(--line);
-  transition: background 0.16s var(--ease);
+  transition: background var(--motion-fast) var(--ease);
 }
 .goal-rows > .goal:hover,
 .goal-rows > .goal:focus-within {
@@ -6967,7 +6989,7 @@ button.contribution-quote:hover {
   text-decoration: underline transparent;
   text-underline-offset: 4px;
   cursor: pointer;
-  transition: text-decoration-color 0.16s var(--ease);
+  transition: text-decoration-color var(--motion-fast) var(--ease);
 }
 /* Under the pointer the title takes a hairline, as the row's plane lifts. */
 .goal-press:hover {
@@ -7298,7 +7320,7 @@ button.contribution-quote:hover {
   display: flex;
   gap: 6px;
   opacity: 0;
-  transition: opacity var(--fast) var(--ease);
+  transition: opacity var(--motion-fast) var(--ease);
 }
 .screen-main:hover .stage-acts,
 .screen-main:focus-within .stage-acts {
@@ -7324,7 +7346,7 @@ button.contribution-quote:hover {
   width: 30px;
   height: 30px;
   opacity: 0;
-  transition: opacity var(--fast) var(--ease);
+  transition: opacity var(--motion-fast) var(--ease);
 }
 .tile:hover .tile-pin,
 .tile:focus-within .tile-pin {

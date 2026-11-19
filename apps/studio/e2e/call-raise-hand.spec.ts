@@ -133,3 +133,48 @@ test('hand · a guest let in through the door is not offered Raise hand', async 
   await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
   await expect(raise(page)).toHaveCount(0)
 })
+
+// A raised hand is said to a screen reader (docs/plans/hand-and-sync-announced.md): politely, from a line mounted all
+// along, never taking the focus; only another's hand rising, never your own or a lowering.
+test('hand · another’s raised hand is said politely, once, and the focus stays where it was; yours and a lowering say nothing', async ({
+  page,
+}) => {
+  await enter(page)
+  const said = page.locator('.hand-said[role="status"]')
+  // There before it speaks, so what it says is read; out of sight.
+  await expect(said).toHaveCount(1)
+  await expect(said).toHaveText('')
+  await raise(page).focus()
+  await page.keyboard.press('Enter')
+  await expect(raise(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect(said, 'your own hand is not said: your button reads as pressed').toHaveText('')
+  // What was sent, as Marco's page would receive it from him.
+  await page.evaluate(() => window.fixture?.echoHand?.(1))
+  await expect(said).toHaveText('Marco raised their hand.')
+  await expect(raise(page), 'the focus stays on the dock’s button').toBeFocused()
+  // The line goes quiet after a few seconds (as a reaction goes); then a lowering says nothing.
+  await expect(said).toHaveText('', { timeout: 8000 })
+  await page.keyboard.press('Enter')
+  await expect(raise(page)).toHaveAttribute('aria-pressed', 'false')
+  await page.evaluate(() => window.fixture?.echoHand?.(1))
+  await expect(seat(page, 'Marco')).not.toContainText('Hand raised')
+  // Fixed wait kept: a negative check; nothing in the page marks that a lowering was not said.
+  await page.waitForTimeout(1000)
+  await expect(said, 'a lowering is not said').toHaveText('')
+})
+
+// One line for the whole call (review P2): said on another view too, where the call goes on in the header's dock.
+test('hand · on Tasks, with the call in the header, another’s raised hand is still said, from one line', async ({
+  page,
+}) => {
+  await enter(page)
+  await raise(page).click()
+  await expect(raise(page)).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('navigation', { name: 'Project views' }).getByRole('link', { name: 'Tasks' }).click()
+  await expect(page.getByRole('group', { name: 'Project room' })).toBeVisible()
+  await expect(dock(page)).toHaveCount(0)
+  const said = page.locator('.hand-said[role="status"]')
+  await expect(said).toHaveCount(1)
+  await page.evaluate(() => window.fixture?.echoHand?.(1))
+  await expect(said).toHaveText('Marco raised their hand.')
+})

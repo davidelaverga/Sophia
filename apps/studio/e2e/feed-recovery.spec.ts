@@ -105,6 +105,7 @@ test('feed · the stream goes silent, no ping either: given up after 25 s, then 
     window.fixture?.stallStream()
     window.fixture?.say('Said into a silent stream.')
   })
+  // Fixed wait kept: negative check: a silent stream still looks live at first; the time is the subject
   await page.waitForTimeout(1500)
   await expect(pill(page), 'a silent stream still looks live at first').toHaveAttribute('data-state', 'live')
   await expect(discussion(page).getByText('Said into a silent stream.')).toHaveCount(0)
@@ -117,11 +118,11 @@ test('feed · the stream goes silent, no ping either: given up after 25 s, then 
   expect(took).toBeLessThanOrEqual(28_000)
 })
 
-/** The pill's help as a pointer that just came onto it reads it: its title, said when the pointer arrives. */
+/** The pill's help as a pointer that just came onto it reads it: its tip, said when the pointer arrives. */
 async function helpOnHover(page: Page): Promise<string | null> {
   await page.mouse.move(0, 0)
   await pill(page).hover()
-  return pill(page).getAttribute('title')
+  return pill(page).locator('.tip').textContent()
 }
 
 test('feed · Up to date says when it last heard from the project: checked seconds ago, from the last bytes', async ({
@@ -133,14 +134,37 @@ test('feed · Up to date says when it last heard from the project: checked secon
   expect(await helpOnHover(page)).toMatch(/^Up to date · checked (just now|[1-5] s ago)$/)
   // Silent (no ping either): the pill still says Up to date for 25 s, and its help says how long nothing came.
   await page.evaluate(() => window.fixture?.stallStream())
+  // Fixed wait kept: negative check: the pill still says Up to date well inside its 25 s; the time is the subject
   await page.waitForTimeout(8000)
   await expect(pill(page)).toHaveAttribute('data-state', 'live')
-  await expect(pill(page)).toHaveText('Up to date')
+  // What the pill's status says is its word alone: the help is its tip, never in the live region.
+  await expect(pill(page).getByRole('status')).toHaveText('Up to date')
   const help = await helpOnHover(page)
   expect(help, 'the help counts the seconds since the last bytes').toMatch(/^Up to date · checked \d+ s ago$/)
   const seconds = Number(/(\d+) s ago$/.exec(help ?? '')?.[1])
   expect(seconds).toBeGreaterThanOrEqual(8)
   expect(seconds).toBeLessThanOrEqual(14)
+})
+
+// By keyboard and screen reader too (docs/plans/hand-and-sync-announced.md): the pill takes the focus, its tip shows
+// as on hover, and the help is its accessible description, read as the focus arrives.
+test('feed · Up to date’s help is reached by keyboard: focused, the tip shows and is the pill’s description', async ({
+  page,
+}) => {
+  await open(page)
+  await expect(pill(page)).toHaveAttribute('data-state', 'live')
+  await expect(pill(page)).toHaveAttribute('tabindex', '0')
+  // A key first: the focus that follows is a keyboard one (:focus-visible), as a Tab's is.
+  await page.keyboard.press('Shift')
+  await pill(page).focus()
+  await expect(pill(page)).toBeFocused()
+  await expect(pill(page)).toHaveAccessibleName('Up to date')
+  await expect(pill(page).getByRole('status'), 'the help stays out of the live region').toHaveText('Up to date')
+  await expect(pill(page)).toHaveAccessibleDescription(/^Up to date · checked (just now|\d+ s ago)$/)
+  await expect(pill(page).locator('.tip')).toHaveText(/^Up to date · checked (just now|\d+ s ago)$/)
+  await expect(pill(page).locator('.tip')).toHaveCSS('opacity', '1')
+  // No title: one help, the kit's tip, not a second one from the browser.
+  await expect(pill(page)).not.toHaveAttribute('title', /./)
 })
 
 test('feed · a sequence is skipped: Catching up, then Up to date, with the message from the snapshot', async ({

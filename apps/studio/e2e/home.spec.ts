@@ -249,6 +249,7 @@ test('home · out of sight at first, her mark is never placed at nothing; it for
     }).observe(document, { subtree: true, attributeFilter: ['data-mark'] })
   })
   await page.goto(`${PAGE}?away=1`)
+  // Fixed wait kept: negative check: the mark never shows while away (an observer records any appearance)
   await page.waitForTimeout(400)
   await expect(page.locator('.hw-light svg[data-mark="umbral"]')).toHaveCount(0)
   await page.getByRole('button', { name: 'Back to Home' }).click()
@@ -290,6 +291,7 @@ test('home · with less motion asked for, her light stays at rest, nothing arriv
   await page.goto(PAGE)
   await page.mouse.move(300, 300)
   await page.mouse.move(340, 320)
+  // Fixed wait kept: negative check: with less motion asked, her light stays at rest after the pointer moves
   await page.waitForTimeout(300)
   await expect(light(page)).toHaveAttribute('data-mode', 'rest')
   const moving = await page
@@ -311,13 +313,14 @@ test('home · hidden, Sophia’s light asks for no frames; shown again, she is b
   await expect(light(page)).toBeAttached()
   const count = () => page.evaluate(() => window.homeFramesAsked ?? 0)
   await page.evaluate(() => document.querySelector('.c-home')?.setAttribute('hidden', ''))
+  // Fixed wait kept: the frames already asked before the hide land first; the count starts after them
   await page.waitForTimeout(300)
   const hidden = await count()
+  // Fixed wait kept: negative check: hidden, she asks for no frames in this window
   await page.waitForTimeout(500)
   expect((await count()) - hidden).toBeLessThan(3)
   await page.evaluate(() => document.querySelector('.c-home')?.removeAttribute('hidden'))
-  await page.waitForTimeout(500)
-  expect((await count()) - hidden).toBeGreaterThan(10)
+  await expect.poll(async () => (await count()) - hidden).toBeGreaterThan(10)
 })
 
 test('@phone · home · one column, every project one press, a join said before the tap, nothing past the screen', async ({

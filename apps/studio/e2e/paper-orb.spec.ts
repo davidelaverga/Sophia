@@ -173,6 +173,7 @@ test('orb · in text mode her voice doesn’t reach her light: she is read, not 
   await bar.press('Enter') // typing to Sophia puts the call in text mode
   await expect(page.getByRole('button', { name: /^Text mode/ })).toHaveAttribute('aria-pressed', 'true')
   await voice(page, 0.9)
+  // Fixed wait kept: negative check: in text mode her amplitude stays at zero while a voice plays
   await page.waitForTimeout(600)
   expect(await stage(page).evaluate((el) => getComputedStyle(el).getPropertyValue('--amp').trim() || '0.00')).toBe(
     '0.00',
@@ -185,6 +186,7 @@ test('orb · under reduced motion she stands still', async ({ page }) => {
   await page.goto('/signin.html?theme=light')
   const light = page.locator('.light').first()
   await expect(light).toBeVisible()
+  // Fixed wait kept: negative check: on paper her light runs no animation in this window
   await page.waitForTimeout(600)
   const running = await light.evaluate(
     (el) => el.getAnimations({ subtree: true }).filter((a) => a.playState === 'running').length,

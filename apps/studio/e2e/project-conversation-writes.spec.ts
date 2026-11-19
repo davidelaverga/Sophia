@@ -141,6 +141,7 @@ test('writes · offline, the line says so before any press and nothing is writte
   await expect(send(page)).toHaveAttribute('aria-disabled', 'true')
   await field(page).press('Enter')
   await send(page).click({ force: true })
+  // Fixed wait kept: negative check: a send let through would have gone by now; nothing marks an absence
   await page.waitForTimeout(600) // a send let through would have gone by now
   expect(await written(page, 'conversation-message')).toEqual([])
   await expect(open(page)).not.toContainText('Not confirmed')
@@ -203,6 +204,7 @@ test('writes · offline, a message held with no reply is not confirmed, never un
   await expect(send(page)).toHaveAttribute('aria-disabled', 'true')
   await field(page).press('Enter')
   await send(page).click({ force: true })
+  // Fixed wait kept: negative check: a send let through would have gone by now; nothing marks an absence
   await page.waitForTimeout(600) // a send let through would have gone by now
   expect(await written(page, 'conversation-message')).toHaveLength(1)
   await context.setOffline(false)
@@ -503,9 +505,11 @@ test('writes · a membership that keeps failing is asked a bounded number of tim
   const asked = async () => (await served(page)).filter((s) => s === 'membership:failed').length
   // Its first read and its retries, then once more for the project's read: never again on its own failures.
   await expect.poll(asked, { timeout: 25_000 }).toBeGreaterThanOrEqual(5)
+  // Fixed wait kept: the membership read’s retries settle by TanStack timers the page does not expose
   await page.waitForTimeout(12_000)
   const settled = await asked()
   expect(settled).toBeLessThanOrEqual(8)
+  // Fixed wait kept: negative check: no read follows on its own failures
   await page.waitForTimeout(6_000)
   expect(await asked()).toBe(settled)
   await expect(field(page)).toHaveCount(0)

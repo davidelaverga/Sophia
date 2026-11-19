@@ -149,6 +149,7 @@ test('profile · while the conflict’s fresh read is pending, Save stays unavai
   await expect(save).toBeDisabled()
   await expect(field).toHaveAttribute('readonly', '')
   await expect(sheet.getByRole('status')).toHaveCount(0)
+  // Fixed wait kept: negative check: Save stays disabled and no second save goes
   await page.waitForTimeout(500)
   await expect(save).toBeDisabled()
   expect(await saves(page)).toHaveLength(1)

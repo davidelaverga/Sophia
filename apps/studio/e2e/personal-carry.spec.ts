@@ -200,6 +200,7 @@ test('carry · when the account goes mid-carry, nothing more goes under it', asy
   await expect.poll(() => carried(page)).toHaveLength(1)
   await page.evaluate(() => window.personalFixture?.signOut?.())
   // The note on its way lands; none after it is asked for under the account that left.
+  // Fixed wait kept: negative check: no note is asked for after sign-out in this window
   await page.waitForTimeout(4000)
   expect(await carried(page)).toHaveLength(1)
 })

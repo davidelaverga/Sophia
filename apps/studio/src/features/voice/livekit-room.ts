@@ -140,6 +140,8 @@ export interface RoomCallbacks {
   onCaptionsLost?: () => void
   /** Someone in the room reacted (call-reactions.md). */
   onReaction?: (heard: Heard) => void
+  /** Another member raised their hand, by the name the room shows: once per raise (hand-and-sync-announced.md). */
+  onHandRaised?: (name: string) => void
   /** Speech heard on this person's microphone while it is off (muted-speech.md). */
   onSpeakingMuted?: () => void
   /** An admin stopped this person's screen share, and it stopped here (A31): never their own stop or the browser's. */
@@ -318,9 +320,14 @@ const remotePeople = (room: Room) => [...room.remoteParticipants.values()].filte
  * Who is in the call as the room shows them, with what each said on their own topic: what a member follows
  * (following-signal.ts) and a raised hand (hand-signal.ts); and how this person says their own.
  */
-function peopleSignals(room: Room, onChange: () => void) {
+function peopleSignals(room: Room, cb: Pick<RoomCallbacks, 'onChange' | 'onHandRaised'>) {
+  const { onChange } = cb
   const following = followingSignal(room, onChange, { resync: VISION })
-  const hands = handSignal(room, handPublish(room), onChange)
+  const onRaised = (identity: string) => {
+    const p = room.remoteParticipants.get(identity)
+    if (p) cb.onHandRaised?.(toView(p, false).name)
+  }
+  const hands = handSignal(room, handPublish(room), onChange, { onRaised })
   const other = (p: Participant) => ({
     ...toView(p, false),
     following: following.of(p.identity),
@@ -549,7 +556,7 @@ export async function connectRoom(
   listenToSophia(room, cb)
   listenToReactions(room, (heard) => cb.onReaction?.(heard))
   const signalMode = modeSignal(room, () => textOnly)
-  const signals = peopleSignals(room, cb.onChange)
+  const signals = peopleSignals(room, cb)
   const sound = await connectWithLevels(room, serverUrl, token)
   const feedsOf = videoFeeds()
   const after = thenChanged(cb)

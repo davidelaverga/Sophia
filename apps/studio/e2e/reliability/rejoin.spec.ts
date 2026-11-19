@@ -132,6 +132,7 @@ const until = (check: Promise<void>) => check.catch(() => undefined)
 /** Once back, «Reconnected.» is said for 4 s (REJOINED_FOR_MS); a second, then, for any further try to show. */
 async function settledBack(page: Page, live: number | null) {
   if (live !== null) await until(expect(notes(page)).toHaveCount(0, { timeout: 10_000 }))
+  // Fixed wait kept: negative check: a second after Reconnected goes, for any further try to show
   await page.waitForTimeout(1000)
 }
 
@@ -162,6 +163,7 @@ test('M5 · a call dropped offline comes back once the network does @reliability
     await context.setOffline(true)
     const from = await drop(page)
     await until(expect(notes(page)).toHaveText(OFFLINE_REJOIN))
+    // Fixed wait kept: negative check: a join let through would have asked for its token by now; nothing marks an absence
     await page.waitForTimeout(1000) // a try made offline would have asked for its token by now
     const offlineTries = (await tokens(page)) - asking
     await context.setOffline(false)
@@ -196,6 +198,7 @@ test('M5 · a call whose one try fails says the dropped words with Try again, an
     const asking = await tokens(page)
     const from = await drop(page, true)
     await until(expect(tryAgain(page)).toBeEnabled({ timeout: LIMIT }))
+    // Fixed wait kept: negative check: a second try on its own would have asked for its token by now
     await page.waitForTimeout(3000) // a second try on its own would have asked for its token by now
     const words = await saying(page, from, DROPPED)
     const offered = (await tryAgain(page).count()) === 1 && (await tryAgain(page).isEnabled())

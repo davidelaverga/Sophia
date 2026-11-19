@@ -74,6 +74,7 @@ import type { Feed } from '../../projectors/projection.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { ProjectName } from './ProjectName.tsx'
 import { ConnectionPill } from './ConnectionPill.tsx'
+import { HandSaidLine } from '../voice/HandSaidLine.tsx'
 import { ViewFailed } from './ViewFailed.tsx'
 
 // The Invite sheet (and its QR encoder) loads the first time someone opens it.
@@ -151,6 +152,8 @@ function UnderTheBar({ shell, loaded, blocked, room, snapshot }: UnderProps) {
   const open = loaded && !blocked
   return (
     <>
+      {/* Others' raised hands, said once for the whole call, on every view (hand-and-sync-announced.md). */}
+      <HandSaidLine said={room.handSaid} />
       <ArrivalSince
         projectId={projectId}
         identity={identity}

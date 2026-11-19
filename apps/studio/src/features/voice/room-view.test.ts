@@ -5,6 +5,7 @@ import {
   arrivedResults,
   askedJoin,
   floorView,
+  handRaisedLine,
   mediaMessage,
   mutedMic,
   orderParticipants,
@@ -160,6 +161,16 @@ describe('room stage', () => {
       ['luis.eduardo@x.com', 'davide@sophia.test', 'Ana', 'someone who isn’t in the room'].map(shortName),
       ['Luis', 'Davide', 'Ana', 'Someone'],
     )
+  })
+
+  it('says a raised hand with the name the tile shows (hand-and-sync-announced.md)', () => {
+    assert.equal(handRaisedLine(['marco@x.com']), 'Marco raised their hand.')
+    assert.equal(handRaisedLine(['Lucía']), 'Lucía raised their hand.')
+  })
+
+  it('says hands raised together in one sentence (review P3 on hand-and-sync-announced)', () => {
+    assert.equal(handRaisedLine(['marco@x.com', 'Lucía']), 'Marco and Lucía raised their hands.')
+    assert.equal(handRaisedLine(['marco@x.com', 'Lucía', 'ana@x.com']), 'Marco, Lucía and Ana raised their hands.')
   })
 
   it('lets a shared screen take the stage, then cameras, then the light', () => {

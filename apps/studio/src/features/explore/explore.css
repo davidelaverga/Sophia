@@ -46,8 +46,8 @@
   color: inherit;
   text-align: left;
   transition:
-    border-color var(--fast) var(--ease),
-    background var(--fast) var(--ease);
+    border-color var(--motion-fast) var(--ease),
+    background var(--motion-fast) var(--ease);
 }
 .candidate-tile:hover {
   border-color: var(--line-2);

@@ -43,6 +43,19 @@ const frame = async (page: Page) => {
   })
 }
 
+/** The notice and what it stands beside (a sheet, the palette) at rest: none of their entrances still running. */
+const rested = (page: Page) =>
+  expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          [...document.querySelectorAll('.toast, .sheet, [role="dialog"]')]
+            .flatMap((el) => el.getAnimations({ subtree: true }))
+            .filter((a) => a.playState === 'running' && a.effect?.getTiming().iterations !== Infinity).length,
+      ),
+    )
+    .toBe(0)
+
 /** #466's line with two real projects' titles, each well under the 180 characters a title may take. */
 const LONG =
   'Your call in “Quarterly planning for the regional partnerships programme and the spring launch” ended when you opened “Research notes on onboarding interviews with the first twelve teams in the pilot”.'
@@ -64,7 +77,7 @@ test('toast · in a window both narrow and short (500×400), the sheet leaves th
   await page.getByRole('tab', { name: 'Calendar' }).click()
   await expect(page.locator('.sheet')).toBeVisible()
   await notice(page)
-  await page.waitForTimeout(400)
+  await rested(page)
   expect(await meet(page)).toBe(false)
   await expect(page.locator('.toast')).toBeInViewport()
 })
@@ -77,7 +90,7 @@ for (const width of [390, 900]) {
     await expect(page.locator('.sheet')).toBeVisible()
     await notice(page)
     // Its entrance (a rise of 8 px) ended.
-    await page.waitForTimeout(400)
+    await rested(page)
     expect(await meet(page)).toBe(false)
     await expect(page.locator('.toast')).toBeInViewport()
   })
@@ -87,7 +100,7 @@ test('toast · with no sheet open, a notice keeps its place at the bottom', asyn
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/room.html?demo=1')
   await notice(page)
-  await page.waitForTimeout(400)
+  await rested(page)
   const box = await page.locator('.toast').boundingBox()
   expect((box?.y ?? 0) + (box?.height ?? 0)).toBeGreaterThan(844 / 2)
 })
@@ -98,7 +111,7 @@ test('toast · with the command palette open, a notice keeps its place (Codex on
   await page.keyboard.press('ControlOrMeta+k')
   await expect(page.getByRole('dialog', { name: 'Commands' })).toBeVisible()
   await notice(page)
-  await page.waitForTimeout(400)
+  await rested(page)
   const box = await page.locator('.toast').boundingBox()
   // Centred on the screen, at the bottom: the palette is not a sheet.
   expect(Math.abs((box?.x ?? 0) + (box?.width ?? 0) / 2 - 450)).toBeLessThanOrEqual(1)
@@ -113,7 +126,7 @@ test('toast · just above a phone, with a sheet open, a notice keeps a width it 
   await page.getByRole('button', { name: 'Invite' }).first().click()
   await expect(page.locator('.sheet')).toBeVisible()
   await notice(page)
-  await page.waitForTimeout(400)
+  await rested(page)
   const [t, head] = await Promise.all([
     page.locator('.toast').boundingBox(),
     page.locator('.sheet').evaluate((s) => {

@@ -67,6 +67,7 @@ test('result · on a slow machine (8 frames a second) she still blooms once, the
   await expect(light(page)).toHaveAttribute('data-mode', 'work')
   await expect.poll(() => size(page), { timeout: 8000 }).toBe(0.9)
   // 0.9 is read from 0.994 of her light on: a second more lights her to within a thousandth, then the frames slow.
+  // Fixed wait kept: a second more lights her to within a thousandth before the frames slow; the ease is the subject
   await page.waitForTimeout(1000)
   await slowFramesFromNow(page)
   const peak = peakSize(page)

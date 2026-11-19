@@ -149,6 +149,7 @@ test('home · needs you: a reply whose turn never shows (the space hidden) is no
   const rows = list(page).getByRole('button')
   await expect(rows).toHaveCount(4)
   await rows.nth(3).click()
+  // Fixed wait kept: negative check: the fixture’s hidden log gives up after 400 ms; nothing more may be pressed
   await page.waitForTimeout(900) // the fixture's hidden log gives up after 400 ms
   expect(await pressed(page)).toEqual(['personal'])
   await expect(rows).toHaveCount(4)

@@ -154,6 +154,7 @@ test('return · with two tasks running at close, the first to finish leaves the 
   await expect(part(page, 'After the meeting')).toContainText('Work finished', { timeout: 9000 })
   // Both finished: nothing is read again.
   const reads = await afterReads(page)
+  // Fixed wait kept: negative check: once both finished, nothing is read again
   await page.waitForTimeout(5000)
   expect(await afterReads(page)).toBe(reads)
 })

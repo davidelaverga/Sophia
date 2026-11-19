@@ -128,6 +128,7 @@ test('M3 · offline, then back online: from the network back to Up to date @reli
   if (lever) {
     await expect(pill(page)).toHaveAttribute('data-state', 'reconnecting')
     // Three asks refused (1, 2 and 4 s): the loop is in its longest wait so far.
+    // Fixed wait kept: the outage is held into the loop’s longest wait so far; the time is the subject being measured
     await page.waitForTimeout(8000)
     await page.evaluate(() => window.fixture?.outage(false))
     const from = await now(page)
