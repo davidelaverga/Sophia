@@ -31,13 +31,15 @@
   Resume (by Undo, the Resume press or `H`) or a Stop after it ends the Undo.
 - **Only while Resume is offered.** The same press, so the same permission: a reader, a stale read, no port, or a view
   that no longer offers Resume shows none. Resources' rows never offer Resume, so they never show an Undo.
-- **Once per Hold, 6 seconds from when it was first offered**, kept while the page lives: closing the sheet, turning it
-  (J / K) or another attempt or session in its place ends it, and coming back does not bring it again. A newer Hold
-  has its own.
+- **Only a Hold this sheet saw on its way**, then confirmed while it was open: one confirmed while the sheet was closed,
+  turned (J / K) to another task, or sent from Resources, offers none later (review on attempt 1, P2-2).
+- **6 seconds from its first offer**, the same end if it drops out of offer for a moment and comes back (an unobserved
+  poll); never longer (P2-1). The windows belong to the sheet, keyed by the execution shown (`undoWatch`), swept when
+  over, and go with it: closing or turning the sheet, or another attempt or session in its place, ends them.
 - **One at a time**: one sheet, one execution, its latest Hold.
 - **Keys and focus**: Undo is a button right after the status line, so Tab from wherever the focus was handed reaches
-  it; nothing moves the focus to it. If it leaves (timeout) while it has the focus, the focus goes to the status line,
-  never the page. Its line sits in its own polite live region, mounted before anything is said.
+  it; nothing moves the focus to it. If it leaves for any reason while it has the focus, the focus goes to the status
+  line, never the page. It carries Resume's tip, as Resume's own press does. Its line sits in its own polite live region, mounted before anything is said.
 - **`H` path**: a Hold pressed by `H` settles the same way and gets the same Undo; `H` again presses Resume as before.
 
 ## Out
