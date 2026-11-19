@@ -305,6 +305,7 @@ for (const status of [401, 403] as const) {
     await expect(since).toContainText('What changed couldn’t be read.')
     const asked = await page.evaluate(() => window.updatesTrace?.sinceReads ?? -1)
     // Past TanStack's first wait (1 s): a retry would have gone by now.
+    // Fixed wait kept: negative check: past TanStack’s first retry wait (1 s), no retry may follow
     await page.waitForTimeout(1500)
     expect(await page.evaluate(() => window.updatesTrace?.sinceReads)).toBe(asked)
   })

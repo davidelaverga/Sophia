@@ -21,6 +21,7 @@ export const slowFramesFromNow = (page: Page) => page.evaluate(slow)
  * CI's runners (docs/plans/ci-home-needs-refusal-flake.md).
  */
 export async function framesAfterRefusal(page: Page, counted: () => Promise<number>, frames = 10, floorMs = 400) {
+  // Fixed wait kept: the floor is documented (ci-home-needs-refusal-flake.md): frames counted before it could be the refusal’s own
   await page.waitForTimeout(floorMs)
   await expect.poll(counted).toBeGreaterThan(frames)
 }

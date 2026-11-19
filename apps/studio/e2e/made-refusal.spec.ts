@@ -24,6 +24,7 @@ test('made card · its task refused: one refusal recovery, no transient words or
   await page.evaluate(() => window.fixture?.refuseTask(true))
   await page.evaluate(() => window.fixture?.notice())
   await expect(made(page).getByText(REFUSED)).toBeVisible({ timeout: 15_000 })
+  // Fixed wait kept: the read’s own retries settle into an error by TanStack timers the page does not expose; the counts are read after
   await page.waitForTimeout(9000) // past the read's own retries settling into an error
   const counts = {
     refused: await made(page).getByText(REFUSED).count(),

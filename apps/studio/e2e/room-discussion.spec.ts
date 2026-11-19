@@ -215,6 +215,7 @@ test('discussion · offline, the bar says so before any press and sends nothing;
   await expect(line).toHaveText('You’re offline, so this wasn’t sent. It waits here; send it once you’re back.')
   await expect(line.getByRole('button', { name: 'Try again' })).toHaveCount(0)
   await bar(page).press('Enter')
+  // Fixed wait kept: negative check: a send let through would have gone by now; nothing marks an absence
   await page.waitForTimeout(600) // a send let through would have gone by now
   expect(await toRoom(page)).toEqual([])
   await expect(page.getByText('Not confirmed')).toHaveCount(0)
@@ -261,6 +262,7 @@ test('discussion · offline, a message held with no reply is not confirmed, neve
   )
   await expect(line.getByRole('button', { name: 'Try again' })).toHaveCount(0)
   await bar(page).press('Enter')
+  // Fixed wait kept: negative check: a send let through would have gone by now; nothing marks an absence
   await page.waitForTimeout(600) // a send let through would have gone by now
   expect(await toRoom(page)).toEqual(['contribution:discuss']) // the first one, which landed
   await context.setOffline(false)

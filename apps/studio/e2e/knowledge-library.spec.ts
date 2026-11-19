@@ -214,6 +214,7 @@ test('library · a cover scrolled far away keeps no frame, and comes back withou
   await page.evaluate(() => window.scrollTo(0, 0))
   await expect(frame).toHaveCount(1)
   expect(await frame.getAttribute('srcdoc')).toBe(DESIGNED.text)
+  // Fixed wait kept: negative check: no read may follow in this window, and no event marks an absence
   await page.waitForTimeout(600) // a late read would have come by now
   expect(await reads(), 'no new read of the page').toBe(before)
 })
@@ -238,6 +239,7 @@ test('library · a tile out of reach whose card names a newer version reads noth
     page.evaluate(() => (window.fixture?.served ?? []).filter((s) => s.startsWith('versions:')).length)
   await expect.poll(reads).toBeGreaterThan(0)
   const before = await reads()
+  // Fixed wait kept: negative check: no read may follow in this window, and no event marks an absence
   await page.waitForTimeout(600) // a read for the tile would have come by now
   expect(await reads(), 'no read for a tile out of sight').toBe(before)
   // Near, the tile reads the list again, once, for the version its card names.
@@ -261,6 +263,7 @@ test('library · covers once read are not read again when the window comes back'
     }
   })
   await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+  // Fixed wait kept: negative check: no read may follow in this window, and no event marks an absence
   await page.waitForTimeout(600)
   expect(await page.evaluate(() => document.documentElement.dataset.versionsRead)).toBe('0')
 })

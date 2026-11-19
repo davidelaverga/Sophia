@@ -228,6 +228,7 @@ test('BASE-03 · offline, a lost call says so and waits; back online it rejoins 
   const before = (await asked(page)).length
   const asking = (await tokens(page)).length
   await page.getByRole('button', { name: /^Try again/ }).click()
+  // Fixed wait kept: negative check: a join let through would have asked for its token by now; nothing marks an absence
   await page.waitForTimeout(600) // a join let through would have connected by now
   expect((await asked(page)).slice(before), 'nothing is asked offline').toEqual([])
   expect(await tokens(page)).toHaveLength(asking)
@@ -356,6 +357,7 @@ test('BASE-03 · while a dropped call rejoins, the dock says so and Leave stays;
   await expect(join).toBeEnabled()
   await expect(join).toBeFocused()
   await expect(note).toHaveCount(0)
+  // Fixed wait kept: negative check: a join let through would have asked for its token by now; nothing marks an absence
   await page.waitForTimeout(600) // the token let go would have connected by now
   expect(await connects(page), 'nothing joined').toBe(connected)
   await expect(page.getByRole('dialog', { name: 'This meeting' })).toHaveCount(0)
@@ -374,6 +376,7 @@ test('BASE-03 · a try back in that fails says the lost call as before, with Try
   await expect(retry).toBeEnabled()
   expect(await tokens(page), 'one try').toHaveLength(asking + 1)
   await expect(controls(page).getByRole('button', { name: 'Leave the room' })).toHaveCount(0) // nothing waits now
+  // Fixed wait kept: negative check: no second try on its own
   await page.waitForTimeout(1500)
   expect(await tokens(page), 'and no second').toHaveLength(asking + 1)
   await retry.click()
@@ -391,6 +394,7 @@ test('BASE-03 · a call that drops again right after it came back is left to the
   await page.evaluate(() => window.fixture?.drop())
   await expect(page.locator('.dock-wrap .dock-note')).toHaveText('You were disconnected from the room.')
   await expect(controls(page).getByRole('button', { name: /^Try again/ })).toBeEnabled()
+  // Fixed wait kept: negative check: only the one try
   await page.waitForTimeout(600)
   expect(await tokens(page), 'the one try only').toHaveLength(asking + 1)
 })
@@ -500,6 +504,7 @@ test('BASE-03 · a call LiveKit left itself, as the page left or froze, never re
   const asking = (await tokens(page)).length
   await page.evaluate(() => window.fixture?.drop('dropped', true))
   await expect(page.locator('.dock-wrap .dock-note')).toHaveText('You were disconnected from the room.')
+  // Fixed wait kept: negative check: a join let through would have asked for its token by now; nothing marks an absence
   await page.waitForTimeout(600) // a try would have asked for its token by now
   expect(await tokens(page)).toHaveLength(asking)
   await expect(controls(page).getByRole('button', { name: /^Try again/ })).toBeEnabled()
@@ -538,6 +543,7 @@ test('BASE-03 · a dropped call never comes back on its own while another tab of
   const asking = (await tokens(page)).length
   await page.evaluate(() => window.fixture?.drop())
   await expect(page.locator('.dock-wrap .dock-note')).toHaveText('You were disconnected from the room.')
+  // Fixed wait kept: negative check: a join let through would have asked for its token by now; nothing marks an absence
   await page.waitForTimeout(600) // a try would have asked for its token by now
   expect(await tokens(page), 'the call stays in the other tab').toHaveLength(asking)
   // Once the other tab has left, this one's next drop comes back on its own again.
@@ -635,6 +641,7 @@ test('BASE-03 · another tab, being taken out and a closed room never rejoin on 
     const asking = (await tokens(page)).length
     await page.evaluate((w) => window.fixture?.drop(w), why)
     await expect(join).toBeEnabled()
+    // Fixed wait kept: negative check: a join let through would have asked for its token by now; nothing marks an absence
     await page.waitForTimeout(600) // a try would have asked for its token by now
     expect(await tokens(page), why).toHaveLength(asking)
     await join.click()
@@ -658,6 +665,7 @@ test('BASE-03 · offline, Join from rest asks for nothing and says so politely; 
   await polite.evaluate((el) => el.setAttribute('data-before', ''))
   await context.setOffline(true)
   await join.click()
+  // Fixed wait kept: negative check: a join let through would have asked for its token by now; nothing marks an absence
   await page.waitForTimeout(600) // a join let through would have asked for its token and connected by now
   expect(await tokens(page), 'no token is asked offline').toEqual([])
   expect(await asked(page), 'nothing connects').not.toContain('connect')
@@ -668,6 +676,7 @@ test('BASE-03 · offline, Join from rest asks for nothing and says so politely; 
   await expect(join).toBeFocused() // Join keeps its words and the focus: nothing began
   await context.setOffline(false)
   await expect(said).toHaveText('')
+  // Fixed wait kept: negative check: a join let through would have asked for its token by now; nothing marks an absence
   await page.waitForTimeout(600) // back online, nothing joins on its own
   expect(await tokens(page)).toEqual([])
   await join.click()
@@ -689,6 +698,7 @@ test('BASE-03 · from another view, the header dock’s Join offline asks for no
   await polite.evaluate((el) => el.setAttribute('data-before', ''))
   await context.setOffline(true)
   await join.click()
+  // Fixed wait kept: negative check: a join let through would have asked for its token by now; nothing marks an absence
   await page.waitForTimeout(600)
   expect(await tokens(page), 'no token is asked offline').toEqual([])
   await expect(dock.locator('.dock-notes > p[data-before]')).toHaveText(FROM_REST)
@@ -710,6 +720,7 @@ test('BASE-03 · offline, Chat with Sophia from rest asks for nothing, and the c
   const foot = panel.locator('.composer .outcome')
   await expect(foot).toHaveText(['You’re offline. Your words wait here.']) // the bar's own line, before any press
   await start.click()
+  // Fixed wait kept: negative check: a join let through would have asked for its token by now; nothing marks an absence
   await page.waitForTimeout(600)
   expect(await tokens(page), 'no token is asked offline').toEqual([])
   // Said once: the room's note says offline, so the bar adds no offline line of its own.
@@ -735,6 +746,7 @@ test('BASE-03 · offline in the call, Chat with Sophia is answered by the call: 
   const before = await tokens(page)
   await context.setOffline(true)
   await panel.getByRole('button', { name: /^Chat with Sophia/ }).click()
+  // Fixed wait kept: negative check: a join held offline would have said so by now
   await page.waitForTimeout(600) // a join held offline would have said so by now
   // In the call, the join is that call: nothing tells someone who is in it to join, in the dock or the chat's foot.
   await expect(page.getByText(FROM_REST)).toHaveCount(0)
@@ -768,6 +780,7 @@ test('BASE-03 · offline, Work’s Join the room before the project loads says s
   await page.evaluate(() => window.fixture?.releaseSnapshot())
   await expect(join).toBeEnabled() // the project has loaded
   await expect(said).toHaveText('')
+  // Fixed wait kept: negative check: a join let through would have asked for its token by now; nothing marks an absence
   await page.waitForTimeout(600) // back online and loaded, a join still standing would have asked by now
   expect(await tokens(page), 'nothing joins on its own').toEqual([])
   await join.click()

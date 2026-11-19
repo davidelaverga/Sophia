@@ -29,6 +29,7 @@ for (const url of [HOME, PERSONAL, '/room.html?place=conversations&demo=1', '/jo
   }) => {
     await page.setViewportSize({ width: 375, height: 812 })
     await page.goto(url)
+    // Fixed wait kept: what sits under the label must have drawn, and the demo pages have no settled marker
     await page.waitForTimeout(800)
     const box = await page.locator('.fixture-label').boundingBox()
     expect(box?.y).toBe(0)

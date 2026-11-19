@@ -28,6 +28,7 @@ const offsets = (page: Page) =>
 /** The windows were asked for and have answered: whatever the visit will do with them, it has done by now. */
 async function answered(page: Page, ids: readonly string[]) {
   await expect.poll(() => asked(page)).toEqual(ids)
+  // Fixed wait kept: negative check: what the visit would do after its answered read has no marker when it does nothing
   await page.waitForTimeout(400)
 }
 
@@ -57,6 +58,7 @@ test('home · the first arrival reads, moving nothing; the next says it from its
   // Said, not focused: the focus stays on the press that came back.
   await expect(page.getByRole('button', { name: 'Leave Home' })).toBeFocused()
   const said = await offsets(page)
+  // Fixed wait kept: negative check: the said line must not shift
   await page.waitForTimeout(400)
   expect(await offsets(page)).toEqual(said)
   await news(page).getByRole('button', { name: 'Open Updates' }).click()
@@ -73,6 +75,7 @@ test('home · said once: not on the way back to Home, nor after a reload; one mo
   const before = (await reads(page)).length
   // Back on Home within 20 s: nothing is read again, and what was said is not said again.
   await again(page)
+  // Fixed wait kept: negative check: nothing is read or said again within 20 s
   await page.waitForTimeout(400)
   await expect(news(page)).toHaveText('')
   expect(await reads(page)).toHaveLength(before)
@@ -104,6 +107,7 @@ test('home · a call ended with Home open says nothing, then or after: what it h
 }) => {
   await page.goto(`${QUIET}&since=some&call=${id(1)}`)
   await expect(page.locator('.hw-says')).toHaveText('You’re in Launch plan’s room.')
+  // Fixed wait kept: negative check: no read may follow in this window, and no event marks an absence
   await page.waitForTimeout(400)
   expect(await reads(page)).toEqual([])
   // The call ends with Home open, as Leave in the bar ends it: its project is read once, and the rows for the next
@@ -134,6 +138,7 @@ test('home · a call whose read after it failed says nothing once the service is
   // Back, the next arrival reads Launch plan again and says nothing: what it held was the call's.
   await again(page)
   await expect.poll(async () => (await reads(page)).filter((p) => p === id(1))).toHaveLength(2)
+  // Fixed wait kept: negative check: nothing is said on the next arrival
   await page.waitForTimeout(400)
   await expect(news(page)).toHaveText('')
   // Nor the one after, now that Launch plan's window is on the page.
@@ -217,6 +222,7 @@ test('home · under a session soon it waits, unsaid, even as the session passes 
   // The session passes with Home open (the projects read again): the news doesn't come in mid-visit.
   await page.evaluate(() => window.homeFixture?.reread('quiet'))
   await expect(page.locator('.hw-says')).toHaveCount(0)
+  // Fixed wait kept: negative check: no news comes in mid-visit
   await page.waitForTimeout(400)
   await expect(news(page)).toHaveText('')
   expect(await offsets(page)).toEqual(covered)

@@ -81,6 +81,7 @@ test('board · a board its reader refuses after the board was read keeps the pla
     await expect.poll(() => answered(page, 'malformed'), { timeout: 20_000 }).toBeGreaterThan(before)
     const asked = await answered(page, 'malformed')
     // Past TanStack's first wait (1 s): a retry would have gone by now; a refusal of the reader doesn't heal by asking.
+    // Fixed wait kept: negative check: past TanStack’s first retry wait (1 s), no retry may follow
     await page.waitForTimeout(1500)
     expect(await answered(page, 'malformed')).toBe(asked)
     await settled()
