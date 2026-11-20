@@ -350,6 +350,44 @@ test('controlled · a cold open reads the old way, takes C5’s refusal, and rea
   expect(asked(ledger)).toMatchObject({ legacyAfterPin: 0, legacyPoll: 0, writes: [] })
 })
 
+for (const size of ['desktop', '@phone']) {
+  test(`${size} controlled · active recorded inputs keep their quiet status without a wait or retry`, async ({
+    context,
+  }) => {
+    const h = histories('answered')
+    const recorded = ['A thought kept without asking.', 'Waiting for a payer.'].map((text, i) =>
+      turn(17 + i, text, 1, {
+        reply: 'recorded',
+        input: { inputId: id(206 + i), control: 'active', revision: 0 },
+        prompt: 'excluded',
+        activity: false,
+      }),
+    )
+    const inputs = recorded.map((t, i) => view(id(206 + i), t, { control: { revision: 0 }, prior: NONE_PRIOR }))
+    const world = controlledWorld(h)
+    world.space = () => ({ json: space(h, { turns: recorded, inputs, pending: false }) })
+    const { ledger } = await serve(context, world)
+    const page = await signedIn(context)
+    await openPersonal(page)
+    const status = page.locator('[data-recorded]')
+    await expect(status).toHaveText(['Kept — not asked yet', 'Kept — not asked yet'])
+    await expect(status.locator('button, a, [tabindex]')).toHaveCount(0)
+    await expect(page.locator('.msg.typing, [data-control]')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /Ask again|Asking/ })).toHaveCount(0)
+    await expect(page.getByText('Sophia couldn’t answer this one.')).toHaveCount(0)
+    for (const line of await status.all()) {
+      const box = await line.boundingBox()
+      const width = await page.evaluate(() => document.documentElement.clientWidth)
+      expect(box && box.x >= 0 && box.x + box.width <= width).toBe(true)
+      expect(await line.evaluate((p) => getComputedStyle(p).fontSize)).toBe('13px')
+    }
+    const field = page.locator('#c-input')
+    await field.focus()
+    await expect(field).toBeFocused()
+    expect(asked(ledger).writes).toEqual([])
+  })
+}
+
 test('controlled · the kept answer opens and closes by keyboard, read-only, its words as they were kept', async ({
   context,
 }) => {

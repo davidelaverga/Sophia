@@ -313,10 +313,11 @@ function addStatus(layout: Layout, turn: ShownTurn, views: ConversationInput['vi
     const view = views?.get(turn.input.inputId)
     const line = controlLine(turn, view)
     const kept = keptOf(view)
-    if (line === null && kept.length === 0) return
-    layout.rows.push({ kind: 'control', key: `control-${turn.id}`, turnId: turn.id, line, kept })
-    layout.lastSide = null
-    return
+    if (line !== null || kept.length > 0) {
+      layout.rows.push({ kind: 'control', key: `control-${turn.id}`, turnId: turn.id, line, kept })
+      layout.lastSide = null
+      return
+    }
   }
   if (held(turn)) {
     layout.rows.push({ kind: 'recorded', key: `recorded-${turn.id}`, turnId: turn.id })

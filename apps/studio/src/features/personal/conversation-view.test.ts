@@ -578,6 +578,52 @@ const rowsOf = (turns: readonly PersonalControlledTurn[], views: readonly Person
   })
 
 describe('a controlled space’s messages say how their answers stand, in their control’s own terms', () => {
+  it('keeps the recorded status for active inputs not yet admitted, with or without their views', () => {
+    const recorded = ['A thought kept without asking.', 'Waiting for a payer.'].map((text, i) =>
+      controlled(turn('person', text, at(0, 20), { reply: 'recorded' }), {
+        input: { inputId: INPUT(i + 1), control: 'active', revision: 0 },
+        prompt: 'excluded',
+        activity: false,
+      }),
+    )
+    const views = recorded.map((t, i) => viewOf(i + 1, t, { revision: 0 }, NEVER_ADMITTED))
+    for (const read of [views, []]) {
+      const rows = rowsOf(recorded, read)
+      assert.deepEqual(shape(rows), ['day:Today', 'person', 'recorded', 'person', 'recorded'])
+      assert.deepEqual(
+        rows.flatMap((r) => (r.kind === 'recorded' ? [r.turnId] : [])),
+        recorded.map((t) => t.id),
+      )
+    }
+  })
+
+  it('keeps explicit held, withdrawn and withheld statuses ahead of the recorded fallback', () => {
+    const t = controlled(turn('person', 'Keep this thought.', at(0, 20), { reply: 'recorded' }), {
+      input: { inputId: INPUT(1), control: 'active', revision: 0 },
+    })
+    const withheld = {
+      callId: INPUT(30),
+      text: 'Kept aside.',
+      suggestion: null,
+      source: 'late_settlement' as const,
+      at: at(0, 21),
+    }
+    const cases = [
+      viewOf(1, t, { state: 'held', heldReason: 'admission_off' }, NEVER_ADMITTED),
+      viewOf(1, t, { state: 'withdrawn', withdrawnPhase: 'before_admission' }, NEVER_ADMITTED),
+      viewOf(1, t, {}, { withheld: [withheld] }),
+    ]
+    for (const view of cases) {
+      const rows = rowsOf([t], [view])
+      assert.deepEqual(shape(rows), ['day:Today', 'person', 'control'])
+    }
+    for (const state of ['held', 'withdrawn'] as const) {
+      assert.deepEqual(shape(rowsOf([{ ...t, ...withInput(1, state) }], [])), ['day:Today', 'person', 'control'])
+    }
+    const pending = { ...t, reply: 'pending' as const }
+    assert.deepEqual(shape(rowsOf([pending], [viewOf(1, pending, { revision: 0 })])), ['day:Today', 'person', 'typing'])
+  })
+
   it('held says not asked yet only while its control is held; a replacement made active keeps its link silently', () => {
     const y = controlled(turn('person', 'Shorter, please.', at(0, 20), { reply: 'recorded' }), {
       ...withInput(2, 'held'),
