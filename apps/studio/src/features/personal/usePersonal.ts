@@ -85,7 +85,7 @@ async function readSpace(client: QueryClient, identity: Identity, signal: AbortS
 }
 
 /** A legacy poll or earlier page can be the first read refused as controlled after another device changes it. */
-async function readControlledAfterRefusal(
+export async function readControlledAfterRefusal(
   client: QueryClient,
   account: string,
   err: unknown,

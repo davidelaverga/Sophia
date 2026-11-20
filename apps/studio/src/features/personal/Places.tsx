@@ -589,6 +589,7 @@ function Sheets({ v }: { v: View }) {
       <PlaceDialogs layers={layers} me={tokenSubject(identity.token)} inCall={!!props.call} onUnlocked={nav.unlocked} />
       {layers.data && (
         <DataSheet
+          name={identity.name}
           token={identity.token}
           who={identity.displayName ?? firstName(identity) ?? identity.name}
           space={v.personal}

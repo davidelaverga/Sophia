@@ -1,9 +1,16 @@
 // "Your data" (direction C), in the Studio's sheet (app/Sheet.tsx): what the personal space keeps, counted; everything
 // as text to copy; and deleting it all, with a typed confirmation for the one thing that can't be undone. Behind the
 // padlock it shows nothing of the space, not even the counts, until the person confirms it's them.
+import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import { exportControlledSpace, exportPersonalSpace, isControlled, type SpaceRead } from '../../api/personal.ts'
-import { tokenSubject } from '../../app/auth-callback.ts'
+import {
+  controlledPinned,
+  exportControlledSpace,
+  exportPersonalSpace,
+  isControlled,
+  type SpaceRead,
+} from '../../api/personal.ts'
+import { accountOf, tokenSubject } from '../../app/auth-callback.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { useMounted } from '../../app/useMounted.ts'
@@ -21,8 +28,12 @@ import { focusSoon } from './focus.ts'
 import { erasureRefused, NOTICE } from './notice-view.ts'
 import { ReadNotes, type Read } from './ReadNotes.tsx'
 import { personalFailure } from './write-words.ts'
+import { stillSignedIn } from '../../app/signed-in.ts'
+import { readControlledAfterRefusal } from './usePersonal.ts'
 
 interface Props {
+  /** The identity’s personal-query cache key, never its display name. */
+  name: string
   token: string
   who: string
   space: SpaceRead | undefined
@@ -159,7 +170,7 @@ function useSwapFocus(locked: boolean) {
  * (here: `all`, as the erasure begins; anywhere: the epoch moves): the export then stops at once, asks for no page more
  * and lets what came go. No export starts while the padlock is shut, so any change of it calls off every one on its way.
  */
-function useCalledOff(locked: boolean, epoch: number) {
+function useCalledOff(locked: boolean, epoch: number, account: string) {
   const exports = useRef(new Set<AbortController>())
   const all = () => {
     for (const one of exports.current) one.abort(new CopyCalledOff('The padlock shut, the sheet went, or an erasure'))
@@ -169,18 +180,55 @@ function useCalledOff(locked: boolean, epoch: number) {
   useEffect(() => {
     callOff.current = all
   })
-  useEffect(() => () => callOff.current(), [locked, epoch])
+  useEffect(() => () => callOff.current(), [locked, epoch, account])
   return {
     all,
-    signal: () => {
+    done: (one: AbortController) => exports.current.delete(one),
+    start: () => {
       const one = new AbortController()
       exports.current.add(one)
-      return one.signal
+      return one
     },
   }
 }
 
 type CalledOff = ReturnType<typeof useCalledOff>
+
+/** The clipboard's one promise stops waiting for a refresh as soon as its own gesture is called off. */
+async function untilCopyCalledOff<T>(reading: Promise<T>, signal: AbortSignal): Promise<T> {
+  signal.throwIfAborted()
+  let stop: (() => void) | undefined
+  const calledOff = new Promise<never>((_resolve, reject) => {
+    stop = () => reject(new CopyCalledOff('The copy was called off'))
+    signal.addEventListener('abort', stop, { once: true })
+  })
+  try {
+    return await Promise.race([reading, calledOff])
+  } finally {
+    if (stop) signal.removeEventListener('abort', stop)
+  }
+}
+
+/** A legacy refusal discards that whole export; this same, still-current gesture then starts A54 at zero. */
+async function readCopyExport(props: Props, client: QueryClient, signal: AbortSignal, kept: () => boolean) {
+  signal.throwIfAborted()
+  if (!kept()) throw new CopyCalledOff('The copy is no longer current')
+  const controlled = controlledPinned(client, props.name) || (props.space && isControlled(props.space))
+  const read = controlled ? exportControlledSpace : exportPersonalSpace
+  try {
+    return await read(props.token, props.epoch, signal)
+  } catch (err: unknown) {
+    if (controlled) throw err
+    signal.throwIfAborted()
+    if (!kept()) throw new CopyCalledOff('The copy is no longer current')
+    const changed = await untilCopyCalledOff(readControlledAfterRefusal(client, props.name, err, signal), signal)
+    if (!changed) throw err
+    signal.throwIfAborted()
+    const current = client.getQueryData<SpaceRead>(['personal', props.name])
+    if (!kept() || current?.epoch !== props.epoch) throw new CopyCalledOff('The copy’s epoch changed')
+    return exportControlledSpace(props.token, props.epoch, signal)
+  }
+}
 
 /**
  * Copying everything as text, one copy at a time: a press while one is under way waits ("Copying…") and starts no
@@ -193,7 +241,9 @@ type CalledOff = ReturnType<typeof useCalledOff>
  * an erasure is refused. A write that lands once any of those happened, or while an erasure here waits, is taken back.
  */
 function useCopy(props: Props, calledOff: CalledOff, erasingNow: RefObject<boolean>) {
-  const { token, who, epoch, lockedNow, toast } = props
+  const { name, token, who, epoch, lockedNow, toast } = props
+  const client = useQueryClient()
+  const account = accountOf({ name, token })
   const open = useMounted()
   const epochNow = useRef(epoch)
   useEffect(() => {
@@ -202,12 +252,11 @@ function useCopy(props: Props, calledOff: CalledOff, erasingNow: RefObject<boole
   const [busy, setBusy] = useState(false)
   const busyNow = useRef(false)
   const copyNow = async () => {
-    const kept = () => open.current && !lockedNow() && !erasingNow.current && epochNow.current === epoch
+    const kept = () =>
+      open.current && stillSignedIn(account) && !lockedNow() && !erasingNow.current && epochNow.current === epoch
+    const attempt = calledOff.start()
     try {
-      const signal = calledOff.signal()
-      // A controlled space is copied whole through its own export (A54), with every message's control and calls.
-      const read = props.space && isControlled(props.space) ? exportControlledSpace : exportPersonalSpace
-      const load = async () => exportText(await read(token, epoch, signal), who)
+      const load = async () => exportText(await readCopyExport(props, client, attempt.signal, kept), who)
       await copyFetched(load, browserClip(), kept, () => toast(NOTICE.copied))
       toast(NOTICE.copied)
     } catch (err: unknown) {
@@ -215,6 +264,9 @@ function useCopy(props: Props, calledOff: CalledOff, erasingNow: RefObject<boole
       if (err instanceof CopyUnconfirmed) return toast(NOTICE.copyUnconfirmed)
       if (err instanceof CopyStillWriting) return toast(NOTICE.copyStillWriting)
       toast(err instanceof DOMException ? NOTICE.clipboardBlocked : personalFailure(err))
+    } finally {
+      attempt.abort(new CopyCalledOff('The copy attempt ended'))
+      calledOff.done(attempt)
     }
   }
   const copy = () => {
@@ -255,7 +307,7 @@ function useAnswered(token: string, toast: ShowToast) {
 export function DataSheet(props: Props) {
   const { space, read, locked, epoch, onClose, returnTo, onUnlock, onErase, toast } = props
   const [erased, setErased] = useState(false)
-  const calledOff = useCalledOff(locked, epoch)
+  const calledOff = useCalledOff(locked, epoch, accountOf({ name: props.name, token: props.token }))
   useSwapFocus(locked)
   // An erasure under way: no copy starts meanwhile, so the two never overlap.
   const [erasing, setErasing] = useState(false)

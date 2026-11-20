@@ -235,10 +235,11 @@ interface World {
   legacy: () => Answer
   waiting?: () => Answer | 'hold'
   earlierLegacy?: () => Answer | 'hold'
+  legacyExport?: (after: number) => Answer | 'hold'
   space: () => Answer | 'hold'
   before: (seq: number) => Answer | 'hold'
   view: (inputId: string) => Answer
-  exported: (after: number) => Answer
+  exported: (after: number) => Answer | 'hold'
 }
 
 async function serve(context: BrowserContext, world: World) {
@@ -268,7 +269,10 @@ async function serve(context: BrowserContext, world: World) {
   return { ledger, holding: () => held.length, release: () => held.splice(0).forEach((go) => go()) }
 }
 
-function legacyPageOf(world: World, path: string): Answer | 'hold' | null {
+function legacyPageOf(world: World, url: URL): Answer | 'hold' | null {
+  const path = url.pathname
+  if (path === '/api/v1/personal/export')
+    return world.legacyExport?.(Number(url.searchParams.get('after'))) ?? refusal(503, 'unavailable', 'never')
   if (path === '/api/v1/personal/turns') return world.waiting?.() ?? refusal(503, 'unavailable', 'never')
   if (path === '/api/v1/personal/turns/earlier') return world.earlierLegacy?.() ?? refusal(503, 'unavailable', 'never')
   return null
@@ -277,7 +281,7 @@ function legacyPageOf(world: World, path: string): Answer | 'hold' | null {
 function answerOf(world: World, url: URL): Answer | 'hold' {
   const p = url.pathname
   if (p === '/api/v1/personal') return world.legacy()
-  const legacyPage = legacyPageOf(world, p)
+  const legacyPage = legacyPageOf(world, url)
   if (legacyPage !== null) return legacyPage
   if (p === '/api/v1/personal/answer-controls/space') return world.space()
   if (p === '/api/v1/personal/answer-controls/turns') return world.before(Number(url.searchParams.get('before')))
@@ -829,6 +833,162 @@ test('controlled · Copy reads every page against its epoch and copies the whole
   await expect(page.locator('.toast').filter({ hasNotText: 'Copied to your clipboard' })).toBeVisible()
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('before')
   expect(asked(ledger)).toMatchObject({ legacyAfterPin: 0, writes: [] })
+})
+
+/** A copy begun over a legacy read, whose second export page is refused after another device controls it. */
+function exportTransitionWorld() {
+  const h = histories('answered')
+  const world = controlledWorld(h)
+  world.legacy = () => ({ json: LEGACY })
+  world.legacyExport = (after) =>
+    after === 0
+      ? {
+          json: {
+            exportedAt: ago(0),
+            turns: [{ ...LEGACY.turns[0], text: 'Discard this partial legacy export.' }],
+            notes: NOTES,
+            releases: [],
+            next: 1,
+          },
+        }
+      : C5
+  world.exported = () => ({
+    json: { exportedAt: ago(0), epoch: 1, turns: h.turns, inputs: viewsOf(h), notes: NOTES, releases: [], next: null },
+  })
+  return world
+}
+
+async function openLegacyData(context: BrowserContext, world: World) {
+  const served = await serve(context, world)
+  await context.route(`${APP}/api/v1/projects`, (route) => route.fulfill({ json: { projects: [], personalEpoch: 1 } }))
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await context.addInitScript(() => {
+    const clip = navigator.clipboard
+    const write = clip.write.bind(clip)
+    clip.write = (items) => {
+      document.documentElement.dataset.exportWrites = String(
+        Number(document.documentElement.dataset.exportWrites ?? 0) + 1,
+      )
+      return write(items)
+    }
+  })
+  const page = await signedIn(context)
+  await openPersonal(page)
+  await expect(page.getByText('An ordinary day.')).toBeVisible()
+  await page.evaluate(() => navigator.clipboard.writeText('before'))
+  await page.getByRole('button', { name: 'Account' }).first().click()
+  await page.getByRole('menuitem', { name: 'Your data' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Your data' })
+  return { ...served, page, sheet }
+}
+
+test('export C5 · one explicit Copy discards legacy pages and writes the complete controlled export once', async ({
+  context,
+}) => {
+  const { ledger, page, sheet } = await openLegacyData(context, exportTransitionWorld())
+  await sheet.locator('#c-data-copy').click()
+  await expect(page.locator('.toast')).toHaveText('Copied to your clipboard')
+  const text = await page.evaluate(() => navigator.clipboard.readText())
+  expect(text).toContain('Withdrawn after her answer was published')
+  expect(text).not.toContain('Discard this partial legacy export.')
+  expect(ledger.filter((l) => l.includes('/personal/export'))).toEqual([
+    'GET /api/v1/personal/export?after=0',
+    'GET /api/v1/personal/export?after=1',
+  ])
+  expect(ledger.filter((l) => l.includes('/answer-controls/export'))).toEqual([
+    'GET /api/v1/personal/answer-controls/export?after=0',
+  ])
+  expect(await page.evaluate(() => document.documentElement.dataset.exportWrites)).toBe('1')
+  await sheet.locator('#c-data-copy').click()
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.exportWrites)).toBe('2')
+  expect(ledger.filter((l) => l.includes('/personal/export'))).toHaveLength(2)
+  expect(asked(ledger)).toMatchObject({ legacyAfterPin: 0, writes: [] })
+})
+
+test('export C5 · a near-C5 failure keeps the clipboard and does not switch protocols', async ({ context }) => {
+  const world = exportTransitionWorld()
+  world.legacyExport = () => refusal(503, 'projection_unavailable', 'safe_read')
+  const { ledger, page, sheet } = await openLegacyData(context, world)
+  await sheet.locator('#c-data-copy').click()
+  await expect(page.locator('.toast')).toBeVisible()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('before')
+  expect(asked(ledger)).toMatchObject({ controlled: 0, writes: [] })
+  expect(ledger.some((l) => l.includes('/answer-controls/export'))).toBe(false)
+})
+
+test('export C5 · a lock while A55 is held calls off the original clipboard promise', async ({ context }) => {
+  const world = exportTransitionWorld()
+  world.space = () => 'hold'
+  const { ledger, holding, release, page, sheet } = await openLegacyData(context, world)
+  await sheet.locator('#c-data-copy').click()
+  await expect.poll(holding).toBe(1)
+  const other = await context.newPage()
+  await other.goto(`${APP}/favicon.svg`)
+  await other.evaluate((key) => localStorage.setItem(key, 'you'), LOCK_KEY)
+  await expect(sheet.locator('#c-data-unlock')).toBeVisible()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('before')
+  expect(ledger.some((l) => l.includes('/answer-controls/export'))).toBe(false)
+  world.space = () => ({ json: space(histories('answered')) })
+  release()
+  expect(asked(ledger).writes).toEqual([])
+})
+
+test('export C5 · closing a sheet while A55 is held releases its copy without waiting for the refresh', async ({
+  context,
+}) => {
+  const world = exportTransitionWorld()
+  world.space = () => 'hold'
+  const { holding, release, ledger, page, sheet } = await openLegacyData(context, world)
+  await sheet.locator('#c-data-copy').click()
+  await expect.poll(holding).toBe(1)
+  await sheet.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(sheet).toHaveCount(0)
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('before')
+  await page.getByRole('button', { name: 'Account' }).first().click()
+  await page.getByRole('menuitem', { name: 'Your data' }).click()
+  await sheet.locator('#c-data-copy').click()
+  await expect(page.locator('.toast')).toHaveText('Copied to your clipboard')
+  expect(holding()).toBe(1) // the unrelated A55 refresh was never released
+  expect(ledger.filter((l) => l.includes('/answer-controls/export'))).toHaveLength(1)
+  expect(ledger.filter((l) => l.includes('/personal/export'))).toHaveLength(2)
+  expect(asked(ledger).writes).toEqual([])
+  world.space = () => ({ json: space(histories('answered')) })
+  release()
+})
+
+test('export C5 · a clipboard denial ends its gesture before a held legacy export can refuse it', async ({
+  context,
+}) => {
+  const world = exportTransitionWorld()
+  world.legacyExport = () => 'hold'
+  const { holding, release, ledger, page, sheet } = await openLegacyData(context, world)
+  const errors: string[] = []
+  page.on('pageerror', (err) => errors.push(err.message))
+  await page.evaluate(() => {
+    navigator.clipboard.write = () => Promise.reject(new DOMException('Synthetic denied clipboard', 'NotAllowedError'))
+  })
+  await sheet.locator('#c-data-copy').click()
+  await expect.poll(holding).toBe(1)
+  await expect(page.locator('.toast')).toBeVisible()
+  await expect(sheet.locator('#c-data-copy')).toHaveText('Copy everything as text')
+  world.legacyExport = () => C5
+  release()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('before')
+  expect(asked(ledger)).toMatchObject({ controlled: 0, writes: [] })
+  expect(ledger.some((l) => l.includes('/answer-controls/export'))).toBe(false)
+  expect(errors).toEqual([])
+})
+
+test('export C5 · an erased epoch during A55 refresh cannot restart the old gesture', async ({ context }) => {
+  const world = exportTransitionWorld()
+  world.space = () => ({ json: space(histories('answered'), { epoch: 2 }) })
+  const { ledger, page, sheet } = await openLegacyData(context, world)
+  await sheet.locator('#c-data-copy').click()
+  await expect.poll(() => asked(ledger).controlled).toBe(1)
+  await expect(sheet.locator('#c-data-copy')).toHaveText('Copy everything as text')
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('before')
+  expect(ledger.some((l) => l.includes('/answer-controls/export'))).toBe(false)
+  expect(asked(ledger).writes).toEqual([])
 })
 
 test('controlled · the padlock takes the space and the pin; a read on its way is let go, and unlocked it reads legacy first', async ({
