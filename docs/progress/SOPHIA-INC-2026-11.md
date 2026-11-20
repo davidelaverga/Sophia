@@ -1,3 +1,31 @@
+# SOPHIA-INC-2026-11 programme ledger
+
+## Current programme status · 19 November 2026, 00:32 UTC
+
+**Active.** Main is `c9c226c9`. #519 is open and unready at `8f7770bf`. #514 remains a separate controlled-Personal integration track. [PR #519](https://github.com/davidelaverga/Sophia/pull/519) · [PR #514](https://github.com/davidelaverga/Sophia/pull/514)
+
+Both ordinary CI runs passed all nine jobs, including the dedicated PostgreSQL wrapper suite and its runtime producer with zero skips. The image build also passed. The separate UML supervisor job failed during guest init, before its PDF and capture work entered the guest. The cause remains open. [Push CI](https://github.com/davidelaverga/Sophia/actions/runs/44421911897) · [PR CI](https://github.com/davidelaverga/Sophia/actions/runs/44421920703) · [UML run](https://github.com/davidelaverga/Sophia/actions/runs/44421920580)
+
+The automatic code summary at the current head reports no findings. The security summary links two earlier advisories. Formal finding dispositions, historical review coverage, and per-tenant admission remain open. [Review summary](https://github.com/davidelaverga/Sophia/pull/519#issuecomment-6855341903)
+
+The independent reviewer accepted the inactive writer source at `9dfc00fc`. A separate local integration against `8f7770bf` is underway. The future writer build will verify migration `0119` and the required role permissions before serving writer recovery. New writer work remains default-off.
+
+| Outcome | Current evidence and remaining work |
+|---|---|
+| O1 Owner-native routes | Source foundations are in place. A Sophia-initiated retained result and account, scope, isolation and recovery qualification are due. |
+| O2 Other-member API Explore | Contribution and custody source is present. An artifact from the authorized cross-member route is due. |
+| O3 Repository mission | Source and fixture evidence is available. An integrated repository result, authorized release and in-app verification are due. |
+| O4 Natural input | Observer and controlled-Personal source is available. Real founder observations and live routing evidence are due. |
+| O5 Editable allocation | Advisory allocation and scoped restrictive-tie evidence exist. Qualified live admission and override are due. |
+| O6 Voice continuity | The ordinary room UI is in main. D1 is off and Voice Lab is suspended. |
+| O7 Incremental UI | The accepted catalog and cancellable sign-in confirmation are in main. The catalog is default-off with its verification-scope erratum. Deployed acceptance and the separate candidate-specific Personal and Native Work decisions are open. |
+
+Luis retains integration and merge responsibility. An authorized release operator and the independent in-app verifier act on the exact eligible merged candidate.
+
+---
+
+## Historical ledger · retained on 19 November 2026 from main `c9c226c9`
+
 # Mission ledger — SOPHIA-INC-2026-11
 
 This is the programme's coordination record, laid out like [the mission ledger template](../execution/2026-11-08-incremental/templates/MISSION_LEDGER.md). It is a **timestamped snapshot**, not a permanently current record.
