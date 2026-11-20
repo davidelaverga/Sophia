@@ -1,7 +1,7 @@
 // Arriving in Personal (docs/plans/personal-twenty.md): the day's answers under her first line of a new day (the
 // session to get ready for with her is readyFor, places-view.ts). Each is a way to start: a press sends its words, as
 // the field's would. Pure, so the conversation and its checks read the same answers.
-import type { PersonalTurn } from '@sophia/contracts'
+import type { ShownTurn } from '../../api/personal.ts'
 
 /** A way in: what the row says, a quiet note beside it, and the words a press sends. */
 export interface Way {
@@ -25,7 +25,7 @@ const today = (iso: string, now: Date) => startOfDay(new Date(iso)) === startOfD
  * anything today yet, nor is a message of yours on its way. A greeting from an earlier day nobody answered counts too:
  * the server greets once after a quiet spell, so without it a day could go by without them.
  */
-export function arriving(turns: readonly PersonalTurn[], now: Date, sending: boolean): boolean {
+export function arriving(turns: readonly ShownTurn[], now: Date, sending: boolean): boolean {
   const last = turns.at(-1)
   if (sending || last?.author !== 'sophia' || last.replyTo !== null) return false
   return !turns.some((t) => t.author === 'person' && today(t.createdAt, now))

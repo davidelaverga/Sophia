@@ -5,7 +5,8 @@
 // toast is the app's (SignedIn), so a result is said the same way in a project and here.
 import { InvitedBand } from '../access/InvitedBand.tsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { PersonalSpace as Space, ProjectRelease, ProjectSummary } from '@sophia/contracts'
+import type { ProjectRelease, ProjectSummary } from '@sophia/contracts'
+import { isControlled, type SpaceRead as Space } from '../../api/personal.ts'
 import { accountOf, tokenSubject } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentTitle } from '../../app/document-title.ts'
@@ -395,6 +396,16 @@ const personalRead = (v: View): Read => ({
   retry: () => void v.space.refetch(),
 })
 
+/**
+ * A controlled space shown while its latest read failed (the read before stays, react-query's): said as of then, with
+ * Try again. The old way's reads say nothing here, as before.
+ */
+function staleOf(v: View): { asOf: string; retry: () => void } | null {
+  const data = v.personal
+  if (!data || !isControlled(data) || !v.space.isError) return null
+  return { asOf: data.asOf, retry: () => void v.space.refetch() }
+}
+
 const projectsRead = (v: View): Read => ({
   state: readState(v.projects),
   failed: READ_FAILED.projects,
@@ -525,6 +536,7 @@ function Personal({ v }: { v: View }) {
       epoch={v.personal?.epoch ?? v.projects.data?.personalEpoch}
       readBack={v.readBack}
       read={personalRead(v)}
+      stale={staleOf(v)}
       projects={v.projects.data?.projects}
       projectsRead={projectsRead(v)}
       writes={v.writes}
@@ -605,6 +617,7 @@ function Sheets({ v }: { v: View }) {
       <PlaceDialogs layers={layers} me={tokenSubject(identity.token)} inCall={!!props.call} onUnlocked={nav.unlocked} />
       {layers.data && (
         <DataSheet
+          name={identity.name}
           token={identity.token}
           who={identity.displayName ?? firstName(identity) ?? identity.name}
           space={v.personal}
