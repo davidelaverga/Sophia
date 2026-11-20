@@ -14,6 +14,10 @@
 // needs you on the right (the vision flag; the demo's some); absent, the Studio's own Home, her light alone.
 // `since=some|more|later|mine|seen`: what changed in each project since you last looked, read as Home reads it (below);
 // `sinceFail=1`: its first read fails.
+// `first=new|named`: Home's guided first run (home-first-run.md), with a name not chosen yet (the profile's «Luis Pérez»)
+// or chosen; absent, it never shows (Home as it is today). Its API and the rest of its switches: first-run-api.ts. What
+// follows a creation is recorded as "open <id>" and, with a team, "invite <id>"; one made after the first run ended, as
+// "added <id>" (the projects read again).
 import { requestAddress } from '../src/features/resources/link.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -40,12 +44,15 @@ import { newMeeting, nothingSince, updatesWindowOf } from './meeting-data.ts'
 import '../src/app/theme.css'
 import '../src/features/personal/personal.css'
 import { bootTheme } from '../src/app/theme.ts'
+import { retryRead } from '../src/app/account-cache.ts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useNeeds } from '../src/features/personal/useNeeds.ts'
 import { useCallSeen, useSaidOnce, useSinceNews } from '../src/features/personal/useSinceNews.ts'
 import { turnShown } from '../src/features/personal/turn-shown.ts'
 import { needsAnswer } from './fixture-api.ts'
 import { InvitedBand } from '../src/features/access/InvitedBand.tsx'
+import { FirstRun, FirstRunHeld, useFirstRun } from '../src/features/personal/FirstRun.tsx'
+import { installFirstRunApi } from './first-run-api.ts'
 
 declare global {
   interface Window {
@@ -70,6 +77,10 @@ declare global {
       sinceReads: () => string[]
       /** `call=<id>`: the call ends with Home open, as Leave in the places' bar ends it. */
       hangUp: () => void
+      /** `profile=hold|save=hold|create=hold` (first-run-api.ts): the first run's held answers go through. */
+      firstRelease: () => void
+      /** Each save of the name sent, as "<key> r<revision>". */
+      firstPuts: () => string[]
     }
   }
 }
@@ -107,6 +118,8 @@ window.homeFixture = {
   reread: (next) => answerWith(next),
   sinceReads: () => [...sinceReads],
   hangUp: () => hangUp(),
+  firstRelease: () => firstApi.release(),
+  firstPuts: () => firstApi.puts(),
   // Where the focus lands on the way back from Personal (focus.ts): an element's id, else its tag.
   landing: () => {
     const at = homeRowFor('personal')
@@ -428,6 +441,12 @@ if (SINCE) {
     return Promise.resolve(new Response(body, { status: 503, headers: { 'content-type': 'application/json' } }))
   }
 }
+/** `first=…`: the API Home's first run reads and writes, answered in the page (first-run-api.ts). */
+const FIRST = query.get('first')
+const firstApi = installFirstRunApi(query, pressed, project(6, 'Old pilot'))
+/** The account Home's first run reads as: its token names the reader, as a signed-in token's subject does. */
+const FIRST_IDENTITY = { ...SINCE_ACCOUNT, name: 'luis@sophia.test', role: 'admin' }
+
 /** The band Home shows with `invited=1`: the person's own invitations, read and accepted as the Studio does. */
 const INVITED_BAND = INVITED ? (
   <InvitedBand
@@ -435,7 +454,8 @@ const INVITED_BAND = INVITED ? (
     onOpen={(projectId) => pressed.push(`open ${projectId}`)}
   />
 ) : undefined
-const client = new QueryClient()
+// Read as the app reads: never again after a refusal the API marks final (account-cache.ts's retryRead).
+const client = new QueryClient({ defaultOptions: { queries: { retry: retryRead } } })
 
 const yesterday = new Date(NOW.getTime() - 26 * 3_600_000).toISOString()
 // The demo's Personal: its last words minutes ago, as Home's «Continue» says them.
@@ -593,6 +613,25 @@ function useSays(projects: readonly ProjectSummary[] | undefined, away: boolean,
   return says
 }
 
+/** `first=…`: Home's first run, the Studio's own; what it opens is recorded ("open <id>", "invite <id>"). */
+function useFixtureFirstRun(projects: readonly ProjectSummary[] | undefined) {
+  const first = useFirstRun(FIRST_IDENTITY, projects, FIRST !== null)
+  if (first.holds) return <FirstRunHeld />
+  if (!first.shows) return undefined
+  return (
+    <FirstRun
+      identity={FIRST_IDENTITY}
+      profile={first.profile}
+      onEnd={first.end}
+      onCreated={(projectId, team) => {
+        first.end()
+        pressed.push(`open ${projectId}`, ...(team ? [`invite ${projectId}`] : []))
+      }}
+      onAdded={(projectId) => pressed.push(`added ${projectId}`)}
+    />
+  )
+}
+
 /** Home, with a way to step away from it (as going to another place does), for the checks of what stops out of sight. */
 function Home() {
   const [away, setAway] = useState(query.has('away'))
@@ -600,6 +639,7 @@ function Home() {
   const projects = SETS[shown]
   const inCall = useCall()
   const says = useSays(projects, away, inCall)
+  const firstRun = useFixtureFirstRun(projects)
   const fromApi = useNeeds(
     'fixture-token',
     {
@@ -641,6 +681,7 @@ function Home() {
           count={workCount(projects)}
           locked={locked}
           {...{ hidden: away, here: !away, invited: INVITED_BAND, answers }}
+          firstRun={firstRun}
           needs={
             fromApi.seen ?? (needs ? { items: needs, open: (need) => pressed.push(`need ${need.id}`) } : undefined)
           }

@@ -292,6 +292,74 @@
   color: color-mix(in srgb, var(--warm) 70%, var(--text-3));
 }
 
+/* Home's first run (home-first-run.md): one step at a time under the greeting, in Home's column. The kit draws its
+   field, its presses and its two choices; here only their places. */
+.places .hw-first {
+  max-width: 460px;
+  margin-top: 48px;
+  animation: hw-in var(--motion-slower) var(--ease) both;
+}
+.places .hw-first-title {
+  margin: 0 0 20px;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  color: var(--text);
+}
+.places .hw-first .field-label {
+  display: block;
+  margin-bottom: 8px;
+}
+.places .hw-first .field {
+  width: 100%;
+}
+.places .hw-first-note,
+.places .hw-first-error {
+  margin-top: 10px;
+  font-size: var(--type-small);
+  color: var(--text-2);
+}
+/* What went wrong reads in the Studio's error ink (.form-error's), not as a quiet note. */
+.places .hw-first-error {
+  color: var(--rose);
+}
+.places .hw-first-error:empty {
+  margin: 0;
+}
+/* The first run's place, held while Home can't tell yet whether it shows: nothing under the greeting moves twice. */
+.places .hw-first-held {
+  min-height: 160px;
+  margin-top: 48px;
+}
+.places .hw-first-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+.places .hw-first-choice {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  text-align: left;
+}
+.places .hw-first-choice-t {
+  font-size: var(--type-head);
+  font-weight: 500;
+  color: var(--text);
+}
+.places .hw-first-choice-m {
+  font-size: var(--type-body);
+  line-height: var(--lh-body);
+  color: var(--text-2);
+}
+.places .hw-first-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
 /* The index: rows on hairlines that draw from the left as they arrive. */
 .places .hw-index {
   margin: 0;
@@ -2076,6 +2144,7 @@
   .places .hw-off,
   .places .hw-held,
   .places .hw-label,
+  .places .hw-first,
   .places .hw-mic,
   .places .c3-ambient,
   .places .c3-wave i,
