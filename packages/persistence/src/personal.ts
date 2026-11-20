@@ -13,6 +13,7 @@ import type {
   PersonalTurn,
   PersonalTurnPage,
 } from '@sophia/contracts'
+import { personalAnswerControlsInstalled } from './personal-answer-controls.ts'
 import { onlyRow } from './rows.ts'
 
 /** The latest turns a space read returns; earlier ones are said to exist (`earlier`). */
@@ -42,13 +43,26 @@ const TURNS = `SELECT t.id, t.seq, t.author, t.body, t.created_at, t.reply_to,
   WHERE t.owner_id = sophia.actor_id()`
 
 /**
- * A turn the companion may read: not a held person turn (0098's `recorded`, an automatic_v1 input nobody asked about).
- * Held words are kept and shown to their owner, but no answer or welcome is written from them, nor does one count as
- * activity, until a later, separate admission of the input by its id makes it eligible (none exists yet). 0099's
+ * A turn that counts as activity, and that the companion may read: not a held person turn (0098's `recorded`, an
+ * automatic_v1 input nobody asked about, or a replacement never admitted: 0103 keeps a cancelled one recorded). Held
+ * words are kept and shown to their owner, but no answer or welcome is written from them, nor does one count as
+ * activity, until a later, separate admission of the input by its id makes it eligible. 0099's
  * sophia.personal_welcome_due() applies the same rule in SQL. Applied before any LIMIT, so held turns never take the
  * place of the turns read.
  */
 const NOT_HELD = (t: string) => `NOT (${t}.author = 'person' AND ${t}.reply IS NOT DISTINCT FROM 'recorded')`
+
+/**
+ * A turn the companion may read as context (0103 installed): activity (NOT_HELD), and neither an input its owner
+ * withdrew (C1/C2) nor an answer to one (reply_to). A withdrawn original stays activity (WELCOME_DUE, 0099) and stays in
+ * every owner read; it is only no longer an instruction. Applied before any LIMIT, as NOT_HELD.
+ */
+const PROMPT_ELIGIBLE = (t: string) =>
+  `${NOT_HELD(t)} AND NOT EXISTS (SELECT 1 FROM sophia.personal_answer_controls w
+     WHERE w.owner_id = ${t}.owner_id AND w.turn_id = coalesce(${t}.reply_to, ${t}.id) AND w.state = 'withdrawn')`
+
+/** The context predicate: PROMPT_ELIGIBLE once 0103 is installed, NOT_HELD (b760's) while it is positively absent. */
+const contextOf = (controlled: boolean) => (controlled ? PROMPT_ELIGIBLE : NOT_HELD)
 
 /**
  * The conversation as the companion reads it to answer the turn at `$1`: each turn with the answer to it, up to that one
@@ -56,9 +70,9 @@ const NOT_HELD = (t: string) => `NOT (${t}.author = 'person' AND ${t}.reply IS N
  * newest `$2` turns up to it are read (by the conversation's order), and the answers written to them since: never the
  * whole conversation.
  */
-const HISTORY = `WITH recent AS (
+const HISTORY = (controlled: boolean) => `WITH recent AS (
     SELECT id, seq, author, body, reply_to FROM sophia.personal_turns h
-     WHERE owner_id = sophia.actor_id() AND seq <= $1 AND ${NOT_HELD('h')} ORDER BY seq DESC LIMIT $2
+     WHERE owner_id = sophia.actor_id() AND seq <= $1 AND ${contextOf(controlled)('h')} ORDER BY seq DESC LIMIT $2
   ), later AS (
     SELECT id, seq, author, body, reply_to FROM sophia.personal_turns
      WHERE owner_id = sophia.actor_id() AND seq > $1 AND reply_to IN (SELECT id FROM recent)
@@ -271,7 +285,8 @@ export async function readCompanionContext(
   if (!onlyRow(held.rows, 'renew_personal_reply').held) return null
   const asked = (await c.query<TurnRow>(`${TURNS} AND t.id = $1`, [turnId])).rows[0]
   if (!asked || asked.author !== 'person' || asked.reply !== 'pending') return null
-  const { rows } = await c.query<{ author: 'person' | 'sophia'; body: string }>(HISTORY, [asked.seq, depth])
+  const controlled = await personalAnswerControlsInstalled(c)
+  const { rows } = await c.query<{ author: 'person' | 'sophia'; body: string }>(HISTORY(controlled), [asked.seq, depth])
   const notes = await readNotes(c)
   return {
     asked: turnOf(asked),
@@ -301,7 +316,10 @@ export async function readWelcomeContext(
   if (!onlyRow(held.rows, 'renew_personal_greeting').held) return null
   const due = (await c.query<{ due: boolean }>(WELCOME_DUE)).rows[0]?.due ?? false
   if (!due) return null
-  const { rows } = await c.query<TurnRow>(`${TURNS} AND ${NOT_HELD('t')} ORDER BY t.seq DESC LIMIT $1`, [depth])
+  const controlled = await personalAnswerControlsInstalled(c)
+  const { rows } = await c.query<TurnRow>(`${TURNS} AND ${contextOf(controlled)('t')} ORDER BY t.seq DESC LIMIT $1`, [
+    depth,
+  ])
   const notes = await readNotes(c)
   return {
     history: rows.toReversed().map((r) => ({ author: r.author, text: r.body })),
@@ -508,4 +526,173 @@ export async function releasePersonalGreeting(c: pg.PoolClient, claim: string): 
 /** The companion could not answer: the turn says so, under this process's claim, and the person may ask again. */
 export async function failPersonalReply(c: pg.PoolClient, turnId: string, claim: string): Promise<void> {
   await c.query('SELECT sophia.fail_personal_reply($1, $2)', [turnId, claim])
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// INC03-CC-003 A3 (0103, A54): the versioned owner reads of a conversation with controlled inputs. Each turn as it is
+// kept (its reply may be `withdrawn`), with its automatic input's control, and whether it is activity and model context.
+// Old unversioned reads refuse an owner with controlled inputs (routes/personal.ts); these are the only ones that
+// represent them. Call inside withActor(..., "read") with 0103 installed.
+
+interface ControlledTurnRow {
+  id: string
+  seq: string
+  author: 'person' | 'sophia'
+  body: string
+  created_at: Date
+  reply_to: string | null
+  reply: 'pending' | 'answered' | 'failed' | 'recorded' | 'withdrawn' | null
+  suggestion_id: string | null
+  suggestion_body: string | null
+  suggestion_state: 'open' | 'kept' | null
+  input_id: string | null
+  control_state: 'active' | 'held' | 'withdrawn' | null
+  control_revision: number | null
+  prompt: boolean
+  activity: boolean
+}
+
+/** One turn of a controlled read (A54 PersonalControlledTurn). */
+export interface PersonalControlledTurn {
+  id: string
+  seq: number
+  author: 'person' | 'sophia'
+  text: string
+  createdAt: string
+  replyTo: string | null
+  reply: 'pending' | 'answered' | 'failed' | 'recorded' | 'withdrawn' | null
+  suggestion: { id: string; text: string; state: 'open' | 'kept' } | null
+  input: { inputId: string; control: 'active' | 'held' | 'withdrawn'; revision: number } | null
+  prompt: 'eligible' | 'excluded'
+  activity: boolean
+}
+
+const CONTROLLED_TURNS = `SELECT t.id, t.seq, t.author, t.body, t.created_at, t.reply_to,
+    sophia.personal_reply_state(t.reply, t.asked_at, t.answering_since) AS reply,
+    sg.id AS suggestion_id, sg.body AS suggestion_body, sg.state AS suggestion_state,
+    i.id AS input_id, CASE WHEN i.id IS NULL THEN NULL ELSE coalesce(k.state, 'active') END AS control_state,
+    CASE WHEN i.id IS NULL THEN NULL ELSE coalesce(k.revision, 0) END AS control_revision,
+    (${PROMPT_ELIGIBLE('t')}) AS prompt, (${NOT_HELD('t')}) AS activity
+  FROM sophia.personal_turns t
+  LEFT JOIN sophia.personal_suggestions sg ON sg.owner_id = t.owner_id AND sg.turn_id = t.id
+  LEFT JOIN sophia.personal_inputs i ON i.owner_id = t.owner_id AND i.turn_id = t.id
+  LEFT JOIN sophia.personal_answer_controls k ON k.owner_id = i.owner_id AND k.input_id = i.id
+  WHERE t.owner_id = sophia.actor_id()`
+
+function controlledTurnOf(r: ControlledTurnRow): PersonalControlledTurn {
+  return {
+    id: r.id,
+    seq: Number(r.seq),
+    author: r.author,
+    text: r.body,
+    createdAt: r.created_at.toISOString(),
+    replyTo: r.reply_to,
+    reply: r.reply,
+    suggestion:
+      r.suggestion_id && r.suggestion_body && r.suggestion_state
+        ? { id: r.suggestion_id, text: r.suggestion_body, state: r.suggestion_state }
+        : null,
+    input:
+      r.input_id && r.control_state
+        ? { inputId: r.input_id, control: r.control_state, revision: r.control_revision ?? 0 }
+        : null,
+    prompt: r.prompt ? 'eligible' : 'excluded',
+    activity: r.activity,
+  }
+}
+
+/** How many turns one controlled page or export page holds. */
+export const PERSONAL_CONTROLLED_PAGE = 100
+
+/** A page of the controlled conversation (A54 PersonalControlledTurnPage). */
+export interface PersonalControlledTurnPage {
+  revision: number
+  epoch: number
+  turns: PersonalControlledTurn[]
+  /** Whether turns older than the first one here exist. */
+  earlier: boolean
+  /** Whether any reply is still pending, as the old poll says. */
+  pending: boolean
+}
+
+/**
+ * The controlled conversation, a page at a time: the newest turns (no cursor), those after `after` (polling, oldest
+ * first) or those before `before` (reading back). One read transaction; no cross-stream snapshot is claimed.
+ */
+export async function readPersonalControlledTurns(
+  c: pg.PoolClient,
+  cursor: { after?: number; before?: number },
+  limit = PERSONAL_CONTROLLED_PAGE,
+): Promise<PersonalControlledTurnPage> {
+  let turns: PersonalControlledTurn[]
+  let earlier: boolean
+  if (cursor.after !== undefined) {
+    const { rows } = await c.query<ControlledTurnRow>(`${CONTROLLED_TURNS} AND t.seq > $1 ORDER BY t.seq LIMIT $2`, [
+      cursor.after,
+      limit,
+    ])
+    turns = rows.map(controlledTurnOf)
+    const first = turns[0]?.seq ?? cursor.after + 1
+    earlier =
+      (
+        await c.query<{ earlier: boolean }>(
+          'SELECT EXISTS(SELECT 1 FROM sophia.personal_turns WHERE owner_id = sophia.actor_id() AND seq < $1) AS earlier',
+          [first],
+        )
+      ).rows[0]?.earlier ?? false
+  } else {
+    const before = cursor.before ?? Number.MAX_SAFE_INTEGER
+    const { rows } = await c.query<ControlledTurnRow>(
+      `${CONTROLLED_TURNS} AND t.seq < $1 ORDER BY t.seq DESC LIMIT $2`,
+      [before, limit + 1],
+    )
+    turns = rows.slice(0, limit).map(controlledTurnOf).toReversed()
+    earlier = rows.length > limit
+  }
+  const pending = await c.query<{ pending: boolean }>(
+    `SELECT EXISTS(SELECT 1 FROM sophia.personal_turns WHERE owner_id = sophia.actor_id() AND reply = 'pending'
+       AND sophia.personal_reply_state(reply, asked_at, answering_since) = 'pending') AS pending`,
+  )
+  const { revision, epoch } = await readSpaceState(c)
+  return { revision, epoch, turns, earlier, pending: onlyRow(pending.rows, 'pending').pending }
+}
+
+/** One page of the versioned export (A54 PersonalControlledExport, without exportedAt). */
+export interface PersonalControlledExportPage {
+  epoch: number
+  turns: PersonalControlledTurn[]
+  next: number | null
+  /** Each automatic input whose turn is on this page, as it stands (personal_answer_control_view). */
+  inputs: Array<Record<string, unknown>>
+  notes: PersonalNote[]
+  releases: PersonalRelease[]
+}
+
+/**
+ * Everything the controlled space keeps, a page of turns at a time after `after` (a seq): the turns, every automatic
+ * input on the page with its whole admission history, control, calls and withheld answers, and the notes and carried
+ * notes, bounded, on every page.
+ */
+export async function readPersonalControlledExport(
+  c: pg.PoolClient,
+  after = 0,
+  limit = PERSONAL_CONTROLLED_PAGE,
+): Promise<PersonalControlledExportPage> {
+  const { rows } = await c.query<ControlledTurnRow>(`${CONTROLLED_TURNS} AND t.seq > $1 ORDER BY t.seq LIMIT $2`, [
+    after,
+    limit + 1,
+  ])
+  const turns = rows.slice(0, limit).map(controlledTurnOf)
+  const next = rows.length > limit ? (turns.at(-1)?.seq ?? null) : null
+  const inputs: Array<Record<string, unknown>> = []
+  for (const turn of turns) {
+    if (!turn.input) continue
+    const view = await c.query<{ view: Record<string, unknown> }>(
+      'SELECT sophia.personal_answer_control_view($1) AS view',
+      [turn.input.inputId],
+    )
+    inputs.push(onlyRow(view.rows, 'personal_answer_control_view').view)
+  }
+  const { epoch } = await readSpaceState(c)
+  return { epoch, turns, next, inputs, notes: await readNotes(c), releases: await readReleases(c) }
 }
