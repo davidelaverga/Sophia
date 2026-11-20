@@ -412,6 +412,7 @@ export {
   type ConversationInputSend,
   type ConversationInputStart,
 } from './conversation-inputs.ts'
+export { sendAddressedConversationInput, startAddressedConversationInput } from './conversation-input-addressing.ts'
 
 export {
   runtimeConversationClaim,

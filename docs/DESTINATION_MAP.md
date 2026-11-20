@@ -101,3 +101,22 @@ a path updates its row in the same commit.
 | `docs/` | built | S1-01 | Pack, source map, this map, runtime-unit guide, evidence, handoffs |
 | `docs/releases/` | unbuilt | S1-14 | Release records |
 | `planning/` | unbuilt | S1-02 | Versioned goal definitions (no private runtime logs) |
+
+
+## INC03-S01c trusted saved conversation addressing (source-only)
+
+A63/0123 add a separate opt-in app composition beside unchanged A49/0095. `built` below describes the implemented
+source boundary and its local synthetic verification, not stock activation, routing or deployed acceptance. See
+[the conversation input plan](plans/conversation-inputs.md#s01c-trusted-addressing-references-a63--0123-source-only-candidate)
+and [session handoff](handoffs/INC03-S01C-A63-0123.md).
+
+| Path | State | Goal | Contents / purpose |
+|---|---|---|---|
+| `db/migrations/0123_saved_conversation_input_addressing.sql` | built | S1-12, INC03-S01c | Additive API-only record writers, immutable exact-reference sidecar, current authority and replay fences; no effect dispatch; prior migrations unchanged |
+| `packages/contracts/amendments/A63-saved-conversation-input-addressing.json` | built | S1-12, INC03-S01c | Separate closed addressed paths, explicit automatic/addressing version, member references and nullable send reply target; existing record-only receipts |
+| `packages/persistence/src/conversation-input-addressing.ts` | built | S1-12, INC03-S01c | Typed addressed writer wrappers; exported by persistence index; absent-schema readiness and responses belong to the API routes |
+| `packages/persistence/src/conversation-input-addressing.db.test.ts` | built | S1-12, INC03-S01c | Fresh target/member authority, replay/withdrawal, exact context, RLS/grants, concurrency and no-effect regressions |
+| `apps/api/src/routes/conversation-input-addressing.ts` | built | S1-12, INC03-S01c | Authenticated addressed start/send beside A49; separate opt-in app mount and 0123 readiness, no stock server enablement |
+| `apps/api/src/conversation-input-addressing.db.test.ts` | built | S1-12, INC03-S01c | R1 generated nullable-type and authenticated explicit-null request regression |
+| `docs/plans/conversation-inputs.md` | built | S1-12, INC03-S01c | Retained A49/0095 plan plus additive A63/0123 authority, composition, verification and limits |
+| `docs/handoffs/INC03-S01C-A63-0123.md` | built | S1-12, INC03-S01c | Normal source-only candidate handoff with evidence, failures, authority and remaining scope |
