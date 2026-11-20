@@ -375,6 +375,8 @@ export type PersonalAnswerDecision = { "seq": number; "operation": "send" | "ret
 export type PersonalAnswerReceipt = { "operation": "send_answer_input" | "retry_answer_input" | "cancel_answer_input"; "revision": number; "turnId": string; "seq": number; "inputId": string; "answerContract": "personal_answer_v1"; "interactionContract": "automatic_v1"; "contractVersion": 1; "decision": PersonalAnswerDecision; "suggestionId": null; "noteId": null; "releaseId": null; "projectId": null; "erased": null; };
 export type PersonalAnswerDecisionEntry = { "decision": PersonalAnswerDecision; "createdAt": string; };
 export type PersonalAnswerDecisionList = { "inputId": string; "turnId": string; "decisions": ReadonlyArray<PersonalAnswerDecisionEntry>; };
+export type AddressedConversationInputStart = { "interactionContract": "automatic_v1"; "title": string; "text": string; "addressingVersion": 1; "mentions": ReadonlyArray<string>; };
+export type AddressedConversationInputSend = { "interactionContract": "automatic_v1"; "text": string; "addressingVersion": 1; "mentions": ReadonlyArray<string>; "replyToMessageId": string | null; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -595,4 +597,6 @@ export interface Operations {
   "retryPersonalAnswer": { method: "POST"; path: "/api/v1/personal/answers/{inputId}/retry"; request: PersonalAnswerRetry; response: PersonalAnswerReceipt; };
   "cancelPersonalAnswer": { method: "POST"; path: "/api/v1/personal/answers/{inputId}/cancel"; request: PersonalAnswerCancel; response: PersonalAnswerReceipt; };
   "readPersonalAnswerDecisions": { method: "GET"; path: "/api/v1/personal/answers/{inputId}/decisions"; request: undefined; response: PersonalAnswerDecisionList; };
+  "startAddressedConversationInput": { method: "POST"; path: "/api/v1/projects/{projectId}/conversation-inputs/addressed"; request: AddressedConversationInputStart; response: ConversationInputStarted; };
+  "sendAddressedConversationInput": { method: "POST"; path: "/api/v1/conversations/{conversationId}/inputs/addressed"; request: AddressedConversationInputSend; response: ConversationInputRecorded; };
 }

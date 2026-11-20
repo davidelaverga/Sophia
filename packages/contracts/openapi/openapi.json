@@ -19665,6 +19665,218 @@
           }
         }
       }
+    },
+    "/api/v1/projects/{projectId}/conversation-inputs/addressed": {
+      "post": {
+        "operationId": "startAddressedConversationInput",
+        "summary": "Record a saved-conversation input with structured addressing",
+        "tags": [
+          "conversations"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "INC03-S01c",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddressedConversationInputStart"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Recorded: the input is retained and nothing follows from it (effect none)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationInputStarted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted (not a member; not a writer now, also on a retry; conversations not turned on or read-only: conversations_closed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Addressed conversation inputs are not served by this API."
+          },
+          "409": {
+            "description": "Idempotency key reused with a different request, including a legacy Ask request or the other operation (idempotency_conflict), or a request whose text was since withdrawn or erased (request_erased)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request or address. A fresh address must identify current project members and, for replies, a visible message in the same conversation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Addressed inputs are unavailable. An uncertain write must be retried with the same idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{conversationId}/inputs/addressed": {
+      "post": {
+        "operationId": "sendAddressedConversationInput",
+        "summary": "Record a saved-conversation input with structured addressing",
+        "tags": [
+          "conversations"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "INC03-S01c",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddressedConversationInputSend"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Recorded: the input is retained and nothing follows from it (effect none)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationInputRecorded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted (not a member; not a writer now, also on a retry; conversations not turned on or read-only: conversations_closed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Addressed conversation inputs are not served by this API."
+          },
+          "409": {
+            "description": "Idempotency key reused with a different request, including a legacy Ask request or the other operation (idempotency_conflict), or a request whose text was since withdrawn or erased (request_erased)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request or address. A fresh address must identify current project members and, for replies, a visible message in the same conversation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Addressed inputs are unavailable. An uncertain write must be retried with the same idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -43695,6 +43907,110 @@
           "decisions"
         ],
         "description": "The owner's own read of one input's decisions: identity, decision metadata and times only, no profile, payer, route, body or diagnostic."
+      },
+      "AddressedConversationInputStart": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "interactionContract": {
+            "type": "string",
+            "enum": [
+              "automatic_v1"
+            ],
+            "description": "The interaction contract, explicit and required. No other value, no default; a legacy askSophia body is a different request."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "addressingVersion": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "mentions": {
+            "type": "array",
+            "maxItems": 5,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "description": "Structured choices of member IDs. Member authority is resolved by the server; textual names are not address IDs."
+          }
+        },
+        "required": [
+          "interactionContract",
+          "title",
+          "text",
+          "addressingVersion",
+          "mentions"
+        ],
+        "description": "Record one automatic input and its structured address for later observation. The server resolves membership, target visibility and author."
+      },
+      "AddressedConversationInputSend": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "interactionContract": {
+            "type": "string",
+            "enum": [
+              "automatic_v1"
+            ],
+            "description": "The interaction contract, explicit and required. No other value, no default; a legacy askSophia body is a different request."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "addressingVersion": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "mentions": {
+            "type": "array",
+            "maxItems": 5,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "description": "Structured choices of member IDs. Member authority is resolved by the server; textual names are not address IDs."
+          },
+          "replyToMessageId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A visible, nonwithdrawn message from this conversation, or null. The server derives its author."
+          }
+        },
+        "required": [
+          "interactionContract",
+          "text",
+          "addressingVersion",
+          "mentions",
+          "replyToMessageId"
+        ],
+        "description": "Record one automatic input and its structured address for later observation. The server resolves membership, target visibility and author."
       }
     }
   }
