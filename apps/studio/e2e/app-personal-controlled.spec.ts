@@ -233,6 +233,8 @@ const C5 = refusal(503, 'projection_unavailable', 'never')
 /** How each Personal read is answered now (changed by a check as it goes); `hold` waits for `release`. */
 interface World {
   legacy: () => Answer
+  waiting?: () => Answer | 'hold'
+  earlierLegacy?: () => Answer | 'hold'
   space: () => Answer | 'hold'
   before: (seq: number) => Answer | 'hold'
   view: (inputId: string) => Answer
@@ -266,9 +268,17 @@ async function serve(context: BrowserContext, world: World) {
   return { ledger, holding: () => held.length, release: () => held.splice(0).forEach((go) => go()) }
 }
 
+function legacyPageOf(world: World, path: string): Answer | 'hold' | null {
+  if (path === '/api/v1/personal/turns') return world.waiting?.() ?? refusal(503, 'unavailable', 'never')
+  if (path === '/api/v1/personal/turns/earlier') return world.earlierLegacy?.() ?? refusal(503, 'unavailable', 'never')
+  return null
+}
+
 function answerOf(world: World, url: URL): Answer | 'hold' {
   const p = url.pathname
   if (p === '/api/v1/personal') return world.legacy()
+  const legacyPage = legacyPageOf(world, p)
+  if (legacyPage !== null) return legacyPage
   if (p === '/api/v1/personal/answer-controls/space') return world.space()
   if (p === '/api/v1/personal/answer-controls/turns') return world.before(Number(url.searchParams.get('before')))
   if (p === '/api/v1/personal/answer-controls/export') return world.exported(Number(url.searchParams.get('after')))
@@ -896,6 +906,160 @@ test('legacy · an uncontrolled owner reads the old way only: no controlled read
   expect(ledger.some((l) => l.includes('answer-controls') || l.includes('/answers/'))).toBe(false)
   await expect(page.locator('[data-control], [data-stale]')).toHaveCount(0)
 })
+
+/** A legacy space already open when another device first controls one of its inputs. */
+function transitioningWorld(entry: 'waiting' | 'earlier') {
+  const world = controlledWorld(histories('answered'))
+  world.legacy = () => ({
+    json: {
+      ...LEGACY,
+      earlier: entry === 'earlier',
+      turns: LEGACY.turns.map((t) => ({ ...t, reply: entry === 'waiting' ? 'pending' : 'answered' })),
+    },
+  })
+  world.waiting = () => 'hold'
+  world.earlierLegacy = () => 'hold'
+  world.space = () => 'hold'
+  return world
+}
+
+async function beginLegacyRead(page: Page, entry: 'waiting' | 'earlier') {
+  await openPersonal(page)
+  await expect(page.getByText('An ordinary day.')).toBeVisible()
+  if (entry === 'earlier') {
+    await page.locator('.c3-day').first().click()
+    await page.getByRole('menuitem', { name: 'Show earlier days' }).click()
+  } else await expect(page.locator('.msg.typing')).toHaveCount(1)
+}
+
+test('C5 transition · concurrent legacy refusals keep the first controlled read on its way', async ({ context }) => {
+  const world = transitioningWorld('waiting')
+  const legacy = world.legacy
+  world.legacy = () => ({
+    ...legacy(),
+    json: { ...LEGACY, earlier: true, turns: LEGACY.turns.map((t) => ({ ...t, reply: 'pending' })) },
+  })
+  const { ledger, holding, release } = await serve(context, world)
+  const page = await signedIn(context)
+  await page.clock.install()
+  await beginLegacyRead(page, 'waiting')
+  await page.locator('.c3-day').first().click()
+  await page.getByRole('menuitem', { name: 'Show earlier days' }).click()
+  await expect.poll(holding).toBe(2)
+  world.waiting = () => C5
+  world.earlierLegacy = () => C5
+  release()
+  await expect.poll(() => asked(ledger).controlled).toBe(1)
+  await expect(page.getByText('An ordinary day.')).toHaveCount(0)
+  await page.clock.fastForward(5000)
+  expect(asked(ledger)).toMatchObject({ controlled: 1, legacyPoll: 2, writes: [] })
+  expect(holding()).toBe(1)
+  world.space = () => ({ json: space(histories('answered')) })
+  release()
+  await showsHistories(page, histories('answered'))
+})
+
+test('C5 transition · a late successful legacy poll cannot restart the held controlled read', async ({ context }) => {
+  const world = transitioningWorld('waiting')
+  world.legacy = () => ({
+    json: { ...LEGACY, earlier: true, turns: LEGACY.turns.map((t) => ({ ...t, reply: 'pending' })) },
+  })
+  const { ledger, holding, release } = await serve(context, world)
+  const page = await signedIn(context)
+  await page.clock.install()
+  await beginLegacyRead(page, 'waiting')
+  await page.locator('.c3-day').first().click()
+  await page.getByRole('menuitem', { name: 'Show earlier days' }).click()
+  await expect.poll(holding).toBe(2)
+  world.earlierLegacy = () => C5
+  release()
+  await expect.poll(() => asked(ledger).controlled).toBe(1)
+  await expect.poll(holding).toBe(2) // the legacy poll and the first A55 read are still held
+  world.waiting = () => ({ json: { revision: 4, turns: [], pending: false } })
+  release()
+  await expect.poll(holding).toBe(1)
+  await page.clock.fastForward(5000)
+  expect(asked(ledger)).toMatchObject({ controlled: 1, legacyPoll: 2, writes: [] })
+  await expect(page.getByText('An ordinary day.')).toHaveCount(0)
+  world.space = () => ({ json: space(histories('answered')) })
+  release()
+  await showsHistories(page, histories('answered'))
+})
+
+for (const entry of ['waiting', 'earlier'] as const) {
+  test(`C5 transition · ${entry} switches an open legacy space, hides its cache and stops legacy polling`, async ({
+    context,
+  }) => {
+    const world = transitioningWorld(entry)
+    const { ledger, holding, release } = await serve(context, world)
+    const page = await signedIn(context)
+    await page.clock.install()
+    await beginLegacyRead(page, entry)
+    await expect.poll(holding).toBe(1)
+    world.waiting = () => C5
+    world.earlierLegacy = () => C5
+    release()
+    await expect.poll(() => asked(ledger).controlled).toBe(1)
+    await expect(page.getByText('An ordinary day.')).toHaveCount(0)
+    await expect(page.locator('.msg.typing')).toHaveCount(0)
+    const legacyReads = asked(ledger).legacyPoll
+    await page.clock.fastForward(5000)
+    expect(asked(ledger).legacyPoll).toBe(legacyReads)
+    world.space = () => refusal(503, 'unavailable', 'never')
+    release()
+    const conversation = page.getByLabel('Conversation with Sophia')
+    await expect(conversation.getByText('Couldn’t load your personal space.')).toBeVisible()
+    await page.clock.fastForward(5000)
+    expect(asked(ledger).legacyPoll).toBe(legacyReads)
+    await expect(page.getByText('An ordinary day.')).toHaveCount(0)
+    world.space = () => ({ json: space(histories('answered')) })
+    await conversation.getByRole('button', { name: 'Try again' }).click()
+    await showsHistories(page, histories('answered'))
+    expect(asked(ledger)).toMatchObject({ legacyAfterPin: 0, legacyPoll: legacyReads, writes: [] })
+  })
+
+  test(`C5 transition · ${entry} preserves a near-C5 ordinary failure without pinning`, async ({ context }) => {
+    const world = transitioningWorld(entry)
+    const { ledger, holding, release } = await serve(context, world)
+    const page = await signedIn(context)
+    await page.clock.install()
+    await beginLegacyRead(page, entry)
+    await expect.poll(holding).toBe(1)
+    const ordinary = refusal(503, 'projection_unavailable', 'safe_read')
+    world.waiting = () => ordinary
+    world.earlierLegacy = () => ordinary
+    release()
+    await page.clock.fastForward(5000)
+    await expect(page.getByText('An ordinary day.')).toBeVisible()
+    expect(asked(ledger)).toMatchObject({ controlled: 0, writes: [] })
+  })
+
+  test(`C5 transition · ${entry} refused after the padlock shuts cannot restore a pin or start A55`, async ({
+    context,
+  }) => {
+    const world = transitioningWorld(entry)
+    const { ledger, holding, release } = await serve(context, world)
+    const page = await signedIn(context)
+    await page.clock.install()
+    await beginLegacyRead(page, entry)
+    await expect.poll(holding).toBe(1)
+    const other = await context.newPage()
+    await other.goto(`${APP}/favicon.svg`)
+    await other.evaluate((key) => localStorage.setItem(key, 'you'), LOCK_KEY)
+    await expect(page.getByText('An ordinary day.')).toHaveCount(0)
+    world.waiting = () => C5
+    world.earlierLegacy = () => C5
+    release()
+    await page.clock.fastForward(5000)
+    expect(asked(ledger)).toMatchObject({ controlled: 0, writes: [] })
+    // Settle ordinary legacy polls after unlock so this assertion concerns only the old aborted refusal.
+    world.waiting = () => ({ json: { revision: 3, turns: [], pending: true } })
+    await other.evaluate((key) => localStorage.removeItem(key), LOCK_KEY)
+    await page.getByRole('button', { name: 'Personal', exact: true }).click()
+    await expect(page.getByText('An ordinary day.')).toBeVisible()
+    expect(asked(ledger).controlled).toBe(0)
+  })
+}
 
 test('@phone controlled · at 390 the statuses, the kept answer and the stale line fit and work by touch', async ({
   context,

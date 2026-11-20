@@ -20,6 +20,7 @@ import {
   listProjects,
   readControlledWindow,
   readPersonalSpace,
+  refusedAsControlled,
   resumePersonalSpace,
   retryPersonalTurn,
   sendPersonalTurn,
@@ -83,6 +84,22 @@ async function readSpace(client: QueryClient, identity: Identity, signal: AbortS
   }
 }
 
+/** A legacy poll or earlier page can be the first read refused as controlled after another device changes it. */
+async function readControlledAfterRefusal(
+  client: QueryClient,
+  account: string,
+  err: unknown,
+  signal: AbortSignal,
+): Promise<boolean> {
+  signal.throwIfAborted()
+  if (!refusedAsControlled(err)) return false
+  // Another read may already have switched it; keep that controlled read on its way.
+  if (controlledPinned(client, account)) return true
+  pinControlled(client, account)
+  await client.invalidateQueries({ queryKey: ['personal', account], exact: true })
+  return true
+}
+
 /**
  * How often a controlled space is read again while it is open and the page in sight (react-query stops in the
  * background, and nothing is read while the padlock is shut): its calls' money, what was kept of them and a wait that
@@ -99,8 +116,9 @@ const controlledEvery = (data: SpaceRead | undefined, failures: number): number 
 /**
  * The space, and while a reply is pending, what came after the last turn until nothing is. The server says how each
  * reply stands, a lost wait included (it reads as failed in time), so this side keeps no clock of its own. A poll that
- * fails stops polling until the space is read again (focus, reconnecting, a write). A controlled space is read whole
- * again instead (controlledEvery); once C5 pinned it, nothing read the old way shows, not even what was read before.
+ * fails is retried less often (pollEvery); only C5's refusal switches it to the controlled read and stops old polls.
+ * A controlled space is read whole again instead (controlledEvery); once C5 pinned it, nothing read the old way
+ * shows, not even what was read before.
  */
 export function usePersonalSpace(identity: Identity, open: boolean) {
   const client = useQueryClient()
@@ -127,9 +145,16 @@ export function usePersonalSpace(identity: Identity, open: boolean) {
   useQuery({
     queryKey: [...queryKey, 'waiting', last],
     queryFn: async ({ signal }) => {
-      const page = await getPersonalTurns(identity.token, last, signal)
-      if (!page.pending || page.turns.length > 0) await client.invalidateQueries({ queryKey, exact: true })
-      return page
+      if (controlledPinned(client, identity.name)) return null
+      try {
+        const page = await getPersonalTurns(identity.token, last, signal)
+        if (controlledPinned(client, identity.name)) return null
+        if (!page.pending || page.turns.length > 0) await client.invalidateQueries({ queryKey, exact: true })
+        return page
+      } catch (err: unknown) {
+        if (await readControlledAfterRefusal(client, identity.name, err, signal)) return null
+        throw err
+      }
     },
     enabled: open && waiting && !pinned,
     refetchInterval: (query) => pollEvery(query.state.fetchFailureCount),
@@ -214,9 +239,16 @@ export function useReadBack(identity: Identity, space: SpaceRead | undefined) {
   }, [space])
   const { older, more } = shownBack(space, back)
   const legacyBack = async (epoch: number, from: number, signal: AbortSignal) => {
-    const page = await getEarlierPersonalTurns(identity.token, from, signal)
-    if (shown.current !== epoch) return // shut (or erased) while it was on its way: none of it is kept
-    setBack((now) => withEarlierPage(now, epoch, page))
+    if (controlledPinned(client, identity.name)) return
+    try {
+      const page = await getEarlierPersonalTurns(identity.token, from, signal)
+      if (controlledPinned(client, identity.name)) return
+      if (shown.current !== epoch) return // shut (or erased) while it was on its way: none of it is kept
+      setBack((now) => withEarlierPage(now, epoch, page))
+    } catch (err: unknown) {
+      if (await readControlledAfterRefusal(client, identity.name, err, signal)) return
+      throw err
+    }
   }
   const read = async () => {
     const from = older[0]?.seq ?? space?.turns[0]?.seq
