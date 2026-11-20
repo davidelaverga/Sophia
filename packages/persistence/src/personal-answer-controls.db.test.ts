@@ -36,6 +36,7 @@ import {
   settlePersonalCompanionAnswer,
 } from './personal-usage.ts'
 import { withActor } from './tx.ts'
+import { pgError } from './errors.ts'
 
 interface World {
   db: TestDatabase
@@ -96,15 +97,25 @@ async function claim(p: Person, turnId: string): Promise<string> {
 }
 
 /** One controlled reservation under a registered call, as the live companion makes it. */
-async function reserve(p: Person, turnId: string, claimed: string) {
+async function reserve(
+  p: Person,
+  turnId: string,
+  claimed: string,
+  over: { execution?: PersonalAnswerExecution; profile?: PersonalAnswerProfile | null } = {},
+) {
   const callId = randomUUID()
   const r = await withActor(w.api, p.id, 'write', async (c) => {
     await beginCompanionCall(c, callId)
     return reserveControlledPersonalAnswer(
       c,
       { callId, turnId, claim: claimed },
-      { payer: p.payer, routeId: 'synthetic-route', micros: 10, profile: p.profile },
-      executionOf(p),
+      {
+        payer: p.payer,
+        routeId: 'synthetic-route',
+        micros: 10,
+        profile: over.profile === undefined ? p.profile : over.profile,
+      },
+      over.execution ?? executionOf(p),
     )
   })
   return { ...r, callId }
@@ -356,4 +367,94 @@ describe('A3 welcome activity: the TS and SQL gates agree', () => {
     assert.equal(await sqlDue(p), false)
     assert.equal((await tsDue(p)).claimed, false)
   })
+})
+
+const LEGACY_EXECUTIONS = [
+  { name: 'a model longer than 200 characters', model: 'm'.repeat(201), reasoningEffort: null },
+  { name: 'an effort longer than 64 characters', model: 'synthetic-model', reasoningEffort: 'e'.repeat(65) },
+  { name: 'an empty effort string', model: 'synthetic-model', reasoningEffort: '' },
+  {
+    name: 'representable control characters and Unicode',
+    model: 'legacy\nmodel 🌙',
+    reasoningEffort: '\tcustom\r\neffort',
+  },
+]
+const refusedWith = (code: string) => (err: unknown) => err instanceof Error && pgError(err.cause).code === code
+
+for (const variant of LEGACY_EXECUTIONS) {
+  it(`legacy execution accepts ${variant.name} and binds its exact snapshot before launch`, async () => {
+    const p = await person()
+    const turnId = await legacy(p, 'A legacy question')
+    const claimed = await claim(p, turnId)
+    const execution = { ...executionOf(p), model: variant.model, reasoningEffort: variant.reasoningEffort }
+    const r = await reserve(p, turnId, claimed, { execution, profile: null })
+    assert.equal(r.outcome, 'reserved')
+    const tags = await owner<{ execution: PersonalAnswerExecution; input_id: string | null; turn_id: string }>(
+      'SELECT execution,input_id,turn_id FROM sophia.personal_answer_launches WHERE call_id=$1',
+      [r.callId],
+    )
+    assert.deepEqual(tags, [{ execution, input_id: null, turn_id: turnId }])
+    assert.equal(
+      await withActor(w.api, p.id, 'write', (c) => beginPersonalAnswerLaunch(c, r.callId, claimed, r.executionDigest)),
+      'granted',
+    )
+  })
+
+  it(`automatic execution still refuses ${variant.name} without a trusted supported profile`, async () => {
+    const p = await person()
+    const t = await automatic(p, 'An automatically admitted question')
+    const claimed = await claim(p, t.turnId)
+    const execution = { ...executionOf(p), model: variant.model, reasoningEffort: variant.reasoningEffort }
+    for (const profile of [null, execution]) {
+      const r = await reserve(p, t.turnId, claimed, { execution, profile })
+      assert.equal(r.outcome, 'profile_unsupported')
+      const rows = await owner<{ usage: number; launches: number }>(
+        `SELECT (SELECT count(*)::int FROM sophia.personal_companion_usage WHERE call_id=$1) AS usage,
+         (SELECT count(*)::int FROM sophia.personal_answer_launches WHERE call_id=$1) AS launches`,
+        [r.callId],
+      )
+      assert.deepEqual(rows, [{ usage: 0, launches: 0 }])
+    }
+  })
+}
+
+it('automatic execution still must equal its trusted admitted profile', async () => {
+  const p = await person()
+  const t = await automatic(p, 'An automatic question')
+  const claimed = await claim(p, t.turnId)
+  await assert.rejects(
+    reserve(p, t.turnId, claimed, { execution: { ...executionOf(p), model: 'a-different-model' } }),
+    refusedWith('22023'),
+  )
+})
+
+it('legacy execution still rejects an empty model, another owner and an unknown execution field', async () => {
+  const p = await person()
+  const turnId = await legacy(p, 'A legacy question')
+  const claimed = await claim(p, turnId)
+  await assert.rejects(
+    reserve(p, turnId, claimed, { execution: { ...executionOf(p), model: '' }, profile: null }),
+    refusedWith('22023'),
+  )
+  await assert.rejects(
+    reserve(p, turnId, claimed, { execution: { ...executionOf(p), owner: randomUUID() }, profile: null }),
+    refusedWith('42501'),
+  )
+  const extra = { ...executionOf(p), untrusted: true }
+  await assert.rejects(reserve(p, turnId, claimed, { execution: extra, profile: null }), refusedWith('22023'))
+})
+
+it('legacy execution does not claim to support NUL or unpaired surrogates that PostgreSQL jsonb cannot represent', async () => {
+  const p = await person()
+  const turnId = await legacy(p, 'A legacy question')
+  const claimed = await claim(p, turnId)
+  for (const { model, code } of [
+    { model: 'a\u0000b', code: '22P05' },
+    { model: 'a\ud800b', code: '22P02' },
+  ]) {
+    await assert.rejects(
+      reserve(p, turnId, claimed, { execution: { ...executionOf(p), model }, profile: null }),
+      refusedWith(code),
+    )
+  }
 })
