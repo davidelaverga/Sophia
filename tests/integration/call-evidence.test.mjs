@@ -184,19 +184,22 @@ function preC1pRuntime(scratch) {
 describe('K04: an unqualified loaded decoder is an honest legacy_report (tracked, known usage kept)', () => {
   test('the pre-C1P SDK runtime under the same unit label: runtime_not_c1p', async (t) => {
     const scratch = mkdtempSync(join(tmpdir(), 'sophia-call-evidence-pre-c1p-'))
-    t.after(() => rmSync(scratch, { recursive: true, force: true }))
+    let service
+    let llm
+    let runtime
+    t.after(async () => {
+      await runtime?.stop()
+      await service?.close()
+      await llm?.close()
+      rmSync(scratch, { recursive: true, force: true })
+    })
     const pre = preC1pRuntime(scratch)
     assert.notEqual(pre.unit.dsh.artifacts_by_platform[platformKey()].digest, C1P_RUNTIMES[platformKey()], 'other runtime bytes under the same label')
     const layout = homeLayout(join(scratch, 'home'))
     installProfile({ unit: pre.unit, runtimeDir: pre.dir, layout })
-    const service = await startFixtureService({ runtimeUnitId: unit.id })
-    const llm = await startMockResponses()
-    const runtime = launchRuntime({ unit: pre.unit, runtimeDir: pre.dir, layout, bridge: service, overlays: [providerOverlayJson(bundlePatch, llm.baseURL, 'openai-research')], extraEnv: RESEARCH_KEY })
-    t.after(async () => {
-      await runtime.stop()
-      await service.close()
-      await llm.close()
-    })
+    service = await startFixtureService({ runtimeUnitId: unit.id })
+    llm = await startMockResponses()
+    runtime = launchRuntime({ unit: pre.unit, runtimeDir: pre.dir, layout, bridge: service, overlays: [providerOverlayJson(bundlePatch, llm.baseURL, 'openai-research')], extraEnv: RESEARCH_KEY })
     await service.waitFor(() => service.readiness.some((r) => r.state === 'ready'), 30_000, 'bridge readiness')
     llm.script({ text: 'ok' })
     service.enqueue(command('create', { attemptId: 'att-pre', runtimeUnitId: unit.id, text: QUESTION, role: 'sophia-research-md-v1', route: 'research-sol-medium-v1' }))
