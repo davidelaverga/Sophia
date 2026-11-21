@@ -59,6 +59,7 @@ async function identity(file) {
   } catch {
     // An older image has no manifest; absence is unknown, never synthetic build facts.
   }
+  /** @type {Record<string, string | null>} */
   const sources = {}
   for (const name of ['../supervisor.mjs', './supervisor-e2e.mjs']) {
     const id = await identity(new URL(name, import.meta.url).pathname)
@@ -297,6 +298,35 @@ const step = (name, ok, detail) => {
 }
 
 /**
+ * Read the named cgroup v2 counters. A missing file or invalid counter stays unknown.
+ * @param {'cpu.stat' | 'memory.events'} file
+ * @param {string[]} keys
+ */
+function cgroupCounters(file, keys) {
+  try {
+    const contents = fs.readFileSync(`/sys/fs/cgroup/${file}`, 'utf8')
+    const entries = [...contents.matchAll(/^([a-z_]+) ([0-9]+)$/gm)]
+    return Object.fromEntries(
+      keys.map((key) => {
+        const matching = entries.filter((entry) => entry[1] === key)
+        const value = Number(matching[0]?.[2])
+        return [key, matching.length === 1 && Number.isSafeInteger(value) ? value : null]
+      }),
+    )
+  } catch {
+    return null
+  }
+}
+
+/** CPU usage and memory events for this container. These readings include all its processes. */
+function resourceCounters() {
+  return {
+    cpu: cgroupCounters('cpu.stat', ['usage_usec']),
+    memory: cgroupCounters('memory.events', ['max', 'oom', 'oom_kill']),
+  }
+}
+
+/**
  * Hand the supervisor one job and see it through.
  * @param {string} id
  * @param {Spec} spec
@@ -310,7 +340,12 @@ async function handOver(id, spec, stopAt = Infinity) {
   seen.beats = 0
   const started = performance.now()
   bootEvidence.current = null
+  const resourcesBefore = resourceCounters()
   const run = await runOnce(cfg)
+  const resourcesAfter = resourceCounters()
+  process.stdout.write(
+    `${JSON.stringify({ event: 'UML_E2E_RESOURCE_COUNTERS', qualification: false, jobId: id, before: resourcesBefore, after: resourcesAfter })}\n`,
+  )
   publishBootEvidence()
   return { outcome: run.claimed ? run.outcome : 'unclaimed', ms: Math.round(performance.now() - started) }
 }
