@@ -1,6 +1,7 @@
 // The tip that names the index's key, once per browser (docs/plans/keys-tip.md): kept seen once dismissed, once the
 // index opened any way, or once it has been let be for SHOWINGS visits. A store that can't be read counts as seen: a
-// tip that couldn't be kept closed would come back on every visit. Another tab's end is heard (`storage`).
+// tip that couldn't be kept closed would come back on every visit. Another tab's end is heard (`storage`). The typing
+// tip (type-tip.ts) is kept the same way, under its own key (`onceTip`).
 
 export const KEYS_TIP_KEY = 'sophia.keys-tip'
 
@@ -9,11 +10,11 @@ export const SHOWINGS = 3
 
 type Store = Pick<Storage, 'getItem' | 'setItem'>
 
-/** How many visits have shown it (0 to SHOWINGS − 1), or null once seen; anything else kept counts as seen. */
-function shownSoFar(store: Pick<Store, 'getItem'> | null): number | null {
+/** How many visits have shown a tip (0 to SHOWINGS − 1), or null once seen; anything else kept counts as seen. */
+function shownSoFar(store: Pick<Store, 'getItem'> | null, key: string): number | null {
   try {
     if (store === null) return null
-    const kept = store.getItem(KEYS_TIP_KEY)
+    const kept = store.getItem(key)
     if (kept === null) return 0
     const shown = Number(kept)
     return /^\d+$/.test(kept) && shown < SHOWINGS ? shown : null
@@ -22,27 +23,28 @@ function shownSoFar(store: Pick<Store, 'getItem'> | null): number | null {
   }
 }
 
-/** Whether the tip has had its turn in this browser. */
-export const readSeen = (store: Pick<Store, 'getItem'> | null): boolean => shownSoFar(store) === null
+/** Whether a tip (the keys', unless named) has had its turn in this browser. */
+export const readSeen = (store: Pick<Store, 'getItem'> | null, key = KEYS_TIP_KEY): boolean =>
+  shownSoFar(store, key) === null
 
-/** Keeps the tip seen in this browser; blocked storage keeps nothing and breaks nothing. */
-export function keepSeen(store: Pick<Store, 'setItem'> | null): void {
-  keep(store, 'seen')
+/** Keeps a tip seen in this browser; blocked storage keeps nothing and breaks nothing. */
+export function keepSeen(store: Pick<Store, 'setItem'> | null, key = KEYS_TIP_KEY): void {
+  keep(store, key, 'seen')
 }
 
-function keep(store: Pick<Store, 'setItem'> | null, value: string) {
+function keep(store: Pick<Store, 'setItem'> | null, key: string, value: string) {
   try {
-    store?.setItem(KEYS_TIP_KEY, value)
+    store?.setItem(key, value)
   } catch {
     // Blocked storage: read as seen next time anyway, and the tip goes for this page all the same.
   }
 }
 
 /** One more visit has shown it: kept as a count, or as seen once that was the last. */
-export function keepShown(store: Store | null): void {
-  const shown = shownSoFar(store)
+export function keepShown(store: Store | null, key = KEYS_TIP_KEY): void {
+  const shown = shownSoFar(store, key)
   if (shown === null) return
-  keep(store, shown + 1 >= SHOWINGS ? 'seen' : String(shown + 1))
+  keep(store, key, shown + 1 >= SHOWINGS ? 'seen' : String(shown + 1))
 }
 
 interface Box {
@@ -64,45 +66,58 @@ function browserStore(): Store | null {
   }
 }
 
-let seen: boolean | undefined
-let counted = false
-const listeners = new Set<() => void>()
-
-const tell = () => {
-  for (const listener of listeners) listener()
+/** A tip shown once per browser, kept under its own key: the keys' tip and the typing tip (type-anywhere-tip.md). */
+export interface OnceTip {
+  /** Whether it has had its turn, read once per page and followed as it ends. */
+  seenNow: () => boolean
+  /** Hears it end, here or in another tab. */
+  onSeen: (listener: () => void) => () => void
+  /** Ends it for this browser: dismissed, or what it names done. */
+  end: () => void
+  /** This visit has shown it: counted once per page, however often it comes and goes; the last such visit ends it. */
+  countShowing: () => void
 }
 
-/** Whether the tip has had its turn, read once per page and followed as it ends. */
-export const tipSeenNow = (): boolean => (seen ??= readSeen(browserStore()))
-
-/** Another tab ended it: this one hears it through the store. */
-function heard(e: StorageEvent) {
-  if (e.key !== KEYS_TIP_KEY || tipSeenNow() || !readSeen(browserStore())) return
-  seen = true
-  tell()
-}
-
-/** Hears the tip end, here or in another tab. */
-export function onTipSeen(listener: () => void): () => void {
-  if (listeners.size === 0) window.addEventListener('storage', heard)
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-    if (listeners.size === 0) window.removeEventListener('storage', heard)
+export function onceTip(key: string, store: () => Store | null = browserStore): OnceTip {
+  let seen: boolean | undefined
+  let counted = false
+  const listeners = new Set<() => void>()
+  const tell = () => {
+    for (const listener of listeners) listener()
+  }
+  const seenNow = () => (seen ??= readSeen(store(), key))
+  /** Another tab ended it: this one hears it through the store. */
+  const heard = (e: StorageEvent) => {
+    if (e.key !== key || seenNow() || !readSeen(store(), key)) return
+    seen = true
+    tell()
+  }
+  return {
+    seenNow,
+    onSeen: (listener) => {
+      if (listeners.size === 0) window.addEventListener('storage', heard)
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+        if (listeners.size === 0) window.removeEventListener('storage', heard)
+      }
+    },
+    end: () => {
+      if (seenNow()) return
+      seen = true
+      keepSeen(store(), key)
+      tell()
+    },
+    countShowing: () => {
+      if (counted) return
+      counted = true
+      keepShown(store(), key)
+    },
   }
 }
 
-/** Ends the tip for this browser: dismissed, or the index opened. */
-export function endKeysTip(): void {
-  if (tipSeenNow()) return
-  seen = true
-  keepSeen(browserStore())
-  tell()
-}
+/** The tip that names the index's key. */
+export const keysTip = onceTip(KEYS_TIP_KEY)
 
-/** This visit has shown it: counted once per page, however often it comes and goes; the last such visit ends it. */
-export function countShowing(): void {
-  if (counted) return
-  counted = true
-  keepShown(browserStore())
-}
+/** Ends the keys' tip for this browser: dismissed, or the index opened. */
+export const endKeysTip = (): void => keysTip.end()

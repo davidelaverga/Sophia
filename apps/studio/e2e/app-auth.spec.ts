@@ -2433,3 +2433,30 @@ test('your data · a reply’s copy the browser hasn’t answered holds back an 
   await sheet.locator('#c-del ~ button').click()
   await expect.poll(() => erasures, SAID_WITHIN).toEqual(['POST'])
 })
+
+// Home's first run, through the app's own wiring (home-first-run.md): Places' first run, SignedIn's opening with an
+// Invite asked, and the project's shell opening its Invite sheet (`first=1`: nothing yet, a name already chosen).
+async function firstProject(context: BrowserContext, choice: string) {
+  await serve(context)
+  const page = await signedInTab(context, LUIS, {})
+  await initiallyReady(page, `${APP}/app.html?work=lost&first=1`)
+  const how = page.getByRole('region', { name: 'Will you work on your own or with a team?' })
+  await how.getByRole('button', { name: new RegExp(choice) }).click()
+  const step = page.getByRole('region', { name: 'Name your first project' })
+  await step.getByRole('textbox', { name: 'Project name' }).fill('Onboarding pilot')
+  await step.getByRole('button', { name: 'Start the project' }).click()
+  await expect(page).toHaveURL(new RegExp(`/p/${WORK_PROJECT}`))
+  // The project's own head: Invite is offered there, so the shell is on screen.
+  await expect(page.getByRole('button', { name: 'Invite', exact: true })).toBeVisible()
+  return page
+}
+
+test('home first run · «With a team» opens the new project with its Invite sheet', async ({ context }) => {
+  const page = await firstProject(context, 'With a team')
+  await expect(page.getByRole('dialog', { name: 'Invite' })).toBeVisible()
+})
+
+test('home first run · «On my own» opens the new project without it', async ({ context }) => {
+  const page = await firstProject(context, 'On my own')
+  await expect(page.getByRole('dialog', { name: 'Invite' })).toHaveCount(0)
+})

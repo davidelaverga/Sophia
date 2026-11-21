@@ -4170,8 +4170,9 @@ button.contribution-quote:hover {
 .shell:has(.lobby) .arrival-band {
   display: none;
 }
-/* The keys' tip (keys-tip.md): one line in the bottom-left corner, clear of the floor band where the room's dock and
-   the composers sit, until dismissed; never shown while its box meets a control (KeysTip measures it unseen). */
+/* The keys' tip (keys-tip.md), and the typing tip after it (type-anywhere-tip.md): one line in the bottom-left corner,
+   clear of the floor band where the room's dock and the composers sit, until dismissed; never shown while its box
+   meets a control (KeysTip measures it unseen). */
 .keys-tip {
   position: fixed;
   left: var(--gutter);

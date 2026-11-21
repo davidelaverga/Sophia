@@ -26,6 +26,7 @@ import { useBarTarget, useRoomMessage, type ReplyUnderWay } from './useRoomMessa
 import { getSnapshot } from '../../api/client.ts'
 import { startExchange } from '../../api/exchange.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { roomBarMounted } from '../../app/type-tip.ts'
 import { useOnline } from '../personal/online.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
@@ -211,6 +212,8 @@ function BarCount({ count }: { count: { length: number; most: number } }) {
 
 function MessageBar({ field, draft, onDraft, canSend, send, target, other, onSwitch }: BarProps) {
   const count = barCount(target, draft)
+  // Mounted, the room's bar lets the typing tip watch the page (type-anywhere-tip.md); gone, the watch stops.
+  useEffect(() => roomBarMounted(), [])
   return (
     <>
       {/* Its own line over the bar: beside Send it would squeeze the field in the chat's narrow panel. */}
