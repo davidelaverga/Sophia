@@ -1,7 +1,8 @@
 // The words of the three places (direction C): the greeting, what each door says it opens, how a project card in Work
 // reads, who can see a place, how privacy works, and what a read that is slow or failed says. Pure, so the copy is
 // tested and components only render it.
-import type { PersonalTurn, ProjectSummary } from '@sophia/contracts'
+import type { ProjectSummary } from '@sophia/contracts'
+import type { ShownTurn } from '../../api/personal.ts'
 import type { Place } from '../../app/route.ts'
 import { shortName } from '../voice/room-view.ts'
 import type { Way } from './arrive.ts'
@@ -186,7 +187,7 @@ export interface YouDoor {
 export function youDoor(input: {
   locked: LockedBy | null
   /** Undefined until the space has loaded. */
-  turns: readonly PersonalTurn[] | undefined
+  turns: readonly ShownTurn[] | undefined
   notes: number
   now: Date
 }): YouDoor | null {
