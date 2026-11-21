@@ -76,6 +76,7 @@ test('later · the sign-in page at rest asks for none of the signed-in Studio, i
   await expect(page.locator('input[type="email"]')).toBeVisible()
   await page.evaluate(() => document.fonts.ready)
   // Nothing asked for at rest: not on drawing, nor on an idle moment or a timer after it.
+  // Fixed wait kept: negative check: nothing is fetched at rest, on an idle moment or a timer
   await page.waitForTimeout(AT_REST_MS)
   expect(later(asked)).toEqual([])
 })
@@ -90,6 +91,7 @@ test('later · a guest’s session left from a room’s door, back at the Studio
   await page.goto(`${APP}/app.html`)
   // A guest is no account: the Studio asks them to sign in, and fetches nothing for it at rest.
   await expect(page.locator('input[type="email"]')).toBeVisible()
+  // Fixed wait kept: negative check: nothing is fetched at rest, on an idle moment or a timer
   await page.waitForTimeout(AT_REST_MS)
   expect(later(asked)).toEqual([])
 })

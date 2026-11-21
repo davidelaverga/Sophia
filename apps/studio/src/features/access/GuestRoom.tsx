@@ -9,6 +9,7 @@ import { Centered, HomeLink } from '../../app/SignIn.tsx'
 import { VOICE_NOTE } from '../voice/room-view.ts'
 import { readJoinToken } from './access-view.ts'
 import { RoomStage } from '../voice/RoomStage.tsx'
+import { HandSaidLine } from '../voice/HandSaidLine.tsx'
 import { useRoomConnection } from '../voice/useProjectRoom.ts'
 import { Mark } from '../../app/Mark.tsx'
 
@@ -91,6 +92,23 @@ function guestTitle(projectTitle: string, live: boolean, ended: boolean): string
   return live ? `${projectTitle} · Sophia` : 'You’re let in · Sophia'
 }
 
+/** The guest's bar: the mark, the project's title, and who they are here. */
+function GuestBar({ live, projectTitle, displayName }: { live: boolean; projectTitle: string; displayName: string }) {
+  return (
+    <header className="topbar">
+      <span className="mark">
+        <Mark live={live} />
+        <span className="mark-word">Sophia</span>
+      </span>
+      <span className="crumb-sep" aria-hidden>
+        /
+      </span>
+      <h1 className="project-name">{projectTitle}</h1>
+      <span className="topbar-end guest-tag">Guest · {displayName}</span>
+    </header>
+  )
+}
+
 export function GuestRoom({ accessToken, entry, projectTitle, anonymous }: Props) {
   // Each join asks with the session's current token: an admitted guest may join long after knocking.
   const room = useRoomConnection(async () => issueGuestRoomToken(await currentToken(accessToken), entry.id))
@@ -126,17 +144,9 @@ export function GuestRoom({ accessToken, entry, projectTitle, anonymous }: Props
   }
   return (
     <div className="shell" data-view="studio" data-guest>
-      <header className="topbar">
-        <span className="mark">
-          <Mark live={live} />
-          <span className="mark-word">Sophia</span>
-        </span>
-        <span className="crumb-sep" aria-hidden>
-          /
-        </span>
-        <h1 className="project-name">{projectTitle}</h1>
-        <span className="topbar-end guest-tag">Guest · {entry.displayName}</span>
-      </header>
+      <GuestBar live={live} projectTitle={projectTitle} displayName={entry.displayName} />
+      {/* Others' raised hands, said to the guest too: every participant hears them (hand-and-sync-announced.md). */}
+      <HandSaidLine said={room.handSaid} />
       <RoomStage
         room={{ ...room, leave }}
         snapshot={undefined}

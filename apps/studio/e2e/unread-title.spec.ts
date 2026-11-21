@@ -56,6 +56,7 @@ test('unread · a message while the tab is shown doesn’t count', async ({ page
   await page.goto('/room.html')
   await expect(page).toHaveTitle('Fixture project · Sophia')
   await page.evaluate(() => window.fixture?.say('Seen as it comes.'))
+  // Fixed wait kept: negative check: the title does not count what was seen as it came
   await page.waitForTimeout(500)
   await expect(page).toHaveTitle('Fixture project · Sophia')
 })
@@ -171,6 +172,7 @@ test('away · thirty while away, the chat opened at the newest: its head says so
   await expect.poll(() => inHistory(page, mark)).toBe(false)
   await away(page, true)
   await away(page, false)
+  // Fixed wait kept: negative check: the line does not come back
   await page.waitForTimeout(300)
   await expect(line(page)).toHaveCount(0)
   await expect(mark).toHaveCount(1)
@@ -182,6 +184,7 @@ test('away · hidden and shown with nothing new adds nothing, nor does a message
   await away(page, true)
   await away(page, false)
   // Shown a moment: what the tab reads as it comes back has been read.
+  // Fixed wait kept: the tab must be shown a moment for what it reads coming back to count as read
   await page.waitForTimeout(300)
   await page.evaluate(() => window.fixture?.say('Seen as it comes.'))
   await expect(page.getByText('Seen as it comes.')).toBeVisible()
@@ -212,6 +215,7 @@ test('away · reading down to the divider, without Jump, ends the line for good'
   // Back at the newest, the divider far again: the line doesn't come back.
   await history(page).evaluate((el) => (el.scrollTop = el.scrollHeight))
   await expect.poll(() => inHistory(page, mark)).toBe(false)
+  // Fixed wait kept: negative check: the line does not come back
   await page.waitForTimeout(300)
   await expect(line(page)).toHaveCount(0)
 })
@@ -225,6 +229,7 @@ test('away · the divider seen as the chat opens, reading back up brings no line
   await expect.poll(() => inHistory(page, mark)).toBe(true)
   await history(page).evaluate((el) => (el.scrollTop = 0))
   await expect.poll(() => inHistory(page, mark)).toBe(false)
+  // Fixed wait kept: negative check: the line does not come back
   await page.waitForTimeout(300)
   await expect(line(page)).toHaveCount(0)
 })
@@ -260,6 +265,7 @@ test('away · answered from another device while the tab was hidden, nothing is 
   await expect(page).toHaveTitle('Fixture project · Sophia')
   await chatToggle(page).click()
   await expect(contributions(page).last()).toContainText('Got it, reading it now.')
+  // Fixed wait kept: negative check: no away divider comes
   await page.waitForTimeout(300)
   await expect(page.getByText(/came while you were away/)).toHaveCount(0)
 })
@@ -287,6 +293,7 @@ test('away · written from another device first, what came after it is still mar
 // frozen page, or a laptop woken from sleep, gets the events after `visibilitychange`. `holdFeed` holds them meanwhile.
 
 /** A moment for the reads already on their way to land (the feed's first events refresh the snapshot once more). */
+// Fixed wait kept: reads already on their way land first; they have no marker before the feed is held
 const settled = (page: Page) => page.waitForTimeout(500)
 
 test('away · nothing reached the hidden page, the feed held: back, the chat still marks the two', async ({ page }) => {
@@ -297,6 +304,7 @@ test('away · nothing reached the hidden page, the feed held: back, the chat sti
   await page.evaluate(() => window.fixture?.holdFeed(true))
   await page.evaluate(() => window.fixture?.say('The deck is in Resources.'))
   await page.evaluate(() => window.fixture?.say('And the numbers too.'))
+  // Fixed wait kept: negative check: the held feed adds nothing to the title
   await page.waitForTimeout(300)
   await expect(page).toHaveTitle('Fixture project · Sophia')
   await away(page, false)
@@ -317,6 +325,7 @@ test('away · one counted before the feed was held, two after: back, the divider
   await page.evaluate(() => window.fixture?.holdFeed(true))
   await page.evaluate(() => window.fixture?.say('And the numbers too.'))
   await page.evaluate(() => window.fixture?.say('And the plan.'))
+  // Fixed wait kept: negative check: the held feed adds nothing to the title
   await page.waitForTimeout(300)
   await expect(page).toHaveTitle('(1) Fixture project · Sophia')
   await away(page, false)

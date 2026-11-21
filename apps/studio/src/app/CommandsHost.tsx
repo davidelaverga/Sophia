@@ -3,7 +3,7 @@
 // the places' bar; the one in scope answers a control's ask.
 import { useContext, useEffect, useState, useSyncExternalStore } from 'react'
 import { endKeysTip } from './keys-tip.ts'
-import { KeysTip } from './KeysTip.tsx'
+import { KeysTip, TypeTip } from './KeysTip.tsx'
 import { Palette } from './Palette.tsx'
 import { ShortcutScope, useShortcuts } from './shortcuts.ts'
 import { ShortcutIndex } from './ShortcutIndex.tsx'
@@ -84,8 +84,13 @@ export function CommandsHost({ onSearch }: Props) {
     <>
       {open === 'palette' && <Palette onClose={close} onSearch={onSearch} />}
       {open === 'index' && <ShortcutIndex onClose={close} />}
-      {/* The host in scope says it; one kept out of sight for its call says nothing. */}
-      {scoped && <KeysTip />}
+      {/* The host in scope says them, the keys' first (type-anywhere-tip.md); one out of sight says nothing. */}
+      {scoped && (
+        <>
+          <KeysTip />
+          <TypeTip />
+        </>
+      )}
     </>
   )
 }

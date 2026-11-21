@@ -48,6 +48,7 @@ for (const [label, query, allowed] of [
     expect(before ?? '').toMatch(allowed)
     await refuseNow(page)
     await expect(card(page).getByText(REFUSED)).toBeVisible({ timeout: 15_000 })
+    // Fixed wait kept: it records what the card shows once the refusal settled, for the WORK log
     await page.waitForTimeout(1500)
     const s = await shown(page)
     console.log(`WORK-${label} refused ${JSON.stringify(s)}`)
@@ -65,6 +66,7 @@ test('work card · an ordinary 503 after an allowed read keeps its normal state,
   const before = await card(page).getAttribute('data-state')
   await page.evaluate(() => window.fixture?.failTask(true))
   await page.evaluate(() => window.fixture?.refetch(['native-task']))
+  // Fixed wait kept: it records what the card shows after the refetch fails, for the WORK log
   await page.waitForTimeout(3000)
   const s = await shown(page)
   console.log(`WORK-503 before=${String(before)} after ${JSON.stringify(s)}`)

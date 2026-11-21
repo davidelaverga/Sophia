@@ -61,6 +61,7 @@ test('back · Chat closed after a mention stays closed when Back returns from a 
   }, PROJECT)
   await page.goBack() // across the path: popstate only, onto the mention Chat already followed
   expect(new URL(page.url()).hash).toBe(`#message-${MENTIONED_IN}`)
+  // Fixed wait kept: negative check: nothing may move after the back step
   await page.waitForTimeout(300) // nothing to wait for: what follows is that nothing moved
   await expect(entry).toBeHidden()
 })
@@ -78,6 +79,7 @@ test('back · a goal chosen in Tasks’ rail stays chosen when Back lands where 
   await page.getByRole('navigation', { name: 'Project views' }).getByRole('link', { name: 'Tasks' }).click()
   await page.goBack()
   expect(new URL(page.url()).hash).toBe('')
+  // Fixed wait kept: negative check: nothing may move after the back step
   await page.waitForTimeout(300) // nothing to wait for: what follows is that nothing moved
   await expect(chosen).toContainText('pane')
   await expect(page.getByRole('dialog')).toHaveCount(0)

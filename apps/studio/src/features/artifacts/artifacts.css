@@ -57,7 +57,7 @@
   display: block;
   height: 100%;
   background: var(--halo);
-  transition: width var(--base) var(--ease);
+  transition: width var(--motion-base) var(--ease);
 }
 .work-card-outputs {
   display: flex;
@@ -115,7 +115,7 @@
   color: var(--halo-text);
   font-size: 12px;
   opacity: 0;
-  transition: opacity var(--fast) var(--ease);
+  transition: opacity var(--motion-fast) var(--ease);
 }
 .output-open:hover .output-hint,
 .output-open:focus-visible .output-hint {
@@ -173,14 +173,14 @@
   border-left: 1px solid var(--line-2);
   background: var(--md-ground);
   box-shadow: var(--elev-pane);
-  animation: rp-slide var(--base) var(--ease);
+  animation: rp-slide var(--motion-base) var(--ease);
 }
 .report-pane[data-size='full'] {
   /* Under the dock's notes too, enlarged (Codex on #281). */
   inset: calc(var(--topbar) + var(--dock-notes-h, 0px)) 0 0;
   width: auto;
   border-left: 0;
-  animation: rp-enlarge var(--base) var(--ease);
+  animation: rp-enlarge var(--motion-base) var(--ease);
 }
 @keyframes rp-slide {
   from {
@@ -313,7 +313,7 @@
   text-decoration: none;
 }
 .md-toc-toggle svg {
-  transition: transform var(--fast) var(--ease);
+  transition: transform var(--motion-fast) var(--ease);
 }
 .md-toc[data-open] .md-toc-toggle svg {
   transform: rotate(180deg);
@@ -764,7 +764,7 @@
 }
 .report-notes > summary {
   cursor: pointer;
-  transition: color var(--fast) var(--ease);
+  transition: color var(--motion-fast) var(--ease);
 }
 .report-notes > summary:hover {
   color: var(--text);
@@ -1517,7 +1517,7 @@
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   box-shadow: var(--lift), var(--elev-passage);
-  animation: rise var(--fast) var(--ease) both;
+  animation: rise var(--motion-fast) var(--ease) both;
 }
 .passage-bar button {
   height: 28px;

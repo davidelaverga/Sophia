@@ -364,6 +364,7 @@ test('$20 · locking the space ends a talk at once: no voice goes on behind the 
   expect(await pressed(page)).toContain('talk ended')
   // Unlocked again, it doesn't come back on its own.
   await page.getByRole('button', { name: 'Unlock (fixture)' }).click()
+  // Fixed wait kept: negative check: the talk does not come back on its own
   await page.waitForTimeout(300)
   await expect(page.getByRole('dialog', { name: 'Talking with Sophia' })).toHaveCount(0)
 })
@@ -467,6 +468,7 @@ test('detail · with less motion asked for, nothing in Personal moves: no breath
 }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto(`${PAGE}?writing=1`)
+  // Fixed wait kept: negative check: with less motion asked, nothing loops; an animation starting late must be caught
   await page.waitForTimeout(400)
   // What loops for ever: under the global 1 ms rule it would flicker every frame.
   const moving = () =>
@@ -1022,6 +1024,7 @@ test('ease · offline, the field says so before you send: your words wait, and g
   await field(page).fill('Still here.')
   await expect(page.locator('.ps-composer .send')).toBeDisabled()
   await page.keyboard.press('Enter')
+  // Fixed wait kept: negative check: a send let through would have gone by now; nothing marks an absence
   await page.waitForTimeout(600) // a send let through would have gone by now
   expect(await sent(page)).toEqual([])
   await expect(field(page)).toHaveValue('Still here.')
@@ -1273,6 +1276,7 @@ test('touch · dictation past the limit is counted as it is, how much over said,
   )
   await expect(page.locator('.ps-composer .send')).toBeDisabled()
   await field(page).press('Enter')
+  // Fixed wait kept: negative check: a send let through would have gone by now; nothing marks an absence
   await page.waitForTimeout(400)
   expect(await sent(page)).toEqual([])
 })
@@ -1548,6 +1552,7 @@ test('@phone · follow · a reply that came while Personal was out of sight wait
   // Nothing jumped: the reader is where they stood, their own words in sight and her reply below them. And the line
   // stays: the list's resize, coming after, used to carry the reader to the end and take it away.
   await expect(page.locator('.msg.me').last()).toBeInViewport()
+  // Fixed wait kept: negative check: the line stays after the list’s resize
   await page.waitForTimeout(500)
   await expect(page.getByRole('button', { name: 'Sophia answered' })).toBeVisible()
 })
@@ -1650,6 +1655,7 @@ for (const code of ['service-not-allowed', 'network', 'bad-grammar']) {
     await page.goto(`${PAGE}?speechError=${code}`)
     await page.getByRole('button', { name: 'Talk instead' }).click()
     await expect(page.getByRole('button', { name: 'Talk instead' })).toBeVisible()
+    // Fixed wait kept: negative check: no chat line follows the speech error
     await page.waitForTimeout(300)
     await expect(page.locator('.ps-composer .chat-line')).toHaveCount(0)
   })

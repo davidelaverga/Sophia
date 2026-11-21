@@ -79,6 +79,7 @@ test('project search · a message beyond the chat’s 200: one read ends at it, 
   await expect(gapLine(page)).toHaveCount(0)
   await expect(discussion(page).locator('[data-message]')).toHaveCount(260)
   // Nothing more was read, and the mention was not acknowledged again.
+  // Fixed wait kept: negative check: no read may follow in this window, and no event marks an absence
   await page.waitForTimeout(300)
   expect(await reads(page)).toHaveLength(6)
   expect(await seenOf(page)).toEqual([`seen:mention:${PROJECT}:1.1:${HERON}`])
@@ -88,6 +89,7 @@ test('project search · the newest message found is in the chat already: no page
   await searched(page, 'discussion=260&heron=260')
   await hits(page).getByRole('button').click()
   await expect(discussion(page).locator(`[data-message="${entryIdOf(259)}"]`)).toBeInViewport()
+  // Fixed wait kept: negative check: no read may follow in this window, and no event marks an absence
   await page.waitForTimeout(300)
   expect(await reads(page)).toEqual([])
   await expect(gapLine(page)).toHaveCount(0)
@@ -100,6 +102,7 @@ test('project search · the page that ends at a found message fails: the failure
   await page.evaluate(() => window.fixture?.failEarlierReads(true))
   await hits(page).getByRole('button').click()
   await expect(page.getByText('The message you opened couldn’t be loaded.')).toBeVisible()
+  // Fixed wait kept: negative check: one failed read, no automatic retry
   await page.waitForTimeout(800)
   expect(await reads(page), 'one failed read, no automatic retries').toHaveLength(1)
   await expect(page.getByText('further back', { exact: false })).toHaveCount(0)
@@ -317,6 +320,7 @@ for (const act of ['correct', 'withdraw', 'none'] as const)
     await page.evaluate(() => window.fixture?.say('A new message moves the window.'))
     await page.evaluate(() => window.fixture?.releaseSnapshot()) // a read as new as the erasure
     await expect(discussion(page).getByText('A new message moves the window.')).toBeVisible()
+    // Fixed wait kept: negative check: the erased words must not come back after the window moves
     await page.waitForTimeout(800)
     const erased = discussion(page)
       .locator('.contribution-text')

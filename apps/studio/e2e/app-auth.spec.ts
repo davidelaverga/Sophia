@@ -1296,6 +1296,7 @@ test('session · an API that refuses every token: one refresh, then the door clo
   // stream's asks are counted, not every read (a list's own interval may ask meanwhile).
   const streamAsks = async () => (await refusedOf(page)).filter((r) => r.endsWith('/events')).length
   const settled = await streamAsks()
+  // Fixed wait kept: negative check: the stream asks no more once refused; nothing marks an absence
   await page.waitForTimeout(3000)
   expect(await streamAsks()).toBe(settled)
   expect(refreshes(calls)).toBe(1)
@@ -1601,12 +1602,14 @@ test('legal · /terms and /privacy keep their address and their page, signed out
   const out = await context.newPage()
   await out.goto(`${APP}/terms`)
   await expect(out.getByRole('heading', { level: 1 })).toHaveText('Terms of use')
+  // Fixed wait kept: negative check: a signed-out tab stays on /terms, no redirect follows
   await out.waitForTimeout(1500)
   expect(new URL(out.url()).pathname).toBe('/terms')
   await expect(out.getByRole('heading', { level: 1 })).toHaveText('Terms of use')
   const signedIn = await signedInTab(context, DAVIDE)
   await signedIn.goto(`${APP}/privacy`)
   await expect(signedIn.getByRole('heading', { level: 1 })).toHaveText('Privacy notice')
+  // Fixed wait kept: negative check: a signed-in tab stays on /privacy, no redirect follows
   await signedIn.waitForTimeout(1500)
   expect(new URL(signedIn.url()).pathname).toBe('/privacy')
   await expect(signedIn.getByRole('heading', { level: 1 })).toHaveText('Privacy notice')
@@ -1686,6 +1689,7 @@ test('version · a deploy heard during a call waits until the call ends, then is
   await page.evaluate(() => window.dispatchEvent(new Event('focus')))
   await answered
   const notice = page.getByRole('status').filter({ hasText: 'Sophia was updated' })
+  // Fixed wait kept: negative check: the notice must not show in the call; its absence has no marker
   await page.waitForTimeout(500) // past the probe's reading of the answer, which would show the notice at once
   await expect(notice).toHaveCount(0)
   // Out of the call: said, once.
@@ -1840,6 +1844,7 @@ test('places · Rejoin pressed once back in that call by its own Join joins noth
   const joins = await roomTokens(page)
   await dock.getByRole('button', { name: 'Leave the room' }).click()
   // The call it found answered Rejoin: out of the call, the room asks for no token of its own and stays out.
+  // Fixed wait kept: negative check: a join let through would have asked for its token by now; nothing marks an absence
   await page.waitForTimeout(1500)
   expect(await roomTokens(page)).toBe(joins)
   await expect(dock.getByRole('button', { name: 'Leave the room' })).toHaveCount(0)
@@ -1854,6 +1859,7 @@ test('places · a call dropped out of sight comes back on its own: the places’
   await expect.poll(() => roomTokens(page), { message: 'one try, with a fresh token' }).toBe(joins + 1)
   const callPill = page.locator('.places .room-pill')
   await expect(callPill.getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  // Fixed wait kept: negative check: the call pill stays and no toast comes
   await page.waitForTimeout(600)
   await expect(callPill).toBeVisible()
   await expect(shownToast(page)).toHaveCount(0)
@@ -1874,6 +1880,7 @@ test('places · while a call dropped out of sight tries to come back, the bar’
   const toast = shownToast(page)
   await expect(toast).toContainText('You left Fixture project.')
   await page.evaluate(() => window.appFixture?.release())
+  // Fixed wait kept: negative check: a join let through would have asked for its token by now; nothing marks an absence
   await page.waitForTimeout(600) // the token let go would have joined by now
   await expect(callPill).toHaveCount(0)
   expect(await roomTokens(page)).toBe(joins + 1)
@@ -2420,8 +2427,36 @@ test('your data · a reply’s copy the browser hasn’t answered holds back an 
   expect(erasures).toEqual([])
   // Answered (and, were her turn out of sight behind the sheet, its emptying too): only now is the erasure asked.
   await page.evaluate(() => window.clip?.answer())
+  // Fixed wait kept: an emptying write may or may not follow the answer (her turn may be in sight), so there is nothing to poll for
   await page.waitForTimeout(300)
   await page.evaluate(() => window.clip?.answer())
   await sheet.locator('#c-del ~ button').click()
   await expect.poll(() => erasures, SAID_WITHIN).toEqual(['POST'])
+})
+
+// Home's first run, through the app's own wiring (home-first-run.md): Places' first run, SignedIn's opening with an
+// Invite asked, and the project's shell opening its Invite sheet (`first=1`: nothing yet, a name already chosen).
+async function firstProject(context: BrowserContext, choice: string) {
+  await serve(context)
+  const page = await signedInTab(context, LUIS, {})
+  await initiallyReady(page, `${APP}/app.html?work=lost&first=1`)
+  const how = page.getByRole('region', { name: 'Will you work on your own or with a team?' })
+  await how.getByRole('button', { name: new RegExp(choice) }).click()
+  const step = page.getByRole('region', { name: 'Name your first project' })
+  await step.getByRole('textbox', { name: 'Project name' }).fill('Onboarding pilot')
+  await step.getByRole('button', { name: 'Start the project' }).click()
+  await expect(page).toHaveURL(new RegExp(`/p/${WORK_PROJECT}`))
+  // The project's own head: Invite is offered there, so the shell is on screen.
+  await expect(page.getByRole('button', { name: 'Invite', exact: true })).toBeVisible()
+  return page
+}
+
+test('home first run · «With a team» opens the new project with its Invite sheet', async ({ context }) => {
+  const page = await firstProject(context, 'With a team')
+  await expect(page.getByRole('dialog', { name: 'Invite' })).toBeVisible()
+})
+
+test('home first run · «On my own» opens the new project without it', async ({ context }) => {
+  const page = await firstProject(context, 'On my own')
+  await expect(page.getByRole('dialog', { name: 'Invite' })).toHaveCount(0)
 })

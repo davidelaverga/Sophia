@@ -10,6 +10,8 @@
 // the tab too): Updates' «since» and «seen» are A34's, strict and each account's own (attention-data.ts), and
 // `appFixture.attention` says what they were asked. `projects=two` (kept in the tab too): Work's list holds Research
 // notes after the fixture project, so a call can be left by opening another (call-ends-on-open.md).
+// `first=1` (kept in the tab too): Home's first run (home-first-run.md), for someone with nothing yet: no projects (until
+// one is made: the fixture's own), none archived, a name already chosen; the one made is the fixture's project.
 // `appFixture.expireToken()`: every token the API has seen is refused from now on, as the API refuses an expired one
 // (a 401), until the page sends another; `refuseTokens()` refuses every token, new ones too; `dropStream()` ends the
 // feed's stream; `refused` says each request refused so, and `keys` each request's Idempotency-Key
@@ -64,6 +66,7 @@ const SENT_KEY = 'fixture.app.proposals'
 const ASKED_KEY = 'fixture.app.asked'
 const UNEXPECTED_KEY = 'fixture.app.unexpected'
 const PROJECTS_KEY = 'fixture.app.projects'
+const FIRST_KEY = 'fixture.app.first'
 /** The project the fixture serves (data.ts's PROJECT), and `projects=two`'s second, which reads as it does. */
 const FIRST_BASE = '/api/v1/projects/00000000-0000-4000-8000-0000000000aa'
 const SECOND = { projectId: '00000000-0000-4000-8000-00000000009a', title: 'Research notes' }
@@ -172,6 +175,25 @@ function withSecondProject(): void {
   }
 }
 
+/**
+ * `first=1`: the person has nothing yet, so Home's first run shows; the project it makes is the fixture's own, which
+ * the list holds from then on.
+ */
+function withFirstRun(): void {
+  const fixture = window.fetch
+  let made = false
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const { pathname, method } = described(input, init)
+    if (method === 'GET' && pathname === '/api/v1/projects' && !made) return jsonOf({ projects: [], personalEpoch: 1 })
+    if (method === 'GET' && pathname === '/api/v1/projects/archived') return jsonOf({ projects: [], personalEpoch: 1 })
+    if (method === 'GET' && pathname === '/api/v1/me/profile')
+      return jsonOf({ displayName: 'Luis', chosen: true, revision: 1 })
+    if (method !== 'POST' || pathname !== '/api/v1/projects') return fixture(input, init)
+    made = true
+    return jsonOf({ projectId: FIRST_BASE.split('/').at(-1), cursor: '1' })
+  }
+}
+
 // This page's browser recognises no speech on the device, as the other fixture pages give theirs a labelled one: the
 // headless shell CI runs has none, and asked (Home's dictation, signed in) it ends the page's renderer.
 Reflect.set(globalThis, 'SpeechRecognition', undefined)
@@ -180,6 +202,7 @@ bootTheme(new URLSearchParams(window.location.search).get('theme'))
 if (new URLSearchParams(window.location.search).get('work') === 'lost') sessionStorage.setItem(WORK_KEY, 'lost')
 if (new URLSearchParams(window.location.search).get('attention') === 'a34') sessionStorage.setItem(ATTENTION_KEY, 'a34')
 if (new URLSearchParams(window.location.search).get('projects') === 'two') sessionStorage.setItem(PROJECTS_KEY, 'two')
+if (new URLSearchParams(window.location.search).get('first') === '1') sessionStorage.setItem(FIRST_KEY, '1')
 // A cited project text (`cites=input`, cited-text-data.ts): kept for the page's later reads, whose address has moved on.
 if (new URLSearchParams(window.location.search).get('cites') === 'input') {
   sessionStorage.setItem(CITED_OPTIONS_KEY, 'cites=input')
@@ -226,6 +249,7 @@ if (sessionStorage.getItem(WORK_KEY) === 'lost') {
     missionPlus: conversationMission(),
   })
   if (sessionStorage.getItem(PROJECTS_KEY) === 'two') withSecondProject()
+  if (sessionStorage.getItem(FIRST_KEY) === '1') withFirstRun()
   const fixture = window.fetch
   const a34 = sessionStorage.getItem(ATTENTION_KEY) === 'a34'
   const marks = new Map<string, string | null>()

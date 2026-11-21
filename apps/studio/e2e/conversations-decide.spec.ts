@@ -64,6 +64,7 @@ test('decide · someone decided first: the context says so and shows the brief a
   await stillOpen(page).getByRole('button', { name: 'Accept' }).click()
   // The 409 is answered at once; half a second on, its words still wait for the read again.
   await expect.poll(() => writes(page, '/decision')).toHaveLength(1)
+  // Fixed wait kept: negative check: half a second on, the words still wait for the read again
   await page.waitForTimeout(500)
   expect(await context(page).getByRole('status').textContent()).toBe('Accepting…')
   await page.evaluate(() => window.fixture?.holdMission(false))
@@ -168,6 +169,7 @@ test('decide · refused while the person is away: back, it says what the brief r
   await views.getByRole('link', { name: 'Goals' }).click()
   await expect(page.getByRole('heading', { name: 'Goals', level: 2 })).toBeVisible()
   // The refusal comes back (3 s) while no pane shows the brief: the brief is read again all the same.
+  // Fixed wait kept: the fixture answers 3 s late by a timer the page cannot observe; the check is what happened while away
   await page.waitForTimeout(3500)
   await views.getByRole('link', { name: 'Conversations' }).click()
   await expect(context(page).getByRole('status')).toHaveText(
@@ -249,6 +251,7 @@ test('decide · proposed, then away while it lands: back, it says it waits in St
   const views = page.getByRole('navigation', { name: 'Project views' })
   await views.getByRole('link', { name: 'Goals' }).click()
   await expect(page.getByRole('heading', { name: 'Goals', level: 2 })).toBeVisible()
+  // Fixed wait kept: the fixture answers 3 s late by a timer the page cannot observe; the check is what happened while away
   await page.waitForTimeout(3500)
   // Back with the brief's reads held: what shows is what was read while away, nothing read on coming back.
   await page.evaluate(() => window.fixture?.holdMission(true))

@@ -229,6 +229,7 @@ for (const status of [401, 403, 404]) {
     await expect(tiles(page)).toHaveCount(0)
     // Never repeated by itself: no read follows the refusal.
     const asked = await page.evaluate(() => window.nativeFixture?.requests.length ?? 0)
+    // Fixed wait kept: negative check: no read may follow in this window, and no event marks an absence
     await page.waitForTimeout(1000)
     expect(await page.evaluate(() => window.nativeFixture?.requests.length ?? 0)).toBe(asked)
   })
@@ -293,6 +294,7 @@ test('another account: a late answer for the last never shows its rows or its fa
   await expect(tiles(page).filter({ hasText: 'You' })).toContainText('Luis')
   // Davide's held page answers now, late: Luis's view takes none of it, and none of Davide's facts.
   await page.evaluate(() => window.nativeFixture?.release('page2'))
+  // Fixed wait kept: negative check: the late answer just released must change nothing, and its landing has no marker
   await page.waitForTimeout(300)
   await expect(tiles(page)).toHaveCount(3)
   expect(await page.content()).not.toContain('Connection linked')
@@ -305,6 +307,7 @@ test('another project: the last one’s rows go at once, and its late answer is 
   await page.evaluate(() => window.nativeFixture?.switchProject())
   await expect(tiles(page)).toHaveCount(1)
   await page.evaluate(() => window.nativeFixture?.release('page2'))
+  // Fixed wait kept: negative check: the late answer just released must change nothing, and its landing has no marker
   await page.waitForTimeout(300)
   await expect(tiles(page)).toHaveCount(1)
 })
@@ -627,6 +630,7 @@ test('the partial cue comes before the toolbar and tiles, once, and the 401 offe
   await page.goto(`${PAGE}?case=refused&status=401&signin=app`)
   const signIn = page.locator('.resources-read').getByRole('button', { name: 'Sign in again' })
   await expect(signIn).toBeVisible()
+  // Fixed wait kept: negative check: no sign-in starts on its own
   await page.waitForTimeout(500)
   expect(await page.evaluate(() => window.nativeFixture?.signIns)).toBe(0)
   const asked = await page.evaluate(() => window.nativeFixture?.requests.length ?? 0)

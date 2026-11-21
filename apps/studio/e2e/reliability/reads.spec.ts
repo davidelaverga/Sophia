@@ -52,6 +52,7 @@ async function control(context: BrowserContext, open: Open) {
   const calm = await context.newPage()
   await withProbe(calm)
   const scope = await open(calm, () => Promise.resolve())
+  // Fixed wait kept: a calm window measured for what the page says in it; the time is the subject
   await calm.waitForTimeout(3000)
   const seen = await said(scope)
   await calm.close()

@@ -145,6 +145,17 @@ export function shortName(name: string): string {
 }
 
 /**
+ * What a screen reader is told when others raise their hands (hand-and-sync-announced.md), with the names the tiles
+ * show; hands raised together in one sentence. Proposed words, for Luis to approve: changed here alone.
+ */
+export function handRaisedLine(names: readonly string[]): string {
+  const short = names.map(shortName)
+  const last = short.at(-1) ?? ''
+  if (short.length <= 1) return `${last} raised their hand.`
+  return `${short.slice(0, -1).join(', ')} and ${last} raised their hands.`
+}
+
+/**
  * The one thing that sets someone apart in the room, or null: the floor, a guest, speaking, a listener. A guest
  * stays marked as one while they speak: a visitor chooses their own name, and that word is what tells them from a
  * member of the same name.

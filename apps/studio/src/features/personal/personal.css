@@ -83,7 +83,7 @@
   border: 1px solid var(--line-2);
   background: var(--plane-2);
   box-shadow: var(--elev-menu);
-  animation: arrive var(--base) var(--ease) both;
+  animation: arrive var(--motion-base) var(--ease) both;
 }
 .places .chip-pop {
   width: 290px;
@@ -189,7 +189,7 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-3);
-  animation: hw-in 520ms var(--ease) both;
+  animation: hw-in var(--motion-slower) var(--ease) both;
 }
 .places .hw-hello {
   display: grid;
@@ -203,7 +203,7 @@
   /* Each line is an element of its own: it keeps the greeting's display leading, not the universal grid's 1.55
      (docs/plans/home-first-glance.md). */
   line-height: inherit;
-  animation: hw-in 620ms var(--ease) both;
+  animation: hw-in var(--motion-long) var(--ease) both;
 }
 .places .hw-hello > span + span {
   animation-delay: 70ms;
@@ -229,7 +229,7 @@
 .places .hw-notes {
   font-size: var(--type-small);
   color: var(--text-2);
-  animation: hw-in 520ms var(--ease) var(--d) both;
+  animation: hw-in var(--motion-slower) var(--ease) var(--d) both;
 }
 .places .hw-notes:hover {
   color: var(--text);
@@ -240,7 +240,7 @@
   color: var(--text-2);
   font-size: 16px;
   letter-spacing: -0.005em;
-  animation: hw-in 620ms var(--ease) 140ms both;
+  animation: hw-in var(--motion-long) var(--ease) 140ms both;
 }
 .places .hw-says strong {
   color: var(--text);
@@ -286,10 +286,78 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-3);
-  animation: hw-in 520ms var(--ease) var(--d) both;
+  animation: hw-in var(--motion-slower) var(--ease) var(--d) both;
 }
 .places .hw-you .hw-label {
   color: color-mix(in srgb, var(--warm) 70%, var(--text-3));
+}
+
+/* Home's first run (home-first-run.md): one step at a time under the greeting, in Home's column. The kit draws its
+   field, its presses and its two choices; here only their places. */
+.places .hw-first {
+  max-width: 460px;
+  margin-top: 48px;
+  animation: hw-in var(--motion-slower) var(--ease) both;
+}
+.places .hw-first-title {
+  margin: 0 0 20px;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  color: var(--text);
+}
+.places .hw-first .field-label {
+  display: block;
+  margin-bottom: 8px;
+}
+.places .hw-first .field {
+  width: 100%;
+}
+.places .hw-first-note,
+.places .hw-first-error {
+  margin-top: 10px;
+  font-size: var(--type-small);
+  color: var(--text-2);
+}
+/* What went wrong reads in the Studio's error ink (.form-error's), not as a quiet note. */
+.places .hw-first-error {
+  color: var(--rose);
+}
+.places .hw-first-error:empty {
+  margin: 0;
+}
+/* The first run's place, held while Home can't tell yet whether it shows: nothing under the greeting moves twice. */
+.places .hw-first-held {
+  min-height: 160px;
+  margin-top: 48px;
+}
+.places .hw-first-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+.places .hw-first-choice {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  text-align: left;
+}
+.places .hw-first-choice-t {
+  font-size: var(--type-head);
+  font-weight: 500;
+  color: var(--text);
+}
+.places .hw-first-choice-m {
+  font-size: var(--type-body);
+  line-height: var(--lh-body);
+  color: var(--text-2);
+}
+.places .hw-first-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
 }
 
 /* The index: rows on hairlines that draw from the left as they arrive. */
@@ -300,7 +368,7 @@
 }
 .places .hw-index > li {
   position: relative;
-  animation: hw-in 520ms var(--ease) both;
+  animation: hw-in var(--motion-slower) var(--ease) both;
   animation-delay: calc(var(--d, 220ms) + var(--i, 0) * 60ms);
 }
 .places .hw-index > li::before {
@@ -345,7 +413,7 @@
   font: 500 var(--type-label) / var(--lh-small) var(--mono);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
-  transition: color var(--base) var(--ease);
+  transition: color var(--motion-base) var(--ease);
 }
 .places .hw-t {
   overflow: hidden;
@@ -354,7 +422,7 @@
   font-size: 15px;
   font-weight: 500;
   letter-spacing: -0.012em;
-  transition: color var(--base) var(--ease);
+  transition: color var(--motion-base) var(--ease);
 }
 .places .hw-m {
   color: var(--text-3);
@@ -375,8 +443,8 @@
   opacity: 0;
   transform: translateX(-4px);
   transition:
-    opacity var(--base) var(--ease),
-    transform var(--base) var(--ease);
+    opacity var(--motion-base) var(--ease),
+    transform var(--motion-base) var(--ease);
 }
 .places .hw-go-words {
   position: absolute;
@@ -417,7 +485,7 @@
       transparent 70%
     );
     opacity: 0;
-    transition: opacity var(--base) var(--ease);
+    transition: opacity var(--motion-base) var(--ease);
     pointer-events: none;
   }
   .places .hw-row:hover::before {
@@ -504,8 +572,8 @@
   background: none;
   color: var(--text-3);
   text-align: left;
-  transition: border-color var(--base) var(--ease);
-  animation: hw-in 520ms var(--ease) calc(var(--d, 220ms) + 160ms) both;
+  transition: border-color var(--motion-base) var(--ease);
+  animation: hw-in var(--motion-slower) var(--ease) calc(var(--d, 220ms) + 160ms) both;
 }
 /* Where Sophia can't answer, the line's place says so and offers a note; while that is unknown, the place is held.
    Neither is a field, so no hairline; the line's box and words, so nothing below moves (home-no-companion.md). Where
@@ -522,7 +590,7 @@
   color: var(--text-3);
   font: 15px / var(--lh-body) var(--sans);
   letter-spacing: -0.005em;
-  animation: hw-in 520ms var(--ease) calc(var(--d, 220ms) + 160ms) both;
+  animation: hw-in var(--motion-slower) var(--ease) calc(var(--d, 220ms) + 160ms) both;
 }
 /* Speaking: the line listens, its hairline lit and moving; the microphone is the one way out. */
 .places .hw-mic {
@@ -531,8 +599,8 @@
   background: none;
   color: var(--text-3);
   transition:
-    color var(--fast) var(--ease),
-    background var(--fast) var(--ease);
+    color var(--motion-fast) var(--ease),
+    background var(--motion-fast) var(--ease);
 }
 .places .hw-mic:hover {
   background: none;
@@ -541,7 +609,7 @@
 .places .hw-mic[aria-pressed='true'] {
   color: var(--halo-text);
   background: rgb(var(--halo-rgb) / 0.12);
-  animation: hw-listen 1.6s ease-in-out infinite;
+  animation: hw-listen var(--motion-pulse) var(--ease-in-out) infinite;
 }
 /* Listening, it still answers: a press stops it (its own selector outranks the kit's pressed hover; Codex on #232). */
 .places .hw-mic[aria-pressed='true']:hover {
@@ -647,7 +715,7 @@
 .places .hw-quiet {
   color: var(--text-3);
   font-size: 13px;
-  animation: hw-in 520ms var(--ease) var(--d) both;
+  animation: hw-in var(--motion-slower) var(--ease) var(--d) both;
 }
 /* The side's rows by the side's own width: under 440 px a row takes two lines (its note under its title), as on a
    phone. Under 1100 px of page the page is one column, the side under the words, rather than a side too narrow for a
@@ -777,7 +845,7 @@
 /* With the notes open the whole column moves together, title included. */
 .places .c3-space.you .c3-head {
   transform: translateX(var(--shift, 0px));
-  transition: transform 320ms var(--ease);
+  transition: transform var(--motion-medium) var(--ease);
 }
 .places .c3-head-acts {
   display: flex;
@@ -818,7 +886,7 @@
   color: var(--text-2);
   font: var(--type-body) / var(--lh-body) var(--sans);
   cursor: pointer;
-  transition: color var(--fast) var(--ease);
+  transition: color var(--motion-fast) var(--ease);
 }
 .places .c3-talk-toggle .c3-who {
   position: static;
@@ -837,8 +905,8 @@
 .places .c3-go {
   color: var(--text-3);
   transition:
-    color var(--fast) var(--ease),
-    transform var(--base) var(--ease);
+    color var(--motion-fast) var(--ease),
+    transform var(--motion-base) var(--ease);
 }
 .places .c3-notes-toggle:hover .c3-go,
 .places .c3-notes-toggle:focus-visible .c3-go,
@@ -869,7 +937,7 @@
     transparent 78%
   );
   opacity: var(--ambient-peak, 1);
-  animation: ps-ambient 7s ease-in-out infinite;
+  animation: ps-ambient 7s var(--ease-in-out) infinite;
 }
 /* On paper her light darkens the page rather than lighting it: at full strength it took the first day's words at the
    top of a talk under 4.5:1 by day (ci-light-by-hour-contrast.md). There it breathes at 0.7 of the room's, every hour
@@ -914,7 +982,7 @@
   width: min(760px, 100%);
   justify-self: center;
   transform: translateX(var(--shift, 0px));
-  transition: transform 320ms var(--ease);
+  transition: transform var(--motion-medium) var(--ease);
 }
 .places .msgs:focus {
   outline: none;
@@ -947,7 +1015,7 @@
   display: grid;
   gap: 4px;
   max-width: 64ch;
-  animation: ps-arrive 280ms var(--ease);
+  animation: ps-arrive var(--motion-medium) var(--ease);
 }
 /* No bubbles: both voices start on one column, like a transcript. Hers at full contrast; yours in your warm colour,
    a step quieter. */
@@ -1015,7 +1083,7 @@
 }
 /* While she writes, her half breathes where her words will be. */
 .places .msg.typing .c3-who {
-  animation: ps-who-breathe 1.6s ease-in-out infinite;
+  animation: ps-who-breathe var(--motion-pulse) var(--ease-in-out) infinite;
 }
 @keyframes ps-who-breathe {
   0%,
@@ -1032,7 +1100,7 @@
   color: var(--text-sec);
   font: var(--type-label) / var(--lh-small) var(--mono);
   opacity: 0;
-  transition: opacity var(--fast);
+  transition: opacity var(--motion-fast);
   white-space: nowrap;
 }
 .places .msg.sophia .at {
@@ -1053,7 +1121,7 @@
   font-size: 13px;
   white-space: nowrap;
   opacity: 0;
-  transition: opacity var(--fast);
+  transition: opacity var(--motion-fast);
 }
 .places .msg:has(:is(.note-this, .c3-copy)) .at {
   top: 6px;
@@ -1142,11 +1210,11 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   box-shadow: var(--elev-daypill);
-  animation: ps-arrive 200ms var(--ease);
+  animation: ps-arrive var(--motion-base) var(--ease);
 }
 /* The next day's divider right under it names the day: the pill steps aside (docs/plans/personal-day-pill.md). */
 .places .c3-daypill {
-  transition: opacity 140ms var(--ease);
+  transition: opacity var(--motion-fast) var(--ease);
 }
 .places .c3-daypill[data-crowded] {
   opacity: 0;
@@ -1211,7 +1279,7 @@
   justify-self: start;
   width: min(460px, 100%);
   margin-top: -12px;
-  animation: ps-arrive 200ms var(--ease);
+  animation: ps-arrive var(--motion-base) var(--ease);
 }
 .places .c3-noteform .field {
   flex: 1;
@@ -1234,7 +1302,7 @@
   border: 0;
   background: none;
   font-size: 15px;
-  animation: ps-arrive 260ms var(--ease);
+  animation: ps-arrive var(--motion-base) var(--ease);
 }
 .places .c3-suggest .field-label {
   font: 500 var(--type-small) / var(--lh-small) var(--mono);
@@ -1267,7 +1335,7 @@
   display: grid;
   width: min(480px, 100%);
   margin-top: -10px;
-  animation: ps-arrive 260ms var(--ease);
+  animation: ps-arrive var(--motion-base) var(--ease);
 }
 .places .c3-starters button {
   display: grid;
@@ -1286,7 +1354,7 @@
   font: 15px / var(--lh-body) var(--sans);
   text-align: left;
   cursor: pointer;
-  transition: color var(--fast) var(--ease);
+  transition: color var(--motion-fast) var(--ease);
 }
 /* The session about to start, said as Home says it: amber, quiet, mono. */
 .places .c3-way-note {
@@ -1449,7 +1517,7 @@
   height: 6px;
   border-radius: 2px;
   background: linear-gradient(var(--core), var(--halo));
-  animation: ps-wave 1s ease-in-out infinite;
+  animation: ps-wave 1s var(--ease-in-out) infinite;
 }
 .places .c3-wave i:nth-child(2) {
   animation-delay: -0.8s;
@@ -1492,7 +1560,7 @@
   border-radius: var(--r-3) 0 0 var(--r-3);
   background: var(--surface-well);
   box-shadow: var(--elev-notes);
-  animation: ps-from-edge 260ms var(--ease);
+  animation: ps-from-edge var(--motion-base) var(--ease);
 }
 .places .c3-notes:focus {
   outline: none;
@@ -1541,8 +1609,8 @@
   padding: 8px;
   border-radius: var(--r-2);
   transition:
-    transform 460ms var(--ease),
-    opacity 460ms var(--ease);
+    transform var(--motion-slower) var(--ease),
+    opacity var(--motion-slower) var(--ease);
 }
 .places .c2-t:hover {
   background: rgb(var(--ink-rgb) / 0.04);
@@ -1630,7 +1698,7 @@
   border-radius: 0;
   background: none;
   color: var(--text-sec);
-  transition: background var(--base) var(--ease);
+  transition: background var(--motion-base) var(--ease);
 }
 .places .c3-edge.right {
   right: 0;
@@ -1677,7 +1745,7 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-sec);
-  transition: color var(--fast);
+  transition: color var(--motion-fast);
 }
 .places .c3-edge.left .c3-edge-label {
   transform: rotate(180deg);
@@ -1792,7 +1860,7 @@
 .places .c3-newproj {
   display: grid;
   gap: 6px;
-  animation: ps-arrive 200ms var(--ease);
+  animation: ps-arrive var(--motion-base) var(--ease);
 }
 .places .c3-newproj-row {
   display: flex;
@@ -1884,7 +1952,7 @@
     border-left: 0;
     border-radius: 0;
     box-shadow: none;
-    animation: ps-sheet-up 240ms var(--ease);
+    animation: ps-sheet-up var(--motion-base) var(--ease);
   }
   @keyframes ps-sheet-up {
     from {
@@ -2076,6 +2144,7 @@
   .places .hw-off,
   .places .hw-held,
   .places .hw-label,
+  .places .hw-first,
   .places .hw-mic,
   .places .c3-ambient,
   .places .c3-wave i,
@@ -2115,7 +2184,7 @@
   grid-row: 1;
   grid-column: 2;
   justify-self: end;
-  transition: opacity var(--fast) var(--ease);
+  transition: opacity var(--motion-fast) var(--ease);
 }
 /* The day is only read, never pressed. Faded out, it is still drawn over the actions once their fade ends (its
    opacity makes it a layer of its own), so it lets the pointer through to Correct and Forget beneath it. */
@@ -2168,7 +2237,7 @@
   max-width: 64ch;
   padding-top: 16px;
   border-top: 1px solid var(--line);
-  animation: ps-arrive 280ms var(--ease);
+  animation: ps-arrive var(--motion-medium) var(--ease);
 }
 .places .c3-starters + .c3-week {
   padding-top: 4px;
@@ -2205,7 +2274,7 @@
   justify-items: center;
   padding: max(24px, env(safe-area-inset-top)) var(--gutter, 16px) var(--floor);
   background: var(--void);
-  animation: ps-arrive 280ms var(--ease);
+  animation: ps-arrive var(--motion-medium) var(--ease);
 }
 .places .c3-talk-light {
   position: relative;
@@ -2301,7 +2370,7 @@
   color: var(--text);
   font: var(--type-body) / var(--lh-body) var(--sans);
   cursor: pointer;
-  animation: ps-arrive 220ms var(--ease);
+  animation: ps-arrive var(--motion-base) var(--ease);
 }
 .places .c3-answered:hover {
   border-color: rgb(var(--halo-text-rgb) / 0.6);
@@ -2336,8 +2405,8 @@
 }
 .places .c3-notes-toggle {
   transition:
-    color var(--fast) var(--ease),
-    text-shadow 600ms var(--ease);
+    color var(--motion-fast) var(--ease),
+    text-shadow var(--motion-long) var(--ease);
 }
 .places .c3-notes-toggle.ticked {
   color: var(--text);

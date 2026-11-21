@@ -69,6 +69,7 @@ test('opening · a page that is no sign-in’s return never shows it', async ({ 
   await watch(page)
   await page.goto(PAGE)
   await expect(page.getByRole('heading', { name: 'Sign in to Sophia' })).toBeVisible()
+  // Fixed wait kept: negative check: no frame rises in this window
   await page.waitForTimeout(600)
   expect((await frames(page)).some((f) => f.up)).toBe(false)
 })
@@ -163,6 +164,7 @@ test('opening · signed in from this tab, it covers the screen; a session from a
   })
   await page.getByRole('button', { name: 'Sign in here' }).click()
   await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible()
+  // Fixed wait kept: negative check: no frame rises in this window
   await page.waitForTimeout(400)
   expect((await frames(page)).some((f) => f.up)).toBe(false)
 })
