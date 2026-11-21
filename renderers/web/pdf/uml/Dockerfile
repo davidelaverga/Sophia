@@ -97,7 +97,13 @@ facts = json.loads(pathlib.Path('/tmp/kernel-provenance.json').read_text())
 facts['measuredNode'] = measured(['node', '--version'])
 guest_packages = measured(['dpkg-query', '-W', '-f=${Package}=${Version};', 'e2fsprogs', 'busybox-static', 'libc6', 'python3'])
 facts['measuredPackages'] = 'kernel:' + facts['measuredPackages'] + ';guest:' + guest_packages if facts['measuredPackages'] is not None and guest_packages is not None else None
-facts['measuredBrowser'] = measured(['node', '-e', "const {chromium}=require('/opt/sophia-renderer/node_modules/playwright-core');require('node:child_process').execFileSync(chromium.executablePath(),['--version'],{stdio:['ignore','pipe','ignore']}).toString().trim().split('\\n').forEach(s=>console.log(s))"])
+facts['measuredBrowser'] = measured([
+    'node', '--input-type=module', '-e', '''
+import { execFileSync } from 'node:child_process'
+import { chromiumPath } from '/opt/sophia-renderer/confine.mjs'
+process.stdout.write(execFileSync(chromiumPath(), ['--version']))
+''',
+])
 source = ['make-guest.sh', 'make-initrd.py', 'guest-init', 'guest-job', 'namespace-launch.py', 'landlock-launch.py']
 facts['measuredSourceHashes'] += ';' + ';'.join(name + '=' + hashlib.sha256((pathlib.Path('/opt/uml')/name).read_bytes()).hexdigest() for name in source)
 # Facts are strings/null, with declared pins kept separate from measured build facts.
