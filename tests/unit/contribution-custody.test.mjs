@@ -14,7 +14,10 @@ import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import * as fs from 'node:fs'
-import { chmodSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import mutableFs from 'node:fs'
+import { syncBuiltinESMExports } from 'node:module'
+import { constants as osConstants } from 'node:os'
+import { chmodSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join, sep } from 'node:path'
@@ -122,8 +125,16 @@ describe('the custody file', () => {
     assert.equal(code(() => parseCustody(Buffer.from(custodyText(b, { key: `${KEY} more` })), b)), 'key_invalid', 'a space')
   })
 
-  test('refuses a symlink, a FIFO, a socket, a directory, a hard link, an open mode, an oversize file and a missing one', async () => {
-    const dir = privateDir()
+  test('refuses a symlink, a FIFO, a socket, a directory, a hard link, an open mode, an oversize file and a missing one', async (t) => {
+    // Keep the complete custody filename and real socket test, independent of an arbitrarily deep TMPDIR.
+    const dir = mkdtempSync(join(realpathSync('/tmp'), 'sc-'))
+    t.after(() => {
+      rmSync(dir, { recursive: true, force: true })
+      assert.equal(fs.existsSync(dir), false)
+      t.diagnostic(JSON.stringify({ fixture: 'custody socket', directoryRemoved: !fs.existsSync(dir) }))
+    })
+    assert.equal(statSync(dir).mode & 0o777, 0o700)
+    assert.equal(statSync(dir).uid, process.getuid?.())
     const b = binding()
     const name = custodyFileName(b)
     const other = privateDir()
@@ -135,11 +146,19 @@ describe('the custody file', () => {
     assert.equal(code(() => readCustodyKey({ custodyDir: dir, binding: b })), 'not_regular', 'a FIFO, opened without blocking')
     rmSync(join(dir, name))
     const server = createServer()
-    await new Promise((resolve) => server.listen(join(dir, name), resolve))
+    const socket = join(dir, name)
+    assert.ok(Buffer.byteLength(socket) < 104, 'socket address fits Darwin and Linux sockaddr_un')
+    await new Promise((resolve) => server.listen(socket, resolve))
     try {
+      assert.equal(server.listening, true)
+      assert.equal(lstatSync(socket).isSocket(), true)
+      t.diagnostic(JSON.stringify({ fixture: 'custody socket', address: socket, addressBytes: Buffer.byteLength(socket), listening: server.listening }))
       assert.equal(code(() => readCustodyKey({ custodyDir: dir, binding: b })), 'not_regular', 'a socket')
     } finally {
       await new Promise((resolve) => server.close(resolve))
+      assert.equal(server.listening, false)
+      assert.equal(fs.existsSync(socket), false)
+      t.diagnostic(JSON.stringify({ fixture: 'custody socket', listenerClosed: !server.listening, socketRemoved: !fs.existsSync(socket) }))
     }
     rmSync(join(dir, name), { force: true })
     mkdirSync(join(dir, name), { mode: 0o700 })
@@ -158,6 +177,36 @@ describe('the custody file', () => {
     assert.equal(code(() => readCustodyKey({ custodyDir: dir, binding: b })), 'too_large')
     rmSync(linked)
     assert.equal(code(() => readCustodyKey({ custodyDir: dir, binding: b })), 'not_found', 'no fallback to anything else')
+  })
+
+  test('an unnamed platform EOPNOTSUPP is nonregular; unrelated open errors remain unreadable', (t) => {
+    const file = join(privateDir(), 'invented-open-error')
+    const cases = [
+      [{ code: `Unknown system error ${-osConstants.errno.EOPNOTSUPP}`, errno: -osConstants.errno.EOPNOTSUPP }, 'not_regular'],
+      [{ code: 'Unknown system error', errno: -osConstants.errno.EIO }, 'unreadable'],
+      [{ code: 'Unknown system error', errno: osConstants.errno.EOPNOTSUPP }, 'unreadable'],
+      [{ code: 'Unknown system error' }, 'unreadable'],
+      [{ code: 'ENXIO' }, 'not_regular'],
+      [{ code: 'EOPNOTSUPP' }, 'not_regular'],
+      [{ code: 'ENOENT' }, 'not_found'],
+      [{ code: 'ELOOP' }, 'symlink'],
+      [{ code: 'EACCES' }, 'unreadable'],
+    ]
+    for (const [fields, expected] of cases) {
+      const opened = t.mock.method(mutableFs, 'openSync', (name, flags) => {
+        assert.equal(name, file)
+        assert.equal(flags, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK | fs.constants.O_NOCTTY)
+        throw Object.assign(new Error('invented open refusal'), fields)
+      })
+      syncBuiltinESMExports()
+      try {
+        assert.equal(code(() => readPrivateFile(file, 8192)), expected)
+        assert.equal(opened.mock.callCount(), 1)
+      } finally {
+        opened.mock.restore()
+        syncBuiltinESMExports()
+      }
+    }
   })
 
   test('refuses an unsafe directory or ancestor, and a relative or traversing path', () => {

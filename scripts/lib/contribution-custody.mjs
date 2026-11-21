@@ -16,6 +16,7 @@
  */
 
 import { closeSync, constants, fstatSync, fsyncSync, lstatSync, openSync, readSync, realpathSync, unlinkSync, writeSync } from 'node:fs'
+import { constants as osConstants } from 'node:os'
 import { dirname, isAbsolute, join, resolve, sep } from 'node:path'
 
 /** The one route a contribution runtime serves, and the variable its key is passed under (config/runtime-unit.json). */
@@ -91,6 +92,8 @@ export function readPrivateFile(path, maxBytes, uid = currentUid()) {
     if (error?.code === 'ENOENT') refuse('not_found')
     if (error?.code === 'ELOOP') refuse('symlink')
     if (error?.code === 'ENXIO' || error?.code === 'EOPNOTSUPP') refuse('not_regular')
+    // Node may leave the platform's EOPNOTSUPP errno unnamed (Darwin socket opens); it is still a refusal.
+    if (error?.errno === -osConstants.errno.EOPNOTSUPP) refuse('not_regular')
     refuse('unreadable')
   }
   try {
