@@ -15,16 +15,16 @@ WORKDIR /build
 COPY renderers/web/pdf/uml/kernel.config renderers/web/pdf/uml/kernel-abi.patch renderers/web/pdf/uml/seccomp-abi-probe.c /build/
 COPY renderers/web/pdf/uml/kernel-memory.patch renderers/web/pdf/uml/check-memory-backing.py renderers/web/pdf/uml/memory-backing-test.c /build/
 RUN x86_64-linux-gnu-gcc -static -O2 /build/seccomp-abi-probe.c -o /build/abi-probe
-RUN curl --fail --location --output linux.tar.xz https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.101.tar.xz \
- && echo '0d21cd11933f49f7151b7c9dbb8cc3fddc8c8abe506434b850feecf41fc28a76  linux.tar.xz' | sha256sum --check - \
+RUN curl --fail --location --output linux.tar.xz https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.64.tar.xz \
+ && echo '020d45510c539972e6f14c5c71566878d3b7ef56fb082b3e09134f2ebaade562  linux.tar.xz' | sha256sum --check - \
  && tar -xf linux.tar.xz \
- && cd linux-6.12.101 \
+ && cd linux-6.18.64 \
  && cp /build/kernel.config .config \
  && patch --fuzz=0 -p1 < /build/kernel-abi.patch \
  && patch --fuzz=0 -p1 < /build/kernel-memory.patch \
  && python3 /build/check-memory-backing.py arch/um/os-Linux/mem.c \
  && scripts/config --disable DEBUG_INFO --disable DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT --enable DEBUG_INFO_NONE --disable DEBUG_INFO_BTF --disable MODULES --disable MODULE_SIG --set-str SYSTEM_TRUSTED_KEYS '' --set-str SYSTEM_REVOCATION_KEYS '' \
- && scripts/config --disable HOSTFS --disable MCONSOLE --disable UML_NET --disable VIRTIO_UML --disable PORT_CHAN --disable PTY_CHAN --disable TTY_CHAN --disable XTERM_CHAN --disable UML_WATCHDOG --disable UML_RANDOM --disable MMAPPER \
+ && scripts/config --disable HOSTFS --disable MCONSOLE --disable UML_NET --disable UML_NET_VECTOR --disable VIRTIO_UML --disable PORT_CHAN --disable PTY_CHAN --disable TTY_CHAN --disable XTERM_CHAN --disable UML_WATCHDOG --disable UML_RANDOM --disable MMAPPER \
  && case "$UML_KERNEL_OPTIMIZATION" in \
       performance) scripts/config --disable CC_OPTIMIZE_FOR_SIZE --enable CC_OPTIMIZE_FOR_PERFORMANCE ;; \
       size) scripts/config --disable CC_OPTIMIZE_FOR_PERFORMANCE --enable CC_OPTIMIZE_FOR_SIZE ;; \
@@ -53,10 +53,10 @@ def measured(args):
         return None
 
 root = pathlib.Path('/build')
-config = (root/'linux-6.12.101/.config').read_bytes()
+config = (root/'linux-6.18.64/.config').read_bytes()
 facts = {
     'declaredNodeImage': 'recipe-default node:24.21.0-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6',
-    'declaredLinuxArchive': 'linux-6.12.101.tar.xz sha256:0d21cd11933f49f7151b7c9dbb8cc3fddc8c8abe506434b850feecf41fc28a76',
+    'declaredLinuxArchive': 'linux-6.18.64.tar.xz sha256:020d45510c539972e6f14c5c71566878d3b7ef56fb082b3e09134f2ebaade562',
     'measuredConfigSha256': hashlib.sha256(config).hexdigest(),
     'measuredSourceHashes': ';'.join(name+'='+hashlib.sha256((root/name).read_bytes()).hexdigest() for name in ['kernel.config', 'kernel-abi.patch', 'kernel-memory.patch']),
     'measuredCompiler': measured(['x86_64-linux-gnu-gcc', '--version']),
@@ -97,7 +97,13 @@ facts = json.loads(pathlib.Path('/tmp/kernel-provenance.json').read_text())
 facts['measuredNode'] = measured(['node', '--version'])
 guest_packages = measured(['dpkg-query', '-W', '-f=${Package}=${Version};', 'e2fsprogs', 'busybox-static', 'libc6', 'python3'])
 facts['measuredPackages'] = 'kernel:' + facts['measuredPackages'] + ';guest:' + guest_packages if facts['measuredPackages'] is not None and guest_packages is not None else None
-facts['measuredBrowser'] = measured(['node', '-e', "const {chromium}=require('/opt/sophia-renderer/node_modules/playwright-core');require('node:child_process').execFileSync(chromium.executablePath(),['--version'],{stdio:['ignore','pipe','ignore']}).toString().trim().split('\\n').forEach(s=>console.log(s))"])
+facts['measuredBrowser'] = measured([
+    'node', '--input-type=module', '-e', '''
+import { execFileSync } from 'node:child_process'
+import { chromiumPath } from '/opt/sophia-renderer/confine.mjs'
+process.stdout.write(execFileSync(chromiumPath(), ['--version']))
+''',
+])
 source = ['make-guest.sh', 'make-initrd.py', 'guest-init', 'guest-job', 'namespace-launch.py', 'landlock-launch.py']
 facts['measuredSourceHashes'] += ';' + ';'.join(name + '=' + hashlib.sha256((pathlib.Path('/opt/uml')/name).read_bytes()).hexdigest() for name in source)
 # Facts are strings/null, with declared pins kept separate from measured build facts.
