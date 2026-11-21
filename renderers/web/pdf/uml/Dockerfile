@@ -15,10 +15,10 @@ WORKDIR /build
 COPY renderers/web/pdf/uml/kernel.config renderers/web/pdf/uml/kernel-abi.patch renderers/web/pdf/uml/seccomp-abi-probe.c /build/
 COPY renderers/web/pdf/uml/kernel-memory.patch renderers/web/pdf/uml/check-memory-backing.py renderers/web/pdf/uml/memory-backing-test.c /build/
 RUN x86_64-linux-gnu-gcc -static -O2 /build/seccomp-abi-probe.c -o /build/abi-probe
-RUN curl --fail --location --output linux.tar.xz https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.101.tar.xz \
- && echo '0d21cd11933f49f7151b7c9dbb8cc3fddc8c8abe506434b850feecf41fc28a76  linux.tar.xz' | sha256sum --check - \
+RUN curl --fail --location --output linux.tar.xz https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.64.tar.xz \
+ && echo '020d45510c539972e6f14c5c71566878d3b7ef56fb082b3e09134f2ebaade562  linux.tar.xz' | sha256sum --check - \
  && tar -xf linux.tar.xz \
- && cd linux-6.12.101 \
+ && cd linux-6.18.64 \
  && cp /build/kernel.config .config \
  && patch --fuzz=0 -p1 < /build/kernel-abi.patch \
  && patch --fuzz=0 -p1 < /build/kernel-memory.patch \
@@ -53,10 +53,10 @@ def measured(args):
         return None
 
 root = pathlib.Path('/build')
-config = (root/'linux-6.12.101/.config').read_bytes()
+config = (root/'linux-6.18.64/.config').read_bytes()
 facts = {
     'declaredNodeImage': 'recipe-default node:24.21.0-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6',
-    'declaredLinuxArchive': 'linux-6.12.101.tar.xz sha256:0d21cd11933f49f7151b7c9dbb8cc3fddc8c8abe506434b850feecf41fc28a76',
+    'declaredLinuxArchive': 'linux-6.18.64.tar.xz sha256:020d45510c539972e6f14c5c71566878d3b7ef56fb082b3e09134f2ebaade562',
     'measuredConfigSha256': hashlib.sha256(config).hexdigest(),
     'measuredSourceHashes': ';'.join(name+'='+hashlib.sha256((root/name).read_bytes()).hexdigest() for name in ['kernel.config', 'kernel-abi.patch', 'kernel-memory.patch']),
     'measuredCompiler': measured(['x86_64-linux-gnu-gcc', '--version']),
