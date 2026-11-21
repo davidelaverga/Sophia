@@ -57,6 +57,7 @@ test.afterEach(async ({ page }) => {
 /** The project's window was asked for (`more` reads past `before`) and has answered: the visit has decided by now. */
 async function answered(page: Page, before = 0) {
   await expect.poll(() => sinceReads(page)).toBeGreaterThan(before)
+  // Fixed wait kept: negative check: what the visit would say after its answered read has no marker when it says nothing
   await page.waitForTimeout(400)
 }
 
@@ -104,6 +105,7 @@ test('arrival · Dismiss ends it: another view and back brings it no more, and r
   await expect(arrival(page)).toHaveText('')
   await views(page).getByRole('link', { name: 'Knowledge' }).click()
   await views(page).getByRole('link', { name: 'Studio' }).click()
+  // Fixed wait kept: negative check: nothing is said or read on coming back
   await page.waitForTimeout(400)
   await expect(arrival(page)).toHaveText('')
   expect(await sinceReads(page)).toBe(read)
@@ -112,6 +114,7 @@ test('arrival · Dismiss ends it: another view and back brings it no more, and r
 test('arrival · nothing is said where Updates is open', async ({ page }) => {
   await page.goto(`${PAGE}&place=updates`)
   await expect(since(page).getByRole('region', { name: 'Kept' })).toBeVisible()
+  // Fixed wait kept: negative check: nothing is said where Updates is open
   await page.waitForTimeout(400)
   await expect(arrival(page)).toHaveText('')
 })

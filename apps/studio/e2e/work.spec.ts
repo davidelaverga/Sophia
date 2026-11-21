@@ -446,6 +446,7 @@ test('a decision named in the address (#decision-, from Home) is scrolled to and
   // Handled once: the focus moved on stays where it went (the address is not read again on a later render).
   await page.keyboard.press('Tab')
   await expect(asked.locator('.plan-choice:not(:disabled)').first()).not.toBeFocused()
+  // Fixed wait kept: negative check: the focus is not pulled back on a later render
   await page.waitForTimeout(400)
   await expect(asked.locator('.plan-choice:not(:disabled)').first()).not.toBeFocused()
   // With the slot shut, the address opens it: the pill shuts the decisions, the address names one again, they show.
@@ -1172,6 +1173,7 @@ test('r3 · R3-02 · a Hold on its way in Tasks: no second Hold drawn, no H in t
   await expect(sheet.locator('.task-sheet-plan kbd', { hasText: /^S$/ })).toBeVisible() // Stop stays as it was
   await sheet.focus()
   await page.keyboard.press('h')
+  // Fixed wait kept: negative check: one operation in all, no second
   await page.waitForTimeout(500)
   expect((await commanded(page)).map((c) => c.kind)).toEqual(['hold']) // one operation in all
 })
@@ -1202,6 +1204,7 @@ test('wbc · UI-12 · a receipt repeated, late, or for another task changes noth
   await expect(retry.locator('.act-steps li[data-reached]')).toHaveCount(3)
   // A refusal older than what was since observed, arriving late, contradicts nothing.
   await page.evaluate((op) => window.workFixture?.stale?.(op), guide)
+  // Fixed wait kept: negative check: the late answer just released must change nothing, and its landing has no marker
   await page.waitForTimeout(200)
   await expect(retry.locator('.act-steps')).toContainText('Delivered to the session; not yet verified in the result.')
   await expect(retry.locator('.act-steps li[data-reached]')).toHaveCount(3)
@@ -2120,6 +2123,7 @@ test('codex · F-014 · a delivered guidance stays delivered when a newer receip
   // The service's next receipt for it, a newer revision, says it is only queued.
   await page.evaluate((op) => window.workFixture?.weaken?.(op), sent?.operation_id ?? '')
   await expect.poll(() => page.evaluate(() => window.workFixture?.receipts?.length)).toBe(4)
+  // Fixed wait kept: negative check: the weaker receipt taken in must not move the steps back
   await page.waitForTimeout(200) // the board has taken it in
   await expect(steps.locator('li[data-reached]')).toHaveCount(3)
   await expect(steps).toContainText('Delivered to the session; not yet verified in the result.')
@@ -4144,6 +4148,7 @@ test('the sheet’s H is not pressed while the meeting’s recap covers it (Code
   await expect(recap).toBeVisible()
   await page.keyboard.press('h')
   await page.keyboard.press('s')
+  // Fixed wait kept: negative check: the covered sheet pressed nothing
   await page.waitForTimeout(300)
   // The covered sheet pressed nothing: its Hold says what it said, and Stop asks no question.
   if (offered) await expect(hold.first()).toHaveText(before)

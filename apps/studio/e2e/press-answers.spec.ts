@@ -172,6 +172,7 @@ async function unanswering(page: Page, scope = 'body', tips = true) {
     // a second at most, rather than once after a fixed wait.
     let over = rest
     for (let tries = 0; tries < 8 && over === rest; tries += 1) {
+      // Fixed wait kept: the poll’s interval: a press that never answers is collected as mute, not thrown
       await page.waitForTimeout(130)
       over = await page.evaluate(lookOf, { selector: PRESSES, scope, i: press.i, tips })
     }

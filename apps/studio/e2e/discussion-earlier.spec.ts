@@ -230,6 +230,7 @@ for (const phone of [false, true])
     await page.evaluate((m) => window.fixture?.changeElsewhere(2, m, 'Message 3, corrected elsewhere'), target)
     await expect.poll(async () => (await pending(page)).now).toBe(1) // the refresh is genuinely out, held
     await expect(page.getByText('Message 3', { exact: true })).toHaveCount(0) // never the superseded words
+    // Fixed wait kept: negative check: the superseded words never show while the refresh is held
     await page.waitForTimeout(1000)
     await expect(page.getByText('Message 3', { exact: true })).toHaveCount(0)
     await expect(page.getByText('Message 2', { exact: true })).toBeVisible()
@@ -267,6 +268,7 @@ test('earlier · withdrawn elsewhere while its read is held, and another held me
   await page.evaluate((m) => window.fixture?.changeElsewhere(5, m, 'Message 6, corrected elsewhere'), corrected)
   await expect(page.getByText('Message 4', { exact: true })).toHaveCount(0)
   await expect(page.getByText('Message 6', { exact: true })).toHaveCount(0) // fenced at once, waiting its turn
+  // Fixed wait kept: negative check: the second batch waits its turn
   await page.waitForTimeout(500)
   expect((await pending(page)).now, 'the second waits: one batch at a time').toBe(1)
   await holdPages(page, false)
@@ -289,6 +291,7 @@ test('earlier · a burst of held changes while reads are held keeps at most 3 re
       ([n, mid]) => window.fixture?.changeElsewhere(Number(n), String(mid), `burst ${n}`),
       [[1, 3, 5, 7, 9][k], m],
     )
+  // Fixed wait kept: negative check: no more than three batches at once during the burst
   await page.waitForTimeout(1000)
   expect((await pending(page)).most).toBeLessThanOrEqual(3)
   for (const n of [2, 4, 6, 8, 10]) await expect(page.getByText(`Message ${n}`, { exact: true })).toHaveCount(0)
@@ -347,6 +350,7 @@ test('earlier · a manual «Earlier messages» read that lands after the pages w
   await page.evaluate(() => window.releaseStale?.(1)) // the refresh fails first: the pages are let go
   await expect(entries(page)).toHaveCount(50)
   await page.evaluate(() => window.releaseStale?.(0)) // then the older manual read lands
+  // Fixed wait kept: negative check: the late answer just released must change nothing, and its landing has no marker
   await page.waitForTimeout(1000)
   await expect(entries(page)).toHaveCount(50)
   await expect(page.getByText('Message 1', { exact: true })).toHaveCount(0)
@@ -455,6 +459,7 @@ test('earlier · an erasure learned while a manual «Earlier messages» read is 
     }).observe(document.body, { childList: true, subtree: true, characterData: true })
   })
   await page.evaluate(() => window.releaseStale?.(0))
+  // Fixed wait kept: negative check: the late answer just released must change nothing, and its landing has no marker
   await page.waitForTimeout(500)
   expect(await page.evaluate(() => window.sawStale ?? false), 'the erased words were never on the page').toBe(false)
   await expect(page.getByText('SYNTHETIC shared words', { exact: true })).toHaveCount(0)
@@ -490,6 +495,7 @@ test('earlier · a manual «Earlier messages» read asked before an erasure neve
     }).observe(document.body, { childList: true, subtree: true, characterData: true })
   })
   await page.evaluate(() => window.releaseStale?.(0))
+  // Fixed wait kept: negative check: the late answer just released must change nothing, and its landing has no marker
   await page.waitForTimeout(500)
   expect(await page.evaluate(() => window.sawStale ?? false), 'the erased words never came back').toBe(false)
   await expect(page.locator(`[data-message="${idOf(20)}"] .contribution-text`)).toHaveText(
@@ -523,6 +529,7 @@ for (const act of ['correct', 'withdraw'] as const)
         if (document.querySelector(`[data-message="${b}"]`)) window.sawStale = true
       }).observe(document.body, { childList: true, subtree: true, characterData: true })
     }, idOf(56))
+    // Fixed wait kept: negative check: past the feed’s debounced snapshot read, whose answer has no marker; the stale words must not return
     await page.waitForTimeout(1000) // past the feed's debounced snapshot read, which still answers the old words
     expect(await page.evaluate(() => window.sawStale ?? false), 'the alias never came back').toBe(false)
     await expect(page.locator(`[data-message="${idOf(56)}"]`)).toHaveCount(0)
@@ -542,9 +549,11 @@ test('earlier · an erasure learned before any earlier page is read leaves the f
   await chatToggle(page).click()
   await expect(entries(page)).toHaveCount(50)
   await page.evaluate((m) => window.fixture?.eraseShared(2, m, null), idOf(2))
+  // Fixed wait kept: the erasure event is learned by the feed with no marker the page exposes
   await page.waitForTimeout(800) // the event is learned, nothing held
   await earlier(page).click()
   await expect(entries(page)).toHaveCount(100)
+  // Fixed wait kept: negative check: the earlier page keeps its 100 entries after the event
   await page.waitForTimeout(800)
   await expect(entries(page)).toHaveCount(100)
   await expect(textOf(page, idOf(10))).toHaveText('Message 11')
@@ -565,6 +574,7 @@ test('earlier · an erasure learned while the first «Earlier messages» read is
   await earlier(page).click()
   await expect.poll(() => page.evaluate(() => window.staleWaiting ?? 0)).toBe(1) // the first manual read, held
   await page.evaluate((m) => window.fixture?.eraseShared(9, m, null), idOf(9))
+  // Fixed wait kept: the erasure event is learned by the feed with no marker the page exposes
   await page.waitForTimeout(500)
   await page.evaluate(() => {
     window.holdStale = false
@@ -575,6 +585,7 @@ test('earlier · an erasure learned while the first «Earlier messages» read is
     }).observe(document.body, { childList: true, subtree: true, characterData: true })
   })
   await page.evaluate(() => window.releaseStale?.(0))
+  // Fixed wait kept: negative check: the late answer just released must change nothing, and its landing has no marker
   await page.waitForTimeout(500)
   expect(await page.evaluate(() => window.sawStale ?? false), 'the erased words were never on the page').toBe(false)
   await earlier(page).click()
@@ -635,6 +646,7 @@ for (const act of ['correct', 'withdraw'] as const)
             if (el.textContent === 'SYNTHETIC shared words') window.sawStale = true
         }).observe(document.body, { childList: true, subtree: true, characterData: true })
       })
+      // Fixed wait kept: negative check: past the feed’s debounced snapshot read, whose answer has no marker; the stale words must not return
       await page.waitForTimeout(1000) // past the feed's debounced snapshot read, which lags or fails
       if (refresh === 'fails') expect(await page.evaluate(() => window.snapshotsFailed ?? 0)).toBeGreaterThan(0)
       expect(await page.evaluate(() => window.sawStale ?? false), 'the erased words never came back').toBe(false)
@@ -675,6 +687,7 @@ for (const act of ['correct', 'withdraw'] as const)
       await page.getByRole('button', { name: 'Save' }).click()
       // The fresh receipt shows, and stays past its own event's refresh, the snapshot still at r1.
       await expect(textOf(page, id)).toHaveText(EDITED)
+      // Fixed wait kept: negative check: the fresh receipt stays past its own event’s refresh
       await page.waitForTimeout(1000)
       await expect(textOf(page, id)).toHaveText(EDITED)
       await page.evaluate(([m, text]) => window.fixture?.eraseShared(0, m, text), [
@@ -690,6 +703,7 @@ for (const act of ['correct', 'withdraw'] as const)
             if (/^Meet at (ten|nine) by the north door\.$/.test(el.textContent)) window.sawStale = true
         }).observe(document.body, { childList: true, subtree: true, characterData: true })
       })
+      // Fixed wait kept: negative check: past the feed’s debounced snapshot read, whose answer has no marker; the stale words must not return
       await page.waitForTimeout(1000) // past the feed's debounced snapshot read, which lags or fails
       if (refresh === 'fails') expect(await page.evaluate(() => window.snapshotsFailed ?? 0)).toBeGreaterThan(0)
       expect(await page.evaluate(() => window.sawStale ?? false), 'the erased words never came back').toBe(false)
@@ -747,6 +761,7 @@ for (const act of ['correct', 'withdraw'] as const)
       await expect
         .poll(() => page.evaluate(() => window.fixture?.heldChanges()))
         .toEqual(expect.objectContaining({ resyncs: (before?.resyncs ?? 0) + 1 }))
+      // Fixed wait kept: negative check: past the feed’s debounced snapshot read, whose answer has no marker; the stale words must not return
       await page.waitForTimeout(1000) // past the feed's debounced snapshot read, which lags or fails
       if (refresh === 'fails') expect(await page.evaluate(() => window.snapshotsFailed ?? 0)).toBeGreaterThan(0)
       expect(await page.evaluate(() => window.sawStale ?? false), 'the erased words never came back').toBe(false)
@@ -771,6 +786,7 @@ for (const snapshot of ['fresh', 'lags'] as const)
     if (snapshot === 'lags') await page.evaluate(() => window.fixture?.holdSnapshot())
     await page.evaluate((m) => window.fixture?.eraseShared(55, m, 'Message 56, corrected elsewhere'), idOf(55))
     await expect.poll(() => page.evaluate(() => window.fixture?.heldChanges().erasedAt)).toBe(1)
+    // Fixed wait kept: the feed’s debounced snapshot read has no marker in the lagging case (it is held)
     await page.waitForTimeout(800) // the feed's debounced snapshot read, answered fresh or as it was
     await views(page).getByRole('link', { name: 'Studio', exact: true }).click()
     if (!(await page.getByRole('list', { name: 'Recent discussion' }).isVisible())) await chatToggle(page).click()
@@ -825,6 +841,7 @@ for (const others of [200, 199] as const)
               if (el.textContent === 'SYNTHETIC shared words') window.sawStale = true
           }).observe(document.body, { childList: true, subtree: true, characterData: true })
         })
+        // Fixed wait kept: negative check: past the feed’s debounced snapshot read, whose answer has no marker; the stale words must not return
         await page.waitForTimeout(1000) // past the feed's debounced snapshot read, which lags or fails
         if (refresh === 'fails') expect(await page.evaluate(() => window.snapshotsFailed ?? 0)).toBeGreaterThan(0)
         expect(await page.evaluate(() => window.sawStale ?? false), 'the erased words never came back').toBe(false)
@@ -910,6 +927,7 @@ for (const act of ['correct', 'withdraw'] as const)
             if (el.textContent === 'SYNTHETIC shared words') window.sawStale = true
         }).observe(document.body, { childList: true, subtree: true, characterData: true })
       })
+      // Fixed wait kept: negative check: past the feed’s debounced snapshot read, whose answer has no marker; the stale words must not return
       await page.waitForTimeout(1000) // past the feed's debounced snapshot read
       if (refresh === 'fails') expect(await page.evaluate(() => window.snapshotsFailed ?? 0)).toBeGreaterThan(0)
       expect(await page.evaluate(() => window.sawStale ?? false), 'the erased words never came back').toBe(false)

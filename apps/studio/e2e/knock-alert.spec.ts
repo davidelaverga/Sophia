@@ -126,6 +126,7 @@ test('knock · those already waiting when the page opens are not news; a viewer 
   await page.goto('/room.html?role=viewer')
   await page.evaluate(() => window.fixture?.knock())
   await expect(door(page).getByRole('status')).toContainText('At the door')
+  // Fixed wait kept: negative check: no chime or notification for a viewer
   await page.waitForTimeout(500)
   expect(await alerts(page)).toMatchObject({ chimes: 0, notified: [] })
 })

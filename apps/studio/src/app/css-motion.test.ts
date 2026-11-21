@@ -60,6 +60,6 @@ describe('motion that moves', () => {
 
   it('the live ring’s share is a registered number, eased on its ring within a tick', () => {
     assert.match(css, /@property --fresh\s*\{[^}]*syntax:\s*'<number>'/)
-    assert.match(css, /\.live-ring\[data-live\]::before\s*\{[^}]*transition:\s*--fresh var\(--base\)/)
+    assert.match(css, /\.live-ring\[data-live\]::before\s*\{[^}]*transition:\s*--fresh var\(--motion-base\)/)
   })
 })

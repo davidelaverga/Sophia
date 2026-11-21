@@ -148,6 +148,7 @@ test('version · where the part is gone, nothing else joins: not the key, not th
   expect(await offered()).toBe(0)
   const asked = await tokens()
   await page.locator('body').press('Control+j')
+  // Fixed wait kept: negative check: a join let through would have asked for its token by now; nothing marks an absence
   await page.waitForTimeout(500) // a join would have asked for its token by now
   expect(await tokens()).toBe(asked)
   // The check's opener, alone in the dock: a square of the dock's size, clear of its edge.

@@ -58,6 +58,7 @@ test('hears · while she listens, the holder’s voice stirs her inside and draw
       timeout: 8000,
     })
     .toBeGreaterThanOrEqual(0.99)
+  // Fixed wait kept: her light eases to quiet over its own frames; the read samples it after that ease
   await page.waitForTimeout(1600)
   const quiet = await read(page)
   await voice(page, 1, 0.8)

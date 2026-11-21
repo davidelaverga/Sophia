@@ -540,7 +540,12 @@ function listenAnew(cb: RoomCallbacks, qualification: RoomQualification | undefi
   listenToReactions(room, (heard) => cb.onReaction?.(heard))
   watchQualification(room, qualification)
   handSent = null // a new connection has sent no hand yet
-  return handSignal(room, sendHand, () => cb.onChange())
+  // A raise said as a new one, by the name the room shows (hand-and-sync-announced.md), as livekit-room.ts does.
+  const onRaised = (identity: string) => {
+    const p = others().find((o) => o.identity === identity)
+    if (p) cb.onHandRaised?.(p.name)
+  }
+  return handSignal(room, sendHand, () => cb.onChange(), { onRaised })
 }
 
 /** Leaving, as LiveKit leaves: this page's end told first, then the call's tracks go; a slow or failed disconnect too. */

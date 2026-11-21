@@ -36,7 +36,7 @@
 - **Leaving lowers it:** the hand lives in the connection, so a new call starts lowered, and the others forget a hand
   whose person left.
 - **A reconnect clears it, the same for everyone:** back from a drop, this person's own hand is lowered and said so to
-  the room, sent again until it goes (review P2; a raise pressed meanwhile is never overtaken by it), what was heard before the drop is forgotten once the room is asked, and the members still raised answer
+  the room, sent again until it goes (review P2; a raise pressed meanwhile is never overtaken by it; one still unsent at the next drop is sent after that reconnect too, and a raise refused meanwhile leaves it owed, Codex P2 on #523), what was heard before the drop is forgotten once the room is asked, and the members still raised answer
   the asker alone. An ask that can't be sent (a guest's) forgets nothing.
 - A hand sent and refused (the data channel failed) goes back down here.
 

@@ -61,6 +61,7 @@ import {
 import { usePlaceMotion } from './usePlaceMotion.ts'
 import type { Handed } from './handed.ts'
 import { Welcome } from './Welcome.tsx'
+import { FirstRun, FirstRunHeld, useFirstRun } from './FirstRun.tsx'
 import { WorkSpace } from './WorkSpace.tsx'
 import { useArchivedWork } from '../studio/Archive.tsx'
 import { personalFailure } from './write-words.ts'
@@ -84,7 +85,8 @@ export interface PlacesProps {
   onOpened: () => void
   /** `replace`: take this history entry's place (a place that can't be shown, which Back must not land on again). */
   onGo: (place: Place, replace?: boolean) => void
-  onOpenProject: (projectId: string, join: boolean) => void
+  /** `invite`: with its Invite sheet open over it (Home's first run, «With a team»; home-first-run.md). */
+  onOpenProject: (projectId: string, join: boolean, invite?: boolean) => void
   /** A project at one of its views: where a need lives (docs/plans/needs-api.md). */
   onOpenView: (projectId: string, view: ProjectView, at: NeedAt) => void
   onChooseDev: (identity: Identity | null) => void
@@ -418,6 +420,30 @@ function useHomeSays(v: View, answers: boolean | undefined): Said[] {
   return says
 }
 
+/**
+ * Home's guided first run (home-first-run.md): its place held while it can't tell yet, then the run while it shows.
+ * Made, the project opens, with its Invite sheet when the person works with a team; made after it ended, the projects
+ * are read again and nobody is taken into it.
+ */
+function useHomeFirstRun(v: View) {
+  const { identity, onOpenProject } = v.props
+  const first = useFirstRun(identity, v.projects.data?.projects)
+  if (first.holds) return <FirstRunHeld />
+  if (!first.shows) return undefined
+  return (
+    <FirstRun
+      identity={identity}
+      profile={first.profile}
+      onEnd={first.end}
+      onCreated={(id, team) => {
+        first.end()
+        onOpenProject(id, false, team)
+      }}
+      onAdded={() => void v.projects.refetch()}
+    />
+  )
+}
+
 function Home({ v }: { v: View }) {
   const { props, now, nav } = v
   const data = v.personal
@@ -441,6 +467,7 @@ function Home({ v }: { v: View }) {
   // Whether Sophia answers here, as the API says; unknown until the space is read (home-no-companion.md).
   const answers = data ? data.companion !== 'unavailable' : undefined
   const says = useHomeSays(v, answers)
+  const firstRun = useHomeFirstRun(v)
   return (
     <div className="c-home" data-place-view="home" data-content hidden={!v.shown.includes('home')}>
       <Welcome
@@ -452,6 +479,7 @@ function Home({ v }: { v: View }) {
         reads={needsRead ? [personalRead(v), projectsRead(v), needsRead] : [personalRead(v), projectsRead(v)]}
         needs={needs}
         invited={<InvitedBand identity={props.identity} onOpen={(id) => props.onOpenProject(id, false)} />}
+        firstRun={firstRun}
         projects={projects}
         loadingProjects={readState(v.projects) === 'loading'}
         now={now}

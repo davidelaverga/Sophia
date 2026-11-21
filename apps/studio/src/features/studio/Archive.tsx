@@ -24,10 +24,12 @@ const keys = archiveKeys()
  * The read of the person's archived projects (A30), read again as the lists are. Once it answers, it shows where each
  * project stands, so a write left with no reply before it started lets go of its key (Codex on #471). The keys are the
  * account's (accountOf: its token's subject), never its address's, which another account can share (Codex on #473).
+ * Home's first run asks it only while no project is active (`enabled`; home-first-run.md).
  */
-const useArchivedRead = (identity: Identity) =>
+export const useArchivedRead = (identity: Identity, enabled = true) =>
   useQuery({
     queryKey: archivedKey(identity),
+    enabled,
     queryFn: async ({ signal }) => {
       const answered = keys.reading(accountOf(identity))
       const list = await listArchivedProjects(identity.token, signal)

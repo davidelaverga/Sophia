@@ -63,6 +63,7 @@ test('alive · «Stop speaking» cuts her line, and nothing more is said', async
   await expect(page.getByText('Sophia is listening to you').first()).toBeVisible()
   const said = await lines(page).allTextContents()
   // Longer than her whole line and Marco's would take: neither goes on.
+  // Fixed wait kept: negative check: longer than her line and Marco’s would take, neither goes on
   await page.waitForTimeout(6000)
   // Past when Marco would have taken the floor: it is still yours, and he said nothing.
   await expect(page.getByText('Sophia is listening to you').first()).toBeVisible()

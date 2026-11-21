@@ -82,6 +82,11 @@ interface Props {
   needs?: { items: readonly Need[]; open: (need: Need) => void; skew?: number } | undefined
   /** The invitations waiting for the person (InvitedBand, A16): right under the greeting; nothing when none waits. */
   invited?: ReactNode
+  /**
+   * The guided first run (FirstRun, home-first-run.md), the first time with nothing yet: under the greeting, in place
+   * of You and Sophia and the projects; gone, Home is as it is today.
+   */
+  firstRun?: ReactNode
   actions: {
     /** Into your conversation with her (unlocking it first, when locked). */
     personal: () => void
@@ -587,13 +592,74 @@ function useNeedsFocus(home: RefObject<HTMLDivElement | null>, oneColumn: boolea
   }, [home, oneColumn])
 }
 
+/** Home as it is today, under the greeting: You and Sophia, then the projects. */
+function Today(props: Props & { line: RefObject<HTMLElement | null>; onTalk: (t: Talk) => void }) {
+  return (
+    <>
+      <You
+        you={props.you}
+        locked={props.locked}
+        answers={props.answers}
+        actions={props.actions}
+        onTalk={props.onTalk}
+        line={props.line}
+        hidden={props.hidden}
+        here={props.here}
+        next={homeNextAsk(props.projects, props.now)}
+      />
+      {(props.projects || props.loadingProjects) && (
+        <section className="hw-section" aria-labelledby="hw-work-h">
+          <h3 id="hw-work-h" className="hw-label">
+            Projects
+          </h3>
+          <Index
+            projects={props.projects}
+            loadingProjects={props.loadingProjects}
+            now={props.now}
+            inCallProject={props.inCallProject}
+            count={props.count}
+            actions={props.actions}
+          />
+        </section>
+      )}
+    </>
+  )
+}
+
+/**
+ * The first run ended (Escape, «Not now»): the focus it held is never left on what was removed. It goes to You and
+ * Sophia's heading, where Home as it is today begins.
+ */
+function useFocusAfterFirstRun(home: RefObject<HTMLDivElement | null>, running: boolean) {
+  const was = useRef(running)
+  // Whether the focus was in the first run: only then is it put back, never taken from where Home put it.
+  const held = useRef(false)
+  useEffect(() => {
+    const el = home.current
+    const onFocus = (e: FocusEvent) => {
+      held.current = e.target instanceof Element && e.target.closest('.hw-first-run') !== null
+    }
+    el?.addEventListener('focusin', onFocus)
+    return () => el?.removeEventListener('focusin', onFocus)
+  }, [home])
+  useLayoutEffect(() => {
+    const ended = was.current && !running
+    was.current = running
+    const fell = document.activeElement === null || document.activeElement === document.body
+    if (ended && fell && held.current) document.getElementById('hw-you-h')?.focus({ preventScroll: true })
+    if (ended) held.current = false
+  }, [running])
+}
+
 export function Welcome(props: Props) {
   const [talk, setTalk] = useState<Talk>({ writing: false })
   const line = useRef<HTMLElement | null>(null)
+  const firstRun = props.firstRun ?? null
   // Mounted where it is read: on one column right after the greeting, in the document as on the screen, so a keyboard
   // and a screen reader meet it where the eye does (docs/plans/home-phone-needs.md); beside the words otherwise.
   const oneColumn = useMedia(ONE_COLUMN)
   const home = useRef<HTMLDivElement>(null)
+  useFocusAfterFirstRun(home, firstRun !== null)
   useNeedsFocus(home, oneColumn)
   const needs = props.needs && (
     <NeedsYou needs={props.needs.items} now={onService(props.now, props.needs.skew)} onOpen={props.needs.open} />
@@ -601,7 +667,13 @@ export function Welcome(props: Props) {
   return (
     <div className="hw" ref={home}>
       <div className="hw-col">
-        <Greeting hello={props.hello} name={props.name} date={props.date} says={props.says} actions={props.actions} />
+        <Greeting
+          hello={props.hello}
+          name={props.name}
+          date={props.date}
+          says={firstRun ? [] : props.says}
+          actions={props.actions}
+        />
         {props.invited}
         {needs && oneColumn && (
           <aside className="hw-needs-here" aria-label="What needs you">
@@ -609,32 +681,7 @@ export function Welcome(props: Props) {
           </aside>
         )}
         <ReadNotes reads={props.reads} />
-        <You
-          you={props.you}
-          locked={props.locked}
-          answers={props.answers}
-          actions={props.actions}
-          onTalk={setTalk}
-          line={line}
-          hidden={props.hidden}
-          here={props.here}
-          next={homeNextAsk(props.projects, props.now)}
-        />
-        {(props.projects || props.loadingProjects) && (
-          <section className="hw-section" aria-labelledby="hw-work-h">
-            <h3 id="hw-work-h" className="hw-label">
-              Projects
-            </h3>
-            <Index
-              projects={props.projects}
-              loadingProjects={props.loadingProjects}
-              now={props.now}
-              inCallProject={props.inCallProject}
-              count={props.count}
-              actions={props.actions}
-            />
-          </section>
-        )}
+        {firstRun ?? <Today {...props} line={line} onTalk={setTalk} />}
       </div>
       {needs && !oneColumn ? (
         <aside className="hw-side" aria-label="What needs you">

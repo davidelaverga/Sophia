@@ -8,11 +8,13 @@ interface Props {
   keys?: string | undefined
   side?: 'top' | 'bottom'
   align?: 'center' | 'end' | 'start'
+  /** For a control whose description the tip is (`aria-describedby`): read by reference, though hidden from the tree. */
+  id?: string | undefined
 }
 
-export function Tip({ label, keys, side = 'top', align = 'center' }: Props) {
+export function Tip({ label, keys, side = 'top', align = 'center', id }: Props) {
   return (
-    <span className="tip" data-side={side} data-align={align} aria-hidden>
+    <span id={id} className="tip" data-side={side} data-align={align} aria-hidden>
       {label}
       {keys && <kbd>{keys}</kbd>}
     </span>

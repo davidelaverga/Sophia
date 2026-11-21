@@ -102,6 +102,7 @@ function readTipsOut(): string[] {
   })
 }
 
+// Fixed wait kept: the overflow read needs each of 14 pages’ late reads drawn, and they share no settled marker
 const settle = (page: Page) => page.waitForTimeout(1200)
 
 /** The fixtures' own origin only, and the root at `root`. */
