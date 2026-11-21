@@ -24,7 +24,7 @@ RUN curl --fail --location --output linux.tar.xz https://cdn.kernel.org/pub/linu
  && patch --fuzz=0 -p1 < /build/kernel-memory.patch \
  && python3 /build/check-memory-backing.py arch/um/os-Linux/mem.c \
  && scripts/config --disable DEBUG_INFO --disable DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT --enable DEBUG_INFO_NONE --disable DEBUG_INFO_BTF --disable MODULES --disable MODULE_SIG --set-str SYSTEM_TRUSTED_KEYS '' --set-str SYSTEM_REVOCATION_KEYS '' \
- && scripts/config --disable HOSTFS --disable MCONSOLE --disable UML_NET --disable VIRTIO_UML --disable PORT_CHAN --disable PTY_CHAN --disable TTY_CHAN --disable XTERM_CHAN --disable UML_WATCHDOG --disable UML_RANDOM --disable MMAPPER \
+ && scripts/config --disable HOSTFS --disable MCONSOLE --disable UML_NET --disable UML_NET_VECTOR --disable VIRTIO_UML --disable PORT_CHAN --disable PTY_CHAN --disable TTY_CHAN --disable XTERM_CHAN --disable UML_WATCHDOG --disable UML_RANDOM --disable MMAPPER \
  && case "$UML_KERNEL_OPTIMIZATION" in \
       performance) scripts/config --disable CC_OPTIMIZE_FOR_SIZE --enable CC_OPTIMIZE_FOR_PERFORMANCE ;; \
       size) scripts/config --disable CC_OPTIMIZE_FOR_PERFORMANCE --enable CC_OPTIMIZE_FOR_SIZE ;; \
