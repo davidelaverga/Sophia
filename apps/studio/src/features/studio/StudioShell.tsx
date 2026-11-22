@@ -21,6 +21,7 @@ import type { Passage } from '../artifacts/PassageBar.tsx'
 import type { CaptionTurn } from '../conversation/captions.ts'
 import { Conversation } from '../conversation/Conversation.tsx'
 import { MissionPanel } from '../mission/MissionPanel.tsx'
+import { useStudioExplore } from '../explore/useStudioExplore.tsx'
 import { missionKey } from '../mission/mission-view.ts'
 import { FIRST_LINE, isNew } from './first-step.ts'
 import { CallSwitches, sendingOf } from '../voice/CallSwitches.tsx'
@@ -302,6 +303,10 @@ function useShellKeys(setLens: (lens: Lens) => void, panel: RoomPanel) {
   ])
 }
 
+function RoomPanelToggles({ panel }: { panel: RoomPanel }) {
+  return <PanelToggles open={panel.panel} onToggle={panel.toggle} unread={panel.unread} updated={panel.brief.updated} />
+}
+
 export function StudioShell(props: Props) {
   const { projectId, identity, room, snapshot, panel, looking, captions: held, made, catchUp = null } = props
   const background = props.background ?? false
@@ -309,10 +314,13 @@ export function StudioShell(props: Props) {
   const owns = !background && props.routed !== false
   const { state, setLens, setDraft } = useViewerState(accountOf(identity), projectId, owns)
   const chatDraft = useAskedInto(panel, state.drafts.converse ?? '', (text) => setDraft('converse', text))
-  const me = useMembership(projectId, identity.name, identity.token).data?.actorId ?? ''
+  const membership = useMembership(projectId, identity.name, identity.token).data
+  const me = membership?.actorId ?? ''
   const names = useKnownNames(room)
   useShellKeys(setLens, panel)
-  const common = { projectId, identity, me, names }
+  const call = <PanelCallSwitches room={room} looking={looking} />
+  const explore = useStudioExplore({ projectId, identity, owns, membership, panel, call })
+  const common = { projectId, identity, me, names, exploreNote: explore.note }
   const who = { me, names, guests: useKnownGuests(room) }
   const chatOpen = panel.panel === 'chat'
   const captions = useStageCaptions(held, room, chatOpen, who)
@@ -331,15 +339,9 @@ export function StudioShell(props: Props) {
         presented={present.presented}
         showing={showing}
         {...useFirstStep({ projectId, identity, snapshot, room, panel })}
-        corner={
-          <PanelToggles
-            open={panel.panel}
-            onToggle={panel.toggle}
-            unread={panel.unread}
-            updated={panel.brief.updated}
-          />
-        }
+        corner={<RoomPanelToggles panel={panel} />}
       />
+      {explore.session}
       <SidePanel
         open={panel.panel}
         opener={panel.opener}
@@ -356,7 +358,7 @@ export function StudioShell(props: Props) {
         }
         people={<PeoplePanel room={room} projectId={projectId} identity={identity} />}
         brief={<BriefWithTasks common={common} cursor={snapshot?.cursor} onRevision={panel.brief.onRevision} />}
-        call={<PanelCallSwitches room={room} looking={looking} />}
+        call={call}
         note={panelNote(panel.panel, room.mediaError, room.error)}
       />
     </div>

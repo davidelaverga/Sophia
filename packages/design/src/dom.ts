@@ -10,8 +10,8 @@ export type ParentNode = DefaultTreeAdapterTypes.ParentNode
 export type TextNode = DefaultTreeAdapterTypes.TextNode
 
 /** A parsed document with source offsets, so a section's authored bytes can be found again. */
-export function parseDocument(html: string): Document {
-  return parse(html, { sourceCodeLocationInfo: true, scriptingEnabled: false })
+export function parseDocument(html: string, scriptingEnabled = false): Document {
+  return parse(html, { sourceCodeLocationInfo: true, scriptingEnabled })
 }
 
 export function isElement(node: ChildNode | ParentNode): node is Element {

@@ -11,7 +11,7 @@
 /** Whose held write, where: the account (accountOf), the part that sent it, and the project. */
 export interface HeldAt {
   account: string
-  part: 'talk' | 'room'
+  part: 'talk' | 'room' | 'managed-explore'
   project: string
 }
 
