@@ -10,6 +10,7 @@ import {
   type ExploreVersion,
 } from '../../api/managed-explore.ts'
 import { PrototypePreview } from './PrototypePreview.tsx'
+import { BuildHandoff } from './BuildHandoff.tsx'
 
 interface Props {
   version: ExploreVersion
@@ -89,6 +90,7 @@ function Handoff({
       <ReviewList name="Acceptance criteria" items={handoff.acceptanceCriteria} />
       <ReviewList name="Simulated behavior to replace" items={handoff.mockReplacements} />
       <ReviewList name="Open issues" items={handoff.limitations} />
+      <BuildHandoff scope={{ ...scope, sessionId, approvalId: approval.id }} account={account} approved={handoff} />
     </section>
   )
 }

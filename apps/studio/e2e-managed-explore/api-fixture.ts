@@ -62,7 +62,7 @@ const v1: ExploreVersion = {
   acceptanceCriteria: ['Shore waits for acknowledgement.'],
   mockReplacements: ['Replace the demo vessel record with the weekly exceptions feed.'],
 }
-const v2: ExploreVersion = {
+export const v2: ExploreVersion = {
   ...v1,
   id: '00000000-0000-4000-8000-000000000922',
   number: 2,
@@ -72,7 +72,7 @@ const v2: ExploreVersion = {
   changeSummary: 'A non-blank chief engineer explanation unlocks shore assignment.',
   acceptanceCriteria: ['Whitespace cannot unlock shore assignment.'],
 }
-const approval: ExploreApproval = {
+export const approval: ExploreApproval = {
   id: '00000000-0000-4000-8000-000000000931',
   versionId: v2.id,
   manifestSha256: v2.manifestSha256,
@@ -88,6 +88,7 @@ interface Fixture {
     ineligible?: boolean
     uncertain?: boolean
     existingVersions?: boolean
+    approvedVersion?: boolean
     previewPath?: 'missing-' | 'wrong-hash-'
   }
   started: boolean
@@ -254,7 +255,7 @@ export async function mockApi(page: Page, options: Fixture['options'] = {}) {
       directions: options.existingVersions ? [shore, vessel] : [],
       selectedDirectionId: options.existingVersions ? vessel.id : null,
       versions: options.existingVersions ? [v1, v2] : [],
-      approvals: [],
+      approvals: options.approvedVersion ? [approval] : [],
     },
     options,
     started: options.existingVersions ?? false,
