@@ -609,6 +609,13 @@ const designRetryOf = (v: string | null): 'fresh' | 'stale' | 'closed' | null =>
 const wrongBoard = (v: string | null): 'malformed' | 'foreign' | null =>
   v === 'malformed' || v === 'foreign' ? v : null
 
+/** `inroom=Davide,Sophia`: who the project list says is in the room (one-truth.md); absent, nobody. */
+const inRoomOf = (v: string | null) => {
+  if (v === null) return null
+  const names = v.split(',').filter(Boolean)
+  return { people: names.filter((n) => n !== 'Sophia'), sophia: names.includes('Sophia') }
+}
+
 const query = new URLSearchParams(window.location.search)
 
 /** `resources=crash`: the Resources view fails to draw until `healView`, as a bug in a view would (view-boundary.md). */
@@ -978,6 +985,7 @@ const project = {
       ]
     : [],
   projectsFail: query.get('projects') === 'fail',
+  inRoom: inRoomOf(query.get('inroom')),
   missionHeld: query.get('mission') === 'hold' ? waiting() : null,
   // `targetsRead=hold` or `fail`: the goals' targets wait, or fail, from the first (targets-robust.md).
   targetsHeld: query.get('targetsRead') === 'hold' ? waiting() : null,

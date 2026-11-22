@@ -70,9 +70,8 @@ export function authorLabel(
   fallback: string | null = null,
 ): string {
   if (actorId === me) return 'You'
-  const name = names.get(actorId) ?? fallback ?? undefined
-  if (name === undefined) return 'A member'
-  return spokenName(name)
+  // A participant with no name (LiveKit's empty one) is no name either: the message's own comes next.
+  return spokenName(names.get(actorId) || fallback || '')
 }
 
 /**
@@ -97,7 +96,7 @@ const ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
  * A name as it is said: an address is no name, so the person, as the stage names them (e2e-real Q1); a name given stays
  * whole, an at sign in it or not (a guest's «@alice», «Ana @ Acme»: Codex P2 on #330).
  */
-export const spokenName = (name: string) => (ADDRESS.test(name) ? shortName(name) : name)
+export const spokenName = (name: string) => (ADDRESS.test(name) || !name.trim() ? shortName(name) : name)
 
 export type BriefBlock =
   { kind: 'heading'; text: string } | { kind: 'item'; text: string } | { kind: 'paragraph'; text: string }

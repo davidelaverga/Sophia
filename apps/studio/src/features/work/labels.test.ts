@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { goalCommands, summaryLabel } from './labels.ts'
+import { awaitsConfirmation, goalCommands, pulseTone, summaryLabel } from './labels.ts'
 
 describe('event words in the work pulse', () => {
   it('names room access and membership events', () => {
@@ -44,5 +44,47 @@ describe('a goal’s commands (docs/plans/prod-asks.md)', () => {
     assert.deepEqual(goalCommands('ready', false), ['stop'])
     assert.deepEqual(goalCommands('ready', true), ['request_review', 'stop'])
     assert.deepEqual(goalCommands('completed', true), [])
+  })
+})
+
+describe('a pulse dot says what happened (one-truth.md)', () => {
+  it('is asked for a command sent and a guest at the door', () => {
+    assert.equal(pulseTone('command.hold', 'command.admitted'), 'asked')
+    assert.equal(pulseTone('command.steer', 'command.admitted'), 'asked')
+    assert.equal(pulseTone('room.lobby_knock', 'room.lobby_changed'), 'asked')
+    assert.equal(pulseTone('native_task.research', 'native_task.created'), 'asked')
+  })
+
+  it('is halted for a goal held or stopped, and a command not carried out or not confirmed', () => {
+    assert.equal(pulseTone('goal.held', 'goal.held'), 'halted')
+    assert.equal(pulseTone('goal.stopped', 'goal.stopped'), 'halted')
+    assert.equal(pulseTone('command.stop', 'command.denied'), 'halted')
+    assert.equal(pulseTone('command.hold', 'command.outcome_unknown'), 'halted')
+    assert.equal(pulseTone('room.lobby_removal_pending', 'room.lobby_changed'), 'halted')
+  })
+
+  it('is done for everything else that happened', () => {
+    assert.equal(pulseTone('goal.completed', 'goal.completed'), 'done')
+    assert.equal(pulseTone('room.session', 'room.session_scheduled'), 'done')
+    assert.equal(pulseTone('command.retire_sessions', 'command.retirement_changed'), 'done')
+  })
+})
+
+describe('a sent command waits on Sophia until the goal shows it (one-truth.md)', () => {
+  it('a Hold waits while the goal still runs or holds, and not once it is held', () => {
+    for (const status of ['running', 'checking', 'holding'] as const)
+      assert.equal(awaitsConfirmation('hold', status), true)
+    assert.equal(awaitsConfirmation('hold', 'held'), false)
+  })
+
+  it('a Stop waits until the goal is stopped; a Resume until it runs again', () => {
+    assert.equal(awaitsConfirmation('stop', 'stopping'), true)
+    assert.equal(awaitsConfirmation('stop', 'stopped'), false)
+    assert.equal(awaitsConfirmation('resume', 'held'), true)
+    assert.equal(awaitsConfirmation('resume', 'running'), false)
+  })
+
+  it('a review settles nothing the goal shows, so it keeps waiting', () => {
+    assert.equal(awaitsConfirmation('request_review', 'running'), true)
   })
 })

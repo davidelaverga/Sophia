@@ -7,7 +7,8 @@ import { progressOf, type Ask, type GoalGlance, type Ways } from './planning/pla
 
 export type { GoalGlance }
 
-export type Health = 'attention' | 'track' | 'new' | 'paused' | 'done'
+/** A stopped goal is not paused: it can't be resumed (one-truth.md), so it is counted and said apart. */
+export type Health = 'attention' | 'track' | 'new' | 'paused' | 'stopped' | 'done'
 
 /** What Goals reads of a goal's plan, and its latest note (goal-notes.md). */
 export interface Glanced extends Noted {
@@ -29,17 +30,18 @@ export const HEALTH_LABEL: Readonly<Record<Health, string>> = {
   track: 'On track',
   new: 'Not started',
   paused: 'Paused',
+  stopped: 'Stopped',
   done: 'Done',
 }
 
 /** The order a person reads them in: what needs a look first. */
-const ORDER: readonly Health[] = ['attention', 'track', 'new', 'paused', 'done']
+const ORDER: readonly Health[] = ['attention', 'track', 'new', 'paused', 'stopped', 'done']
 
 const AT_REST: Readonly<Partial<Record<Goal['status'], Health>>> = {
   holding: 'paused',
   held: 'paused',
-  stopping: 'paused',
-  stopped: 'paused',
+  stopping: 'stopped',
+  stopped: 'stopped',
   completed: 'done',
 }
 
@@ -97,6 +99,19 @@ const LINE: Readonly<Record<Goal['status'], Said>> = {
 export function stateLine(goal: Goal, glance: GoalGlance | undefined): string {
   const { done, total } = progressOf(glance?.lanes ?? [])
   return LINE[goal.status](goal, total > 0 ? `${String(done)} of ${String(total)} done` : null, total)
+}
+
+/** At rest, a goal's state says which rest it is («Held · 2 of 6 done», «Stopped»), so it leads its line. */
+export const atRest = (health: Health): boolean => health === 'paused' || health === 'stopped'
+
+/**
+ * The health line atop a goal's sheet: a pause names its state after it («Paused · Held · 2 of 6 done»); a stop is its
+ * state alone («Stopped · 2 of 6 done»), never «Paused · Stopped»; any other health is its word.
+ */
+export function sheetHealth(goal: Goal, health: Health, glance: GoalGlance | undefined): string {
+  if (health === 'paused') return `${HEALTH_LABEL.paused} · ${stateLine(goal, glance)}`
+  if (health === 'stopped') return stateLine(goal, glance)
+  return HEALTH_LABEL[health]
 }
 
 /** «1 waiting on you»: a goal's asks here, and a project view's count in its name (needs-you-in-project.md). */

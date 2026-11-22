@@ -1,6 +1,7 @@
 // work.stop / goal controls (frontend bindings: WorkControls → admitGoalCommand).
 // A receipt means "sent", never "done": the goal's status changes when Sophia confirms. An unknown outcome
 // offers a retry with the same key, so it can never be sent twice.
+import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Goal, Receipt } from '@sophia/contracts'
 import { ConfirmButton, Tag, Tip } from '@sophia/ui'
@@ -8,7 +9,7 @@ import { admitGoalCommand, type ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { VISION } from '../../app/vision.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
-import { COMMAND, goalCommands, retirementView, type CommandKind } from './labels.ts'
+import { awaitsConfirmation, COMMAND, goalCommands, retirementView, type CommandKind } from './labels.ts'
 
 interface Props {
   goal: Goal
@@ -92,7 +93,7 @@ export function WorkControls({ goal, projectId, identity, token, admin = false, 
       </div>
       {goal.retirement && <RetirementResults retirement={goal.retirement} />}
       <p className="outcome" role="status" aria-live="polite">
-        <AdmissionOutcome state={admission.state} onRetry={() => void admission.retry()} />
+        <AdmissionOutcome state={admission.state} status={goal.status} onRetry={() => void admission.retry()} />
       </p>
     </div>
   )
@@ -145,20 +146,22 @@ function rejectionMessage(error: ApiError): string {
   return error.message
 }
 
-function AdmissionOutcome({ state, onRetry }: { state: AdmissionState<CommandKind, Receipt>; onRetry: () => void }) {
+function AdmissionOutcome({
+  state,
+  status,
+  onRetry,
+}: {
+  state: AdmissionState<CommandKind, Receipt>
+  /** The goal's status now: once it shows the command's effect, the receipt stops saying it waits (one-truth.md). */
+  status: Goal['status']
+  onRetry: () => void
+}) {
   if (state.status === 'idle') return null
   if (state.status === 'sending') {
     return <span className="muted">Sending {COMMAND[state.args].noun.toLowerCase()}…</span>
   }
   if (state.status === 'done' && state.args === 'retire_sessions') return <RetirementSent receipt={state.result} />
-  if (state.status === 'done') {
-    return (
-      <>
-        <Tag tone="teal">Sent</Tag>
-        <span>{COMMAND[state.args].requested}. The status changes when Sophia confirms.</span>
-      </>
-    )
-  }
+  if (state.status === 'done') return <Sent receipt={state.result} kind={state.args} status={status} />
   if (state.status === 'unknown') {
     return (
       <>
@@ -175,6 +178,25 @@ function AdmissionOutcome({ state, onRetry }: { state: AdmissionState<CommandKin
     <>
       <Tag tone="rose">Not accepted</Tag>
       <span>{rejectionMessage(state.error)}</span>
+    </>
+  )
+}
+
+/**
+ * A command sent: «Sent», what was asked, and while the goal hasn't shown it, that Sophia confirms it. Once the goal has
+ * shown it, the receipt is settled: a later change (someone else resumes) never brings «The status changes…» back.
+ * Held per receipt, so the next command waits again (one-truth.md).
+ */
+function Sent({ receipt, kind, status }: { receipt: Receipt; kind: CommandKind; status: Goal['status'] }) {
+  const [settled, setSettled] = useState<Receipt | null>(null)
+  const waits = settled !== receipt && awaitsConfirmation(kind, status)
+  if (!waits && settled !== receipt) setSettled(receipt)
+  return (
+    <>
+      <Tag tone="teal">Sent</Tag>
+      <span>
+        {COMMAND[kind].requested}.{waits && ' The status changes when Sophia confirms.'}
+      </span>
     </>
   )
 }

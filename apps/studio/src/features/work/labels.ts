@@ -172,6 +172,41 @@ export function summaryLabel(summaryCode: string, type: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
+/**
+ * What a pulse row's dot says (one-truth.md), the label still saying it in words: asked (a command sent, a guest at the
+ * door), done, or halted (a goal held or stopped, a command not carried out or not confirmed).
+ */
+export type PulseTone = 'asked' | 'done' | 'halted'
+
+const HALTED: ReadonlySet<string> = new Set([
+  'goal.held',
+  'goal.stopped',
+  'command.denied',
+  'command.outcome_unknown',
+  'room.lobby_removal_pending',
+])
+const ASKED: ReadonlySet<string> = new Set(['room.lobby_knock', 'native_task.research'])
+
+export function pulseTone(summaryCode: string, type: string): PulseTone {
+  if (HALTED.has(type) || HALTED.has(summaryCode)) return 'halted'
+  if (summaryCode.startsWith('command.')) return COMMAND_LATER[type] ? 'done' : 'asked'
+  return ASKED.has(summaryCode) ? 'asked' : 'done'
+}
+
+/** The goal states that settle each command: until the goal reaches one, Sophia hasn't confirmed it (one-truth.md). */
+const SETTLES: Readonly<Partial<Record<CommandKind, ReadonlyArray<Goal['status']>>>> = {
+  hold: ['held', 'stopping', 'stopped', 'completed'],
+  resume: ['running', 'checking', 'stopping', 'stopped', 'completed'],
+  stop: ['stopped', 'completed'],
+}
+
+/**
+ * Whether a sent command still waits on Sophia's confirmation, by the goal's status now: a Hold until the goal is
+ * held, a Stop until it is stopped. A review settles nothing the goal shows, so it always waits.
+ */
+export const awaitsConfirmation = (kind: CommandKind, status: Goal['status']): boolean =>
+  !(SETTLES[kind]?.includes(status) ?? false)
+
 type Retirement = NonNullable<Goal['retirement']>
 type RetirementResult = Retirement['targets'][number]['result']
 

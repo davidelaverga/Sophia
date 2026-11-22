@@ -29,6 +29,7 @@ import { sendingOf } from '../voice/CallSwitches.tsx'
 import { MiniDock, RoomSwitches } from '../voice/MiniDock.tsx'
 import { CallInReach } from '../../app/call-in-reach.tsx'
 import { askedJoin, shortName } from '../voice/room-view.ts'
+import { withOwnName } from '../voice/own-name.ts'
 import { useOnline } from '../personal/online.ts'
 import { lookingText } from '../voice/sophia-view.ts'
 import { useHeldCaptions } from '../voice/StageCaptions.tsx'
@@ -240,6 +241,11 @@ interface Props {
   inviteOnOpen?: boolean
   onInviteHandled?: () => void
   /**
+   * The name this person saved (one-truth.md): their own tile, row and hand read it at once, while the others
+   * see it from their next join. Absent (the fixtures), the call's own name stands.
+   */
+  ownName?: string | null
+  /**
    * The Resources view's content, once something serves the project's resources (SCM-01/02); until then the view says
    * it is coming. The resource fixture fills it (fixtures/resources.tsx).
    */
@@ -419,9 +425,9 @@ function useProjectKeys(
 }
 
 /** What the shell reads of the project: its feed, its room and the viewer's membership. */
-function useProject(projectId: string, identity: Props['identity']) {
+function useProject({ projectId, identity, ownName = null }: Pick<Props, 'projectId' | 'identity' | 'ownName'>) {
   const { snapshot, feed, connection, checkedAt } = useProjectFeed(projectId, identity.name, identity.token)
-  const room = useProjectRoom(projectId, identity.token, snapshot.data)
+  const room = withOwnName(useProjectRoom(projectId, identity.token, snapshot.data), ownName)
   const membership = useProjectMembership(projectId, identity.name, identity.token, snapshot.dataUpdatedAt).data
   return { snapshot, feed, connection, checkedAt, room, membership }
 }
@@ -582,7 +588,7 @@ function ShellTitle(p: {
 
 export function ProjectShell(props: Props) {
   const { projectId, view, identity, account, onShow, onLeave, onWork, onSignOut } = props
-  const { snapshot, feed, connection, checkedAt, room, membership } = useProject(projectId, identity)
+  const { snapshot, feed, connection, checkedAt, room, membership } = useProject(props)
   const { inviting, setInviting, searching, setSearching, invite, search } = useShellSheets(props)
   const { loaded, blocked, shown } = doorOf(snapshot)
   const dockAt = useDockPlace(room, snapshot.data, () => onShow('studio'), dockShown(view, blocked))

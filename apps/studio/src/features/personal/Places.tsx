@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PersonalSpace as Space, ProjectRelease, ProjectSummary } from '@sophia/contracts'
 import { accountOf, tokenSubject } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { useShownIdentity } from '../../app/useMyProfile.ts'
 import { useDocumentTitle } from '../../app/document-title.ts'
 import type { Place, View as ProjectView } from '../../app/route.ts'
 import { modalOnScreen } from '../../app/shortcuts.ts'
@@ -368,6 +369,8 @@ interface View {
   /** A long conversation read back, before what the space lists. */
   readBack: ReadBack
   projects: ReturnType<typeof useProjects>
+  /** The signed-in person as the places name them: the name they saved first (one-truth.md). */
+  you: Identity
   writes: PersonalWrites
   shown: readonly Place[]
   nav: Nav
@@ -472,7 +475,7 @@ function Home({ v }: { v: View }) {
     <div className="c-home" data-place-view="home" data-content hidden={!v.shown.includes('home')}>
       <Welcome
         hello={greeting(now.getHours(), null, fresh)}
-        name={firstName(props.identity)}
+        name={firstName(v.you)}
         date={dateLine(now)}
         says={says}
         you={youDoor({ locked: lockedBy(props.lock), turns: data?.turns, notes: data?.notes.length ?? 0, now })}
@@ -520,7 +523,7 @@ function Personal({ v }: { v: View }) {
       locked={props.lock.locked}
       now={v.now}
       account={accountOf(props.identity)}
-      name={firstName(props.identity)}
+      name={firstName(v.you)}
       space={v.personal}
       epoch={v.personal?.epoch ?? v.projects.data?.personalEpoch}
       readBack={v.readBack}
@@ -606,7 +609,7 @@ function Sheets({ v }: { v: View }) {
       {layers.data && (
         <DataSheet
           token={identity.token}
-          who={identity.displayName ?? firstName(identity) ?? identity.name}
+          who={v.you.displayName ?? firstName(v.you) ?? identity.name}
           space={v.personal}
           read={personalRead(v)}
           epoch={epochNow(v.personal, v.projects.data)}
@@ -691,6 +694,7 @@ export function Places(props: PlacesProps) {
     personal: lock.locked ? undefined : space.data,
     readBack: useReadBack(identity, lock.locked ? undefined : space.data),
     projects,
+    you: useShownIdentity(identity),
     writes: usePersonalWrites(identity, lock.locked),
     shown: usePlaceMotion(place, root),
     nav,

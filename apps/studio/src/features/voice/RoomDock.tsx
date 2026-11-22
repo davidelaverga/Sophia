@@ -3,7 +3,7 @@
 // and leave. Nothing here changes project work. Its height (a note, a second row on a phone) is the room's
 // --dock-h, so the words and the video above always clear it.
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import type { ExchangeReceipt, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip, type IconName } from '@sophia/ui'
@@ -32,6 +32,8 @@ import { LookingIndicator, SophiaControls } from './SophiaControls.tsx'
 import type { SophiaView } from './sophia-view.ts'
 import { SOUND_BLOCKED, soundView } from './sound-view.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
+import { facesOf, type RoomPresence } from './room-presence.ts'
+import { useRoomPresence } from './useRoomPresence.ts'
 import { DockWord } from './DockWord.tsx'
 import { useMedia } from '../../app/useMedia.ts'
 
@@ -109,6 +111,8 @@ export function RoomDock(props: Props) {
   const talking = usePushToTalk(micOn, room, live)
   const note = room.mediaError ?? room.error
   const sound = soundView(room, props.sophia)
+  // Who is in before this person joins (one-truth.md): Join shows them, as Home and Work's card do.
+  const presence = useRoomPresence(props.projectId, props.identity, !live)
   return (
     <>
       {/* Beside the dock, not in it: the dock's measured height (--dock-h) is the dock's alone. */}
@@ -135,7 +139,7 @@ export function RoomDock(props: Props) {
             <LiveControls {...props} sophiaAllow={sound.sophiaAllow} />
           ) : (
             <>
-              {!partGone(room) && <JoinButton room={room} />}
+              {!partGone(room) && <JoinButton room={room} presence={presence} />}
               <CheckOpener room={room} />
               <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
               <RejoinLeave room={room} />
@@ -279,23 +283,46 @@ function CheckOpener({ room }: { room: ProjectRoom }) {
   )
 }
 
-function JoinButton({ room }: { room: ProjectRoom }) {
+function JoinButton({ room, presence }: { room: ProjectRoom; presence: RoomPresence }) {
   // Its tip says the microphone's default (joinTip): drawn again as Settings changes it (Codex P2 on #398).
   useMicOnJoin()
   const label = room.status === 'joining' ? 'joining' : room.status === 'failed' ? 'retry' : 'join'
+  // Who is in, as Work's card shows it: their initials where the dot was, and their names for a screen reader.
+  const faces = facesOf(presence)
+  const who = useId()
+  const words = presence.known ? presence.words : null
   return (
-    <button
-      type="button"
-      className="pill primary has-tip"
-      // Where a switch beside it that goes away hands the focus (TextMode).
-      data-call-anchor
-      disabled={room.status === 'joining' || !room.ready}
-      onClick={() => void room.join()}
-    >
-      <span className="pill-dot" aria-hidden />
-      <SwapLabel value={label} labels={{ join: 'Join the room', joining: 'Joining…', retry: 'Try again' }} />
-      <Tip label={joinTip(room.textMode)} keys={roomKey('join')} />
-    </button>
+    <>
+      <button
+        type="button"
+        className="pill primary has-tip"
+        // Where a switch beside it that goes away hands the focus (TextMode).
+        data-call-anchor
+        disabled={room.status === 'joining' || !room.ready}
+        aria-describedby={words ? who : undefined}
+        onClick={() => void room.join()}
+      >
+        {faces.length > 0 ? (
+          <span className="join-faces" aria-hidden>
+            {faces.map((initial, i) => (
+              <span key={`${initial}-${String(i)}`} className="join-face">
+                {initial}
+              </span>
+            ))}
+          </span>
+        ) : (
+          <span className="pill-dot" aria-hidden />
+        )}
+        <SwapLabel value={label} labels={{ join: 'Join the room', joining: 'Joining…', retry: 'Try again' }} />
+        <Tip label={joinTip(room.textMode)} keys={roomKey('join')} />
+      </button>
+      {/* Outside the button, so its name stays «Join the room», and hidden, so it is read once, as its description. */}
+      {words && (
+        <span id={who} hidden>
+          {words}
+        </span>
+      )}
+    </>
   )
 }
 

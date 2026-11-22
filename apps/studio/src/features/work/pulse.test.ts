@@ -77,3 +77,14 @@ describe('a command’s later events are not new requests (R-C75-UI-1)', () => {
     )
   })
 })
+
+describe('the work pulse tones each row', () => {
+  it('carries what happened to its dot: asked, done or halted', () => {
+    const held = { ...event('goal.held', t(20)), type: 'goal.held' }
+    const asked = { ...event('command.hold', t(19)), type: 'command.admitted' }
+    assert.deepEqual(
+      pulseRows([held, asked, event('room.session', t(18))]).map((r) => r.tone),
+      ['halted', 'asked', 'done'],
+    )
+  })
+})

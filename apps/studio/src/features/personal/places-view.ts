@@ -264,6 +264,15 @@ export function roomNames(room: NonNullable<ProjectSummary['room']>): string {
 const peopleIn = (p: ProjectSummary) => p.room?.people.length ?? 0
 
 /**
+ * «Davide and Sophia are in the room»: who the server says is in a room, as Work's card, People before joining and the
+ * dock's Join say it (one-truth.md); null when nobody is (Sophia alone is nobody to join).
+ */
+export function inTheRoom(room: ProjectSummary['room']): string | null {
+  if (!room || room.people.length === 0) return null
+  return `${roomNames(room)} ${room.people.length === 1 && !room.sophia ? 'is' : 'are'} in the room`
+}
+
+/**
  * The next ask Home's line suggests (docs/plans/next-ask-places.md): a session about to start, the one thing Home's
  * line can help with from what its words carry; nothing otherwise. Home's line goes to the companion, which never sees
  * a project, so a room's «Catch me up» is not offered here: catching up is the project's conversation's (its own next
@@ -380,10 +389,7 @@ export const carriedFrom = (mine: boolean, ownerName: string) =>
 export function projectCard(project: ProjectSummary, now: Date, inCallHere: boolean): ProjectCard {
   const live = peopleIn(project) > 0
   const when = sessionWhen(project, now)
-  const presence =
-    live && project.room
-      ? `${roomNames(project.room)} ${project.room.people.length === 1 && !project.room.sophia ? 'is' : 'are'} in the room`
-      : null
+  const presence = inTheRoom(project.room)
   const meta = `${membersLabel(project.members)}${when ? ` · session ${when}` : ''}`
   const action = inCallHere ? 'leave' : live || soon(project, now) ? 'join' : 'open'
   return { presence, meta, action }

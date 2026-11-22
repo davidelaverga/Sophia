@@ -1007,6 +1007,23 @@ button:disabled,
   background: var(--core);
   box-shadow: var(--glow-dot);
 }
+/* Who is in the room, on Join where its dot was (one-truth.md): Work's card faces, in the press's own ink. */
+.join-faces {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: -4px;
+}
+.join-face {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+  font-size: 9.5px; /* an initial: a glyph sized to its circle, not text on the scale */
+  font-weight: 600;
+  line-height: 1;
+}
 /* Keys inside buttons: quiet until they matter; on the light primary they are ink. */
 .pill kbd {
   margin-right: -4px;
@@ -5296,6 +5313,15 @@ button.contribution-quote:hover {
 .event.hidden-event {
   color: var(--text-3);
 }
+/* A dot by what happened (one-truth.md): asked in the halo's violet, done in teal, halted in amber; the words say it too. */
+.event .dot[data-tone='asked'] {
+  background: var(--halo-text);
+  box-shadow: 0 0 0 3px rgb(var(--halo-rgb) / 0.14);
+}
+.event .dot[data-tone='halted'] {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px rgb(var(--amber-rgb) / 0.14);
+}
 .event.hidden-event .dot {
   background: var(--text-4);
   box-shadow: none;
@@ -7728,6 +7754,10 @@ button.contribution-quote:hover {
 }
 .person:hover {
   background: rgb(var(--ink-rgb) / 0.04);
+}
+/* Before joining, a row is a name the server gave and nothing to press: no plane answers the pointer (one-truth.md). */
+.people-outside .person:hover {
+  background: none;
 }
 /* Touch: the menu and the volume are each a finger's 40 px square, and their columns follow, so neither passes its row.
    The shared touch rule lifts a round button's height only: the volume stayed 36 px wide (Codex P2 on #425). */

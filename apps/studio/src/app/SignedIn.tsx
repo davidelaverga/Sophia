@@ -27,6 +27,8 @@ import { ShortcutScope } from './shortcuts.ts'
 import { SIGN_OUT_FAILED } from './sign-out.ts'
 import { Toast, useToast, type ShowToast } from './Toast.tsx'
 import type { useProjectRoute } from './useProjectRoute.ts'
+import { useMyProfile } from './useMyProfile.ts'
+import { ownName } from './person-name.ts'
 
 interface SignedInProps {
   identity: Identity
@@ -239,6 +241,8 @@ interface ShellsProps {
 function ProjectShells(props: ShellsProps) {
   const { ids, onScreen, identity, account, routing, asks, onCall, onSignOut } = props
   const { route, show, leave, goTo } = routing
+  // This person's saved name (the account menu's read): their own tile in the call says it at once.
+  const own = ownName(useMyProfile(identity).profile?.displayName, identity)
   return (
     <>
       {ids.map((id) => (
@@ -249,6 +253,7 @@ function ProjectShells(props: ShellsProps) {
               projectId={id}
               view={id === route.projectId ? shownView(route.view, VISION, CONVERSATIONS, ATTENTION) : 'studio'}
               identity={identity}
+              ownName={own}
               account={account}
               onShow={show}
               onLeave={leave}
