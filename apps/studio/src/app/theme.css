@@ -5081,18 +5081,20 @@ button.contribution-quote:hover {
 .controls .control-row .pill + .text-button {
   margin-left: 6px;
 }
-/* On a coarse pointer a goal's text presses (Hold, Stop, Resume) are fingers' targets: each reaches to at least 44 x
-   44 px, centred on its words and never less than 8 px past each side, so a short word reaches further. Two side by
-   side keep 16 px between them, twice that reach, so the targets never meet (Codex on #253; demo-findings-1.md #9). A
-   fine pointer keeps the 24 px press and its row as they were. */
+/* On a coarse pointer a goal's text presses (Hold, Stop, Resume) are fingers' targets of at least 44 x 44 px: the press
+   itself is at least 44 px wide, its words centred in it, and its ::after reaches 10 px above and below its 24 px line,
+   never less than 44 px tall. Nothing reaches past its sides, so 8 px between two presses keep their targets apart at
+   any width, to the subpixel (demo-findings-1.md #9; centred insets met by 0.02 px). A fine pointer keeps the 24 px
+   press and its row as they were. */
 @media (pointer: coarse) {
   .controls .control-row {
-    gap: 16px;
+    gap: 8px;
+  }
+  .controls .control-row .text-button {
+    min-width: 44px;
   }
   .controls .control-row .text-button::after {
-    inset: -10px min(-8px, calc((100% - 44px) / 2));
-    /* The insets reach 44 px only to the subpixel (a 23.98 px press made a 43.98 px target): the floor is stated. */
-    min-width: 44px;
+    inset: -10px 0;
     min-height: 44px;
   }
 }

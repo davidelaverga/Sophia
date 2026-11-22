@@ -104,7 +104,8 @@ test('goal controls @phone · on a coarse pointer Hold and Stop reach 44 × 44 p
     expect(t.height, t.words).toBeGreaterThanOrEqual(44)
   }
   const [hold, stop] = targets
-  expect(hold && stop && hold.right <= stop.left).toBe(true)
+  // Apart, with room: Hold's target ends before Stop's starts (numbers in the failure, not a bare false).
+  expect(hold?.right).toBeLessThanOrEqual(stop?.left ?? Number.NEGATIVE_INFINITY)
 })
 
 test('goal controls · Stop still asks in place; Keep working puts the text button back', async ({ page }) => {
