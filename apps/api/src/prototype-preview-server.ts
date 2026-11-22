@@ -40,6 +40,8 @@ async function request(req: IncomingMessage, res: ServerResponse): Promise<void>
   if (
     (method !== 'GET' && method !== 'HEAD') ||
     req.headers.host !== previewHost ||
+    req.headers.cookie !== undefined ||
+    req.headers.authorization !== undefined ||
     !req.url?.startsWith('/v1/previews/')
   ) {
     unreachable(res)
