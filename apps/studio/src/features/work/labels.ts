@@ -89,12 +89,40 @@ const LEADS_TO: Partial<Record<CommandKind, ReadonlyArray<Goal['status']>>> = {
   resume: ['running', 'checking'],
 }
 
+/** Where a command passes on its way: the goal moved at admission, until the runtime confirms (Hold, Stop). */
+const ON_THE_WAY: Partial<Record<CommandKind, Goal['status']>> = { hold: 'holding', stop: 'stopping' }
+
 /**
- * Whether the goal's status already shows a command sent from here: then «The status changes when Sophia confirms»
- * would contradict the status beside it (demo-findings-1.md #3).
+ * A sent command's line under the controls: on its way (said, with «The status changes when Sophia confirms»);
+ * settled, the goal where the command leads (the status says it; a screen reader hears it in the past); or moved, the
+ * goal taken elsewhere by a later command, anyone's (nothing more to say). demo-findings-1.md #3.
  */
-export const commandShown = (kind: CommandKind, status: Goal['status']): boolean =>
-  LEADS_TO[kind]?.includes(status) ?? false
+export type CommandLine = 'on_its_way' | 'settled' | 'moved'
+
+/**
+ * The line once the goal reads as `goal`, for a command sent at authority `sentEpoch`. Its own admission moves the
+ * authority one step; one past that is a later command. Settled or moved, it stays so until another command is sent
+ * (review P2-2): a goal running again after a Hold never brings the Hold's words back.
+ */
+export function nextLine(
+  line: CommandLine,
+  kind: CommandKind,
+  sentEpoch: number,
+  goal: Pick<Goal, 'status' | 'authorityEpoch'>,
+): CommandLine {
+  if (line !== 'on_its_way') return line
+  if (goal.authorityEpoch > sentEpoch + 1) return 'moved'
+  if (LEADS_TO[kind]?.includes(goal.status)) return 'settled'
+  if (COMMAND[kind].allowed.includes(goal.status) || ON_THE_WAY[kind] === goal.status) return 'on_its_way'
+  return 'moved'
+}
+
+/** A settled command, said in the past where only a screen reader hears it: the status beside it shows it already. */
+export const SETTLED_WORDS: Partial<Record<CommandKind, string>> = {
+  hold: 'Held.',
+  stop: 'Stopped.',
+  resume: 'Resumed.',
+}
 
 /**
  * Command summaries describe what was *requested* (admission is not completion); room and membership

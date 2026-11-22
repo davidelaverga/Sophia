@@ -115,6 +115,25 @@ test('goals · after Hold, «Held» and «when Sophia confirms» never stand tog
   // The demo's runtime confirms the Hold a moment after it is admitted (holding, then held).
   await expect(rollout).toHaveAttribute('data-status', 'held')
   await expect(rollout.locator('.goal-meta, .goal-title').getByText('Held', { exact: true })).toBeVisible()
-  // The status says it: the line that waited for it has gone.
+  // The status says it: the line that waited for it has gone, said in the past only to a screen reader.
+  await expect(line.getByText(/when Sophia confirms/)).toHaveCount(0)
+  await expect(line.locator('.sr-only')).toHaveText('Held.')
+  // A teammate resumes it: the Hold's words never come back (review P2-2).
+  await page.evaluate((title) => window.fixture?.commandByOther(title, 'resume'), ROLLOUT)
+  await expect(rollout).toHaveAttribute('data-status', 'running')
+  await expect(line.getByText(/when Sophia confirms/)).toHaveCount(0)
+})
+
+test('goals · a Hold on its way, then stopped by someone else: the Hold’s line goes, nothing said for it (review P2-2)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1&place=work')
+  const rollout = goal(page, ROLLOUT)
+  // Stopped by the teammate within the moment the Hold waits for its runtime (600 ms in the demo).
+  await rollout.getByRole('button', { name: /^Hold/ }).click()
+  await expect(rollout).toHaveAttribute('data-status', 'holding')
+  await page.evaluate((title) => window.fixture?.commandByOther(title, 'stop'), ROLLOUT)
+  await expect(rollout).toHaveAttribute('data-status', /stopp/)
+  const line = rollout.locator('.controls .outcome')
   await expect(line).toHaveText('')
 })

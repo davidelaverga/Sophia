@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { commandShown, goalCommands, summaryLabel } from './labels.ts'
+import type { Goal } from '@sophia/contracts'
+import { goalCommands, nextLine, SETTLED_WORDS, summaryLabel, type CommandKind, type CommandLine } from './labels.ts'
 
 describe('event words in the work pulse', () => {
   it('names room access and membership events', () => {
@@ -47,21 +48,85 @@ describe('a goal’s commands (docs/plans/prod-asks.md)', () => {
   })
 })
 
-describe('a sent command once the goal shows it (demo-findings-1.md #3)', () => {
-  it('is shown once the goal is where the command leads: Hold held, Stop stopped, Resume running again', () => {
-    assert.equal(commandShown('hold', 'held'), true)
-    assert.equal(commandShown('stop', 'stopped'), true)
-    assert.equal(commandShown('resume', 'running'), true)
-    assert.equal(commandShown('resume', 'checking'), true)
+describe('a sent command’s line, as the goal moves (demo-findings-1.md #3, review P2-2)', () => {
+  // Hold sent at authority 4: its admission moves the goal to 5; anyone's later command, past it.
+  const SENT = 4
+  /** The line after the goal went through these states, from a line on its way. */
+  const after = (kind: CommandKind, steps: [Goal['status'], number][]): CommandLine =>
+    steps.reduce<CommandLine>(
+      (line, [status, epoch]) => nextLine(line, kind, SENT, { status, authorityEpoch: epoch }),
+      'on_its_way',
+    )
+
+  it('is on its way while the goal is still getting there, or not read again yet', () => {
+    assert.equal(after('hold', [['running', SENT]]), 'on_its_way')
+    assert.equal(after('hold', [['holding', SENT + 1]]), 'on_its_way')
+    assert.equal(after('stop', [['stopping', SENT + 1]]), 'on_its_way')
+    assert.equal(after('resume', [['held', SENT]]), 'on_its_way')
   })
-  it('is on its way while the goal is still getting there, or not moved yet', () => {
-    assert.equal(commandShown('hold', 'running'), false)
-    assert.equal(commandShown('hold', 'holding'), false)
-    assert.equal(commandShown('stop', 'stopping'), false)
-    assert.equal(commandShown('resume', 'held'), false)
+
+  it('is settled once the goal is where the command leads: Hold held, Stop stopped, Resume back to work', () => {
+    assert.equal(
+      after('hold', [
+        ['holding', SENT + 1],
+        ['held', SENT + 1],
+      ]),
+      'settled',
+    )
+    assert.equal(after('stop', [['stopped', SENT + 1]]), 'settled')
+    assert.equal(after('resume', [['running', SENT + 1]]), 'settled')
+    assert.equal(after('resume', [['checking', SENT + 1]]), 'settled')
   })
-  it('never for a review, which leaves the goal as it is', () => {
-    assert.equal(commandShown('request_review', 'running'), false)
-    assert.equal(commandShown('retire_sessions', 'completed'), false)
+
+  it('Hold, then the goal running again: no line, the settled Hold stays settled', () => {
+    assert.equal(
+      after('hold', [
+        ['held', SENT + 1],
+        ['running', SENT + 2],
+      ]),
+      'settled',
+    )
+  })
+
+  it('Hold, then stopped by someone else: no line, never the Hold’s pending words again', () => {
+    assert.equal(
+      after('hold', [
+        ['holding', SENT + 1],
+        ['stopping', SENT + 2],
+      ]),
+      'moved',
+    )
+    assert.equal(
+      after('hold', [
+        ['holding', SENT + 1],
+        ['stopping', SENT + 2],
+        ['stopped', SENT + 2],
+      ]),
+      'moved',
+    )
+  })
+
+  it('a command after ours, even one that leads where ours did, is someone else’s outcome: moved', () => {
+    // Held, resumed and held again by others before this page read it: not this Hold's confirmation.
+    assert.equal(after('hold', [['held', SENT + 3]]), 'moved')
+    // Resumed by another while it was on its way, never seen held: the Hold's words never come back.
+    assert.equal(
+      after('hold', [
+        ['holding', SENT + 1],
+        ['running', SENT + 2],
+      ]),
+      'moved',
+    )
+  })
+
+  it('a review, which leaves the goal as it is, stays on its way until the goal moves', () => {
+    assert.equal(after('request_review', [['running', SENT]]), 'on_its_way')
+    assert.equal(after('request_review', [['holding', SENT + 1]]), 'moved')
+  })
+
+  it('says a settled command in the past, for a screen reader: the status beside it already shows it', () => {
+    assert.equal(SETTLED_WORDS.hold, 'Held.')
+    assert.equal(SETTLED_WORDS.stop, 'Stopped.')
+    assert.equal(SETTLED_WORDS.resume, 'Resumed.')
   })
 })
