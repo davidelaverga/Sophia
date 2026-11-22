@@ -17,7 +17,13 @@ const entry: RetainedPreviewEntry = {
 }
 
 function forEntry(read: (candidate: string) => Promise<RetainedPreviewEntry | null>) {
-  return createPrototypePreviewContentHandler({ previewOrigin, studioOrigin, now: () => now, readPermit: read })
+  return createPrototypePreviewContentHandler({
+    previewOrigin,
+    studioOrigin,
+    now: () => now,
+    readPermit: read,
+    recordServed: () => Promise.resolve(true),
+  })
 }
 
 test('serves only exact verified bytes with the separate sandbox policy and no browser referrer', async () => {
@@ -76,6 +82,7 @@ test('missing scope, expired grants and corrupted entries have the same body', a
         previewOrigin: studioOrigin,
         studioOrigin,
         readPermit: () => Promise.resolve(null),
+        recordServed: () => Promise.resolve(false),
       }),
     /separate hosts/,
   )
@@ -98,4 +105,33 @@ test('refuses hash-valid documents that declare remote dependencies', async () =
     }
     assert.equal((await forEntry(() => Promise.resolve(row))(new Request(previewOrigin + exactPath))).status, 404)
   }
+})
+
+test('checks the exact digest without recording HEAD and serves a GET only when the receipt is accepted', async () => {
+  let served = 0
+  let grantCurrent = true
+  const handle = createPrototypePreviewContentHandler({
+    previewOrigin,
+    studioOrigin,
+    now: () => now,
+    readPermit: () => Promise.resolve(entry),
+    recordServed: (candidate) => {
+      assert.equal(candidate, token)
+      served++
+      return Promise.resolve(grantCurrent)
+    },
+  })
+  const head = (origin: string) => new Request(previewOrigin + exactPath, { method: 'HEAD', headers: { origin } })
+  assert.equal((await handle(head(previewOrigin))).status, 404)
+  const verified = await handle(head(studioOrigin))
+  assert.equal(verified.status, 200)
+  assert.equal(verified.headers.get('access-control-allow-origin'), studioOrigin)
+  assert.equal(verified.headers.get('x-sophia-preview-entry-sha256'), entry.entrySha256)
+  assert.equal(await verified.text(), '')
+  assert.equal(served, 0)
+  assert.equal((await handle(new Request(previewOrigin + exactPath))).status, 200)
+  assert.equal(served, 1)
+  grantCurrent = false
+  assert.equal((await handle(new Request(previewOrigin + exactPath))).status, 404)
+  assert.equal(served, 2)
 })

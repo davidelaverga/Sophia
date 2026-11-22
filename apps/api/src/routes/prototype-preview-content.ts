@@ -6,6 +6,7 @@ import {
 } from '@sophia/design'
 
 export const PREVIEW_PERMIT_MAX_AGE_MS = 10 * 60 * 1000
+const PREVIEW_ENTRY_DIGEST = 'X-Sophia-Preview-Entry-SHA256'
 const PREVIEW_PATH = /^\/v1\/previews\/([a-zA-Z0-9_-]{32,128})\/index\.html$/u
 
 export interface RetainedPreviewEntry {
@@ -20,6 +21,8 @@ interface PreviewHost {
   studioOrigin: string
   /** The resolver rechecks the permit's exact version, manifest, actor, project, membership and source eligibility. */
   readPermit: (permit: string) => Promise<RetainedPreviewEntry | null>
+  /** This records a successful GET under current exact scope, after verifying bytes and policy. HEAD never calls it. */
+  recordServed: (permit: string) => Promise<boolean>
   now?: () => number
 }
 
@@ -61,6 +64,27 @@ function hasValidPermitEntry(entry: RetainedPreviewEntry, now: number): boolean 
   )
 }
 
+function contentPermit(request: Request, preview: URL, studio: URL) {
+  const url = new URL(request.url)
+  if (url.origin !== preview.origin || url.search) return null
+  const permit = PREVIEW_PATH.exec(url.pathname)?.[1]
+  if (!permit) return null
+  if (request.method === 'GET') return { permit, checkOnly: false }
+  if (request.method === 'HEAD' && request.headers.get('origin') === studio.origin) {
+    return { permit, checkOnly: true }
+  }
+  return null
+}
+
+async function checkedContent(config: PreviewHost, permit: string, now: () => number) {
+  const entry = await config.readPermit(permit)
+  if (!entry || !hasValidPermitEntry(entry, now())) return null
+  // Copy before hashing and sending, so a shared buffer cannot change after it was checked.
+  const bytes = Uint8Array.from(entry.bytes)
+  if (prototypeEntrySha256(bytes) !== entry.entrySha256 || !hasOnlyLocalPrototypeResources(bytes)) return null
+  return { bytes, digest: entry.entrySha256 }
+}
+
 /** Run only behind the distinct preview virtual host. No permit is logged or returned by this handler. */
 export function createPrototypePreviewContentHandler(config: PreviewHost): (request: Request) => Promise<Response> {
   const preview = origin(config.previewOrigin)
@@ -79,27 +103,32 @@ export function createPrototypePreviewContentHandler(config: PreviewHost): (requ
   const now = config.now ?? Date.now
 
   return async (request) => {
-    const url = new URL(request.url)
-    const permit = PREVIEW_PATH.exec(url.pathname)?.[1]
-    if (!permit || url.origin !== preview.origin || url.search || request.method !== 'GET') return unavailable()
-    let entry: RetainedPreviewEntry | null
+    const binding = contentPermit(request, preview, studio)
+    if (!binding) return unavailable()
     try {
-      entry = await config.readPermit(permit)
+      const content = await checkedContent(config, binding.permit, now)
+      if (!content) return unavailable()
+      if (binding.checkOnly) {
+        return new Response(null, {
+          headers: {
+            ...headers,
+            vary: 'Origin',
+            'access-control-allow-origin': studio.origin,
+            'access-control-expose-headers': PREVIEW_ENTRY_DIGEST,
+            [PREVIEW_ENTRY_DIGEST]: content.digest,
+          },
+        })
+      }
+      if (!(await config.recordServed(binding.permit))) return unavailable()
+      return new Response(content.bytes, {
+        headers: {
+          ...headers,
+          'content-type': 'text/html; charset=utf-8',
+          'content-length': String(content.bytes.byteLength),
+        },
+      })
     } catch {
       return unavailable()
     }
-    if (!entry || !hasValidPermitEntry(entry, now())) return unavailable()
-
-    // Copy before hashing and sending, so a shared buffer cannot change after it was checked.
-    const bytes = Uint8Array.from(entry.bytes)
-    if (prototypeEntrySha256(bytes) !== entry.entrySha256 || !hasOnlyLocalPrototypeResources(bytes))
-      return unavailable()
-    return new Response(bytes, {
-      headers: {
-        ...headers,
-        'content-type': 'text/html; charset=utf-8',
-        'content-length': String(bytes.byteLength),
-      },
-    })
   }
 }
