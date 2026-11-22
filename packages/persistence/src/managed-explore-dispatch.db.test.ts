@@ -288,3 +288,58 @@ it('rechecks current grant and source before a possible send and preserves the o
     reason: 'source_unavailable',
   })
 })
+
+it('skips an expired stale unsent lease and preserves a possible send under its original route', async () => {
+  const stale = await admit()
+  const old = await claimManagedExploreDispatch(worker, scope)
+  assert.ok(old)
+  assert.equal(old.projectId, stale.projectId)
+  await expire(old)
+  await owner.query(
+    "UPDATE sophia.managed_explore_grants SET revision=revision+1,model='changed' WHERE project_id=$1",
+    [stale.projectId],
+  )
+
+  const current = await admit()
+  const active = await claimManagedExploreDispatch(worker, scope)
+  assert.ok(active)
+  assert.equal(active.projectId, current.projectId)
+  await assert.rejects(prepareManagedExploreDispatch(worker, old, { kind: 'create' }), { code: 'invalid_state' })
+  const unsent = await owner.query<{ create_possible_at: Date | null }>(
+    'SELECT create_possible_at FROM sophia.managed_explore_dispatch_sessions WHERE project_id=$1',
+    [stale.projectId],
+  )
+  assert.equal(unsent.rows[0]?.create_possible_at, null)
+
+  const create = await prepareManagedExploreDispatch(worker, active, { kind: 'create' })
+  assert.equal(create.kind, 'create')
+  const rotatedProject = 'rotated-provider-project'
+  await owner.query(
+    'UPDATE sophia.managed_explore_grants SET revision=revision+1,provider_project=$2 WHERE project_id=$1',
+    [current.projectId, rotatedProject],
+  )
+  await expire(active)
+  assert.equal(await claimManagedExploreDispatch(worker, { ...scope, providerProject: rotatedProject }), null)
+
+  const recovery = await claimManagedExploreDispatch(worker, scope)
+  assert.ok(recovery)
+  assert.equal(recovery.projectId, current.projectId)
+  assert.equal(recovery.createOperationId, create.operationId)
+  assert.equal(recovery.turnStatus, 'outcome_unknown')
+  assert.equal(recovery.allowSend, false)
+  assert.deepEqual(await prepareManagedExploreDispatch(worker, recovery, { kind: 'create' }), { kind: 'observe' })
+
+  await recordManagedExploreDispatch(worker, recovery, {
+    kind: 'created',
+    operationId: create.operationId,
+    providerSessionId: 'rotated-fixture-original-session',
+    environmentId: 'rotated-fixture-original-environment',
+    model: create.model,
+    sessionLimitCents: create.sessionLimitCents,
+    networkAccess: 'disabled',
+  })
+  assert.deepEqual(await prepareManagedExploreDispatch(worker, recovery, { kind: 'event', predecessorRootId: null }), {
+    kind: 'blocked',
+    reason: 'worker_send_disabled',
+  })
+})

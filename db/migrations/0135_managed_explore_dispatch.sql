@@ -110,7 +110,7 @@ CREATE FUNCTION sophia.claim_managed_explore_dispatch(p_worker text, p_route tex
  p_org text, p_provider_project text, p_lease_seconds integer, p_allow_send boolean)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE selected record; c sophia.managed_explore_dispatch_context; grant_row sophia.managed_explore_grants;
- next_status text;
+ next_status text; current_grant boolean;
 BEGIN
  IF sophia.actor_id() IS NOT NULL THEN RAISE EXCEPTION 'Worker role required' USING ERRCODE='42501'; END IF;
  IF p_worker IS NULL OR length(p_worker) NOT BETWEEN 1 AND 160 OR p_route IS NULL
@@ -119,21 +119,24 @@ BEGIN
     OR p_lease_seconds IS NULL OR p_lease_seconds NOT BETWEEN 5 AND 300 OR p_allow_send IS NULL THEN
   RAISE EXCEPTION 'Invalid managed Explore worker scope' USING ERRCODE='22023';
  END IF;
- SELECT o.project_id, t.session_id, t.id AS turn_id INTO selected
+ SELECT o.project_id, t.session_id, t.id AS turn_id, recovery.possible_effect INTO selected
  FROM sophia.outbox o JOIN sophia.projects p ON p.id=o.project_id
  JOIN sophia.managed_explore_turns t ON t.project_id=o.project_id AND t.id=o.managed_explore_turn_id
  JOIN sophia.managed_explore_sessions s ON s.project_id=t.project_id AND s.id=t.session_id
  JOIN sophia.managed_explore_grants g ON g.project_id=s.project_id AND g.id=s.grant_id
  LEFT JOIN sophia.managed_explore_dispatch_sessions d ON d.project_id=s.project_id AND d.session_id=s.id
  LEFT JOIN sophia.managed_explore_dispatch_turns x ON x.project_id=t.project_id AND x.turn_id=t.id
+ CROSS JOIN LATERAL (SELECT x.event_possible_at IS NOT NULL
+   OR (d.create_possible_at IS NOT NULL AND d.provider_session_id IS NULL AND d.create_rejected_at IS NULL
+       AND t.status<>'queued') AS possible_effect) recovery
  WHERE o.destination='managed_explore.turn' AND o.available_at<=clock_timestamp()
-  AND (d.session_id IS NOT NULL OR g.revision=s.grant_revision)
   AND (o.state IN ('pending','outcome_unknown') OR (o.state='dispatching' AND o.lease_until<=clock_timestamp()))
   AND t.status IN ('queued','running','retaining','outcome_unknown')
   AND s.route_id=p_route AND s.credential_generation=p_generation
   AND coalesce(d.provider_org,g.provider_org)=p_org AND coalesce(d.provider_project,g.provider_project)=p_provider_project
-  AND (p_allow_send OR x.event_possible_at IS NOT NULL
-    OR (d.create_possible_at IS NOT NULL AND d.provider_session_id IS NULL AND d.create_rejected_at IS NULL AND t.status<>'queued'))
+  AND (recovery.possible_effect OR (p_allow_send AND g.revision=s.grant_revision
+    AND g.route_id=p_route AND g.credential_generation=p_generation
+    AND g.provider_org=p_org AND g.provider_project=p_provider_project))
   AND (t.status<>'queued' OR NOT EXISTS(SELECT 1 FROM sophia.managed_explore_turns root
     WHERE root.project_id=t.project_id AND root.session_id=t.session_id AND root.status IN ('running','retaining','outcome_unknown')))
  ORDER BY (t.status='queued'),o.available_at,o.created_at,o.id FOR UPDATE OF p SKIP LOCKED LIMIT 1;
@@ -142,11 +145,12 @@ BEGIN
  SELECT s INTO c.s FROM sophia.managed_explore_sessions s WHERE project_id=selected.project_id AND id=selected.session_id FOR UPDATE;
  SELECT t INTO c.t FROM sophia.managed_explore_turns t WHERE project_id=selected.project_id AND id=selected.turn_id FOR UPDATE;
  SELECT * INTO grant_row FROM sophia.managed_explore_grants WHERE project_id=selected.project_id AND id=(c.s).grant_id FOR SHARE;
- IF (grant_row.provider_org<>p_org OR grant_row.provider_project<>p_provider_project OR grant_row.revision<>(c.s).grant_revision)
-  AND NOT EXISTS(SELECT 1 FROM sophia.managed_explore_dispatch_sessions
-    WHERE project_id=selected.project_id AND session_id=selected.session_id) THEN
-  RETURN NULL;
- END IF;
+ -- A binding created merely by an expired lease cannot keep stale unsent work at the front of the queue.
+ -- An actual possible effect keeps its original credential scope, with no permission for another mutation.
+ current_grant:=grant_row.revision=(c.s).grant_revision AND grant_row.route_id=p_route
+  AND grant_row.credential_generation=p_generation AND grant_row.provider_org=p_org
+  AND grant_row.provider_project=p_provider_project;
+ IF NOT current_grant AND NOT selected.possible_effect THEN RETURN NULL; END IF;
  INSERT INTO sophia.managed_explore_dispatch_sessions(project_id,session_id,route_id,provider_org,provider_project,
    credential_generation,model,session_limit_cents)
  VALUES(selected.project_id,selected.session_id,p_route,p_org,p_provider_project,p_generation,grant_row.model,
@@ -154,14 +158,9 @@ BEGIN
  ON CONFLICT(project_id,session_id) DO NOTHING;
  SELECT d INTO c.d FROM sophia.managed_explore_dispatch_sessions d
  WHERE project_id=selected.project_id AND session_id=selected.session_id FOR UPDATE;
- -- A row first discovered before a concurrent operator change is still pinned only to the original scope.
- IF (c.d).provider_org<>p_org OR (c.d).provider_project<>p_provider_project
-  OR ((c.d).create_possible_at IS NULL AND
-   (grant_row.provider_org<>p_org OR grant_row.provider_project<>p_provider_project OR grant_row.revision<>(c.s).grant_revision)) THEN
-  RETURN NULL;
- END IF;
+ IF (c.d).provider_org<>p_org OR (c.d).provider_project<>p_provider_project THEN RETURN NULL; END IF;
  INSERT INTO sophia.managed_explore_dispatch_turns AS inserted(project_id,session_id,turn_id,lease_allows_send)
- VALUES(selected.project_id,selected.session_id,selected.turn_id,p_allow_send)
+ VALUES(selected.project_id,selected.session_id,selected.turn_id,p_allow_send AND current_grant)
  ON CONFLICT(project_id,turn_id) DO UPDATE SET lease_allows_send=EXCLUDED.lease_allows_send
  RETURNING inserted INTO c.x;
  UPDATE sophia.outbox AS claimed SET state='dispatching',lease_owner=p_worker,lease_token=gen_random_uuid(),
