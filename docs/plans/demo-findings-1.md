@@ -19,7 +19,8 @@
 - Seen: Home with one project ends its index with «All 1 project».
 - Change: the closing link to Work shows only with two projects or more (`showsAllProjects`, places-view.ts). With one,
   its row already opens it. With none, «Start a project» as today. The arrow's alignment is left as it is: only the
-  link that this hides was reported, and a change to it would be a separate look.
+  link that this hides was reported, and a change to it would be a separate look. The threshold of two is deliberate:
+  with two or more the link still leads somewhere the rows don't, Work's search and order.
 - Test: unit, `places-view.test.ts`.
 
 ## #17 · First run: two guides at once; Tasks' empty line
@@ -30,16 +31,17 @@
   `data-guide="held"`. The keys' tip does not show while either is on screen, nor for the rest of the page once steps
   have shown (`keysTipShows`, keys-tip.ts): a tip that is not shown is not counted (`countShowing` runs only when
   shown), so its turn comes on a later visit. A held place that ends with no steps (an account with archived projects)
-  holds nothing back after it, or such an account would never see the tip. While the projects are still read and the first run
-  has not ended on this browser (`firstRunPending`, first-run.ts), Home itself carries `data-guide="held"`: the tip
-  would otherwise show, and be counted, a moment before the first run comes (review P2-1). The place under the greeting
-  is not held for it (`firstRunHolds` unchanged): Home's skeleton stays as before. The home fixture mounts the tip with
-  `keys=1`.
+  holds nothing back after it, or such an account would never see the tip. While the projects are still read and the
+  first run has not ended on this browser (`firstRunPending`, first-run.ts), Home holds an unseen
+  `<span data-guide="held">`: the tip would otherwise show, and be counted, a moment before the first run comes (review
+  P2-1). The place under the greeting is not held for it (`firstRunHolds` unchanged, so Home's skeleton stays as
+  before, and a projects read that fails never holds Home's layout). The home fixture mounts the tip with `keys=1`.
 - Seen: in an empty project, Tasks says «No goals yet. They'll come from your conversations with Sophia in the room.»
   `GoalList` draws both Goals and Tasks (`controls`), and `NoGoals` is that shared empty state.
-- Change: under Tasks: «No tasks yet. They start from a goal’s plan, and goals come from your conversations with Sophia.» Goals keeps its line.
-- Test: unit, `keys-tip.test.ts` (`keysTipShows`); e2e, `keys-tip.spec.ts` (first run on screen: no tip, nothing kept)
-  and `views-goals.spec.ts` (Tasks' line).
+- Change: under Tasks: «No tasks yet. They start from a goal’s plan, and goals come from your conversations with
+  Sophia.» Goals keeps its line.
+- Test: unit, `keys-tip.test.ts` (`keysTipShows`) and `first-run.test.ts` (`firstRunPending`); e2e, `keys-tip.spec.ts`
+  (first run on screen, and projects read slowly: no tip, nothing kept) and `views-goals.spec.ts` (Tasks' line).
 
 ## #3 · Hold: «Held» and «The status changes when Sophia confirms» together
 
@@ -48,12 +50,19 @@
   «Held» is the confirmed state, not an optimistic one. The line under the controls is the admission's own state
   (`useAdmission`), which never reads the goal again: it stays «Sent · Hold requested. The status changes when Sophia
   confirms.» after the status changed.
-- Choice: the chip is right; the line is the stale one. Once the goal's status is where the command leads
-  (`commandShown`, labels.ts: Hold → held, Stop → stopped, Resume → running or checking), the line goes: the chip
-  already says it. While it is on its way (holding, stopping) the line stays as today. Request review leaves the status
-  as it is, so its line is unchanged.
-- Test: unit, `labels.test.ts` (`commandShown`); e2e, `goal-controls.spec.ts` (Hold in the demo: «Held», and no
-  «when Sophia confirms»).
+- Choice: the chip is right; the line is the stale one. The line is kept per receipt (`nextLine`, labels.ts):
+  - on its way while the goal is still getting there (not read again yet, or holding, stopping): as before;
+  - settled once the goal is where the command leads (Hold → held, Stop → stopped, Resume → running or checking): the
+    visible line goes, the chip says it, and the same polite live region says it in the past to a screen reader only
+    (`sr-only`: «Held.», «Stopped.», «Resumed.»), since emptying it would announce nothing (review P3-3);
+  - moved once a later command took the goal elsewhere (its authority past the command's own admission, or a status off
+    the command's way): the line goes and nothing is said, since that outcome is not this command's;
+  - settled or moved, it stays so until another command is sent: a teammate's Resume after a settled Hold never brings
+    «Hold requested» back (review P2-2). Request review leaves the status as it is, so its line stays on its way until
+    the goal moves.
+- Test: unit, `labels.test.ts` (`nextLine`, `SETTLED_WORDS`); e2e, `views-goals.spec.ts` (Hold in the demo: «Held»,
+  no «when Sophia confirms», «Held.» to a screen reader, and still no line after a teammate's Resume; a Hold stopped by
+  a teammate while holding: no line). The room fixture's `commandByOther` makes the teammate's command.
 
 ## #10 · An invitation refused on Accept leaves no way out
 
@@ -62,8 +71,11 @@
 - Change: a failed Accept shows the existing way home (`HomeLink`, «Go to Sophia», as the closed-link screens do). When
   the API's refusal is the address one (`wrongAddress`, access-view.ts: 403 «This invitation is for …», the words
   0010 raises and the API keeps), Accept gives way to `SignOutAs`, the same sign-out the Supabase branch offers before
-  Accept.
-- Test: unit, `access-view.test.ts` (`wrongAddress`); e2e, `join.spec.ts` with the join fixture signed in
+  Accept, takes Accept's focus, and the error says it as that branch does: «This invitation is for {email}; you’re
+  signed in as {name}.» (`acceptFailure`, review P3-5).
+- Known limit: the refusal is told apart by its 403 and its words, the only mark the API gives it today. Follow-up: a
+  dedicated API error code for it.
+- Test: unit, `access-view.test.ts` (`wrongAddress`, `acceptFailure`); e2e, `join.spec.ts` with the join fixture signed in
   (`signed=outsider`) and its accept refused (`accept=other` | `accept=down`).
 
 ## #9 · Hold and Stop too small on touch
