@@ -7,7 +7,7 @@ import {
   parseManagedExploreDirections,
   validManagedExploreEntry,
 } from './managed-explore-output.ts'
-import type { ManagedExplorePrototype } from './managed-explore-provider.ts'
+import { ManagedExploreProviderError, type ManagedExplorePrototype } from './managed-explore-provider.ts'
 
 const CARD = {
   label: 'Shore assigns',
@@ -107,9 +107,11 @@ test('prototype retention verifies the exact saved root metadata and preserves r
   const writes: Parameters<Parameters<typeof managedExploreRetention>[0]['write']>[] = []
   const metadataReads: string[][] = []
   let text: string | null = JSON.stringify(NOTES)
+  let readError: ManagedExploreProviderError | undefined
   const retain = managedExploreRetention({
     readTurnText: (sessionId, rootId) => {
       metadataReads.push([sessionId, rootId])
+      if (readError) return Promise.reject(readError)
       return Promise.resolve({ value: text })
     },
     write: (...args) => {
@@ -150,5 +152,9 @@ test('prototype retention verifies the exact saved root metadata and preserves r
   assert.equal(await retain(IDENTITY, output), 'invalid')
   text = null
   assert.equal(await retain(IDENTITY, output), 'missing')
+  readError = new ManagedExploreProviderError('transient', 'retry_read')
+  assert.equal(await retain(IDENTITY, output), 'pending')
+  readError = new ManagedExploreProviderError('invalid_response', 'terminal')
+  assert.equal(await retain(IDENTITY, output), 'invalid')
   assert.equal(writes.length, 1)
 })

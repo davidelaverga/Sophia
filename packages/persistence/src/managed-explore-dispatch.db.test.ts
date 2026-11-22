@@ -640,7 +640,7 @@ async function recordCompletedRoot(lease: ManagedExploreDispatchLease) {
   return { ...identity, environmentId: lease.environmentId }
 }
 
-async function completeTurn(session: RetentionSession, request: Omit<TurnRequest, 'expectedSessionRevision'>) {
+async function claimNextTurn(session: RetentionSession, request: Omit<TurnRequest, 'expectedSessionRevision'>) {
   const { revision } = await readSession(session)
   const { projectId, sessionId } = session
   const { turnId } = await withActor(api, founder, 'write', (c) =>
@@ -649,6 +649,11 @@ async function completeTurn(session: RetentionSession, request: Omit<TurnRequest
   const lease = await claimManagedExploreDispatch(worker, scope)
   assert.ok(lease)
   assert.equal(lease.turnId, turnId)
+  return lease
+}
+
+async function completeTurn(session: RetentionSession, request: Omit<TurnRequest, 'expectedSessionRevision'>) {
+  const lease = await claimNextTurn(session, request)
   return { lease, event: await recordCompletedRoot(lease) }
 }
 
@@ -827,11 +832,36 @@ it('retains the exact 2 MiB entry, creates immutable revision lineage and reject
   await assert.rejects(api.query('SELECT body FROM sophia.managed_explore_entry_bodies'), { code: '42501' })
   assert.equal(JSON.stringify(first).includes(output.artifactId), false)
 
-  const revision = await completeTurn(session, {
+  const oversized = await claimNextTurn(session, {
     kind: 'revision',
     instruction: 'Show the success state.',
     directionId,
     parentVersionId: v1.id,
+  })
+  assert.deepEqual(
+    await prepareManagedExploreDispatch(worker, oversized, {
+      kind: 'event',
+      predecessorRootId: oversized.previousRootId,
+    }),
+    { kind: 'denied', reason: 'input_too_large' },
+  )
+  assert.deepEqual(await readEntry(session, v1.id), entry)
+
+  const small = await completeTurn(session, {
+    kind: 'prototype',
+    instruction: 'Keep the entry compact.',
+    directionId,
+  })
+  const compact = artifact(small.event, Buffer.from('<!doctype html><button>Confirm</button>'))
+  assert.deepEqual(await retainManagedExploreOutput(worker, small.lease, compact), { kind: 'completed' })
+  const beforeRevision = await readSession(session)
+  const smallParent = beforeRevision.versions[1]
+  assert.ok(smallParent)
+  const revision = await completeTurn(session, {
+    kind: 'revision',
+    instruction: 'Show the success state.',
+    directionId,
+    parentVersionId: smallParent.id,
   })
   const changed = artifact(revision.event, Buffer.from('<!doctype html><button>Done</button>'))
   await assert.rejects(
@@ -840,13 +870,13 @@ it('retains the exact 2 MiB entry, creates immutable revision lineage and reject
       code: 'stale_revision',
     },
   )
-  assert.deepEqual((await readSession(session)).versions, first.versions)
+  assert.deepEqual((await readSession(session)).versions, beforeRevision.versions)
   assert.deepEqual(await retainManagedExploreOutput(worker, revision.lease, changed), { kind: 'completed' })
   const second = await readSession(session)
-  const v2 = second.versions[1]
+  const v2 = second.versions[2]
   assert.ok(v2)
-  assert.equal(v2.number, 2)
-  assert.equal(v2.parentVersionId, v1.id)
+  assert.equal(v2.number, 3)
+  assert.equal(v2.parentVersionId, smallParent.id)
   assert.equal(v2.entrySha256, changed.sha256)
   assert.notEqual(v2.manifestSha256, v1.manifestSha256)
   assert.deepEqual(await readEntry(session, v1.id), entry)
