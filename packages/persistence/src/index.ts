@@ -485,3 +485,17 @@ export {
   type OwnerHostView,
   type RedeemResult,
 } from './owner-host-enrollment.ts'
+export {
+  admitManagedExploreTurn,
+  approveManagedExploreVersion,
+  issueManagedExplorePreview,
+  readManagedExploreEntry,
+  readManagedExploreHandoff,
+  resolveManagedExplorePreviewEntry,
+  type ManagedExplorePreviewEntry,
+  type ManagedExploreRetainedEntry,
+  readManagedExplorePreflight,
+  readManagedExploreSession,
+  selectManagedExploreDirection,
+  startManagedExplore,
+} from './managed-explore.ts'

@@ -85,6 +85,13 @@ function ownerRunnerAdmissionsFromEnv(): 'off' | 'admit' {
   if (value !== 'admit') throw new Error('SOPHIA_OWNER_RUNNERS is off, admit or unset')
   return value
 }
+function managedExploreAdmissionsFromEnv(): boolean {
+  const value = optional('SOPHIA_MANAGED_EXPLORE')
+  if (value === undefined || value === 'off') return false
+  if (value !== 'on') throw new Error('SOPHIA_MANAGED_EXPLORE is on, off or unset')
+  return true
+}
+
 const app = buildApp({
   pool,
   logger: true,
@@ -101,6 +108,8 @@ const app = buildApp({
   // Voice qualification evidence (A45, 0085): on only by the operator's batch, with 0085 applied.
   voiceQualification: voiceQualificationFromEnv(),
   ownerRunnerAdmissions: ownerRunnerAdmissionsFromEnv(),
+  managedExplore: managedExploreAdmissionsFromEnv(),
+  managedExplorePreviewOrigin: optional('SOPHIA_MANAGED_EXPLORE_PREVIEW_ORIGIN'),
   ...(mediaBridgeTokenSha256 ? { mediaBridgeTokenSha256 } : {}),
   ...(livekitUrl
     ? { livekit: { url: livekitUrl, apiKey: required('LIVEKIT_API_KEY'), apiSecret: required('LIVEKIT_API_SECRET') } }

@@ -375,6 +375,29 @@ export type PersonalAnswerDecision = { "seq": number; "operation": "send" | "ret
 export type PersonalAnswerReceipt = { "operation": "send_answer_input" | "retry_answer_input" | "cancel_answer_input"; "revision": number; "turnId": string; "seq": number; "inputId": string; "answerContract": "personal_answer_v1"; "interactionContract": "automatic_v1"; "contractVersion": 1; "decision": PersonalAnswerDecision; "suggestionId": null; "noteId": null; "releaseId": null; "projectId": null; "erased": null; };
 export type PersonalAnswerDecisionEntry = { "decision": PersonalAnswerDecision; "createdAt": string; };
 export type PersonalAnswerDecisionList = { "inputId": string; "turnId": string; "decisions": ReadonlyArray<PersonalAnswerDecisionEntry>; };
+export type ManagedExploreSeed = { "entryId": string; "revision": number; "text": string; "sha256": string; };
+export type ManagedExploreFunding = { "routeId": string; "label": "OpenAI API credits"; };
+export type ManagedExplorePreflight = { "seed": ManagedExploreSeed; "funding": ManagedExploreFunding; "sessionId": string | null; };
+export type ManagedExploreStartRequest = { "seedEntryId": string; "expectedSeedRevision": number; "routeId": string; };
+export type ManagedExploreStartReceipt = { "sessionId": string; };
+export type ManagedExploreTurn = { "id": string; "kind": "text" | "directions" | "prototype" | "revision"; "status": "queued" | "running" | "retaining" | "completed" | "failed" | "cancelled" | "outcome_unknown"; "instruction": string; "reply": string | null; "resultVersionId": string | null; "error": string | null; };
+export type ManagedExploreTurnRequest = { "kind": "text" | "directions" | "prototype" | "revision"; "instruction": string; "expectedSessionRevision": number; "directionId"?: string; "parentVersionId"?: string; "componentId"?: string; };
+export type ManagedExploreTurnReceipt = { "turnId": string; };
+export type ManagedExploreDirectionStep = { "id": string; "label": string; "lane": "vessel" | "shore"; };
+export type ManagedExploreDirectionEdge = { "from": string; "to": string; };
+export type ManagedExploreDirection = { "id": string; "revision": number; "label": string; "firstActor": string; "nextStep": string; "rationale": string; "tradeoff": string; "steps": ReadonlyArray<ManagedExploreDirectionStep>; "edges": ReadonlyArray<ManagedExploreDirectionEdge>; };
+export type ManagedExploreDirectionSelection = { "directionId": string; "expectedDirectionRevision": number; "expectedSessionRevision": number; };
+export type ManagedExploreRevision = { "revision": number; };
+export type ManagedExploreVersion = { "id": string; "number": number; "parentVersionId": string | null; "directionId": string; "entrySha256": string; "manifestSha256": string; "changeSummary": string; "acceptanceCriteria": ReadonlyArray<string>; "mockReplacements": ReadonlyArray<string>; };
+export type ManagedExploreVersionManifestFile = { "bytes": number; "mime": "text/html"; "path": "index.html"; "sha256": string; "sourceId": string; };
+export type ManagedExploreVersionManifest = { "artifactId": string; "directionId": string; "entry": "index.html"; "files": ReadonlyArray<ManagedExploreVersionManifestFile>; "format": "sophia.prototype.v1"; "parentVersionId": string | null; "versionId": string; };
+export type ManagedExploreApprovalRequest = { "prototypeVersionId": string; "expectedManifestDigest": string; "expectedSessionRevision": number; "acceptanceCriteria": ReadonlyArray<string>; };
+export type ManagedExploreApproval = { "id": string; "versionId": string; "manifestSha256": string; "approvedAt": string; "acceptanceCriteria": ReadonlyArray<string>; };
+export type ManagedExploreSession = { "id": string; "revision": number; "seed": ManagedExploreSeed; "funding": ManagedExploreFunding; "turns": ReadonlyArray<ManagedExploreTurn>; "directions": ReadonlyArray<ManagedExploreDirection>; "selectedDirectionId": string | null; "versions": ReadonlyArray<ManagedExploreVersion>; "approvals": ReadonlyArray<ManagedExploreApproval>; };
+export type ManagedExplorePreviewRequest = { "manifestSha256": string; "entrySha256": string; };
+export type ManagedExplorePreviewPermit = { "url": string; "expiresAt": string; "versionId": string; "manifestSha256": string; "entrySha256": string; };
+export type ManagedExploreHandoffFile = { "path": string; "mime": string; "byteCount": number; "sha256": string; };
+export type ManagedExploreHandoff = { "approvalId": string; "versionId": string; "manifestSha256": string; "seedText": string; "acceptanceCriteria": ReadonlyArray<string>; "mockReplacements": ReadonlyArray<string>; "limitations": ReadonlyArray<string>; "files": ReadonlyArray<ManagedExploreHandoffFile>; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -595,4 +618,12 @@ export interface Operations {
   "retryPersonalAnswer": { method: "POST"; path: "/api/v1/personal/answers/{inputId}/retry"; request: PersonalAnswerRetry; response: PersonalAnswerReceipt; };
   "cancelPersonalAnswer": { method: "POST"; path: "/api/v1/personal/answers/{inputId}/cancel"; request: PersonalAnswerCancel; response: PersonalAnswerReceipt; };
   "readPersonalAnswerDecisions": { method: "GET"; path: "/api/v1/personal/answers/{inputId}/decisions"; request: undefined; response: PersonalAnswerDecisionList; };
+  "readManagedExplorePreflight": { method: "GET"; path: "/api/v1/projects/{projectId}/explore/preflight"; request: undefined; response: ManagedExplorePreflight; };
+  "startManagedExplore": { method: "POST"; path: "/api/v1/projects/{projectId}/explore/sessions"; request: ManagedExploreStartRequest; response: ManagedExploreStartReceipt; };
+  "readManagedExploreSession": { method: "GET"; path: "/api/v1/projects/{projectId}/explore/sessions/{sessionId}"; request: undefined; response: ManagedExploreSession; };
+  "admitManagedExploreTurn": { method: "POST"; path: "/api/v1/projects/{projectId}/explore/sessions/{sessionId}/turns"; request: ManagedExploreTurnRequest; response: ManagedExploreTurnReceipt; };
+  "selectManagedExploreDirection": { method: "POST"; path: "/api/v1/projects/{projectId}/explore/sessions/{sessionId}/direction-selection"; request: ManagedExploreDirectionSelection; response: ManagedExploreRevision; };
+  "issueManagedExplorePreviewPermit": { method: "POST"; path: "/api/v1/projects/{projectId}/explore/sessions/{sessionId}/versions/{versionId}/preview-permits"; request: ManagedExplorePreviewRequest; response: ManagedExplorePreviewPermit; };
+  "approveManagedExploreVersion": { method: "POST"; path: "/api/v1/projects/{projectId}/explore/sessions/{sessionId}/approvals"; request: ManagedExploreApprovalRequest; response: ManagedExploreApproval; };
+  "readManagedExploreHandoff": { method: "GET"; path: "/api/v1/projects/{projectId}/explore/sessions/{sessionId}/handoff/{approvalId}"; request: undefined; response: ManagedExploreHandoff; };
 }

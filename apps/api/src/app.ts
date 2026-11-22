@@ -29,6 +29,7 @@ import { searchRoutes } from './routes/search.ts'
 import { humanTaskRoutes, TASK_WRITES } from './routes/human-tasks.ts'
 import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
 import { missionRoutes } from './routes/mission.ts'
+import { MANAGED_EXPLORE_SCHEMA, managedExploreRoutes } from './routes/managed-explore.ts'
 import { personalRoutes } from './routes/personal.ts'
 import { personalInputRoutes } from './routes/personal-inputs.ts'
 import { PERSONAL_ANSWERS_SCHEMA, personalAnswerRoutes } from './routes/personal-answers.ts'
@@ -155,6 +156,10 @@ export interface AppDeps {
    * (or a later, separately approved activation) mounts the boundary.
    */
   apiContributions?: boolean
+  /** Managed Explore admissions are off unless explicitly enabled by the operator. */
+  managedExplore?: boolean
+  /** Distinct HTTPS origin hosting the exact-file preview handler. Prototype permits require it. */
+  managedExplorePreviewOrigin?: string | undefined
 }
 
 /**
@@ -389,7 +394,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   activityRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   commandRoutes(app, { pool: deps.pool })
   conversationRoutes(app, { pool: deps.pool, voice })
-  missionRoutes(app, { pool: deps.pool })
+  registerMissionRoutes(app, deps, store)
   runtimeRoutes(app, { pool: deps.pool, hub: runtimeHub })
   researchRoutes(app, deps.pool)
   // The reply runtime's routes call 0064's functions: served, and checked by /ready, only with conversations on.
@@ -413,6 +418,17 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // Member API contributions (A48, 0094): the whole boundary only when the API is built with it; off by default.
   if (deps.apiContributions === true) apiContributionRoutes(app, { pool: deps.pool })
   return app
+}
+
+function registerMissionRoutes(app: FastifyInstance, deps: AppDeps, store: ByteStore | null): void {
+  missionRoutes(app, { pool: deps.pool })
+  managedExploreRoutes(app, {
+    pool: deps.pool,
+    store,
+    admissions: deps.managedExplore === true,
+    ...(deps.managedExplorePreviewOrigin ? { previewOrigin: deps.managedExplorePreviewOrigin } : {}),
+    ...(deps.corsOrigins ? { studioOrigins: deps.corsOrigins } : {}),
+  })
 }
 
 /**
@@ -619,6 +635,7 @@ interface Health {
   voice: boolean
   ownerRunners: boolean
   apiContributions: boolean
+  managedExplore: boolean
   commit: string | null
 }
 
@@ -631,13 +648,23 @@ const healthOf = (deps: AppDeps): Health => ({
   voice: deps.voiceQualification === true,
   ownerRunners: deps.ownerRunnerAdmissions === 'admit',
   apiContributions: deps.apiContributions === true,
+  managedExplore: deps.managedExplore === true,
   commit: deps.commit ?? null,
 })
 
 /** Whether the database has every function and column this API's switches call (each part only when it is on). */
 async function schemaReady(
   pool: pg.Pool,
-  { stores, conversations, conversationInputs, personalAnswers, voice, ownerRunners, apiContributions }: Health,
+  {
+    stores,
+    conversations,
+    conversationInputs,
+    personalAnswers,
+    voice,
+    ownerRunners,
+    apiContributions,
+    managedExplore,
+  }: Health,
 ): Promise<boolean> {
   const part = async (on: boolean, sql: string) => !on || (await pool.query<{ ok: boolean }>(sql)).rows[0]?.ok === true
   return (
@@ -648,7 +675,8 @@ async function schemaReady(
     (await part(personalAnswers, PERSONAL_ANSWERS_SCHEMA)) &&
     (await part(voice, VOICE_SCHEMA)) &&
     (await part(ownerRunners, OWNER_RUNNER_SCHEMA)) &&
-    (await part(apiContributions, CONTRIBUTION_FUNDING_SCHEMA))
+    (await part(apiContributions, CONTRIBUTION_FUNDING_SCHEMA)) &&
+    (await part(managedExplore, MANAGED_EXPLORE_SCHEMA))
   )
 }
 
