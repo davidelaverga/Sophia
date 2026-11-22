@@ -435,3 +435,26 @@
   align-items: baseline;
   gap: 8px;
 }
+
+.build-evidence-history {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+
+.build-verification-checks {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+}
+.build-verification-checks > div {
+  display: grid;
+  grid-template-columns: minmax(0, 8rem) minmax(0, 1fr);
+  gap: 8px;
+}
+.build-verification-checks dd {
+  margin: 0;
+}
+.build-recorded-observations {
+  margin-top: 8px;
+}

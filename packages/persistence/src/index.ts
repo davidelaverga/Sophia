@@ -520,6 +520,8 @@ export {
   readFounderBuildExport,
   readFounderBuildExportFile,
   recordFounderBuildReturn,
+  readFounderBuildVerification,
+  recordFounderBuildVerification,
   type FounderBuildScope,
 } from './founder-build-handoff.ts'
 
