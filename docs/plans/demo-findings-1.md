@@ -81,8 +81,10 @@
 ## #9 · Hold and Stop too small on touch
 
 - Seen: at 390 px, Hold and Stop are 28 × 24 px and close together.
-- Change: on a coarse pointer only, a goal's text presses (`.controls .control-row .text-button`) reach to at least
-  44 × 44 px through their `::after` (centred, never less than 8 px past each side), and the row's gap is 16 px, twice
-  that reach, so the two targets never meet. Nothing changes for a fine pointer.
+- Change: on a coarse pointer only, a goal's text presses (`.controls .control-row .text-button`) are at least 44 px
+  wide, their words centred, and their `::after` reaches 10 px above and below, at least 44 px tall. Nothing reaches
+  past the sides, so the row's 8 px gap keeps the two targets apart at any width. A first cut centred the reach on the
+  words (insets of 8 px or more, a 16 px gap); the CI run showed it 0.02 px short of 44, and with the floor stated, two
+  targets met by a subpixel. Nothing changes for a fine pointer.
 - Test: e2e `goal-controls.spec.ts @phone` (each target at least 44 × 44, Hold's ends before Stop's starts); the CSS
   fences in `src/app` still pass.
