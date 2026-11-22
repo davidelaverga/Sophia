@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import { LINK_FAILED, OTHER_BROWSER_NOTICE } from '../../app/auth-callback.ts'
 import { ago } from '../../app/time-words.ts'
 import {
+  acceptFailure,
   admissionLabel,
   askAgainIn,
   clashWith,
@@ -80,6 +81,22 @@ describe('room access, as the Studio shows it', () => {
     assert.equal(wrongAddress({ status: 403, message: 'Not permitted' }), false)
     assert.equal(wrongAddress({ status: 503, message: 'This invitation is for another email address' }), false)
     assert.equal(wrongAddress(new Error('Failed to fetch')), false)
+  })
+
+  it('says a refused Accept plainly: another address in the words the sign-in check uses (review P3-5)', () => {
+    const other = { status: 403, message: 'This invitation is for another email address' }
+    assert.deepEqual(acceptFailure(other, 'ana@sophia.test', 'outsider@sophia.test'), {
+      words: 'This invitation is for ana@sophia.test; you’re signed in as outsider@sophia.test.',
+      otherAddress: true,
+    })
+    assert.deepEqual(acceptFailure({ status: 503, message: 'Sophia is unavailable' }, 'ana@sophia.test', 'x'), {
+      words: 'Sophia is unavailable',
+      otherAddress: false,
+    })
+    assert.deepEqual(acceptFailure('boom', 'ana@sophia.test', 'x'), {
+      words: 'Could not accept the invitation.',
+      otherAddress: false,
+    })
   })
 
   it('counts down the minute before a declined guest may ask again', () => {

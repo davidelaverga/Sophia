@@ -149,8 +149,31 @@ export const sentNoteShown = (
  * (0010's words, kept by persistence's errors.ts as a 403). Signing out is the way on then, not Accept again
  * (demo-findings-1.md #10).
  */
-export function wrongAddress(err: { message: string; status?: number }): boolean {
+export function wrongAddress(err: { message: string; status?: number | undefined }): boolean {
   return err.status === 403 && err.message.startsWith('This invitation is for')
+}
+
+/**
+ * What a failed Accept says, and whether it was the address: then in the words the sign-in check already uses before
+ * Accept (JoinFlow's `otherAccount`), not the API's own (review P3-5); else the API's words, or a plain line.
+ */
+export function acceptFailure(
+  err: unknown,
+  email: string | null,
+  signedInAs: string,
+): { words: string; otherAddress: boolean } {
+  if (!(typeof err === 'object' && err !== null && 'message' in err && typeof err.message === 'string')) {
+    return { words: 'Could not accept the invitation.', otherAddress: false }
+  }
+  const refusal = {
+    message: err.message,
+    status: 'status' in err && typeof err.status === 'number' ? err.status : undefined,
+  }
+  if (!wrongAddress(refusal)) return { words: err.message, otherAddress: false }
+  return {
+    words: `This invitation is for ${email ?? 'another address'}; you’re signed in as ${signedInAs}.`,
+    otherAddress: true,
+  }
 }
 
 /**

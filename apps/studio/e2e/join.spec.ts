@@ -98,9 +98,14 @@ test('join · Accept refused for another address: the error, then sign out as th
 }) => {
   await page.goto('/join.html?kind=member&signed=outsider&accept=other')
   await page.getByRole('button', { name: 'Accept and open the project' }).click()
-  await expect(page.getByRole('alert')).toHaveText('This invitation is for another email address')
+  // Said as the sign-in check says it before Accept, not in the API's words (review P3-5).
+  await expect(page.getByRole('alert')).toHaveText(
+    'This invitation is for ana@sophia.test; you’re signed in as outsider@sophia.test.',
+  )
   // Accept would only fail again: the way on is the sign-out the Supabase branch offers, and home.
   await expect(page.getByRole('button', { name: 'Accept and open the project' })).toHaveCount(0)
+  // It takes the focus Accept had: never left on the page.
+  await expect(page.getByRole('button', { name: 'Sign out and continue as ana@sophia.test' })).toBeFocused()
   await expect(page.getByRole('link', { name: 'Go to Sophia' })).toHaveAttribute('href', '/')
   await page.getByRole('button', { name: 'Sign out and continue as ana@sophia.test' }).click()
   await expect.poll(() => page.evaluate(() => window.joinFixture?.signedOut)).toBe(1)

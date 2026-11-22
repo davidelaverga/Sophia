@@ -2,7 +2,7 @@
 // either lets a guest ask to come in (their name, the lobby, the call) or signs an invited member in and adds
 // them to the project. The token stays in the fragment and reaches the API only in request bodies.
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Field } from '@sophia/ui'
 import type { InvitationPreview, LobbyEntry } from '@sophia/contracts'
 import { acceptInvitation, getLobbyEntry, knockRoom, previewInvitation } from '../../api/access.ts'
@@ -14,6 +14,7 @@ import { useDocumentTitle } from '../../app/document-title.ts'
 import { devIdentities, type Identity } from '../../app/dev-identity.ts'
 import { Centered, CodeForm, HomeLink, LegalLine, sendInTime, SlowNote } from '../../app/SignIn.tsx'
 import {
+  acceptFailure,
   askAgainIn,
   clock,
   countdown,
@@ -22,7 +23,6 @@ import {
   readJoinToken,
   sessionLabel,
   withoutToken,
-  wrongAddress,
 } from './access-view.ts'
 import { GuestRoom, VisitEnd } from './GuestRoom.tsx'
 import { useNow } from '../../app/use-now.ts'
@@ -481,8 +481,21 @@ function MemberJoin({ preview, token, identity, onChooseDev, onSignOut, onOpenPr
  * Signs out to continue as the invitation's address. One that fails leaves the person in, on this page: it says so
  * with the account menu's words, and Try again runs it once more (invite-sign-out-failure.md, #410).
  */
-function SignOutAs({ email, onSignOut }: { email: string; onSignOut: () => Promise<boolean> }) {
+function SignOutAs({
+  email,
+  onSignOut,
+  focus = false,
+}: {
+  email: string
+  onSignOut: () => Promise<boolean>
+  focus?: boolean
+}) {
   const [failed, setFailed] = useState(false)
+  const press = useRef<HTMLButtonElement>(null)
+  // Where it comes in place of a press that had the focus, it takes it, so the focus never falls to the page.
+  useEffect(() => {
+    if (focus) press.current?.focus()
+  }, [focus])
   const [busy, setBusy] = useState(false)
   const signOut = async () => {
     if (busy) return
@@ -496,7 +509,13 @@ function SignOutAs({ email, onSignOut }: { email: string; onSignOut: () => Promi
   return (
     <>
       {/* While it goes it can't be pressed, and keeps the focus (aria-disabled). */}
-      <button type="button" className="pill primary" aria-disabled={busy || undefined} onClick={() => void signOut()}>
+      <button
+        ref={press}
+        type="button"
+        className="pill primary"
+        aria-disabled={busy || undefined}
+        onClick={() => void signOut()}
+      >
         {failed ? 'Try again' : `Sign out and continue as ${email}`}
       </button>
       {failed && (
@@ -533,18 +552,15 @@ function Accept({ token, identity, preview, onSignOut, onOpenProject }: AcceptPr
       rememberWelcome({ projectId, inviter: preview.inviterName ? inviter(preview) : null, role, at: Date.now() })
       onOpenProject(projectId)
     } catch (err: unknown) {
-      setError(
-        err instanceof Error
-          ? { words: err.message, otherAddress: wrongAddress(err) }
-          : { words: 'Could not accept the invitation.', otherAddress: false },
-      )
+      setError(acceptFailure(err, preview.email, identity.name))
       setBusy(false)
     }
   }
   return (
     <>
       {error?.otherAddress ? (
-        <SignOutAs email={preview.email ?? ''} onSignOut={onSignOut} />
+        // In Accept's place, it takes the focus Accept had (review P3-5).
+        <SignOutAs email={preview.email ?? ''} onSignOut={onSignOut} focus />
       ) : (
         <button type="button" className="pill primary" disabled={busy} onClick={() => void accept()}>
           {busy ? 'Joining…' : 'Accept and open the project'}
