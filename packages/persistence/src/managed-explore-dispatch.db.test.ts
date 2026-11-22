@@ -9,6 +9,7 @@ import {
   createPool,
   readManagedExploreEntry,
   readManagedExploreSession,
+  recordManagedExploreWorkerReadiness,
   recordMissionEntry,
   retainManagedExploreOutput,
   selectManagedExploreDirection,
@@ -55,6 +56,7 @@ after(async () => {
 })
 
 async function admit() {
+  await recordManagedExploreWorkerReadiness(worker, scope, founder, true)
   const { projectId } = await seedProject(db.ownerUrl, { admin: founder })
   await owner.query(
     `INSERT INTO sophia.managed_explore_grants(project_id,founder_id,route_id,provider_org,provider_project,

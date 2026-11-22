@@ -31,6 +31,7 @@ import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
 
 export const MANAGED_EXPLORE_SCHEMA = `SELECT
   to_regprocedure('sophia.read_managed_explore_preflight(uuid,uuid,bigint,boolean)') IS NOT NULL
+  AND to_regprocedure('sophia.record_managed_explore_worker_readiness(text,text,text,bigint,uuid,boolean)') IS NOT NULL
   AND to_regprocedure('sophia.start_managed_explore(uuid,uuid,bigint,text,text)') IS NOT NULL
   AND to_regprocedure('sophia.read_managed_explore_session(uuid,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.admit_managed_explore_turn(uuid,uuid,text,jsonb)') IS NOT NULL

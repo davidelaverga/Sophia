@@ -18,6 +18,7 @@ import {
   createPool,
   markManagedExplorePreviewServed,
   readSnapshot,
+  recordManagedExploreWorkerReadiness,
   shownReach,
   startExchange,
   withActor,
@@ -36,11 +37,14 @@ const admin = randomUUID()
 const editor = randomUUID()
 const viewer = randomUUID()
 const routeId = 'fixture-explore'
+const workerRoute = { routeId, providerOrg: 'fixture-org', providerProject: 'fixture-project', credentialGeneration: 1 }
+const workerInstance = randomUUID()
 const previewOrigin = 'https://explore-content.example.test'
 const noteText = 'When the ship reports a fault, show the port team the next action.'
 let db: TestDatabase
 let owner: pg.Pool
 let pool: pg.Pool
+let worker: pg.Pool
 let app: FastifyInstance
 let off: FastifyInstance
 
@@ -58,6 +62,7 @@ before(async () => {
   db = await createTestDatabase()
   pool = createPool(db.apiUrl)
   owner = createPool(db.ownerUrl)
+  worker = createPool(db.workerUrl)
   const verifyActor = createActorVerifier({ issuer, audience: 'authenticated', secret })
   const mediaBridgeTokenSha256 = createHash('sha256').update(mediaToken).digest()
   app = buildApp({
@@ -75,6 +80,7 @@ after(async () => {
   await off?.close()
   await owner?.end()
   await pool?.end()
+  await worker?.end()
   await db?.drop()
 })
 
@@ -137,16 +143,81 @@ async function recordVoiceNote(projectId: string): Promise<MissionReceipt> {
   return result.output
 }
 
-async function addGrant(projectId: string) {
+async function addGrant(projectId: string, route = routeId, announce = true) {
   await owner.query(
     `INSERT INTO sophia.managed_explore_grants(project_id,founder_id,route_id,provider_org,provider_project,
        credential_generation,model,currency,per_turn_micros,per_session_micros,environment_micros,funding_evidence_ref,
        grant_only_verified,enabled,expires_at,credential_expires_at)
      VALUES($1,$2,$3,'fixture-org','fixture-project',1,'fixture-model','USD',10,100,20,'fixture-proof',
        true,true,clock_timestamp()+interval '1 hour',clock_timestamp()+interval '1 hour')`,
-    [projectId, founder, routeId],
+    [projectId, founder, route],
   )
+  if (announce)
+    await recordManagedExploreWorkerReadiness(worker, { ...workerRoute, routeId: route }, workerInstance, true)
 }
+
+it('requires fresh matching worker readiness for new admissions and preserves prior receipts while it is offline', async () => {
+  const { projectId } = await seedProject(db.ownerUrl, { admin, editors: [founder] })
+  const root = `/api/v1/projects/${projectId}/explore`
+  const note = await recordVoiceNote(projectId)
+  const route = { ...workerRoute, routeId: 'fixture-readiness-route' }
+  await addGrant(projectId, route.routeId, false)
+  const payload = { seedEntryId: note.entryId, expectedSeedRevision: note.ledgerRevision, routeId: route.routeId }
+  const preflight = `${root}/preflight?seedEntryId=${note.entryId}&expectedSeedRevision=${note.ledgerRevision}`
+  const start = `${root}/sessions`
+  const key = randomUUID()
+  const second = randomUUID()
+
+  await assert.rejects(recordManagedExploreWorkerReadiness(pool, route, workerInstance, true), { code: 'forbidden' })
+  assert.equal((await request(preflight)).statusCode, 503)
+  assert.equal((await request(start, { payload, key })).statusCode, 503)
+  await recordManagedExploreWorkerReadiness(worker, { ...route, credentialGeneration: 2 }, workerInstance, true)
+  await recordManagedExploreWorkerReadiness(worker, { ...route, providerOrg: 'other-org' }, workerInstance, true)
+  await recordManagedExploreWorkerReadiness(
+    worker,
+    { ...route, providerProject: 'other-project' },
+    workerInstance,
+    true,
+  )
+  assert.equal((await request(preflight)).statusCode, 503)
+  assert.equal((await request(start, { payload, key })).statusCode, 503)
+  const count = async () =>
+    (
+      await owner.query<{ count: number }>(
+        'SELECT count(*)::int FROM sophia.managed_explore_turns WHERE project_id=$1',
+        [projectId],
+      )
+    ).rows[0]?.count
+  assert.equal(await count(), 0)
+
+  await recordManagedExploreWorkerReadiness(worker, route, workerInstance, true)
+  await recordManagedExploreWorkerReadiness(worker, route, second, true)
+  await recordManagedExploreWorkerReadiness(worker, route, workerInstance, false)
+  assert.equal((await request(preflight)).statusCode, 200)
+  const first = await request(start, { payload, key })
+  assert.equal(first.statusCode, 202, first.body)
+  const { sessionId } = first.json<ManagedExploreStartReceipt>()
+  const sessionUrl = `${start}/${sessionId}`
+
+  await owner.query(
+    "UPDATE sophia.managed_explore_worker_readiness SET ready_until=clock_timestamp()-interval '1 second' WHERE instance_id=$1",
+    [second],
+  )
+  const replay = await request(start, { payload, key })
+  assert.equal(replay.statusCode, 202, replay.body)
+  assert.equal(replay.json<ManagedExploreStartReceipt>().sessionId, sessionId)
+  const resume = await request(preflight)
+  assert.equal(resume.statusCode, 200)
+  assert.equal(resume.json<ManagedExplorePreflight>().sessionId, sessionId)
+  const session = await request(sessionUrl)
+  assert.equal(session.statusCode, 200, session.body)
+  const latest = session.json<ManagedExploreSession>()
+  const refused = await request(`${sessionUrl}/turns`, {
+    payload: { kind: 'text', instruction: 'A later question', expectedSessionRevision: latest.revision },
+  })
+  assert.equal(refused.statusCode, 503, refused.body)
+  assert.equal(await count(), 1)
+})
 
 it('uses a real saved voice note and atomically admits one authorized start across retries', async () => {
   const { projectId } = await seedProject(db.ownerUrl, { admin, editors: [founder, editor], viewers: [viewer] })

@@ -528,3 +528,4 @@ export {
   type ManagedExploreRetentionOutput,
   type ManagedExploreRetentionResult,
 } from './managed-explore-retention.ts'
+export { recordManagedExploreWorkerReadiness } from './managed-explore-worker-readiness.ts'

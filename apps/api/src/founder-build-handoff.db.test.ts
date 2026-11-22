@@ -13,6 +13,7 @@ import { PROTOTYPE_ENTRY_MAX_BYTES, prototypeManifestSha256 } from '@sophia/desi
 import {
   createPool,
   markManagedExplorePreviewServed,
+  recordManagedExploreWorkerReadiness,
   recordMissionEntry,
   startManagedExplore,
   withActor,
@@ -75,6 +76,17 @@ before(async () => {
   db = await createTestDatabase()
   owner = createPool(db.ownerUrl)
   pool = createPool(db.apiUrl)
+  const worker = createPool(db.workerUrl)
+  try {
+    await recordManagedExploreWorkerReadiness(
+      worker,
+      { routeId, providerOrg: 'fixture-org', providerProject: 'fixture-project', credentialGeneration: 1 },
+      randomUUID(),
+      true,
+    )
+  } finally {
+    await worker.end()
+  }
   const verifyActor = createActorVerifier({ issuer, audience: 'authenticated', secret })
   app = buildApp({
     pool,
