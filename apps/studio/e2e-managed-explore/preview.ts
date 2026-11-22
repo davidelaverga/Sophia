@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { isPreviewFrameRequest, previewRequestHeaders } from '../../api/src/routes/prototype-preview-content.ts'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 
 import {
@@ -36,6 +37,16 @@ export function prototype(version: number) {
 
 export function navigationPrototype(kind: string): string {
   if (kind === 'early') return '<!doctype html><script>location.replace("about:blank")</script>'
+  if (kind === 'intrinsics')
+    return `<!-- Retained comment before the doctype --><!doctype html><html><head data-layout="compact"><title>Fixture</title>
+      <script>
+        Object.defineProperty(MessageEvent.prototype, 'data', {
+          configurable: true,
+          get() { document.documentElement.dataset.replacedGetterInvoked = 'yes'; throw new Error('Synthetic getter'); }
+        });
+      </script></head><body><button id="exercise">Run local interaction</button><p role="status">Waiting</p>
+      <script>document.querySelector('#exercise').onclick = () => document.querySelector('[role="status"]').textContent = 'Local interaction complete';</script>
+      </body></html>`
   if (kind === 'ancestor')
     return `<!doctype html><button id="try">Try to leave the outer frame</button><p id="result" role="status"></p><script>
       document.querySelector('#try').onclick = () => {
@@ -71,6 +82,15 @@ function fixturePresentation(presentation: string | undefined, permit: string | 
       : presentation === 'document'
         ? previewDocument(source, previewOrigin)
         : source
+  if (presentation === 'index')
+    return {
+      body,
+      headers: {
+        ...headers,
+        'content-type': 'application/octet-stream',
+        'content-disposition': 'attachment; filename="index.html"',
+      },
+    }
   return { headers, body }
 }
 
@@ -83,11 +103,19 @@ function fixtureCors(request: IncomingMessage, response: ServerResponse) {
   return allowed
 }
 
+function fixtureGetAllowed(request: IncomingMessage, presentation: string | undefined): boolean {
+  if (request.method !== 'GET') return false
+  return (
+    presentation === 'index' ||
+    isPreviewFrameRequest(previewRequestHeaders(request.headers), presentation === 'document')
+  )
+}
+
 if (import.meta.main)
   createServer((request, response) => {
     if (request.url === '/health') return response.end('ok')
     const match =
-      /^\/v1\/previews\/(synthetic-(?:(missing-|wrong-hash-)?v([12])|(early|external|local|ancestor)))\/(index|shell|document)\.html$/u.exec(
+      /^\/v1\/previews\/(synthetic-(?:(missing-|wrong-hash-)?v([12])|(early|external|local|ancestor|intrinsics)))\/(index|shell|document)\.html$/u.exec(
         request.url ?? '',
       )
     const allowed = fixtureCors(request, response)
@@ -101,6 +129,6 @@ if (import.meta.main)
       const digest = variant === 'wrong-hash-' ? '0'.repeat(64) : createHash('sha256').update(source).digest('hex')
       return response.writeHead(200, { ...headers, 'x-sophia-preview-entry-sha256': digest }).end()
     }
-    if (request.method !== 'GET') return response.writeHead(404).end()
+    if (!fixtureGetAllowed(request, presentation)) return response.writeHead(404).end()
     return response.writeHead(200, headers).end(body)
   }).listen(5277, 'localhost')

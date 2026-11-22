@@ -1,5 +1,5 @@
 import { parse, walk } from 'css-tree'
-import { attr, elements, isText, parseDocument, type Element } from './dom.ts'
+import { attr, elements, isElement, isText, parseDocument, type Element } from './dom.ts'
 
 const NAVIGABLE_ELEMENTS = new Set(['applet', 'base', 'embed', 'frame', 'iframe', 'link', 'object', 'portal'])
 const EXTERNAL_ATTRIBUTES = new Set([
@@ -68,4 +68,18 @@ function elementIsLocal(element: Element): boolean {
 /** Reject declared remote dependencies. Script runtime behavior still depends on the separate host and sandbox. */
 export function hasOnlyLocalPrototypeResources(entry: Uint8Array): boolean {
   return elements(parseDocument(new TextDecoder().decode(entry))).every(elementIsLocal)
+}
+
+/** Find the first explicit head slot, or the safe position after the document prelude of an implicit head. */
+export function prototypeBootstrapOffset(source: string): number {
+  const doc = parseDocument(source, true)
+  let offset = 0
+  for (const node of doc.childNodes) {
+    if (isElement(node)) {
+      const head = node.childNodes.find((child): child is Element => isElement(child) && child.tagName === 'head')
+      return head?.sourceCodeLocation?.startTag?.endOffset ?? node.sourceCodeLocation?.startTag?.endOffset ?? offset
+    }
+    offset = node.sourceCodeLocation?.endOffset ?? offset
+  }
+  return offset
 }

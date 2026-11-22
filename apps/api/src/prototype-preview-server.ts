@@ -3,7 +3,11 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { checkRoleSafety, createPool, markManagedExplorePreviewServed } from '@sophia/persistence'
 import { byteStoreFromEnv } from './byte-store.ts'
 import { managedExplorePreviewReader } from './routes/managed-explore.ts'
-import { createPrototypePreviewContentHandler, isPrototypePreviewPath } from './routes/prototype-preview-content.ts'
+import {
+  createPrototypePreviewContentHandler,
+  isPrototypePreviewPath,
+  previewRequestHeaders,
+} from './routes/prototype-preview-content.ts'
 
 function required(name: string): string {
   const value = process.env[name]?.trim()
@@ -47,8 +51,9 @@ async function request(req: IncomingMessage, res: ServerResponse): Promise<void>
     unreachable(res)
     return
   }
-  const origin = req.headers.origin
-  const response = await handle(new Request(previewOrigin + req.url, { method, headers: origin ? { origin } : {} }))
+  const response = await handle(
+    new Request(previewOrigin + req.url, { method, headers: previewRequestHeaders(req.headers) }),
+  )
   const payload = Buffer.from(await response.arrayBuffer())
   res.writeHead(response.status, Object.fromEntries(response.headers))
   res.end(payload)

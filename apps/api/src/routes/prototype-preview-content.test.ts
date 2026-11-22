@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import {
   createPrototypePreviewContentHandler,
   isPrototypePreviewPath,
+  previewRequestHeaders,
   type RetainedPreviewEntry,
 } from './prototype-preview-content.ts'
 
@@ -11,6 +12,17 @@ const previewOrigin = 'https://prototype.example'
 const studioOrigin = 'https://studio.example'
 const token = 'A'.repeat(43)
 const exactPath = `/v1/previews/${token}/index.html`
+const shellUrl = previewOrigin + exactPath.replace('index.html', 'shell.html')
+const documentUrl = previewOrigin + exactPath.replace('index.html', 'document.html')
+const frame = (url: string, site: string) =>
+  new Request(url, {
+    headers: { 'sec-fetch-site': site, 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'iframe' },
+  })
+const top = (url: string) =>
+  new Request(url, {
+    headers: { 'sec-fetch-site': 'none', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' },
+  })
+
 const now = Date.UTC(2026, 10, 22, 15)
 const bytes = new TextEncoder().encode('<!doctype html>\r\n<button id="ack">Acknowledge</button>\r\n')
 const entry: RetainedPreviewEntry = {
@@ -30,21 +42,19 @@ function forEntry(read: (candidate: string) => Promise<RetainedPreviewEntry | nu
   })
 }
 
-test('serves only exact verified bytes with the separate sandbox policy and no browser referrer', async () => {
+test('serves only exact verified bytes as an inert attachment with no browser referrer', async () => {
   const page = forEntry((candidate) => Promise.resolve(candidate === token ? entry : null))
   const response = await page(new Request(previewOrigin + exactPath))
   assert.equal(response.status, 200)
   assert.deepEqual(new Uint8Array(await response.arrayBuffer()), bytes)
-  assert.equal(response.headers.get('content-type'), 'text/html; charset=utf-8')
+  assert.equal(response.headers.get('content-type'), 'application/octet-stream')
+  assert.equal(response.headers.get('content-disposition'), 'attachment; filename="index.html"')
+  assert.equal(response.headers.get('x-content-type-options'), 'nosniff')
   assert.equal(response.headers.get('cache-control'), 'no-store, private')
   assert.equal(response.headers.get('referrer-policy'), 'no-referrer')
   assert.equal(response.headers.get('set-cookie'), null)
   assert.equal(response.headers.get('access-control-allow-origin'), null)
-  const policy = response.headers.get('content-security-policy') ?? ''
-  assert.match(policy, /sandbox allow-scripts$/)
-  assert.match(policy, /connect-src 'none'/)
-  assert.match(policy, /frame-ancestors https:\/\/studio\.example/)
-  assert.doesNotMatch(policy, /allow-same-origin|allow-popups|allow-forms/)
+  assert.equal(response.headers.get('content-security-policy'), "default-src 'none'; frame-ancestors 'none'; sandbox")
 })
 
 test('wrong host, wrong path, alternate file and non-GET never call the resolver', async () => {
@@ -111,7 +121,7 @@ test('refuses hash-valid documents that declare remote dependencies', async () =
   }
 })
 
-test('checks the exact digest without recording HEAD and serves a GET only when the receipt is accepted', async () => {
+test('HEAD and raw GET never record an approval receipt and an expired receipt blocks the guarded document', async () => {
   let served = 0
   let grantCurrent = true
   const handle = createPrototypePreviewContentHandler({
@@ -134,9 +144,11 @@ test('checks the exact digest without recording HEAD and serves a GET only when 
   assert.equal(await verified.text(), '')
   assert.equal(served, 0)
   assert.equal((await handle(new Request(previewOrigin + exactPath))).status, 200)
+  assert.equal(served, 0)
+  assert.equal((await handle(frame(documentUrl, 'same-origin'))).status, 200)
   assert.equal(served, 1)
   grantCurrent = false
-  assert.equal((await handle(new Request(previewOrigin + exactPath))).status, 404)
+  assert.equal((await handle(frame(documentUrl, 'same-origin'))).status, 404)
   assert.equal(served, 2)
 })
 
@@ -157,15 +169,13 @@ test('serves the trusted shell and opaque document under the same exact permit',
       return Promise.resolve(true)
     },
   })
-  const documentUrl = previewOrigin + exactPath.replace('index.html', 'document.html')
-  const shellUrl = previewOrigin + exactPath.replace('index.html', 'shell.html')
-  const shell = await handle(new Request(shellUrl))
+  const shell = await handle(frame(shellUrl, 'cross-site'))
   assert.equal(shell.status, 200)
   assert.ok(shell.headers.get('content-security-policy')?.includes(`frame-src ${documentUrl};`))
   assert.ok(shell.headers.get('content-security-policy')?.endsWith('sandbox allow-scripts allow-same-origin'))
   assert.match(await shell.text(), /Retained interactive prototype/u)
   assert.equal(receipts, 0)
-  const document = await handle(new Request(documentUrl))
+  const document = await handle(frame(documentUrl, 'same-origin'))
   assert.equal(document.status, 200)
   assert.ok(
     document.headers.get('content-security-policy')?.includes(`frame-ancestors ${studioOrigin} ${previewOrigin};`),
@@ -178,14 +188,14 @@ test('serves the trusted shell and opaque document under the same exact permit',
   assert.deepEqual(new Uint8Array(await (await handle(new Request(previewOrigin + exactPath))).arrayBuffer()), bytes)
   for (const url of [documentUrl, shellUrl]) {
     for (const suffix of ['?', '?fixed=1', '#anchor']) {
-      const refused = await handle(new Request(url + suffix))
+      const refused = await handle(frame(url + suffix, url === documentUrl ? 'same-origin' : 'cross-site'))
       assert.equal(refused.status, 404)
       assert.equal(refused.headers.get('location'), null)
     }
     assert.equal((await handle(new Request(url, { method: 'HEAD', headers: { origin: studioOrigin } }))).status, 404)
   }
   assert.equal(reads, 3)
-  assert.equal(receipts, 2)
+  assert.equal(receipts, 1)
 })
 
 test('checks the raw listener path before URL normalization', () => {
@@ -202,4 +212,41 @@ test('checks the raw listener path before URL normalization', () => {
     exactPath.replace('index.html', 'document.html?fixed=1'),
   ])
     assert.equal(isPrototypePreviewPath(path), false)
+})
+
+test('requires frame navigation metadata before resolving a presentation', async () => {
+  let reads = 0
+  const handle = forEntry(() => {
+    reads++
+    return Promise.resolve(entry)
+  })
+  for (const request of [
+    new Request(documentUrl),
+    new Request(shellUrl),
+    top(documentUrl),
+    top(shellUrl),
+    frame(documentUrl, 'cross-site'),
+    frame(documentUrl, 'same-site'),
+    frame(shellUrl, 'same-origin'),
+    new Request(documentUrl, {
+      headers: { 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'iframe' },
+    }),
+  ]) {
+    assert.equal((await handle(request)).status, 404)
+  }
+  assert.equal(reads, 0)
+  assert.equal((await handle(frame(shellUrl, 'same-site'))).status, 200)
+  assert.equal(reads, 1)
+  assert.deepEqual(
+    Object.fromEntries(
+      previewRequestHeaders({
+        origin: studioOrigin,
+        cookie: 'fixture=ignored',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-dest': 'iframe',
+        'sec-fetch-site': ['same-origin', 'cross-site'],
+      }),
+    ),
+    { origin: studioOrigin, 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'iframe' },
+  )
 })

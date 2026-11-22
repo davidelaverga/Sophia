@@ -102,12 +102,11 @@ function ConfirmedFrame({
   }, [onUnavailable])
 
   useEffect(() => {
-    const binding = bindPreviewFrame(
-      preview,
-      () => frame.current?.contentWindow,
+    const binding = bindPreviewFrame(preview, {
+      shellWindow: () => frame.current?.contentWindow,
       onFrame,
-      () => unavailable.current(),
-    )
+      onUnavailable: () => unavailable.current(),
+    })
     shellLoaded.current = binding.load
     setListening(true)
     return () => {
@@ -129,7 +128,7 @@ function ConfirmedFrame({
       ref={frame}
       src={shell.href}
       title={`Interactive prototype, version ${String(version.number)}`}
-      // oxlint-disable-next-line react/iframe-missing-sandbox -- Trusted shell on a distinct origin. Its generated child is opaque.
+      // oxlint-disable-next-line react/iframe-missing-sandbox -- The trusted cross-origin shell needs its authenticated origin. The generated child is opaque.
       sandbox="allow-scripts allow-same-origin"
       referrerPolicy="no-referrer"
       onLoad={() => shellLoaded.current?.()}

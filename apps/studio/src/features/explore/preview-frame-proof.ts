@@ -37,13 +37,22 @@ function makeChallenge(onTimeout: () => void) {
   }
 }
 
-/** Own one bounded handshake and revoke it permanently if either frame changes. */
-export function bindPreviewFrame(
-  preview: Scope,
-  shellWindow: () => Window | null | undefined,
-  onFrame: (check: CheckDisplayedPreview | null) => void,
-  onUnavailable: () => void,
-) {
+function listenToShell(origin: string, shellWindow: () => Window | null | undefined, receive: (data: unknown) => void) {
+  const listen = (event: MessageEvent<unknown>) => {
+    if (event.origin === origin && event.source === shellWindow()) receive(event.data)
+  }
+  addEventListener('message', listen)
+  return () => removeEventListener('message', listen)
+}
+
+interface Observer {
+  shellWindow: () => Window | null | undefined
+  onFrame: (check: CheckDisplayedPreview | null) => void
+  onUnavailable: () => void
+}
+
+/** Own one bounded handshake and revoke it permanently on replacement of either document. */
+export function bindPreviewFrame(preview: Scope, { shellWindow, onFrame, onUnavailable }: Observer) {
   let stopped = false
   let bridgeReady = false
   let shellLoads = 0
@@ -74,25 +83,28 @@ export function bindPreviewFrame(
     if (++shellLoads > 1) invalidate()
     else publishReady()
   }
-  const listen = (event: MessageEvent<unknown>) => {
-    if (!stillCurrent() || event.origin !== preview.url.origin || event.source !== shellWindow()) return
-    switch (messageKind(event.data)) {
+  const unlisten = listenToShell(preview.url.origin, shellWindow, (data) => {
+    if (!stillCurrent()) return
+    switch (messageKind(data)) {
       case 'preview-invalid':
         return invalidate()
       case 'preview-ready':
         bridgeReady = true
         return publishReady()
+      case 'preview-rechecking':
+        bridgeReady = false
+        challenge.stop()
+        return onFrame(null)
       case 'preview-checked':
-        return challenge.answer(event.data)
+        return challenge.answer(data)
     }
-  }
-  addEventListener('message', listen)
+  })
   preview.signal.addEventListener('abort', stop, { once: true })
   const timer = setTimeout(invalidate, READ_TIMEOUT_MS)
   return {
     load,
     disconnect() {
-      removeEventListener('message', listen)
+      unlisten()
       preview.signal.removeEventListener('abort', stop)
       stop()
     },

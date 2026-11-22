@@ -1,3 +1,5 @@
+import { prototypeBootstrapOffset } from '@sophia/design'
+
 /** The shell runs only on the dedicated preview origin. The retained document has an opaque origin. */
 export function previewContentPolicy(ancestors: string, frameSrc = "'none'", opaque = true): string {
   return [
@@ -24,19 +26,19 @@ const shellRuntime = `(documentUrl, studioOrigin) => {
   frame.title = 'Retained interactive prototype';
   frame.setAttribute('sandbox', 'allow-scripts');
   frame.referrerPolicy = 'no-referrer';
-  let port, loads = 0, invalid = false, ready = false, pending, initialTimer;
+  let port, hasLoaded = false, invalid = false, ready = false, pending, readinessTimer;
   const tell = (kind, id) => parent.postMessage({kind, id}, studioOrigin);
   const invalidate = () => {
     if (invalid) return;
     invalid = true;
-    clearTimeout(initialTimer);
+    clearTimeout(readinessTimer);
     clearTimeout(pending?.timer);
     port?.close();
     frame.remove();
     tell('preview-invalid');
   };
   const challenge = (id) => {
-    if (!port || invalid || loads !== 1 || pending) return;
+    if (!port || invalid || !hasLoaded || pending) return;
     const nonce = crypto.randomUUID();
     pending = {id, nonce, timer: setTimeout(invalidate, 3000)};
     port.postMessage(nonce);
@@ -66,19 +68,26 @@ const shellRuntime = `(documentUrl, studioOrigin) => {
       pending = undefined;
       if (id) tell('preview-checked', id);
       else {
-        clearTimeout(initialTimer);
+        clearTimeout(readinessTimer);
         ready = true;
         tell('preview-ready');
       }
     };
-    if (loads === 1) challenge();
+    if (hasLoaded) challenge();
   });
   frame.addEventListener('load', () => {
-    if (++loads !== 1) {
-      invalidate();
-      return;
+    if (hasLoaded) {
+      if (!ready || pending) {
+        invalidate();
+        return;
+      }
+      // WebKit can emit load on a same-document fragment jump.
+      // Only the original port can revalidate. pagehide disables its answering end.
+      ready = false;
+      tell('preview-rechecking');
     }
-    initialTimer = setTimeout(invalidate, 3000);
+    hasLoaded = true;
+    readinessTimer = setTimeout(invalidate, 3000);
     challenge();
   });
   frame.src = documentUrl;
@@ -91,13 +100,15 @@ export function previewShell(documentUrl: string, studioOrigin: string): string 
 </head><body><script>(${shellRuntime})(${scriptValue(documentUrl)},${scriptValue(studioOrigin)})</script></body></html>`
 }
 
-/** Prefix trusted code before any source script. The original bytes and hash remain the export identity. */
+/** Insert trusted code before any source script. The original bytes and hash remain the export identity. */
 export function previewDocument(source: string, previewOrigin: string): string {
-  const doctype = /^\uFEFF?[\t\n\f\r ]*<!doctype[\t\n\f\r ]+html[\t\n\f\r ]*>/iu.exec(source)?.[0] ?? ''
-  return `${doctype}<script>
+  const offset = prototypeBootstrapOffset(source)
+  return `${source.slice(0, offset)}<script>
 (() => {
   const channel = new MessageChannel();
   const send = channel.port1.postMessage.bind(channel.port1);
+  // Do not look up an overridable MessageEvent property after the retained script starts.
+  const readData = Function.call.bind(Object.getOwnPropertyDescriptor(MessageEvent.prototype, 'data').get);
   let loaded = false, left = false;
   addEventListener('load', (event) => { if (event.isTrusted) loaded = true; }, {once: true});
   addEventListener('pagehide', (event) => {
@@ -105,11 +116,13 @@ export function previewDocument(source: string, previewOrigin: string): string {
     left = true;
     send('preview-left');
   }, true);
-  channel.port1.onmessage = ({data}) => {
-    if (loaded && !left && typeof data === 'string') send(data);
+  channel.port1.onmessage = (event) => {
+    if (!loaded || left) return;
+    const data = readData(event);
+    if (typeof data === 'string') send(data);
   };
   document.currentScript.remove();
   parent.postMessage('preview-channel', ${scriptValue(previewOrigin)}, [channel.port2]);
 })();
-</script>${source.slice(doctype.length)}`
+</script>${source.slice(offset)}`
 }

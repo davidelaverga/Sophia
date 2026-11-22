@@ -15,6 +15,24 @@ export function isPrototypePreviewPath(path: string | undefined): path is string
   return path !== undefined && PREVIEW_PATH.test(path)
 }
 
+const PREVIEW_REQUEST_HEADERS = ['origin', 'sec-fetch-dest', 'sec-fetch-mode', 'sec-fetch-site'] as const
+
+export function previewRequestHeaders(incoming: Record<string, string | string[] | undefined>): Headers {
+  const headers = new Headers()
+  for (const name of PREVIEW_REQUEST_HEADERS) {
+    const value = incoming[name]
+    if (typeof value === 'string') headers.set(name, value)
+  }
+  return headers
+}
+
+/** Recognize the two browser hops without trusting client-supplied headers as authorization. */
+export function isPreviewFrameRequest(headers: Headers, inner: boolean): boolean {
+  if (headers.get('sec-fetch-dest') !== 'iframe' || headers.get('sec-fetch-mode') !== 'navigate') return false
+  const site = headers.get('sec-fetch-site')
+  return inner ? site === 'same-origin' : site === 'same-site' || site === 'cross-site'
+}
+
 export interface RetainedPreviewEntry {
   readonly expiresAt: string
   readonly entrySha256: string
@@ -27,7 +45,7 @@ interface PreviewHost {
   studioOrigin: string
   /** The resolver rechecks the permit's exact version, manifest, actor, project, membership and source eligibility. */
   readPermit: (permit: string) => Promise<RetainedPreviewEntry | null>
-  /** This records a successful GET under current exact scope, after verifying bytes and policy. HEAD never calls it. */
+  /** Records a guarded document GET under current exact scope after verifying bytes and policy. */
   recordServed: (permit: string) => Promise<boolean>
   now?: () => number
 }
@@ -59,7 +77,10 @@ function contentPermit(request: Request, preview: URL, studio: URL) {
   if (url.origin !== preview.origin || request.url !== `${preview.origin}${url.pathname}`) return null
   const [, permit, presentation] = PREVIEW_PATH.exec(url.pathname) ?? []
   if (!permit || !presentation) return null
-  if (request.method === 'GET') return { permit, presentation, checkOnly: false }
+  if (request.method === 'GET') {
+    if (presentation !== 'index' && !isPreviewFrameRequest(request.headers, presentation === 'document')) return null
+    return { permit, presentation, checkOnly: false }
+  }
   if (presentation === 'index' && request.method === 'HEAD' && request.headers.get('origin') === studio.origin) {
     return { permit, presentation, checkOnly: true }
   }
@@ -92,10 +113,10 @@ async function render(
       },
     })
   }
-  if (!(await config.recordServed(permit))) return null
   if (presentation === 'document') {
-    const source = new TextDecoder().decode(bytes)
-    return new Response(previewDocument(source, preview), {
+    const document = previewDocument(new TextDecoder().decode(bytes), preview)
+    if (!(await config.recordServed(permit))) return null
+    return new Response(document, {
       headers: {
         ...headers,
         'content-type': 'text/html; charset=utf-8',
@@ -106,7 +127,9 @@ async function render(
   return new Response(bytes, {
     headers: {
       ...headers,
-      'content-type': 'text/html; charset=utf-8',
+      'content-type': 'application/octet-stream',
+      'content-disposition': 'attachment; filename="index.html"',
+      'content-security-policy': "default-src 'none'; frame-ancestors 'none'; sandbox",
       'content-length': String(bytes.byteLength),
     },
   })
