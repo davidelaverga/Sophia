@@ -2,7 +2,13 @@ import { expect, type Page, type Route } from '@playwright/test'
 import { mission, membership, PROJECT, snapshot } from '../fixtures/data.ts'
 import { goalNote } from '../fixtures/brief-data.ts'
 import { entryHash, prototype } from './preview.ts'
-import type { ExploreApproval, ExploreDirection, ExploreSession, ExploreVersion } from '../src/api/managed-explore.ts'
+import type {
+  ExploreAccountSnapshot,
+  ExploreApproval,
+  ExploreDirection,
+  ExploreSession,
+  ExploreVersion,
+} from '../src/api/managed-explore.ts'
 
 export const brief = 'Review a weekly energy exception. Compare a shore-first assignment with a vessel-first response.'
 export const feedback = 'Require the chief engineer to give a non-blank explanation before shore can assign follow-up.'
@@ -81,11 +87,15 @@ export const approval: ExploreApproval = {
 }
 
 type Write = { path: string; key: string; request: Record<string, unknown> }
+type FundingWire = Omit<ExploreSession['funding'], 'accountSnapshot'> & {
+  accountSnapshot?: ExploreAccountSnapshot | null
+}
 interface Fixture {
   calls: { writes: Write[]; preflights: number; rejectPermits: boolean }
-  data: ExploreSession
+  data: Omit<ExploreSession, 'funding'> & { funding: FundingWire }
   options: {
     ineligible?: boolean
+    fundingSnapshot?: ExploreAccountSnapshot | null
     uncertain?: boolean
     existingVersions?: boolean
     approvedVersion?: boolean
@@ -116,7 +126,7 @@ function exploreRead(route: Route, url: URL, fixture: Fixture) {
     expect(url.searchParams.get('expectedSeedRevision')).toBe(String(seed.revision))
     return fixture.options.ineligible
       ? notFound(route)
-      : json(route, { seed, funding, sessionId: fixture.started ? session : null })
+      : json(route, { seed, funding: fixture.data.funding, sessionId: fixture.started ? session : null })
   }
   if (url.pathname.endsWith(`/handoff/${approval.id}`))
     return json(route, {
@@ -250,7 +260,8 @@ export async function mockApi(page: Page, options: Fixture['options'] = {}) {
       id: session,
       revision: 1,
       seed,
-      funding,
+      funding:
+        options.fundingSnapshot === undefined ? funding : { ...funding, accountSnapshot: options.fundingSnapshot },
       turns: [],
       directions: options.existingVersions ? [shore, vessel] : [],
       selectedDirectionId: options.existingVersions ? vessel.id : null,

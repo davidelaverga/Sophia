@@ -6,6 +6,7 @@ import {
   parseExploreAction,
   sendExploreAction,
   type ExploreAction,
+  type ExploreFunding,
   type ExploreScope,
   type ExploreSession,
   type ExploreTurn,
@@ -13,6 +14,7 @@ import {
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { keepTabDrafts, readTabDrafts, type HeldAt } from '../../app/held-in-tab.ts'
 import { DirectionOptions } from './DirectionOptions.tsx'
+import { ExploreFundingDetails } from './ExploreFundingDetails.tsx'
 import { PrototypeReview } from './PrototypeReview.tsx'
 import { useExploreAdmission } from './useExploreAdmission.ts'
 import './managed-explore.css'
@@ -96,7 +98,7 @@ function ExploreHeader({
   onRoom,
   onBack,
   call,
-}: Pick<Props, 'visible' | 'onRoom' | 'onBack' | 'call'> & { funding: string | undefined }) {
+}: Pick<Props, 'visible' | 'onRoom' | 'onBack' | 'call'> & { funding: ExploreFunding | undefined }) {
   const heading = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
     if (!visible) return undefined
@@ -109,7 +111,7 @@ function ExploreHeader({
         <h2 ref={heading} tabIndex={-1}>
           Explore with Codex
         </h2>
-        {funding && <p>{funding}</p>}
+        {funding && <p className="explore-funding-label">{funding.label}</p>}
       </div>
       <div className="managed-explore-call">{call}</div>
       <div className="managed-explore-nav">
@@ -120,6 +122,7 @@ function ExploreHeader({
           Back to Brief
         </button>
       </div>
+      {funding && <ExploreFundingDetails funding={funding} />}
     </header>
   )
 }
@@ -177,7 +180,7 @@ export function ManagedExploreSession(props: Props) {
   const canSend = read.isSuccess && admission.state.status !== 'unknown' && admission.state.status !== 'sending'
   return (
     <aside className="managed-explore" aria-label="Explore workspace" hidden={!props.visible} data-typing-scope>
-      <ExploreHeader {...props} funding={session?.funding.label} />
+      <ExploreHeader {...props} funding={session?.funding} />
       <SessionNotice {...state} />
       {session && (
         <ExploreWorkspace

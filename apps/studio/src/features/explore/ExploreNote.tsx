@@ -4,6 +4,7 @@ import type { MissionEntry } from '@sophia/contracts'
 import { getExplorePreflight, parseExploreStart, startExplore, type ExploreScope } from '../../api/managed-explore.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { useExploreAdmission } from './useExploreAdmission.ts'
+import { ExploreFundingDetails } from './ExploreFundingDetails.tsx'
 import './managed-explore.css'
 
 interface Props {
@@ -125,6 +126,7 @@ function ConfirmedNote({
         <span className="muted">Saved note · revision {view.seed.revision}</span>
       </div>
       <blockquote>{view.seed.text}</blockquote>
+      <ExploreFundingDetails funding={view.funding} />
       {status === 'rejected' && <p role="status">{admission.state.error.message}</p>}
       {status === 'unknown' && !resumeId && <p role="status">Checking whether Explore started.</p>}
       {waiting && <p role="status">{SLOW_NOTE}</p>}

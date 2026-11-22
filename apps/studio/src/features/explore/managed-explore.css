@@ -74,9 +74,43 @@
 .managed-explore h4 {
   font-size: var(--type-title);
 }
-.managed-explore-head p {
+.managed-explore-head .explore-funding-label {
   color: var(--halo-text);
   font-size: var(--type-small);
+}
+.explore-funding {
+  display: grid;
+  gap: 4px;
+  font-size: var(--type-small);
+  line-height: var(--lh-small);
+}
+.managed-explore-head > .explore-funding {
+  grid-column: 1 / -1;
+}
+.explore-funding-values,
+.explore-funding-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+}
+.explore-funding-values div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.explore-funding-values dt,
+.explore-funding-note {
+  color: var(--text-2);
+}
+.explore-funding-values dd {
+  margin: 0;
+  font-weight: 600;
+}
+.explore-funding-note a {
+  color: var(--halo-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .managed-explore-nav {
   display: flex;

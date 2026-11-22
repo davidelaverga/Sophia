@@ -1,4 +1,5 @@
 import { callApi } from './client.ts'
+import { isDateTime } from './shape.ts'
 
 const invalid = () => new Error('Invalid Explore response')
 const field = (value: unknown, key: string): unknown => {
@@ -36,10 +37,39 @@ const parseSeed = (value: unknown) => ({
   text: text(field(value, 'text')),
   sha256: digest(field(value, 'sha256')),
 })
-const parseFunding = (value: unknown) => ({
-  routeId: text(field(value, 'routeId')),
-  label: choice(field(value, 'label'), ['OpenAI API credits']),
-})
+export interface ExploreAccountSnapshot {
+  balanceCents: number | null
+  currency: 'USD'
+  autoRechargeEnabled: boolean | null
+  observedAt: string
+}
+
+function accountSnapshot(value: unknown): ExploreAccountSnapshot | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  const observedAt = field(value, 'observedAt')
+  const currency = field(value, 'currency')
+  if (typeof observedAt !== 'string' || !isDateTime(observedAt) || currency !== 'USD') return undefined
+  const balance = field(value, 'balanceCents')
+  const autoRecharge = field(value, 'autoRechargeEnabled')
+  return {
+    observedAt,
+    currency,
+    balanceCents: typeof balance === 'number' && Number.isSafeInteger(balance) ? balance : null,
+    autoRechargeEnabled: typeof autoRecharge === 'boolean' ? autoRecharge : null,
+  }
+}
+
+function parseFunding(value: unknown) {
+  const snapshot = accountSnapshot(field(value, 'accountSnapshot'))
+  return {
+    routeId: text(field(value, 'routeId')),
+    label: choice(field(value, 'label'), ['OpenAI API credits']),
+    ...(snapshot ? { accountSnapshot: snapshot } : {}),
+  }
+}
+
+export type ExploreFunding = ReturnType<typeof parseFunding>
+
 const parsePreflight = (value: unknown) => ({
   seed: parseSeed(field(value, 'seed')),
   funding: parseFunding(field(value, 'funding')),
