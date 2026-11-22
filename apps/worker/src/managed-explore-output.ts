@@ -181,8 +181,14 @@ export function managedExploreRetention({
     }
     if (!isExactArtifact(output)) return 'invalid'
     const { artifact } = output
-    const receipt = await readTurnText(root.sessionId, root.id).catch((error: unknown): 'invalid' | 'pending' =>
-      error instanceof ManagedExploreProviderError && error.disposition === 'terminal' ? 'invalid' : 'pending',
+    const receipt = await readTurnText(root.sessionId, root.id).catch(
+      (error: unknown): 'invalid' | 'pending' | 'history_limit' => {
+        if (error instanceof ManagedExploreProviderError) {
+          if (error.code === 'page_limit') return 'history_limit'
+          if (error.disposition === 'terminal') return 'invalid'
+        }
+        return 'pending'
+      },
     )
     if (typeof receipt === 'string') return receipt
     if (!receipt.value?.trim()) return 'missing'

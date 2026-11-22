@@ -1257,3 +1257,107 @@ it('after recording an expired environment, recovers the original possible event
   assert.equal(view.turns[1]?.error, 'provider_environment_unavailable')
   assert.equal(await claimManagedExploreDispatch(worker, paused), null)
 })
+
+it('checks history continuation against the immutable event, candidate root, cursor and current lease', async () => {
+  const session = await admit()
+  const first = await claimManagedExploreDispatch(worker, scope)
+  assert.ok(first)
+  assert.equal(first.projectId, session.projectId)
+  assert.equal((await prepareManagedExploreDispatch(worker, first, { kind: 'create' })).kind, 'create')
+  await createReceipt(first)
+  const event = await prepareManagedExploreDispatch(worker, first, { kind: 'event', predecessorRootId: null })
+  assert.equal(event.kind, 'event')
+  const checkpoint = {
+    providerSessionId: event.providerSessionId,
+    submissionId: event.submissionId,
+    payloadSha256: event.payloadSha256,
+    previousRootId: event.previousRootId,
+    kind: 'inputScan',
+    rootId: 'candidate-root',
+    priorAfter: null,
+    after: 'item_019',
+    digest: event.payloadSha256,
+  } as const
+  await assert.rejects(recordManagedExploreDispatch(worker, first, { ...checkpoint, submissionId: randomUUID() }), {
+    code: 'stale_revision',
+  })
+  await assert.rejects(recordManagedExploreDispatch(worker, first, { ...checkpoint, digest: 'e'.repeat(64) }), {
+    code: 'invalid_request',
+  })
+  await recordManagedExploreDispatch(worker, first, checkpoint)
+  await expire(first)
+  const restarted = await claimManagedExploreDispatch(worker, paused)
+  assert.ok(restarted)
+  assert.equal(restarted.turnId, first.turnId)
+  assert.notEqual(restarted.leaseToken, first.leaseToken)
+  assert.equal(restarted.turnStatus, 'outcome_unknown')
+  assert.equal(restarted.rootId, null)
+  assert.deepEqual(restarted.inputScan, {
+    rootId: checkpoint.rootId,
+    after: checkpoint.after,
+    digest: checkpoint.digest,
+  })
+  const next = { ...checkpoint, priorAfter: checkpoint.after, after: 'item_039' }
+  await assert.rejects(recordManagedExploreDispatch(worker, first, next), { code: 'invalid_state' })
+  await assert.rejects(recordManagedExploreDispatch(worker, restarted, checkpoint), { code: 'stale_revision' })
+  await assert.rejects(recordManagedExploreDispatch(worker, restarted, { ...next, rootId: 'wrong-root' }), {
+    code: 'stale_revision',
+  })
+  await assert.rejects(
+    recordManagedExploreDispatch(worker, restarted, {
+      ...checkpoint,
+      kind: 'root',
+      rootId: 'wrong-root',
+      status: 'completed',
+    }),
+    { code: 'stale_revision' },
+  )
+  await recordManagedExploreDispatch(worker, restarted, next)
+  await assert.rejects(
+    recordManagedExploreDispatch(worker, restarted, {
+      ...checkpoint,
+      kind: 'root',
+      status: 'failed',
+      inputScanAfter: checkpoint.after,
+    }),
+    { code: 'stale_revision' },
+  )
+  await recordManagedExploreDispatch(worker, restarted, {
+    ...checkpoint,
+    kind: 'root',
+    status: 'failed',
+    inputScanAfter: next.after,
+  })
+  assert.equal((await readManagedExploreDispatch(worker, restarted)).inputScan, null)
+  await recordManagedExploreDispatch(worker, restarted, {
+    ...checkpoint,
+    kind: 'settle',
+    status: 'failed',
+    reason: 'provider_failed',
+  })
+  assert.equal((await readSession(session)).turns[0]?.status, 'failed')
+})
+
+it('settles a verified completed revision whose output history exceeds the cap while preserving the prior version', async () => {
+  const session = await startRetentionSession()
+  const { directionId, lease, event } = await preparePrototype(session)
+  const output = artifact(event, Buffer.from('<!doctype html><button>Retained version</button>'))
+  assert.deepEqual(await retainManagedExploreOutput(worker, lease, output), { kind: 'completed' })
+  const [parent] = (await readSession(session)).versions
+  assert.ok(parent)
+  const revision = await completeTurn(session, {
+    kind: 'revision',
+    instruction: 'Change the saved interaction.',
+    directionId,
+    parentVersionId: parent.id,
+  })
+  await recordManagedExploreDispatch(worker, revision.lease, {
+    ...revision.event,
+    kind: 'outputRejected',
+    reason: 'output_history_limit',
+  })
+  const result = await readSession(session)
+  assert.deepEqual(result.versions, [parent])
+  assert.equal(result.turns.at(-1)?.status, 'failed')
+  assert.equal(result.turns.at(-1)?.error, 'output_history_limit')
+})

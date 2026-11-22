@@ -93,6 +93,7 @@ async function checkReadiness(pool: pg.Pool, sending: boolean): Promise<void> {
         `SELECT has_schema_privilege('sophia', 'USAGE')
        AND to_regprocedure('sophia.managed_explore_provider_input(sophia.managed_explore_dispatch_context)') IS NOT NULL
        AND to_regprocedure('sophia.managed_explore_session_terminal(sophia.managed_explore_dispatch_sessions)') IS NOT NULL
+       AND to_regprocedure('sophia.checkpoint_managed_explore_input(sophia.managed_explore_dispatch_context,jsonb)') IS NOT NULL
        AND (SELECT bool_and(COALESCE(has_function_privilege(to_regprocedure(signature), 'EXECUTE'), false))
               FROM unnest($1::text[]) AS signatures(signature)) AS ready`,
         [procedures],

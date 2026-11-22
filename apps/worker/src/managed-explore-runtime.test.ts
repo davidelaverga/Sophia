@@ -52,6 +52,7 @@ test('worker dispatch is independently off by default, and configured modes requ
 const missingReadiness = (statement: string, [procedures]: [string[]]) => {
   assert.match(statement, /managed_explore_provider_input/)
   assert.match(statement, /managed_explore_session_terminal/)
+  assert.match(statement, /checkpoint_managed_explore_input/)
   assert.match(statement, /has_function_privilege/)
   assert.ok(procedures.includes('sophia.refuse_managed_explore_session(uuid,uuid,uuid,text,text,text,text)'))
   assert.ok(procedures.includes('sophia.retain_managed_explore_output(uuid,uuid,uuid,jsonb,bytea)'))
@@ -312,7 +313,7 @@ test('the configured observe pass uses the restricted store and retains through 
   await assertSettles(retained.promise)
   await assertSettles(worker.stop())
   assert.equal(writes, 1)
-  assert.equal(requests.length, 4)
+  assert.equal(requests.length, 3)
 })
 
 test('drain settles an Explore pass waiting for a connection, and late checkout runs no SQL', async () => {

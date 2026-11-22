@@ -566,14 +566,15 @@ test('root input identity hashes one exact saved user message and ignores unrela
       return wireJson(page(items))
     }),
   })
-  assert.equal(
-    (await client.readTurnInputDigest('sess_one', 'turn_one')).value,
-    createHash('sha256').update(text).digest('hex'),
-  )
+  const cursor = { after: null, digest: null }
+  assert.deepEqual((await client.readTurnInputPage('sess_one', 'turn_one', cursor)).value, {
+    kind: 'complete',
+    digest: createHash('sha256').update(text).digest('hex'),
+  })
   items = [item, item]
-  assert.equal((await client.readTurnInputDigest('sess_one', 'turn_one')).value, null)
+  assert.deepEqual((await client.readTurnInputPage('sess_one', 'turn_one', cursor)).value, { kind: 'conflict' })
   items = [{ ...item, content: [{ type: 'input_image', text }] }]
-  assert.equal((await client.readTurnInputDigest('sess_one', 'turn_one')).value, null)
+  assert.deepEqual((await client.readTurnInputPage('sess_one', 'turn_one', cursor)).value, { kind: 'conflict' })
 })
 
 test('explicit organization and project route header values accompany every request', async () => {
@@ -622,5 +623,25 @@ test('partial or malformed organization and project routes fail before transport
         }),
       providerError('invalid_input', 'terminal'),
     )
+  }
+})
+
+test('an exact completed turn distinguishes actual output page exhaustion from transient or malformed reads', async () => {
+  for (const mode of ['capped', 'transient', 'malformed'] as const) {
+    let pages = 0
+    const client = createManagedExploreProvider({
+      apiKey: KEY,
+      fetch: mockFetch((url) => {
+        if (!url.pathname.endsWith('/items')) return wireJson(turn('turn_one'))
+        pages += 1
+        assert.equal(url.searchParams.get('after'), pages === 1 ? null : `item_${String(pages - 1)}`)
+        if (pages === 20 && mode === 'transient') return wireJson({}, 503)
+        const id = `item_${String(pages)}`
+        return wireJson(page([{ id }], mode === 'malformed' && pages === 20 ? 'different_id' : id))
+      }),
+    })
+    const code = { capped: 'page_limit', transient: 'transient', malformed: 'invalid_response' }[mode]
+    await assert.rejects(client.readTurnText('sess_one', 'turn_one'), providerError(code, 'retry_read'))
+    assert.equal(pages, 20)
   }
 })

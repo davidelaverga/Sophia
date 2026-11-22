@@ -52,6 +52,7 @@ export interface ManagedExploreDispatchLease extends ManagedExploreDispatchIdent
   rootStatus: RootStatus | null
   rootCompletedSeenAt: string | null
   payloadSha256: string | null
+  inputScan: { rootId: string; after: string; digest: string | null } | null
   usage: ProviderUsage | null
 }
 
@@ -118,10 +119,18 @@ export type ManagedExploreDispatchObservation =
   | ({ kind: 'eventAccepted'; requestId?: string | null } & EventIdentity)
   | ({ kind: 'eventRejected'; reason: ProviderReason; requestId?: string | null } & EventIdentity)
   | ({
+      kind: 'inputScan'
+      rootId: string
+      priorAfter: string | null
+      after: string
+      digest: string | null
+    } & EventIdentity)
+  | ({
       kind: 'root'
       rootId: string
       status: RootStatus
       usage?: ProviderUsage | null
+      inputScanAfter?: string
     } & EventIdentity)
   | ({
       kind: 'settle'
@@ -130,7 +139,11 @@ export type ManagedExploreDispatchObservation =
       reply?: string
       reason?: ProviderReason
     } & EventIdentity)
-  | ({ kind: 'outputRejected'; rootId: string; reason: 'output_invalid' | 'output_missing' } & EventIdentity)
+  | ({
+      kind: 'outputRejected'
+      rootId: string
+      reason: 'output_invalid' | 'output_missing' | 'output_history_limit'
+    } & EventIdentity)
   | { kind: 'defer'; delaySeconds: number }
 
 async function workerQuery<T>(

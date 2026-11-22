@@ -3,6 +3,8 @@
 import { createHash } from 'node:crypto'
 import { ManagedExploreProviderError } from './managed-explore-provider.ts'
 import type {
+  InputScanCursor,
+  InputScanPage,
   ManagedExplorePrototype,
   ManagedExploreProvider,
   ManagedExploreRootTurn,
@@ -57,6 +59,7 @@ export interface ManagedExploreDispatchLease extends ManagedExploreDispatchIdent
   rootStatus: RootStatus | null
   rootCompletedSeenAt: string | null
   payloadSha256: string | null
+  inputScan: (InputScanCursor & { rootId: string; after: string }) | null
 }
 
 type Action = { kind: 'create' } | { kind: 'event'; predecessorRootId: string | null }
@@ -82,7 +85,7 @@ const REASONS = [
   'declined',
 ] as const
 type ProviderReason = (typeof REASONS)[number] | 'provider_failed' | 'cancelled'
-type OutputRejection = 'output_invalid' | 'output_missing'
+type OutputRejection = 'output_invalid' | 'output_missing' | 'output_history_limit'
 
 type Observation =
   | {
@@ -107,7 +110,20 @@ type Observation =
     }
   | ({ kind: 'eventAccepted'; requestId: string | null } & EventIdentity)
   | ({ kind: 'eventRejected'; reason: ProviderReason; requestId: string | null } & EventIdentity)
-  | ({ kind: 'root'; rootId: string; status: RootStatus; usage: ProviderUsage | null } & EventIdentity)
+  | ({
+      kind: 'root'
+      rootId: string
+      status: RootStatus
+      usage: ProviderUsage | null
+      inputScanAfter?: string
+    } & EventIdentity)
+  | ({
+      kind: 'inputScan'
+      rootId: string
+      priorAfter: string | null
+      after: string
+      digest: string | null
+    } & EventIdentity)
   | ({
       kind: 'settle'
       rootId: string
@@ -142,7 +158,7 @@ type Output = {
 export type ManagedExploreRetentionCallback = (
   identity: ManagedExploreDispatchIdentity,
   output: Output,
-) => Promise<'settled' | 'pending' | 'invalid' | 'missing'>
+) => Promise<'settled' | 'pending' | 'invalid' | 'missing' | 'history_limit'>
 
 type Provider = Pick<
   ManagedExploreProvider,
@@ -153,7 +169,7 @@ type Provider = Pick<
   | 'submitText'
   | 'listRootTurns'
   | 'readRootTurn'
-  | 'readTurnInputDigest'
+  | 'readTurnInputPage'
   | 'readTurnText'
   | 'downloadPrototype'
 >
@@ -227,6 +243,7 @@ function sendRejection(error: unknown): { reason: ProviderReason; requestId: str
 function outputRejection(error: unknown): OutputRejection | null {
   if (!(error instanceof ManagedExploreProviderError)) return null
   if (error.code === 'artifact_missing') return 'output_missing'
+  if (error.code === 'page_limit') return 'output_history_limit'
   if (error.disposition === 'terminal' && (error.code === 'artifact_invalid' || error.code === 'invalid_response')) {
     return 'output_invalid'
   }
@@ -459,10 +476,21 @@ class ExploreStep {
     const exact = await this.#readExactRoot(event.providerSessionId, rootId)
     if (!exact) return this.#defer('unknown')
     const root = exact.value
-    const input = await this.#read(() => this.#provider.readTurnInputDigest(root.sessionId, root.id))
-    if (input?.value !== event.payloadSha256) return this.#defer('unknown')
+    const blocked = await this.#verifyInput(event, root)
+    if (blocked) return blocked
     if (this.#claim.rootStatus !== root.status || this.#claim.rootId !== root.id) {
-      return this.#record({ kind: 'root', ...event, rootId, status: root.status, usage: root.usage }, 'progressed')
+      const inputScanAfter = this.#claim.inputScan?.after
+      return this.#record(
+        {
+          kind: 'root',
+          ...event,
+          rootId,
+          status: root.status,
+          usage: root.usage,
+          ...(inputScanAfter ? { inputScanAfter } : {}),
+        },
+        'progressed',
+      )
     }
     if (root.status === 'cancelled') {
       return this.#record({ kind: 'settle', ...event, rootId, status: 'cancelled', reason: 'cancelled' }, 'settled')
@@ -475,6 +503,40 @@ class ExploreStep {
     }
     if (root.status !== 'completed') return this.#defer('waiting')
     return this.#collect(event, exact, environmentId)
+  }
+
+  async #verifyInput(event: EventIdentity, root: ManagedExploreRootTurn): Promise<Step | null> {
+    // The terminal root was only committed after a complete exact scan. A partial scan is tied to one candidate.
+    if (isSettled(root) && this.#claim.rootId === root.id && this.#claim.rootStatus === root.status) return null
+    const scan = this.#claim.inputScan
+    if (scan && (scan.rootId !== root.id || !isSettled(root))) return this.#defer('unknown')
+    const cursor = scan ?? { after: null, digest: null }
+    const page = await this.#read(() => this.#provider.readTurnInputPage(root.sessionId, root.id, cursor))
+    return page ? this.#advanceInput(event, root, cursor, page.value) : this.#defer('unknown')
+  }
+
+  #advanceInput(
+    event: EventIdentity,
+    root: ManagedExploreRootTurn,
+    cursor: InputScanCursor,
+    value: InputScanPage,
+  ): Promise<Step | null> {
+    if (value.kind === 'conflict') return this.#defer('unknown')
+    if (value.digest !== null && value.digest !== event.payloadSha256) return this.#defer('unknown')
+    if (value.kind === 'complete')
+      return value.digest === event.payloadSha256 ? Promise.resolve(null) : this.#defer('unknown')
+    if (!isSettled(root)) return this.#defer('waiting')
+    return this.#record(
+      {
+        kind: 'inputScan',
+        ...event,
+        rootId: root.id,
+        priorAfter: cursor.after,
+        after: value.after,
+        digest: value.digest,
+      },
+      'progressed',
+    )
   }
 
   async #readOutput<T>(
@@ -549,6 +611,7 @@ class ExploreStep {
     const retain = this.#dependencies.retainOutput
     if (!retain || !this.#leaseCurrent()) return this.#defer('retention_pending')
     const retained = await retain(this.#claim, output)
+    if (retained === 'history_limit') return this.#rejectOutput(output.event, output.root.id, 'output_history_limit')
     if (retained === 'invalid' || retained === 'missing') {
       return this.#rejectOutput(
         output.event,

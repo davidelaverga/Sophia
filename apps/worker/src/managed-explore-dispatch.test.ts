@@ -7,7 +7,7 @@ import type {
   ManagedExploreDispatchLease,
   ManagedExploreDispatchStore,
 } from './managed-explore-dispatch.ts'
-import { ManagedExploreProviderError } from './managed-explore-provider.ts'
+import { createManagedExploreProvider, ManagedExploreProviderError } from './managed-explore-provider.ts'
 import type { ManagedExploreRootTurn, ManagedExploreSession } from './managed-explore-provider.ts'
 
 const SCOPE = {
@@ -56,6 +56,7 @@ const BASE = {
   rootStatus: null,
   rootCompletedSeenAt: null,
   payloadSha256: null,
+  inputScan: null,
 } satisfies ManagedExploreDispatchLease
 const EVENT_READY = {
   ...BASE,
@@ -141,10 +142,15 @@ function fixture(initial: ManagedExploreDispatchLease) {
       if (observation.kind === 'environment') {
         state.claim = { ...state.claim, environmentStatus: observation.status }
       }
+      if (observation.kind === 'inputScan') {
+        const { after, digest, rootId } = observation
+        state.claim = { ...state.claim, inputScan: { after, digest, rootId } }
+      }
       if (observation.kind === 'root') {
         state.claim = {
           ...state.claim,
           rootId: observation.rootId,
+          inputScan: null,
           rootStatus: observation.status,
           rootCompletedSeenAt: observation.status === 'completed' ? new Date(NOW).toISOString() : null,
         }
@@ -178,7 +184,7 @@ function fakeProvider(overrides: Partial<Provider> = {}): Provider {
     submitText: () => assert.fail('unexpected event submission'),
     listRootTurns: () => receipt([]),
     readRootTurn: (_sessionId, turnId) => receipt(root(turnId)),
-    readTurnInputDigest: () => receipt(INPUT_SHA256),
+    readTurnInputPage: () => receipt({ kind: 'complete', digest: INPUT_SHA256 }),
     readTurnText: () => assert.fail('unexpected text read'),
     downloadPrototype: () => assert.fail('unexpected prototype download'),
     ...overrides,
@@ -288,7 +294,7 @@ test('possible submission is observed only, even with no root, several roots, or
       const f = fixture(EVENT_PREPARED)
       const provider = fakeProvider({
         listRootTurns: () => receipt(scenario.roots),
-        readTurnInputDigest: () => receipt(scenario.digest),
+        readTurnInputPage: () => receipt({ kind: 'complete', digest: scenario.digest }),
       })
       assert.equal(await dispatchManagedExploreOnce(SCOPE, { ...f, provider }), 'unknown')
       assert.deepEqual(f.preparations, [])
@@ -847,4 +853,111 @@ test('a possible event still reconciles its exact saved root after an environmen
     f.observations.map(({ kind }) => kind),
     ['root', 'settle'],
   )
+})
+
+function paginatedSavedInput(conflict: boolean) {
+  const pages: number[] = []
+  let transient = true
+  const data = Array.from({ length: 421 }, (_, index) =>
+    index === 0 || (conflict && index === 420)
+      ? {
+          id: `item_${String(index)}`,
+          type: 'message',
+          turn_id: 'turn_fixture',
+          role: 'user',
+          status: 'completed',
+          content: [{ type: 'input_text', text: index === 0 ? SEED : 'A conflicting user item.' }],
+        }
+      : { id: `item_${String(index)}`, type: 'tool', turn_id: 'turn_fixture' },
+  )
+  const client = createManagedExploreProvider({
+    apiKey: 'fixture-api-key',
+    fetch: (input, init) => {
+      assert.equal(init?.method, 'GET')
+      const path = new URL(input instanceof Request ? input.url : input.toString())
+      assert.equal(path.pathname, `/v1/agents/sessions/${SESSION.id}/turns/turn_fixture/items`)
+      assert.equal(path.searchParams.get('order'), 'asc')
+      assert.equal(path.searchParams.get('limit'), '20')
+      const after = path.searchParams.get('after')
+      const start = after ? Number(after.slice('item_'.length)) + 1 : 0
+      pages.push(start)
+      if (start === 400 && transient) {
+        transient = false
+        return Promise.resolve(Response.json({}, { status: 503 }))
+      }
+      const body = data.slice(start, start + 20)
+      return Promise.resolve(
+        Response.json({
+          data: body,
+          has_more: start + body.length < data.length,
+          last_id: body.at(-1)?.id,
+        }),
+      )
+    },
+  })
+  return { client, pages }
+}
+
+test('resumes exact input history past 400 items and retries only the interrupted page', async () => {
+  const { client, pages } = paginatedSavedInput(false)
+  const f = fixture(EVENT_PREPARED)
+  const rootTurn = { ...root('turn_fixture', 'failed'), failure: 'provider_failed' as const }
+  const provider = fakeProvider({
+    listRootTurns: () => receipt([rootTurn]),
+    readRootTurn: () => receipt(rootTurn),
+    readTurnInputPage: (session, turn, cursor) => client.readTurnInputPage(session, turn, cursor),
+  })
+  for (let pass = 0; pass < 3; pass += 1) {
+    assert.equal(await dispatchManagedExplorePass(SCOPE, { ...f, provider }), 'progressed')
+    assert.equal(f.state.claim.rootId, null)
+  }
+  assert.equal(await dispatchManagedExplorePass(SCOPE, { ...f, provider }), 'unknown')
+  assert.equal(f.state.claim.inputScan?.after, 'item_399')
+  assert.equal(f.state.claim.rootId, null)
+  assert.equal(await dispatchManagedExplorePass(SCOPE, { ...f, provider }), 'settled')
+  assert.deepEqual(pages, [...Array.from({ length: 21 }, (_, page) => page * 20), 400, 420])
+  assert.deepEqual(f.preparations, [])
+  assert.equal(f.observations.at(-1)?.kind, 'settle')
+})
+
+test('a conflicting saved user item past 400 leaves the event and checkpoint unresolved', async () => {
+  const { client, pages } = paginatedSavedInput(true)
+  const f = fixture(EVENT_PREPARED)
+  const provider = fakeProvider({
+    listRootTurns: () => receipt([root()]),
+    readTurnInputPage: (session, turn, cursor) => client.readTurnInputPage(session, turn, cursor),
+  })
+  for (let pass = 0; pass < 5; pass += 1) await dispatchManagedExplorePass(SCOPE, { ...f, provider })
+  assert.equal(pages.at(-1), 420)
+  assert.equal(f.state.claim.inputScan?.after, 'item_419')
+  assert.ok(f.observations.every(({ kind }) => kind === 'inputScan' || kind === 'defer'))
+  assert.equal(f.state.claim.rootId, null)
+  assert.deepEqual(f.preparations, [])
+})
+
+test('output pagination exhaustion is neither missing output nor a transient read', async () => {
+  const f = fixture({ ...EVENT_PREPARED, rootId: 'turn_fixture', rootStatus: 'completed' })
+  const provider = fakeProvider({
+    readTurnText: () => Promise.reject(new ManagedExploreProviderError('page_limit', 'retry_read')),
+  })
+  assert.equal(await dispatchManagedExplorePass(SCOPE, { ...f, provider }), 'settled')
+  const result = f.observations.at(-1)
+  assert.equal(result?.kind, 'outputRejected')
+  assert.equal(result.reason, 'output_history_limit')
+  assert.deepEqual(f.preparations, [])
+})
+
+test('a checkpoint cannot follow a replacement root candidate', async () => {
+  const f = fixture({
+    ...EVENT_PREPARED,
+    inputScan: { rootId: 'older_candidate', after: 'item_019', digest: INPUT_SHA256 },
+  })
+  const provider = fakeProvider({
+    listRootTurns: () => receipt([root()]),
+    readTurnInputPage: () => assert.fail('a different root cannot reuse a cursor'),
+  })
+  assert.equal(await dispatchManagedExploreOnce(SCOPE, { ...f, provider }), 'unknown')
+  assert.equal(f.state.claim.rootId, null)
+  assert.deepEqual(f.observations, [{ kind: 'defer', delaySeconds: 5 }])
+  assert.deepEqual(f.preparations, [])
 })

@@ -38,6 +38,7 @@ type Failure =
   | 'transient'
   | 'delivery_unknown'
   | 'invalid_response'
+  | 'page_limit'
   | 'ambiguous_session'
   | 'turn_not_completed'
   | 'artifact_missing'
@@ -86,6 +87,16 @@ export interface ManagedExploreRootTurn {
   usage: { inputTokens: number; outputTokens: number; totalTokens: number } | null
   failure: Failure | 'provider_failed' | null
 }
+
+export interface InputScanCursor {
+  after: string | null
+  digest: string | null
+}
+
+export type InputScanPage =
+  | { kind: 'more'; after: string; digest: string | null }
+  | { kind: 'complete'; digest: string | null }
+  | { kind: 'conflict' }
 
 export interface ManagedExplorePrototype {
   artifactId: string
@@ -374,6 +385,33 @@ function savedUserText(value: unknown, turnId: string): string | null | undefine
   return part?.type === 'input_text' && typeof part.text === 'string' && part.text.isWellFormed() ? part.text : null
 }
 
+function savedInputDigest(data: unknown[], turnId: string, digest: string | null): string | null | undefined {
+  for (const item of data) {
+    const text = savedUserText(item, turnId)
+    if (text === undefined) continue
+    if (!text || digest !== null) return undefined
+    digest = createHash('sha256').update(text, 'utf8').digest('hex')
+  }
+  return digest
+}
+
+function lastPageItem(row: ObjectValue, data: unknown[]): string | undefined {
+  const id = row.last_id
+  return isId(id) && id === record(data.at(-1))?.id ? id : undefined
+}
+
+function inputPage(value: unknown, turnId: string, cursor: InputScanCursor): InputScanPage | undefined {
+  const row = record(value)
+  if (!Array.isArray(row?.data) || row.data.length > 20 || typeof row.has_more !== 'boolean') return undefined
+  const data: unknown[] = row.data
+  const after = row.has_more ? lastPageItem(row, data) : null
+  if (after === undefined) return undefined
+  if (cursor.after && data.some((item) => record(item)?.id === cursor.after)) return undefined
+  const digest = savedInputDigest(data, turnId, cursor.digest)
+  if (digest === undefined) return { kind: 'conflict' }
+  return after === null ? { kind: 'complete', digest } : { kind: 'more', after, digest }
+}
+
 function contentType(response: Response): string | undefined {
   return response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase()
 }
@@ -523,15 +561,16 @@ export class ManagedExploreProvider {
         const items = parse(row.data)
         if (!items) return undefined
         if (!row.has_more) return { items, next: null }
-        if (!isId(row.last_id) || cursors.has(row.last_id)) return undefined
-        return { items, next: row.last_id }
+        const next = lastPageItem(row, row.data)
+        if (!next || cursors.has(next)) return undefined
+        return { items, next }
       })
       values.push(...result.value.items)
       if (!result.value.next) return { value: values, requestId: result.requestId }
       cursors.add(result.value.next)
       query.set('after', result.value.next)
     }
-    throw new ManagedExploreProviderError('invalid_response', 'retry_read')
+    throw new ManagedExploreProviderError('page_limit', 'retry_read')
   }
 
   createSession(input: CreateSession): Promise<ProviderResult<ManagedExploreSession>> {
@@ -691,17 +730,16 @@ export class ManagedExploreProvider {
     }
   }
 
-  async readTurnInputDigest(sessionId: string, turnId: string): Promise<ProviderResult<string | null>> {
+  readTurnInputPage(
+    sessionId: string,
+    turnId: string,
+    cursor: InputScanCursor,
+  ): Promise<ProviderResult<InputScanPage>> {
     const query = new URLSearchParams({ order: 'asc', limit: '20' })
-    const { value, requestId } = await this.#list(`${turnPath(sessionId, turnId)}/items`, query, (items) =>
-      items.flatMap((item) => {
-        const text = savedUserText(item, turnId)
-        return text === undefined ? [] : [text]
-      }),
+    if (cursor.after) query.set('after', pathId(cursor.after))
+    return this.#json({ path: `${turnPath(sessionId, turnId)}/items?${query.toString()}`, mode: 'read' }, (value) =>
+      inputPage(value, turnId, cursor),
     )
-    const text = value[0]
-    if (value.length !== 1 || !text) return { value: null, requestId }
-    return { value: createHash('sha256').update(text, 'utf8').digest('hex'), requestId }
   }
 
   async readTurnText(sessionId: string, turnId: string): Promise<ProviderResult<string | null>> {

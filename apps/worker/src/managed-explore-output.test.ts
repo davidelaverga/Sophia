@@ -156,5 +156,7 @@ test('prototype retention verifies the exact saved root metadata and preserves r
   assert.equal(await retain(IDENTITY, output), 'pending')
   readError = new ManagedExploreProviderError('invalid_response', 'terminal')
   assert.equal(await retain(IDENTITY, output), 'invalid')
+  readError = new ManagedExploreProviderError('page_limit', 'retry_read')
+  assert.equal(await retain(IDENTITY, output), 'history_limit')
   assert.equal(writes.length, 1)
 })
