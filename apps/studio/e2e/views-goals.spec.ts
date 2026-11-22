@@ -104,3 +104,17 @@ test('goals · Tasks with no goals says so in its own words; Goals keeps its lin
     page.getByText('No goals yet. They’ll come from your conversations with Sophia in the room.'),
   ).toBeVisible()
 })
+
+test('goals · after Hold, «Held» and «when Sophia confirms» never stand together (demo-findings-1 #3)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1&place=work')
+  const rollout = goal(page, ROLLOUT)
+  await rollout.getByRole('button', { name: /^Hold/ }).click()
+  const line = rollout.locator('.controls .outcome')
+  // The demo's runtime confirms the Hold a moment after it is admitted (holding, then held).
+  await expect(rollout).toHaveAttribute('data-status', 'held')
+  await expect(rollout.locator('.goal-meta, .goal-title').getByText('Held', { exact: true })).toBeVisible()
+  // The status says it: the line that waited for it has gone.
+  await expect(line).toHaveText('')
+})

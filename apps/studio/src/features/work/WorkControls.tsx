@@ -1,6 +1,7 @@
 // work.stop / goal controls (frontend bindings: WorkControls → admitGoalCommand).
-// A receipt means "sent", never "done": the goal's status changes when Sophia confirms. An unknown outcome
-// offers a retry with the same key, so it can never be sent twice.
+// A receipt means "sent", never "done": the goal's status changes when Sophia confirms, and once it shows where the
+// command led, the line under the controls says no more (demo-findings-1.md #3). An unknown outcome offers a retry with
+// the same key, so it can never be sent twice.
 import { useQueryClient } from '@tanstack/react-query'
 import type { Goal, Receipt } from '@sophia/contracts'
 import { ConfirmButton, Tag, Tip } from '@sophia/ui'
@@ -8,7 +9,7 @@ import { admitGoalCommand, type ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { VISION } from '../../app/vision.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
-import { COMMAND, goalCommands, retirementView, type CommandKind } from './labels.ts'
+import { COMMAND, commandShown, goalCommands, retirementView, type CommandKind } from './labels.ts'
 
 interface Props {
   goal: Goal
@@ -92,7 +93,7 @@ export function WorkControls({ goal, projectId, identity, token, admin = false, 
       </div>
       {goal.retirement && <RetirementResults retirement={goal.retirement} />}
       <p className="outcome" role="status" aria-live="polite">
-        <AdmissionOutcome state={admission.state} onRetry={() => void admission.retry()} />
+        <AdmissionOutcome state={admission.state} status={goal.status} onRetry={() => void admission.retry()} />
       </p>
     </div>
   )
@@ -145,12 +146,21 @@ function rejectionMessage(error: ApiError): string {
   return error.message
 }
 
-function AdmissionOutcome({ state, onRetry }: { state: AdmissionState<CommandKind, Receipt>; onRetry: () => void }) {
+interface OutcomeProps {
+  state: AdmissionState<CommandKind, Receipt>
+  /** The goal's status now: once it shows what was sent, the line has nothing left to say (`commandShown`). */
+  status: Goal['status']
+  onRetry: () => void
+}
+
+function AdmissionOutcome({ state, status, onRetry }: OutcomeProps) {
   if (state.status === 'idle') return null
   if (state.status === 'sending') {
     return <span className="muted">Sending {COMMAND[state.args].noun.toLowerCase()}…</span>
   }
   if (state.status === 'done' && state.args === 'retire_sessions') return <RetirementSent receipt={state.result} />
+  // Sent, and the goal's status beside it already says where it went: the chip is the confirmation.
+  if (state.status === 'done' && commandShown(state.args, status)) return null
   if (state.status === 'done') {
     return (
       <>

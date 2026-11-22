@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { goalCommands, summaryLabel } from './labels.ts'
+import { commandShown, goalCommands, summaryLabel } from './labels.ts'
 
 describe('event words in the work pulse', () => {
   it('names room access and membership events', () => {
@@ -44,5 +44,24 @@ describe('a goal’s commands (docs/plans/prod-asks.md)', () => {
     assert.deepEqual(goalCommands('ready', false), ['stop'])
     assert.deepEqual(goalCommands('ready', true), ['request_review', 'stop'])
     assert.deepEqual(goalCommands('completed', true), [])
+  })
+})
+
+describe('a sent command once the goal shows it (demo-findings-1.md #3)', () => {
+  it('is shown once the goal is where the command leads: Hold held, Stop stopped, Resume running again', () => {
+    assert.equal(commandShown('hold', 'held'), true)
+    assert.equal(commandShown('stop', 'stopped'), true)
+    assert.equal(commandShown('resume', 'running'), true)
+    assert.equal(commandShown('resume', 'checking'), true)
+  })
+  it('is on its way while the goal is still getting there, or not moved yet', () => {
+    assert.equal(commandShown('hold', 'running'), false)
+    assert.equal(commandShown('hold', 'holding'), false)
+    assert.equal(commandShown('stop', 'stopping'), false)
+    assert.equal(commandShown('resume', 'held'), false)
+  })
+  it('never for a review, which leaves the goal as it is', () => {
+    assert.equal(commandShown('request_review', 'running'), false)
+    assert.equal(commandShown('retire_sessions', 'completed'), false)
   })
 })

@@ -80,6 +80,23 @@ export const goalCommands = (status: Goal['status'], vision: boolean, admin = fa
   commandsFor(status, admin).filter((kind) => vision || kind !== 'request_review')
 
 /**
+ * Where each command leads the goal, once the runtime confirms it: Hold to held, Stop to stopped, Resume back to work.
+ * A review leaves the goal as it is, and a retirement its sessions, so neither is ever shown by the goal's status.
+ */
+const LEADS_TO: Partial<Record<CommandKind, ReadonlyArray<Goal['status']>>> = {
+  hold: ['held'],
+  stop: ['stopped'],
+  resume: ['running', 'checking'],
+}
+
+/**
+ * Whether the goal's status already shows a command sent from here: then «The status changes when Sophia confirms»
+ * would contradict the status beside it (demo-findings-1.md #3).
+ */
+export const commandShown = (kind: CommandKind, status: Goal['status']): boolean =>
+  LEADS_TO[kind]?.includes(status) ?? false
+
+/**
  * Command summaries describe what was *requested* (admission is not completion); room and membership
  * summaries describe what happened.
  */
