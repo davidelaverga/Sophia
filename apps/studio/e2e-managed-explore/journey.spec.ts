@@ -126,7 +126,7 @@ test('the real room opens and resumes the exact saved brief, prototype and appro
   await page.getByRole('button', { name: 'Explore with Codex' }).click()
   const confirmation = page.getByRole('region', { name: 'Confirm the saved brief' })
   await expect(confirmation.getByText(brief)).toBeVisible()
-  await expect(confirmation.getByText('OpenAI API credits')).toBeVisible()
+  await expect(confirmation.getByText('OpenAI API credits', { exact: true })).toBeVisible()
   expect(calls.writes).toEqual([])
   await page.screenshot({ path: testInfo.outputPath('brief.png') })
   await confirmation.getByRole('button', { name: 'Start Explore' }).click()

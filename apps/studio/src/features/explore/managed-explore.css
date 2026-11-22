@@ -19,6 +19,10 @@
   align-items: center;
   gap: 4px 12px;
 }
+.explore-confirm-actions {
+  display: grid;
+  gap: 6px;
+}
 .explore-confirm-detail strong {
   color: var(--halo-text);
 }
@@ -84,8 +88,25 @@
   font-size: var(--type-small);
   line-height: var(--lh-small);
 }
-.managed-explore-head > .explore-funding {
+.explore-funding-disclosure {
   grid-column: 1 / -1;
+  font-size: var(--type-small);
+  color: var(--text-2);
+}
+.explore-funding-disclosure summary {
+  display: list-item;
+  width: fit-content;
+  min-height: 28px;
+  align-content: center;
+  cursor: pointer;
+}
+.explore-funding-disclosure[open] > .explore-funding {
+  margin-top: 4px;
+}
+@media (pointer: coarse) {
+  .explore-funding-disclosure summary {
+    min-height: 36px;
+  }
 }
 .explore-funding-values,
 .explore-funding-note {
@@ -107,7 +128,7 @@
   margin: 0;
   font-weight: 600;
 }
-.explore-funding-note a {
+.explore-billing-link {
   color: var(--halo-text);
   text-decoration: underline;
   text-underline-offset: 2px;
