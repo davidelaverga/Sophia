@@ -14,27 +14,44 @@ import {
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { keepTabDrafts, readTabDrafts, type HeldAt } from '../../app/held-in-tab.ts'
 import { DirectionOptions } from './DirectionOptions.tsx'
-import { ExploreFundingDetails } from './ExploreFundingDetails.tsx'
+import { ExploreFundingDetails, OpenBilling } from './ExploreFundingDetails.tsx'
 import { PrototypeReview } from './PrototypeReview.tsx'
 import { useExploreAdmission } from './useExploreAdmission.ts'
 import './managed-explore.css'
 
 const active = (turn: ExploreTurn) => ['queued', 'running', 'retaining', 'outcome_unknown'].includes(turn.status)
-const denied = (error: unknown) => error instanceof ApiError && [401, 403, 404].includes(error.status)
+const denied = (error: unknown) =>
+  error instanceof ApiError && ([401, 403, 404].includes(error.status) || error.code === 'unavailable')
 const TURN_STATUS: Record<ExploreTurn['status'], string | null> = {
   queued: 'Queued',
-  running: 'Working',
+  running: 'Checking whether Codex started.',
   retaining: 'Saving prototype',
   completed: null,
   failed: 'Failed',
   cancelled: 'Cancelled',
-  outcome_unknown: 'Checking build status',
+  outcome_unknown: 'Checking whether Codex started.',
 }
-function Turn({ turn }: { turn: ExploreTurn }) {
+function fundingFailure(turn: ExploreTurn): { text: string; billing: boolean } | null {
+  if (turn.status !== 'failed' || !turn.error) return null
+  // These reason codes are stored by the dispatch boundary, independent of the account report.
+  switch (turn.error) {
+    case 'funding_unavailable':
+      return { text: 'Funding verification needed. Ask the account operator to check Explore funding.', billing: false }
+    case 'billing_unavailable':
+      return { text: 'Codex couldn’t verify billing.', billing: true }
+    case 'credit_exhausted':
+      return { text: 'Codex reported that API credits ran out.', billing: true }
+    case 'budget_exceeded':
+      return { text: 'The Explore funding limit was reached.', billing: false }
+    default:
+      return null
+  }
+}
+
+function Turn({ turn, onBack }: { turn: ExploreTurn; onBack: () => void }) {
   const status =
-    turn.status === 'running' && (turn.kind === 'prototype' || turn.kind === 'revision')
-      ? 'Building prototype'
-      : TURN_STATUS[turn.status]
+    turn.status === 'retaining' && turn.kind === 'directions' ? 'Saving directions' : TURN_STATUS[turn.status]
+  const failure = fundingFailure(turn)
   return (
     <li className="explore-turn">
       <p>
@@ -44,8 +61,20 @@ function Turn({ turn }: { turn: ExploreTurn }) {
       {status && (
         <p className="explore-turn-status">
           <strong>{status}</strong>
-          {turn.error && <span>{turn.error}</span>}
+          {turn.status === 'queued' && <span>Request saved. Waiting for Codex.</span>}
+          {turn.error && <span>{failure?.text ?? turn.error}</span>}
         </p>
+      )}
+      {failure && (
+        <div className="explore-turn-recovery">
+          {failure.billing ? (
+            <OpenBilling />
+          ) : (
+            <button type="button" className="text-button" onClick={onBack}>
+              Back to Brief
+            </button>
+          )}
+        </div>
       )}
       {turn.reply && (
         <p>
@@ -122,8 +151,26 @@ function ExploreHeader({
           Back to Brief
         </button>
       </div>
-      {funding && <ExploreFundingDetails funding={funding} />}
+      {funding && (
+        <details className="explore-funding-disclosure">
+          <summary>Funding details</summary>
+          <ExploreFundingDetails funding={funding} />
+        </details>
+      )}
     </header>
+  )
+}
+
+function SessionReadError({ authorizationLost, onCheck }: { authorizationLost: boolean; onCheck: () => void }) {
+  return (
+    <p className="explore-read-note" role="status">
+      {authorizationLost ? 'This Explore session is unavailable.' : 'Checking Explore status.'}{' '}
+      {!authorizationLost && (
+        <button type="button" className="text-button" onClick={onCheck}>
+          Check again
+        </button>
+      )}
+    </p>
   )
 }
 
@@ -136,14 +183,7 @@ function SessionNotice({ read, admission, authorizationLost }: ReturnType<typeof
       </p>
     )
   if (read.isError)
-    return (
-      <p className="explore-read-note" role="status">
-        {authorizationLost ? 'This Explore session is unavailable.' : 'Checking Explore status.'}{' '}
-        <button type="button" className="text-button" onClick={() => void read.refetch()}>
-          Check again
-        </button>
-      </p>
-    )
+    return <SessionReadError authorizationLost={authorizationLost} onCheck={() => void read.refetch()} />
   switch (admission.state.status) {
     case 'sending':
       return (
@@ -205,6 +245,7 @@ interface WorkspaceProps {
   contentOrigin: string
   canSend: boolean
   completed: ExploreAction | null
+  onBack: () => void
   onAction: (action: ExploreAction) => void
 }
 
@@ -386,7 +427,7 @@ function ExploreWorkspace(props: WorkspaceProps) {
           </details>
           <ol className="explore-turns" aria-label="Discussion with Codex">
             {session.turns.map((turn) => (
-              <Turn key={turn.id} turn={turn} />
+              <Turn key={turn.id} turn={turn} onBack={props.onBack} />
             ))}
           </ol>
           <DirectionActions {...props} />

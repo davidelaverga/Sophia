@@ -7,6 +7,7 @@ import type {
   ExploreApproval,
   ExploreDirection,
   ExploreSession,
+  ExploreTurn,
   ExploreVersion,
 } from '../src/api/managed-explore.ts'
 
@@ -22,6 +23,7 @@ const note = {
 export const projectRoute = `/p/${PROJECT}/studio`
 const explore = `/api/v1/projects/${PROJECT}/explore`
 const session = '00000000-0000-4000-8000-000000000901'
+export const fixtureSessionId = session
 const seed = { entryId: note.id, revision: note.ledgerRevision, text: brief, sha256: seedHash }
 const funding: ExploreSession['funding'] = { routeId: 'synthetic-funded-project', label: 'OpenAI API credits' }
 
@@ -91,11 +93,22 @@ type FundingWire = Omit<ExploreSession['funding'], 'accountSnapshot'> & {
   accountSnapshot?: ExploreAccountSnapshot | null
 }
 interface Fixture {
-  calls: { writes: Write[]; preflights: number; rejectPermits: boolean }
+  calls: {
+    writes: Write[]
+    preflights: number
+    sessionReads: string[]
+    rejectPermits: boolean
+    preflightTemporary: boolean
+  }
   data: Omit<ExploreSession, 'funding'> & { funding: FundingWire }
   options: {
     ineligible?: boolean
     fundingSnapshot?: ExploreAccountSnapshot | null
+    fundingRouteMismatch?: boolean
+    preflightUnavailable?: 'opaque' | 'temporary'
+    initialTurn?: Pick<ExploreTurn, 'status' | 'error'>
+    existingSession?: boolean
+    startReplyLost?: boolean
     uncertain?: boolean
     existingVersions?: boolean
     approvedVersion?: boolean
@@ -124,6 +137,17 @@ function exploreRead(route: Route, url: URL, fixture: Fixture) {
     fixture.calls.preflights++
     expect(url.searchParams.get('seedEntryId')).toBe(note.id)
     expect(url.searchParams.get('expectedSeedRevision')).toBe(String(seed.revision))
+    if (fixture.options.preflightUnavailable === 'opaque')
+      return route.fulfill({
+        status: 503,
+        json: {
+          code: 'unavailable',
+          message: 'Managed Explore is unavailable',
+          requestId: session,
+          retry: 'safe_read',
+        },
+      })
+    if (fixture.calls.preflightTemporary) return route.fulfill({ status: 503, body: 'Temporary gateway response' })
     return fixture.options.ineligible
       ? notFound(route)
       : json(route, { seed, funding: fixture.data.funding, sessionId: fixture.started ? session : null })
@@ -146,6 +170,7 @@ function exploreRead(route: Route, url: URL, fixture: Fixture) {
         },
       ],
     })
+  if (url.pathname.endsWith(`/sessions/${session}`)) fixture.calls.sessionReads.push(session)
   return json(route, fixture.data)
 }
 
@@ -229,6 +254,17 @@ function decide(route: Route, fixture: Fixture, write: Write) {
   return turnAccepted(route, fixture, request)
 }
 
+function firstTurn(status: Pick<ExploreTurn, 'status' | 'error'>): ExploreTurn {
+  return {
+    id: '00000000-0000-4000-8000-000000000902',
+    kind: 'text',
+    instruction: brief,
+    reply: null,
+    resultVersionId: null,
+    ...status,
+  }
+}
+
 function exploreWrite(route: Route, path: string, fixture: Fixture) {
   const request: unknown = route.request().postDataJSON()
   if (!isRecord(request)) throw new Error('A Studio write must carry a JSON object')
@@ -243,7 +279,11 @@ function exploreWrite(route: Route, path: string, fixture: Fixture) {
       expectedSeedRevision: seed.revision,
       routeId: funding.routeId,
     })
+    const first = !fixture.started
     fixture.started = true
+    const initial = fixture.options.initialTurn
+    if (first && initial) fixture.data.turns.push(firstTurn(initial))
+    if (first && fixture.options.startReplyLost) return route.abort()
     return json(route, { sessionId: session })
   }
   if (path.endsWith('/preview-permits')) return json(route, previewPermit(write, fixture))
@@ -253,23 +293,34 @@ function exploreWrite(route: Route, path: string, fixture: Fixture) {
   return decide(route, fixture, write)
 }
 
+function fundingFor({ fundingSnapshot, fundingRouteMismatch }: Fixture['options']): FundingWire {
+  return fundingSnapshot === undefined || fundingRouteMismatch
+    ? funding
+    : { ...funding, accountSnapshot: fundingSnapshot }
+}
+
 export async function mockApi(page: Page, options: Fixture['options'] = {}) {
   const fixture: Fixture = {
-    calls: { writes: [], preflights: 0, rejectPermits: false },
+    calls: {
+      writes: [],
+      preflights: 0,
+      sessionReads: [],
+      rejectPermits: false,
+      preflightTemporary: options.preflightUnavailable === 'temporary',
+    },
     data: {
       id: session,
       revision: 1,
       seed,
-      funding:
-        options.fundingSnapshot === undefined ? funding : { ...funding, accountSnapshot: options.fundingSnapshot },
-      turns: [],
+      funding: fundingFor(options),
+      turns: options.existingSession && options.initialTurn ? [firstTurn(options.initialTurn)] : [],
       directions: options.existingVersions ? [shore, vessel] : [],
       selectedDirectionId: options.existingVersions ? vessel.id : null,
       versions: options.existingVersions ? [v1, v2] : [],
       approvals: options.approvedVersion ? [approval] : [],
     },
     options,
-    started: options.existingVersions ?? false,
+    started: (options.existingVersions ?? false) || (options.existingSession ?? false),
     lostTextResponse: false,
   }
   await page.addInitScript(() => sessionStorage.setItem('sophia.dev.identity', 'Founder'))

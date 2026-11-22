@@ -2,7 +2,7 @@ import type { ExploreFunding } from '../../api/managed-explore.ts'
 
 const billingUrl = 'https://platform.openai.com/settings/organization/billing/overview'
 const dollars = new Intl.NumberFormat('en-US')
-const checkedAt = new Intl.DateTimeFormat(undefined, {
+const reportedAt = new Intl.DateTimeFormat(undefined, {
   year: 'numeric',
   month: 'short',
   day: 'numeric',
@@ -24,6 +24,15 @@ function rechargeLabel(enabled: boolean | null | undefined): string {
   return 'Unavailable'
 }
 
+export function OpenBilling() {
+  return (
+    <a className="explore-billing-link" href={billingUrl} target="_blank" rel="noopener noreferrer">
+      Open OpenAI billing <span aria-hidden="true">↗</span>
+      <span className="sr-only"> (opens in a new tab)</span>
+    </a>
+  )
+}
+
 export function ExploreFundingDetails({ funding }: { funding: ExploreFunding }) {
   const snapshot = funding.accountSnapshot
   const balance = snapshot?.balanceCents
@@ -31,7 +40,7 @@ export function ExploreFundingDetails({ funding }: { funding: ExploreFunding }) 
     <section className="explore-funding" aria-label="API billing snapshot">
       <dl className="explore-funding-values">
         <div>
-          <dt>API credit balance</dt>
+          <dt>Reported account balance</dt>
           <dd>{typeof balance === 'number' ? usd(balance) : 'Unavailable'}</dd>
         </div>
         <div>
@@ -40,14 +49,15 @@ export function ExploreFundingDetails({ funding }: { funding: ExploreFunding }) 
         </div>
       </dl>
       <p className="explore-funding-note">
-        {snapshot && (
+        {snapshot ? (
           <span>
-            Last checked <time dateTime={snapshot.observedAt}>{checkedAt.format(new Date(snapshot.observedAt))}</time>
+            Reported by the account operator ·{' '}
+            <time dateTime={snapshot.observedAt}>{reportedAt.format(new Date(snapshot.observedAt))}</time>
           </span>
+        ) : (
+          <span>No account report available</span>
         )}
-        <a href={billingUrl} target="_blank" rel="noopener noreferrer">
-          Manage auto-recharge on OpenAI Platform
-        </a>
+        <OpenBilling />
       </p>
     </section>
   )
