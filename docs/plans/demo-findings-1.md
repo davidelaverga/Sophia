@@ -26,9 +26,12 @@
 
 - Seen: while Home's first run shows its steps, the keys' tip («Tip: press ? to see the keys for this view.») shows in
   the corner too.
-- Change: the first run (and its held place) is marked `data-guide`. The keys' tip does not show while a guide is on
-  screen, nor for the rest of that page once one has been (`keysTipShows`, keys-tip.ts): a tip that is not shown is
-  not counted (`countShowing` runs only when shown), so its turn comes on a later visit.
+- Change: the first run's steps are marked `data-guide="shown"`, its held place (while it is decided)
+  `data-guide="held"`. The keys' tip does not show while either is on screen, nor for the rest of the page once steps
+  have shown (`keysTipShows`, keys-tip.ts): a tip that is not shown is not counted (`countShowing` runs only when
+  shown), so its turn comes on a later visit. A held place that ends with no steps (an account with archived projects)
+  holds nothing back after it, or such an account would never see the tip. The home fixture mounts the tip with
+  `keys=1`.
 - Seen: in an empty project, Tasks says «No goals yet. They'll come from your conversations with Sophia in the room.»
   `GoalList` draws both Goals and Tasks (`controls`), and `NoGoals` is that shared empty state.
 - Change: under Tasks: «No tasks yet. Tasks start when a goal has a plan.» Goals keeps its line.

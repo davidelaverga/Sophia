@@ -91,3 +91,16 @@ test('goals · without the demo, Goals opens and says there are none yet', async
   await expect(views(page).getByRole('link', { name: 'Goals' })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByText(/No goals yet/)).toBeVisible()
 })
+
+test('goals · Tasks with no goals says so in its own words; Goals keeps its line (demo-findings-1 #17)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?place=work')
+  await expect(page.getByRole('heading', { name: 'Tasks', level: 2 })).toBeVisible()
+  await expect(page.getByText('No tasks yet. Tasks start when a goal has a plan.')).toBeVisible()
+  await expect(page.getByText(/No goals yet/)).toHaveCount(0)
+  await views(page).getByRole('link', { name: 'Goals' }).click()
+  await expect(
+    page.getByText('No goals yet. They’ll come from your conversations with Sophia in the room.'),
+  ).toBeVisible()
+})

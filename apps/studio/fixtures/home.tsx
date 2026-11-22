@@ -18,6 +18,7 @@
 // or chosen; absent, it never shows (Home as it is today). Its API and the rest of its switches: first-run-api.ts. What
 // follows a creation is recorded as "open <id>" and, with a team, "invite <id>"; one made after the first run ended, as
 // "added <id>" (the projects read again).
+// `keys=1`: the keys' tip is mounted, as the Studio's commands host mounts it (e2e/keys-tip.spec.ts).
 import { requestAddress } from '../src/features/resources/link.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -52,6 +53,7 @@ import { turnShown } from '../src/features/personal/turn-shown.ts'
 import { needsAnswer } from './fixture-api.ts'
 import { InvitedBand } from '../src/features/access/InvitedBand.tsx'
 import { FirstRun, FirstRunHeld, useFirstRun } from '../src/features/personal/FirstRun.tsx'
+import { KeysTip } from '../src/app/KeysTip.tsx'
 import { installFirstRunApi } from './first-run-api.ts'
 
 declare global {
@@ -702,6 +704,7 @@ createRoot(root).render(
     </p>
     <QueryClientProvider client={client}>
       <Home />
+      {query.has('keys') && <KeysTip />}
     </QueryClientProvider>
   </StrictMode>,
 )
