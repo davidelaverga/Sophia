@@ -14,10 +14,19 @@ interface Boundary {
   apiOrigin: string
 }
 
+/** The URL constructor is available on Studio’s Safari 16.4 baseline. */
+export function parsePreviewUrl(address: string, base?: string): URL | null {
+  try {
+    return new URL(address, base)
+  } catch {
+    return null
+  }
+}
+
 function separatedOrigin({ contentOrigin, studioOrigin, apiOrigin }: Boundary): URL | null {
-  const content = URL.parse(contentOrigin)
-  const studio = URL.parse(studioOrigin)
-  const api = URL.parse(apiOrigin)
+  const content = parsePreviewUrl(contentOrigin)
+  const studio = parsePreviewUrl(studioOrigin)
+  const api = parsePreviewUrl(apiOrigin)
   if (!content || !studio || !api || content.href !== `${content.origin}/`) return null
   if (content.hostname === studio.hostname || content.hostname === api.hostname) return null
   const local = loopback.has(content.hostname) && loopback.has(studio.hostname)
@@ -33,7 +42,7 @@ export function previewAddress(
   if (!Number.isFinite(Date.parse(permit.expiresAt))) return null
   if (permit.entrySha256 !== version.entrySha256 || permit.manifestSha256 !== version.manifestSha256) return null
   const configured = separatedOrigin(boundary)
-  const url = URL.parse(permit.url)
+  const url = parsePreviewUrl(permit.url)
   if (!configured || !url || !permitPath.test(url.pathname)) return null
   return permit.url === `${configured.origin}${url.pathname}` ? url : null
 }

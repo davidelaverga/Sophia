@@ -21,6 +21,8 @@ test('an exact-version grant addresses only the configured separate content orig
 })
 
 test('rejects malformed or mismatched grants and unexpected origins or paths', () => {
+  assert.equal(open({ ...permit, url: 'https://[invalid' }), null)
+  assert.equal(open(permit, 'https://[invalid'), null)
   assert.equal(open({ ...permit, expiresAt: 'unknown' }), null)
   assert.equal(open({ ...permit, entrySha256: 'c'.repeat(64) }), null)
   assert.equal(open({ ...permit, manifestSha256: 'c'.repeat(64) }), null)

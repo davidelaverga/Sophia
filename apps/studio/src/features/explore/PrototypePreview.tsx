@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { API_BASE } from '../../api/base.ts'
 import { READ_TIMEOUT_MS } from '../../api/timeouts.ts'
 import { boundedFetch } from '../../app/bounded-fetch.ts'
-import { previewAddress, type PreviewPermit } from './preview-address.ts'
+import { parsePreviewUrl, previewAddress, type PreviewPermit } from './preview-address.ts'
 
 interface Props {
   version: Pick<PreviewPermit, 'entrySha256' | 'manifestSha256'> & { id: string; number: number }
@@ -34,7 +34,7 @@ function usePreview({ version, mint, contentOrigin, onFrame }: Props, attempt: n
     void mint(controller.signal).then(
       (permit) => {
         if (controller.signal.aborted) return
-        const apiOrigin = URL.parse(API_BASE || '/', location.origin)?.origin ?? ''
+        const apiOrigin = parsePreviewUrl(API_BASE || '/', location.origin)?.origin ?? ''
         const url =
           permit.versionId === version.id
             ? previewAddress(permit, version, { contentOrigin, studioOrigin: location.origin, apiOrigin })
