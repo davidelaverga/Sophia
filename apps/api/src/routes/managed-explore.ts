@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import type {
   ManagedExploreApprovalRequest,
   ManagedExploreDirectionSelection,
@@ -25,7 +24,8 @@ import {
 } from '@sophia/persistence'
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import type pg from 'pg'
-import { objectPath, storedKey, type ByteStore } from '../byte-store.ts'
+import type { ByteStore } from '../byte-store.ts'
+import { readRetainedPrototype } from '../retained-prototype.ts'
 import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
 
 export const MANAGED_EXPLORE_SCHEMA = `SELECT
@@ -253,17 +253,7 @@ function retentionRoutes(app: FastifyInstance, { pool, store }: Deps, preview: U
 }
 
 async function readRetainedEntry(entry: ManagedExploreRetainedEntry, store: ByteStore | null): Promise<Uint8Array> {
-  const { projectId, sourceId, storageKey, text, entrySha256, byteLength } = entry
-  const bytes =
-    text !== null
-      ? Buffer.from(text, 'utf8')
-      : store && storageKey === storedKey(projectId, sourceId)
-        ? await store.get(objectPath(projectId, sourceId))
-        : null
-  if (!bytes) throw new DomainError('unavailable', 'The retained prototype bytes are unavailable')
-  if (bytes.byteLength !== byteLength || createHash('sha256').update(bytes).digest('hex') !== entrySha256) {
-    throw new DomainError('invalid_state', 'The retained prototype bytes did not match their record')
-  }
+  const bytes = await readRetainedPrototype(entry, store)
   if (!hasOnlyLocalPrototypeResources(bytes)) {
     throw new DomainError('invalid_state', 'The exact retained prototype did not meet preview policy')
   }

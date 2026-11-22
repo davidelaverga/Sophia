@@ -33,6 +33,11 @@ export const storedKey = (projectId: string, sourceId: string) => `objects/${obj
 /** Internal write cancellation: expiry cannot undo an accepted PUT, but prevents starting a later provider step. */
 export type { ByteWriteControl } from './byte-backup.ts'
 
+export interface ExactByteRead {
+  expectedBytes: number
+  maxBytes: number
+}
+
 export interface ByteStore {
   /**
    * Store new bytes at `path`. A path written before is refused (409) and its object stays as written: writeOnce keeps
@@ -49,6 +54,8 @@ export interface ByteStore {
   signedUrl(path: string, expiresInSeconds: number, downloadAs: string | null): Promise<string>
   /** The bytes at `path`, read by the API itself (a render package's image for the render runner). */
   get(path: string): Promise<Uint8Array>
+  /** Read only the recorded number of bytes, up to an independent caller-owned maximum. */
+  getExact?(path: string, bounds: ExactByteRead): Promise<Uint8Array>
 }
 
 export class ByteStoreError extends Error {
@@ -189,6 +196,7 @@ export function withByteBackup(store: ByteStore, backup?: ByteBackup): ByteStore
     },
     signedUrl: (path, expiresInSeconds, downloadAs) => store.signedUrl(path, expiresInSeconds, downloadAs),
     get: (path) => store.get(path),
+    ...(store.getExact === undefined ? {} : { getExact: store.getExact.bind(store) }),
   }
 }
 
@@ -230,6 +238,69 @@ function signedS3Sender(connection: ReturnType<typeof s3Connection>, fetchImpl: 
       headers: { ...headers, authorization: auth },
       ...(body === null ? {} : { body }),
     })
+  }
+}
+
+function expectExactLength({ expectedBytes, maxBytes }: ExactByteRead): number {
+  if (
+    !Number.isSafeInteger(expectedBytes) ||
+    !Number.isSafeInteger(maxBytes) ||
+    expectedBytes < 1 ||
+    expectedBytes > maxBytes
+  ) {
+    throw new ByteStoreError(409, 'store exact get: invalid recorded byte length')
+  }
+  return expectedBytes
+}
+
+function mismatchedLength(): ByteStoreError {
+  return new ByteStoreError(409, 'store exact get: object size did not match the recorded byte length')
+}
+
+function cancelBody(body: ReadableStream<Uint8Array> | null): void {
+  if (body) void body.cancel().catch(() => undefined)
+}
+
+function exactBody(res: Response, expected: number): ReadableStream<Uint8Array> {
+  const { body } = res
+  if (!res.ok) {
+    cancelBody(body)
+    throw new ByteStoreError(res.status, `store exact get: ${String(res.status)}`)
+  }
+  const length = res.headers.get('content-length')
+  const encoding = res.headers.get('content-encoding')
+  if (
+    !body ||
+    (encoding !== null && encoding.toLowerCase() !== 'identity') ||
+    (length !== null && length !== String(expected))
+  ) {
+    cancelBody(body)
+    throw mismatchedLength()
+  }
+  return body
+}
+
+async function readExactBody(body: ReadableStream<Uint8Array>, expected: number): Promise<Uint8Array> {
+  const bytes = new Uint8Array(expected)
+  const reader = body.getReader()
+  let offset = 0
+  let ended = false
+  try {
+    for (;;) {
+      const chunk = await reader.read()
+      if (chunk.done) {
+        ended = true
+        break
+      }
+      if (chunk.value.byteLength > expected - offset) throw mismatchedLength()
+      bytes.set(chunk.value, offset)
+      offset += chunk.value.byteLength
+    }
+    if (offset !== expected) throw mismatchedLength()
+    return bytes
+  } finally {
+    if (!ended) void reader.cancel().catch(() => undefined)
+    reader.releaseLock()
   }
 }
 
@@ -284,6 +355,11 @@ export function s3ByteStore(
       if (!res.ok) throw await failure(res, 'store get')
       return new Uint8Array(await res.arrayBuffer())
     },
+    async getExact(path, bounds) {
+      const expected = expectExactLength(bounds)
+      const res = await send('GET', path, null, { 'accept-encoding': 'identity' })
+      return readExactBody(exactBody(res, expected), expected)
+    },
   }
 }
 
@@ -317,6 +393,7 @@ export function writeOnce(store: ByteStore, claim: WriteClaim): ByteStore {
     },
     signedUrl: (path, expiresInSeconds, downloadAs) => store.signedUrl(path, expiresInSeconds, downloadAs),
     get: (path) => store.get(path),
+    ...(store.getExact === undefined ? {} : { getExact: store.getExact.bind(store) }),
   }
 }
 
@@ -342,6 +419,15 @@ export function memoryByteStore(origin = 'https://store.invalid'): ByteStore & {
     get(path) {
       const bytes = objects.get(path)
       return bytes ? Promise.resolve(bytes) : Promise.reject(new ByteStoreError(404, `store get: ${path} is missing`))
+    },
+    getExact(path, bounds) {
+      return Promise.resolve().then(() => {
+        const expected = expectExactLength(bounds)
+        const bytes = objects.get(path)
+        if (!bytes) throw new ByteStoreError(404, `store exact get: ${path} is missing`)
+        if (bytes.byteLength !== expected) throw mismatchedLength()
+        return Uint8Array.from(bytes)
+      })
     },
   }
 }

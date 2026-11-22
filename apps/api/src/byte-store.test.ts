@@ -176,6 +176,75 @@ describe('report byte store (D5)', () => {
     assert.equal(JSON.stringify(io.sent).includes('storage-secret'), false)
   })
 
+  it('reads an exact signed object through both wrappers with an independent size cap', async () => {
+    const io = recording(new Response(new Uint8Array([7, 8, 9])))
+    const store = writeOnce(withByteBackup(s3ByteStore(config, io.fetch, clock)), () => Promise.resolve(true))
+    assert.ok(typeof store.getExact === 'function')
+    await assert.rejects(store.getExact('a/b', { expectedBytes: 4, maxBytes: 3 }), /invalid recorded byte length/)
+    assert.equal(io.sent.length, 0)
+    assert.deepEqual(await store.getExact('a/b', { expectedBytes: 3, maxBytes: 4 }), new Uint8Array([7, 8, 9]))
+    const [get] = io.sent
+    assert.equal(get?.init.method, 'GET')
+    assert.equal(headerOf(get, 'accept-encoding'), 'identity')
+    assert.match(headerOf(get, 'authorization') ?? '', /SignedHeaders=accept-encoding;host;/)
+  })
+
+  it('cancels an oversized stream even when its Content-Length matches the record', async () => {
+    let pulled = 0
+    let cancelled = false
+    const body = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          pulled++
+          controller.enqueue(new Uint8Array([1, 2]))
+        },
+        cancel() {
+          cancelled = true
+        },
+      },
+      { highWaterMark: 0 },
+    )
+    const io = recording(new Response(body, { headers: { 'content-length': '3' } }))
+    const store = s3ByteStore(config, io.fetch, clock)
+    assert.ok(typeof store.getExact === 'function')
+    await assert.rejects(store.getExact('a/b', { expectedBytes: 3, maxBytes: 8 }), /recorded byte length/)
+    assert.equal(pulled, 2)
+    assert.equal(cancelled, true)
+  })
+
+  it('cancels an incompatible declared length or HTTP error without reading its body and rejects a short stream', async () => {
+    let pulled = 0
+    let cancelled = 0
+    const body = () =>
+      new ReadableStream<Uint8Array>(
+        {
+          pull(controller) {
+            pulled++
+            controller.enqueue(new Uint8Array([1]))
+          },
+          cancel() {
+            cancelled++
+          },
+        },
+        { highWaterMark: 0 },
+      )
+    const io = recording(
+      new Response(body(), { headers: { 'content-length': '99999999' } }),
+      new Response(body(), { headers: { 'content-encoding': 'gzip' } }),
+      new Response(body(), { status: 404 }),
+      new Response(new Uint8Array([1, 2]), { headers: { 'content-length': '3' } }),
+    )
+    const store = s3ByteStore(config, io.fetch, clock)
+    assert.ok(typeof store.getExact === 'function')
+    const bounds = { expectedBytes: 3, maxBytes: 8 }
+    await assert.rejects(store.getExact('a/b', bounds), /recorded byte length/)
+    await assert.rejects(store.getExact('a/b', bounds), /recorded byte length/)
+    await assert.rejects(store.getExact('a/b', bounds), /store exact get: 404/)
+    assert.equal(pulled, 0)
+    assert.equal(cancelled, 3)
+    await assert.rejects(store.getExact('a/b', bounds), /recorded byte length/)
+  })
+
   it('keeps bytes in memory for tests, with the same write-once rule', async () => {
     const store = memoryByteStore()
     await store.put('a/b', new Uint8Array([1]), 'application/pdf')

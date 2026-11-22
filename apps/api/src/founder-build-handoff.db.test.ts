@@ -9,7 +9,7 @@ import type {
   ManagedExploreApproval,
   ManagedExplorePreviewPermit,
 } from '@sophia/contracts'
-import { prototypeManifestSha256 } from '@sophia/design'
+import { PROTOTYPE_ENTRY_MAX_BYTES, prototypeManifestSha256 } from '@sophia/design'
 import {
   createPool,
   markManagedExplorePreviewServed,
@@ -23,7 +23,8 @@ import { SignJWT } from 'jose'
 import type pg from 'pg'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
-import { objectPath, storedKey, type ByteStore } from './byte-store.ts'
+import { ByteStoreError, objectPath, storedKey, type ByteStore } from './byte-store.ts'
+import { managedExplorePreviewReader } from './routes/managed-explore.ts'
 
 const founder = randomUUID()
 const editor = randomUUID()
@@ -50,11 +51,17 @@ let off: FastifyInstance
 let onRead: (() => Promise<void>) | undefined
 const files = new Map<string, Uint8Array>()
 const store: ByteStore = {
-  async get(path) {
+  get() {
+    throw new Error('A retained prototype must use the bounded read')
+  },
+  async getExact(path, { expectedBytes, maxBytes }) {
+    assert.equal(expectedBytes, html.byteLength)
+    assert.equal(maxBytes, PROTOTYPE_ENTRY_MAX_BYTES)
     await onRead?.()
     const bytes = files.get(path)
     assert.ok(bytes)
-    return bytes
+    if (bytes.byteLength !== expectedBytes) throw new ByteStoreError(409, 'fixture length mismatch')
+    return Uint8Array.from(bytes)
   },
   put() {
     throw new Error('No writes to the test byte store')
@@ -183,6 +190,9 @@ async function approveFixture() {
   assert.equal(preview.statusCode, 200, preview.body)
   const token = new URL(preview.json<ManagedExplorePreviewPermit>().url).pathname.split('/')[3]
   assert.ok(token)
+  const viewed = await managedExplorePreviewReader(pool, store)(token)
+  assert.ok(viewed)
+  assert.deepEqual(Buffer.from(viewed.bytes), html)
   assert.equal(await markManagedExplorePreviewServed(pool, token), true)
   const decision = await call(`${path}/approvals`, {
     payload: {

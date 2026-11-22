@@ -3,7 +3,6 @@ import type {
   FounderBuildExportRequest,
   FounderBuildReturnRequest,
 } from '@sophia/contracts'
-import { prototypeEntrySha256 } from '@sophia/design'
 import { DomainError } from '@sophia/domain'
 import {
   bindFounderBuildRepository,
@@ -15,11 +14,11 @@ import {
   recordFounderBuildReturn,
   withActor,
   type FounderBuildScope,
-  type ManagedExploreRetainedEntry,
 } from '@sophia/persistence'
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import type pg from 'pg'
-import { objectPath, storedKey, type ByteStore } from '../byte-store.ts'
+import type { ByteStore } from '../byte-store.ts'
+import { readRetainedPrototype } from '../retained-prototype.ts'
 import { idempotencyHeader, UUID_PATTERN } from './schemas.ts'
 
 export const FOUNDER_BUILD_SCHEMA = `SELECT
@@ -58,22 +57,6 @@ function noStore(reply: FastifyReply): void {
   reply.header('cache-control', 'private, no-store')
 }
 
-async function exactEntry(entry: ManagedExploreRetainedEntry, store: ByteStore | null): Promise<Uint8Array> {
-  const { projectId, sourceId, storageKey, text, entrySha256, byteLength } = entry
-  const bytes =
-    text !== null
-      ? Buffer.from(text, 'utf8')
-      : store && storageKey === storedKey(projectId, sourceId)
-        ? await store.get(objectPath(projectId, sourceId))
-        : null
-  if (!bytes) throw new DomainError('unavailable', 'The approved Build source is unavailable')
-  const retained = Uint8Array.from(bytes)
-  if (retained.byteLength !== byteLength || prototypeEntrySha256(retained) !== entrySha256) {
-    throw new DomainError('invalid_state', 'The approved Build source did not match its record')
-  }
-  return retained
-}
-
 function registerWrites(app: FastifyInstance, { pool, store }: Deps): void {
   app.post<{ Params: FounderBuildScope; Headers: Headers; Body: FounderBuildBindingRequest }>(
     `${base}/repository-binding`,
@@ -94,7 +77,7 @@ function registerWrites(app: FastifyInstance, { pool, store }: Deps): void {
         readFounderBuildBindingEntry(c, req.params, req.body.bindingId),
       )
       // Verify actual storage availability first; the write then rechecks the scoped approval, binding and sources.
-      await exactEntry(entry, store)
+      await readRetainedPrototype(entry, store)
       return withActor(pool, req.actorId, 'write', (c) =>
         prepareFounderBuildExport(c, req.params, req.headers['idempotency-key'], req.body),
       )
@@ -138,7 +121,7 @@ function registerReads(app: FastifyInstance, { pool, store }: Deps): void {
       const read = () =>
         withActor(pool, req.actorId, 'read', (c) => readFounderBuildExportFile(c, req.params, exportId, fileId))
       const entry = await read()
-      const bytes = await exactEntry(entry, store)
+      const bytes = await readRetainedPrototype(entry, store)
       if (entry.text === null) await read()
       return reply
         .type('text/plain; charset=utf-8')
