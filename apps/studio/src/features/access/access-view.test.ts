@@ -76,15 +76,9 @@ describe('room access, as the Studio shows it', () => {
 
   it('tells the address refusal on Accept from any other failure (demo-findings-1 #10)', () => {
     // The API's words for it (0010, kept by persistence's errors.ts).
-    assert.equal(
-      wrongAddress({ status: 403, code: 'forbidden', message: 'This invitation is for another email address' }),
-      true,
-    )
-    assert.equal(wrongAddress({ status: 403, code: 'forbidden', message: 'Not permitted' }), false)
-    assert.equal(
-      wrongAddress({ status: 503, code: 'unavailable', message: 'This invitation is for another email address' }),
-      false,
-    )
+    assert.equal(wrongAddress({ status: 403, message: 'This invitation is for another email address' }), true)
+    assert.equal(wrongAddress({ status: 403, message: 'Not permitted' }), false)
+    assert.equal(wrongAddress({ status: 503, message: 'This invitation is for another email address' }), false)
     assert.equal(wrongAddress(new Error('Failed to fetch')), false)
   })
 
