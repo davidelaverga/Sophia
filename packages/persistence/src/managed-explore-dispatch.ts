@@ -47,6 +47,7 @@ export interface ManagedExploreDispatchLease extends ManagedExploreDispatchIdent
   previousRootId: string | null
   rootId: string | null
   rootStatus: RootStatus | null
+  rootCompletedSeenAt: string | null
   payloadSha256: string | null
   usage: ProviderUsage | null
 }
@@ -114,6 +115,7 @@ export type ManagedExploreDispatchObservation =
       reply?: string
       reason?: ProviderReason
     } & EventIdentity)
+  | ({ kind: 'outputRejected'; rootId: string; reason: 'output_invalid' | 'output_missing' } & EventIdentity)
   | { kind: 'defer'; delaySeconds: number }
 
 async function workerQuery<T>(pool: pg.Pool, statement: string, parameters: unknown[]): Promise<T> {

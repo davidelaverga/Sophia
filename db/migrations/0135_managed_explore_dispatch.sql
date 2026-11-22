@@ -39,6 +39,7 @@ CREATE TABLE sophia.managed_explore_dispatch_turns (
  event_accepted_at timestamptz,
  provider_root_id text,
  provider_root_status text CHECK(provider_root_status IN ('queued','in_progress','waiting','completed','failed','cancelled')),
+ root_completed_seen_at timestamptz,
  usage jsonb,
  PRIMARY KEY(project_id,turn_id),
  UNIQUE(project_id,session_id,provider_root_id),
@@ -46,7 +47,8 @@ CREATE TABLE sophia.managed_explore_dispatch_turns (
  FOREIGN KEY(project_id,turn_id) REFERENCES sophia.managed_explore_turns(project_id,id),
  CHECK((event_possible_at IS NULL)=(payload_sha256 IS NULL)),
  CHECK(event_possible_at IS NOT NULL OR (predecessor_root_id IS NULL AND event_accepted_at IS NULL AND provider_root_id IS NULL)),
- CHECK((provider_root_id IS NULL)=(provider_root_status IS NULL))
+ CHECK((provider_root_id IS NULL)=(provider_root_status IS NULL)),
+ CHECK((root_completed_seen_at IS NOT NULL)=(coalesce(provider_root_status,'')='completed'))
 );
 ALTER TABLE sophia.managed_explore_dispatch_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sophia.managed_explore_dispatch_turns ENABLE ROW LEVEL SECURITY;
@@ -113,7 +115,7 @@ RETURNS jsonb LANGUAGE sql STABLE SET search_path=pg_catalog,sophia AS $$
  'eventRequestId',(c.x).event_request_id,'previousRootId',CASE WHEN (c.x).event_possible_at IS NOT NULL
   THEN (c.x).predecessor_root_id ELSE sophia.managed_explore_previous_root((c.t).project_id,(c.t).session_id,(c.t).sequence) END,
  'rootId',(c.x).provider_root_id,
- 'rootStatus',(c.x).provider_root_status,'payloadSha256',(c.x).payload_sha256,'usage',(c.x).usage)
+ 'rootStatus',(c.x).provider_root_status,'rootCompletedSeenAt',(c.x).root_completed_seen_at,'payloadSha256',(c.x).payload_sha256,'usage',(c.x).usage)
 $$;
 
 CREATE FUNCTION sophia.claim_managed_explore_dispatch(p_worker text, p_route text, p_generation bigint,
@@ -379,6 +381,7 @@ BEGIN
       OR j.value::text !~ '^(0|[1-9][0-9]{0,15})$' OR j.value::numeric>9007199254740991)) THEN
    RAISE EXCEPTION 'Invalid managed Explore token usage' USING ERRCODE='22023'; END IF;
   UPDATE sophia.managed_explore_dispatch_turns SET provider_root_id=root_id,provider_root_status=root_status,
+   root_completed_seen_at=CASE WHEN root_status='completed' THEN coalesce(root_completed_seen_at,clock_timestamp()) END,
    usage=coalesce(root_usage,usage) WHERE project_id=(c.t).project_id AND turn_id=(c.t).id;
   next_status:=CASE WHEN root_status='completed' AND (c.t).kind<>'text' THEN 'retaining' ELSE 'running' END;
   IF (c.t).status<>next_status THEN
@@ -386,6 +389,14 @@ BEGIN
    UPDATE sophia.managed_explore_sessions SET revision=revision+1 WHERE project_id=(c.s).project_id AND id=(c.s).id;
    UPDATE sophia.commands SET state='dispatching' WHERE project_id=(c.t).project_id AND id=(c.t).command_id;
   END IF;
+ ELSIF p_kind='outputRejected' THEN
+  IF (c.x).provider_root_id IS NULL OR (c.x).provider_root_id IS DISTINCT FROM root_id
+   OR (c.x).provider_root_status IS DISTINCT FROM 'completed' OR answer IS NOT NULL THEN
+   RAISE EXCEPTION 'Stale managed Explore output rejection' USING ERRCODE='40001'; END IF;
+  IF p_observation->>'reason'='output_missing'
+   AND ((c.x).root_completed_seen_at IS NULL OR (c.x).root_completed_seen_at>clock_timestamp()-interval '5 minutes') THEN
+   RAISE EXCEPTION 'Managed Explore output may still arrive' USING ERRCODE='40001'; END IF;
+  PERFORM sophia.finish_managed_explore_dispatch(c,'failed',NULL,p_observation->>'reason');
  ELSE
   IF (c.x).provider_root_id IS NULL OR (c.x).provider_root_id IS DISTINCT FROM root_id
    OR (c.x).provider_root_status IS DISTINCT FROM root_status OR root_status NOT IN ('completed','failed','cancelled') THEN
@@ -405,10 +416,11 @@ DECLARE c sophia.managed_explore_dispatch_context; k text:=p_observation->>'kind
  delay_seconds integer; unknown_effect boolean;
 BEGIN
  c:=sophia.managed_explore_dispatch_lock(p_project,p_turn,p_token);
- IF k IS NULL OR k NOT IN ('created','createRejected','environment','eventAccepted','eventRejected','root','settle','defer') THEN
+ IF k IS NULL OR k NOT IN ('created','createRejected','environment','eventAccepted','eventRejected','root','settle','outputRejected','defer') THEN
   RAISE EXCEPTION 'Invalid managed Explore observation' USING ERRCODE='22023'; END IF;
- IF (k IN ('createRejected','eventRejected') AND reason IS NULL)
-  OR (reason IS NOT NULL AND reason NOT IN ('authorization','model_unavailable','credit_exhausted','budget_exceeded',
+ IF (k='outputRejected' AND (reason IS NULL OR reason NOT IN ('output_invalid','output_missing')))
+  OR (k IN ('createRejected','eventRejected') AND reason IS NULL)
+  OR (k<>'outputRejected' AND reason IS NOT NULL AND reason NOT IN ('authorization','model_unavailable','credit_exhausted','budget_exceeded',
     'billing_unavailable','declined','provider_failed','cancelled')) THEN
   RAISE EXCEPTION 'Invalid managed Explore observation reason' USING ERRCODE='22023'; END IF;
  IF k='defer' THEN

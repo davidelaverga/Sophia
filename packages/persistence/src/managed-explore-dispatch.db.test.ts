@@ -253,11 +253,23 @@ it('fences create, event and root evidence through expiry, restart and the queue
       code: 'invalid_state',
     },
   )
-  // Settle this fixture only so subsequent cases see only their own work.
-  await owner.query("UPDATE sophia.managed_explore_turns SET status='cancelled' WHERE project_id=$1 AND id=$2", [
-    projectId,
-    successorId,
-  ])
+  const rejected = { ...directions, kind: 'outputRejected', reason: 'output_missing' } as const
+  await assert.rejects(recordManagedExploreDispatch(worker, successor, rejected), { code: 'invalid_state' })
+  await assert.rejects(
+    recordManagedExploreDispatch(worker, successor, {
+      ...rejected,
+      rootId: 'unrelated-root',
+      reason: 'output_invalid',
+    }),
+    { code: 'stale_revision' },
+  )
+  await owner.query(
+    "UPDATE sophia.managed_explore_dispatch_turns SET root_completed_seen_at=clock_timestamp()-interval '6 minutes' WHERE project_id=$1 AND turn_id=$2",
+    [projectId, successorId],
+  )
+  await recordManagedExploreDispatch(worker, successor, rejected)
+  const { turns } = await withActor(api, founder, 'read', (c) => readManagedExploreSession(c, projectId, sessionId))
+  assert.equal(turns.find((turn) => turn.id === successorId)?.status, 'failed')
 })
 
 it('rechecks current grant and source before a possible send and preserves the original scope', async () => {
