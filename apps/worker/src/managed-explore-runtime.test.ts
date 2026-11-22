@@ -149,7 +149,12 @@ test('only send mode records its own readiness before claiming and retires it on
           release: () => undefined,
         }),
     } as unknown as pg.Pool
-    const worker = await managedExploreWorkerFromConfig(pool, config, assert.fail, assert.fail)
+    const worker = await managedExploreWorkerFromConfig(
+      pool,
+      config,
+      () => assert.fail('unexpected retention'),
+      assert.fail,
+    )
     assert.ok(worker)
     assert.equal(announced.length, 0)
     worker.tick()
