@@ -22,7 +22,7 @@ async function openPreview(page: Page) {
 test('opens, exercises and approves the exact prototype without the static URL parser', async ({ page }) => {
   const calls = await mockApi(page, { existingVersions: true })
   const workspace = await openPreview(page)
-  const frame = workspace.locator('iframe')
+  const frame = workspace.locator('iframe').contentFrame().locator('iframe')
   await expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
   const prototype = frame.contentFrame()
   await prototype.getByRole('textbox', { name: 'Chief engineer explanation' }).fill('Waiting for the berth.')

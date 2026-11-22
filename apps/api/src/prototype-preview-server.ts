@@ -3,7 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { checkRoleSafety, createPool, markManagedExplorePreviewServed } from '@sophia/persistence'
 import { byteStoreFromEnv } from './byte-store.ts'
 import { managedExplorePreviewReader } from './routes/managed-explore.ts'
-import { createPrototypePreviewContentHandler } from './routes/prototype-preview-content.ts'
+import { createPrototypePreviewContentHandler, isPrototypePreviewPath } from './routes/prototype-preview-content.ts'
 
 function required(name: string): string {
   const value = process.env[name]?.trim()
@@ -42,7 +42,7 @@ async function request(req: IncomingMessage, res: ServerResponse): Promise<void>
     req.headers.host !== previewHost ||
     req.headers.cookie !== undefined ||
     req.headers.authorization !== undefined ||
-    !req.url?.startsWith('/v1/previews/')
+    !isPrototypePreviewPath(req.url)
   ) {
     unreachable(res)
     return

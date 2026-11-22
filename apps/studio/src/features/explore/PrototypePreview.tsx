@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { API_BASE } from '../../api/base.ts'
 import { READ_TIMEOUT_MS } from '../../api/timeouts.ts'
 import { boundedFetch } from '../../app/bounded-fetch.ts'
+import { bindPreviewFrame, type CheckDisplayedPreview } from './preview-frame-proof.ts'
 import { parsePreviewUrl, previewAddress, type PreviewPermit } from './preview-address.ts'
 
 interface Props {
   version: Pick<PreviewPermit, 'entrySha256' | 'manifestSha256'> & { id: string; number: number }
   mint: (signal: AbortSignal) => Promise<PreviewPermit & { versionId: string }>
   contentOrigin: string
-  onFrame: (ready: boolean) => void
+  onFrame: (check: CheckDisplayedPreview | null) => void
 }
 
 const MAX_VIEW_MS = 10 * 60_000
@@ -30,16 +31,21 @@ function usePreview({ version, mint, contentOrigin, onFrame }: Props, attempt: n
     const show = (preview: Preview) => setState({ mint, preview })
     let expiry: ReturnType<typeof setTimeout> | undefined
     show({ status: 'loading' })
-    onFrame(false)
+    onFrame(null)
     void mint(controller.signal).then(
-      (permit) => {
-        if (controller.signal.aborted) return
+      async (permit) => {
         const apiOrigin = parsePreviewUrl(API_BASE || '/', location.origin)?.origin ?? ''
         const url =
           permit.versionId === version.id
             ? previewAddress(permit, version, { contentOrigin, studioOrigin: location.origin, apiOrigin })
             : null
         if (!url) {
+          if (!controller.signal.aborted) show({ status: 'unavailable' })
+          return
+        }
+        const confirmed = await confirmEntry(url, version.entrySha256, controller.signal)
+        if (controller.signal.aborted) return
+        if (!confirmed) {
           show({ status: 'unavailable' })
           return
         }
@@ -47,7 +53,7 @@ function usePreview({ version, mint, contentOrigin, onFrame }: Props, attempt: n
         show({ status: 'ready', url, showUntil: performance.now() + MAX_VIEW_MS, signal: controller.signal })
         expiry = setTimeout(() => {
           controller.abort()
-          onFrame(false)
+          onFrame(null)
           show({ status: 'expired' })
         }, MAX_VIEW_MS)
       },
@@ -87,35 +93,46 @@ function ConfirmedFrame({
   onFrame,
   onUnavailable,
 }: Pick<Props, 'version' | 'onFrame'> & { preview: OpenPreview; onUnavailable: () => void }) {
-  const pending = useRef<AbortController | null>(null)
+  const frame = useRef<HTMLIFrameElement>(null)
+  const shellLoaded = useRef<(() => void) | null>(null)
+  const [listening, setListening] = useState(false)
+  const unavailable = useRef(onUnavailable)
   useEffect(() => {
-    const abort = () => pending.current?.abort()
-    preview.signal.addEventListener('abort', abort, { once: true })
+    unavailable.current = onUnavailable
+  }, [onUnavailable])
+
+  useEffect(() => {
+    const binding = bindPreviewFrame(
+      preview,
+      () => frame.current?.contentWindow,
+      onFrame,
+      () => unavailable.current(),
+    )
+    shellLoaded.current = binding.load
+    setListening(true)
     return () => {
-      preview.signal.removeEventListener('abort', abort)
-      abort()
+      shellLoaded.current = null
+      binding.disconnect()
     }
-  }, [preview.signal])
-  const check = () => {
-    if (preview.signal.aborted) return
-    onFrame(false)
-    pending.current?.abort()
-    const controller = new AbortController()
-    pending.current = controller
-    void confirmEntry(preview.url, version.entrySha256, controller.signal).then((confirmed) => {
-      if (controller.signal.aborted || preview.signal.aborted) return
-      if (!confirmed || performance.now() >= preview.showUntil) onUnavailable()
-      else onFrame(true)
-    })
-  }
+  }, [preview, onFrame])
+
+  if (!listening)
+    return (
+      <div className="managed-prototype-message" aria-live="polite">
+        Opening prototype…
+      </div>
+    )
+  const shell = new URL('shell.html', preview.url)
   return (
     <iframe
       className="managed-prototype-frame"
-      src={preview.url.href}
+      ref={frame}
+      src={shell.href}
       title={`Interactive prototype, version ${String(version.number)}`}
-      sandbox="allow-scripts"
+      // oxlint-disable-next-line react/iframe-missing-sandbox -- Trusted shell on a distinct origin. Its generated child is opaque.
+      sandbox="allow-scripts allow-same-origin"
       referrerPolicy="no-referrer"
-      onLoad={check}
+      onLoad={() => shellLoaded.current?.()}
       allow="camera 'none'; microphone 'none'; display-capture 'none'; geolocation 'none'; payment 'none'; clipboard-read 'none'; clipboard-write 'none'"
     />
   )

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useCallback, useEffect, useId, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import {
   getExploreHandoff,
   mintExplorePreview,
@@ -10,6 +10,7 @@ import {
   type ExploreVersion,
 } from '../../api/managed-explore.ts'
 import { PrototypePreview } from './PrototypePreview.tsx'
+import type { CheckDisplayedPreview } from './preview-frame-proof.ts'
 import { BuildHandoff } from './BuildHandoff.tsx'
 
 interface Props {
@@ -143,14 +144,31 @@ function FeedbackForm({ version, session, disabled, revisionBusy, onAction, comp
   )
 }
 
+function useApprovePrototype(checkPreview: CheckDisplayedPreview | undefined, onAction: Props['onAction']) {
+  const [checking, setChecking] = useState(false)
+  const checkingRef = useRef(false)
+  const approve = async (action: ExploreAction) => {
+    if (!checkPreview || checkingRef.current) return
+    checkingRef.current = true
+    setChecking(true)
+    const confirmed = await checkPreview()
+    checkingRef.current = false
+    setChecking(false)
+    if (confirmed) onAction(action)
+  }
+  return { checking, approve }
+}
+
 function ApproveForm({
   version,
   session,
   disabled,
   onAction,
-}: Pick<Props, 'version' | 'session' | 'disabled' | 'onAction'>) {
+  checkPreview,
+}: Pick<Props, 'version' | 'session' | 'disabled' | 'onAction'> & { checkPreview: CheckDisplayedPreview | undefined }) {
   const original = version.acceptanceCriteria.join('\n')
   const [criteria, setCriteria] = useState(original)
+  const { checking, approve } = useApprovePrototype(checkPreview, onAction)
   const id = useId()
   const acceptanceCriteria =
     criteria === original
@@ -163,23 +181,20 @@ function ApproveForm({
     acceptanceCriteria.length > 0 &&
     acceptanceCriteria.length <= 40 &&
     acceptanceCriteria.every((line) => Array.from(line).length <= 1000)
-  const approve = () => {
-    if (disabled || !valid) return
-    onAction({
-      type: 'approve',
-      body: {
-        prototypeVersionId: version.id,
-        expectedManifestDigest: version.manifestSha256,
-        expectedSessionRevision: session.revision,
-        acceptanceCriteria,
-      },
-    })
-  }
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault()
-        approve()
+        if (!disabled && valid)
+          void approve({
+            type: 'approve',
+            body: {
+              prototypeVersionId: version.id,
+              expectedManifestDigest: version.manifestSha256,
+              expectedSessionRevision: session.revision,
+              acceptanceCriteria,
+            },
+          })
       }}
     >
       <label htmlFor={id}>Acceptance criteria for v{version.number}</label>
@@ -193,7 +208,12 @@ function ApproveForm({
       {acceptanceCriteria.length > 0 && !valid && (
         <p role="status">Use up to 40 criteria, each no more than 1,000 characters.</p>
       )}
-      <button className="pill primary" type="submit" disabled={disabled || !valid}>
+      <button
+        className="pill primary"
+        type="submit"
+        aria-disabled={checking || undefined}
+        disabled={disabled || !checkPreview || !valid}
+      >
         Approve this version
       </button>
     </form>
@@ -227,15 +247,18 @@ function Approved({
 }
 
 export function PrototypeReview(props: Props) {
-  const { version, scope, session, contentOrigin, disabled, onDiscussion } = props
+  const { version, scope, session, contentOrigin, onDiscussion } = props
   const { id: sessionId } = session
   const { projectId, token } = scope
   const mint = useCallback(
     (signal: AbortSignal) => mintExplorePreview({ projectId, token }, sessionId, version, signal),
     [projectId, token, sessionId, version],
   )
-  const [confirmed, setConfirmed] = useState<{ mint: typeof mint } | null>(null)
-  const onFrame = useCallback((ready: boolean) => setConfirmed(ready ? { mint } : null), [mint])
+  const [confirmed, setConfirmed] = useState<{ mint: typeof mint; check: CheckDisplayedPreview } | null>(null)
+  const onFrame = useCallback(
+    (check: CheckDisplayedPreview | null) => setConfirmed(check ? { mint, check } : null),
+    [mint],
+  )
   const approval = session.approvals.find(
     ({ versionId, manifestSha256 }) => versionId === version.id && manifestSha256 === version.manifestSha256,
   )
@@ -262,7 +285,7 @@ export function PrototypeReview(props: Props) {
         {approval ? (
           <Approved {...props} approval={approval} />
         ) : (
-          <ApproveForm {...props} disabled={disabled || confirmed?.mint !== mint} />
+          <ApproveForm {...props} checkPreview={confirmed?.mint === mint ? confirmed.check : undefined} />
         )}
       </div>
     </section>

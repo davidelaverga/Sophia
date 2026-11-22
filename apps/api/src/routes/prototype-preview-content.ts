@@ -4,10 +4,16 @@ import {
   prototypeEntrySha256,
   PROTOTYPE_ENTRY_MAX_BYTES,
 } from '@sophia/design'
+import { previewContentPolicy, previewDocument, previewShell } from './prototype-preview-presentation.ts'
 
 export const PREVIEW_PERMIT_MAX_AGE_MS = 10 * 60 * 1000
 const PREVIEW_ENTRY_DIGEST = 'X-Sophia-Preview-Entry-SHA256'
-const PREVIEW_PATH = /^\/v1\/previews\/([a-zA-Z0-9_-]{32,128})\/index\.html$/u
+const PREVIEW_PATH = /^\/v1\/previews\/([a-zA-Z0-9_-]{32,128})\/(index|shell|document)\.html$/u
+
+/** Check the raw request target before a WHATWG URL can normalize path segments. */
+export function isPrototypePreviewPath(path: string | undefined): path is string {
+  return path !== undefined && PREVIEW_PATH.test(path)
+}
 
 export interface RetainedPreviewEntry {
   readonly expiresAt: string
@@ -35,22 +41,6 @@ function origin(value: string): URL {
   return parsed
 }
 
-function policy(studio: string): string {
-  return [
-    "default-src 'none'",
-    "script-src 'unsafe-inline'",
-    "style-src 'unsafe-inline'",
-    'img-src data:',
-    "connect-src 'none'",
-    "frame-src 'none'",
-    "object-src 'none'",
-    "base-uri 'none'",
-    "form-action 'none'",
-    `frame-ancestors ${studio}`,
-    'sandbox allow-scripts',
-  ].join('; ')
-}
-
 function hasValidPermitEntry(entry: RetainedPreviewEntry, now: number): boolean {
   const remaining = Date.parse(entry.expiresAt) - now
   return (
@@ -66,12 +56,12 @@ function hasValidPermitEntry(entry: RetainedPreviewEntry, now: number): boolean 
 
 function contentPermit(request: Request, preview: URL, studio: URL) {
   const url = new URL(request.url)
-  if (url.origin !== preview.origin || url.search) return null
-  const permit = PREVIEW_PATH.exec(url.pathname)?.[1]
-  if (!permit) return null
-  if (request.method === 'GET') return { permit, checkOnly: false }
-  if (request.method === 'HEAD' && request.headers.get('origin') === studio.origin) {
-    return { permit, checkOnly: true }
+  if (url.origin !== preview.origin || request.url !== `${preview.origin}${url.pathname}`) return null
+  const [, permit, presentation] = PREVIEW_PATH.exec(url.pathname) ?? []
+  if (!permit || !presentation) return null
+  if (request.method === 'GET') return { permit, presentation, checkOnly: false }
+  if (presentation === 'index' && request.method === 'HEAD' && request.headers.get('origin') === studio.origin) {
+    return { permit, presentation, checkOnly: true }
   }
   return null
 }
@@ -83,6 +73,43 @@ async function checkedContent(config: PreviewHost, permit: string, now: () => nu
   const bytes = Uint8Array.from(entry.bytes)
   if (prototypeEntrySha256(bytes) !== entry.entrySha256 || !hasOnlyLocalPrototypeResources(bytes)) return null
   return { bytes, digest: entry.entrySha256 }
+}
+
+async function render(
+  config: PreviewHost,
+  headers: Record<string, string>,
+  { permit, presentation }: { permit: string; presentation: string },
+  bytes: Uint8Array<ArrayBuffer>,
+): Promise<Response | null> {
+  const { previewOrigin: preview, studioOrigin: studio } = config
+  const documentUrl = `${preview}/v1/previews/${permit}/document.html`
+  if (presentation === 'shell') {
+    return new Response(previewShell(documentUrl, studio), {
+      headers: {
+        ...headers,
+        'content-type': 'text/html; charset=utf-8',
+        'content-security-policy': previewContentPolicy(studio, documentUrl, false),
+      },
+    })
+  }
+  if (!(await config.recordServed(permit))) return null
+  if (presentation === 'document') {
+    const source = new TextDecoder().decode(bytes)
+    return new Response(previewDocument(source, preview), {
+      headers: {
+        ...headers,
+        'content-type': 'text/html; charset=utf-8',
+        'content-security-policy': previewContentPolicy(`${studio} ${preview}`),
+      },
+    })
+  }
+  return new Response(bytes, {
+    headers: {
+      ...headers,
+      'content-type': 'text/html; charset=utf-8',
+      'content-length': String(bytes.byteLength),
+    },
+  })
 }
 
 /** Run only behind the distinct preview virtual host. No permit is logged or returned by this handler. */
@@ -97,7 +124,7 @@ export function createPrototypePreviewContentHandler(config: PreviewHost): (requ
     'referrer-policy': 'no-referrer',
     'x-content-type-options': 'nosniff',
     'permissions-policy': 'camera=(), microphone=(), display-capture=(), geolocation=(), fullscreen=()',
-    'content-security-policy': policy(studio.origin),
+    'content-security-policy': previewContentPolicy(studio.origin),
   }
   const unavailable = () => new Response('Preview unavailable', { status: 404, headers })
   const now = config.now ?? Date.now
@@ -119,14 +146,7 @@ export function createPrototypePreviewContentHandler(config: PreviewHost): (requ
           },
         })
       }
-      if (!(await config.recordServed(binding.permit))) return unavailable()
-      return new Response(content.bytes, {
-        headers: {
-          ...headers,
-          'content-type': 'text/html; charset=utf-8',
-          'content-length': String(content.bytes.byteLength),
-        },
-      })
+      return (await render(config, headers, binding, content.bytes)) ?? unavailable()
     } catch {
       return unavailable()
     }

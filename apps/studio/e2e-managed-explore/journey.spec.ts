@@ -54,7 +54,7 @@ async function compareAndOpen({
 }
 
 async function tryV1(workspace: Locator) {
-  const frame = workspace.locator('iframe')
+  const frame = workspace.locator('iframe').contentFrame().locator('iframe')
   await expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
   await expect(frame).toHaveAttribute('referrerpolicy', 'no-referrer')
   const v1Document = frame.contentFrame()

@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { test } from 'node:test'
-import { createPrototypePreviewContentHandler, type RetainedPreviewEntry } from './prototype-preview-content.ts'
+import {
+  createPrototypePreviewContentHandler,
+  isPrototypePreviewPath,
+  type RetainedPreviewEntry,
+} from './prototype-preview-content.ts'
 
 const previewOrigin = 'https://prototype.example'
 const studioOrigin = 'https://studio.example'
@@ -134,4 +138,68 @@ test('checks the exact digest without recording HEAD and serves a GET only when 
   grantCurrent = false
   assert.equal((await handle(new Request(previewOrigin + exactPath))).status, 404)
   assert.equal(served, 2)
+})
+
+test('serves the trusted shell and opaque document under the same exact permit', async () => {
+  let reads = 0
+  let receipts = 0
+  const handle = createPrototypePreviewContentHandler({
+    previewOrigin,
+    studioOrigin,
+    now: () => now,
+    readPermit: (candidate) => {
+      assert.equal(candidate, token)
+      reads++
+      return Promise.resolve(entry)
+    },
+    recordServed: () => {
+      receipts++
+      return Promise.resolve(true)
+    },
+  })
+  const documentUrl = previewOrigin + exactPath.replace('index.html', 'document.html')
+  const shellUrl = previewOrigin + exactPath.replace('index.html', 'shell.html')
+  const shell = await handle(new Request(shellUrl))
+  assert.equal(shell.status, 200)
+  assert.ok(shell.headers.get('content-security-policy')?.includes(`frame-src ${documentUrl};`))
+  assert.ok(shell.headers.get('content-security-policy')?.endsWith('sandbox allow-scripts allow-same-origin'))
+  assert.match(await shell.text(), /Retained interactive prototype/u)
+  assert.equal(receipts, 0)
+  const document = await handle(new Request(documentUrl))
+  assert.equal(document.status, 200)
+  assert.ok(
+    document.headers.get('content-security-policy')?.includes(`frame-ancestors ${studioOrigin} ${previewOrigin};`),
+  )
+  assert.ok(document.headers.get('content-security-policy')?.endsWith('sandbox allow-scripts'))
+  const served = await document.text()
+  assert.ok(served.startsWith('<!doctype html><script>'))
+  assert.ok(served.endsWith('\r\n<button id="ack">Acknowledge</button>\r\n'))
+  assert.equal(receipts, 1)
+  assert.deepEqual(new Uint8Array(await (await handle(new Request(previewOrigin + exactPath))).arrayBuffer()), bytes)
+  for (const url of [documentUrl, shellUrl]) {
+    for (const suffix of ['?', '?fixed=1', '#anchor']) {
+      const refused = await handle(new Request(url + suffix))
+      assert.equal(refused.status, 404)
+      assert.equal(refused.headers.get('location'), null)
+    }
+    assert.equal((await handle(new Request(url, { method: 'HEAD', headers: { origin: studioOrigin } }))).status, 404)
+  }
+  assert.equal(reads, 3)
+  assert.equal(receipts, 2)
+})
+
+test('checks the raw listener path before URL normalization', () => {
+  assert.ok(isPrototypePreviewPath(exactPath))
+  assert.ok(isPrototypePreviewPath(exactPath.replace('index.html', 'shell.html')))
+  assert.ok(isPrototypePreviewPath(exactPath.replace('index.html', 'document.html')))
+  for (const path of [
+    undefined,
+    exactPath + '?',
+    exactPath + '?fixed=1',
+    exactPath.replace('index.html', 'extra/../document.html'),
+    exactPath.replace('index.html', '%64ocument.html'),
+    exactPath.replace('index.html', 'extra/../shell.html'),
+    exactPath.replace('index.html', 'document.html?fixed=1'),
+  ])
+    assert.equal(isPrototypePreviewPath(path), false)
 })

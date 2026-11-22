@@ -1,10 +1,17 @@
 import { createHash } from 'node:crypto'
-import { createServer } from 'node:http'
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+
+import {
+  previewContentPolicy,
+  previewDocument,
+  previewShell,
+} from '../../api/src/routes/prototype-preview-presentation.ts'
+
+const studioOrigin = 'http://127.0.0.1:5276'
+const previewOrigin = 'http://localhost:5277'
+export const fixedNavigation = 'http://127.0.0.1:5278/preview-test-fixed-destination'
 
 /** Synthetic demonstration bytes, delivered from a separate loopback origin to the ordinary Studio. */
-const contentSecurityPolicy =
-  "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; form-action 'none'; base-uri 'none'; frame-ancestors http://127.0.0.1:5276"
-
 export function prototype(version: number) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fleet review</title><style>
     body{margin:0;background:#f4f7f8;color:#112930;font:16px/1.4 system-ui}main{padding:24px;max-width:510px;margin:auto}
@@ -27,28 +34,73 @@ export function prototype(version: number) {
     </script></body></html>`
 }
 
+export function navigationPrototype(kind: string): string {
+  if (kind === 'early') return '<!doctype html><script>location.replace("about:blank")</script>'
+  if (kind === 'ancestor')
+    return `<!doctype html><button id="try">Try to leave the outer frame</button><p id="result" role="status"></p><script>
+      document.querySelector('#try').onclick = () => {
+        try { parent.location.href = ${JSON.stringify(fixedNavigation)}; }
+        catch { document.querySelector('#result').textContent = 'Browser refused outer-frame navigation'; }
+      };
+    </script>`
+  return `<!doctype html><a href="#detail">Jump to detail</a><p id="detail">Local detail</p>
+  <button id="move">Leave prototype</button><script>
+    document.querySelector('#move').onclick = () => location.assign(${JSON.stringify(kind === 'external' ? fixedNavigation : 'about:blank')});
+  </script>`
+}
+
+export const navigationHash = (kind: string) => createHash('sha256').update(navigationPrototype(kind)).digest('hex')
+
 export const entryHash = (version: number) => createHash('sha256').update(prototype(version)).digest('hex')
+
+function fixturePresentation(presentation: string | undefined, permit: string | undefined, source: string) {
+  const documentUrl = `${previewOrigin}/v1/previews/${permit ?? ''}/document.html`
+  const contentSecurityPolicy =
+    presentation === 'shell'
+      ? previewContentPolicy(studioOrigin, documentUrl, false)
+      : previewContentPolicy(presentation === 'document' ? `${studioOrigin} ${previewOrigin}` : studioOrigin)
+  const headers = {
+    'content-type': 'text/html; charset=utf-8',
+    'content-security-policy': contentSecurityPolicy,
+    'referrer-policy': 'no-referrer',
+    'cache-control': 'private, no-store',
+  }
+  const body =
+    presentation === 'shell'
+      ? previewShell(documentUrl, studioOrigin)
+      : presentation === 'document'
+        ? previewDocument(source, previewOrigin)
+        : source
+  return { headers, body }
+}
+
+function fixtureCors(request: IncomingMessage, response: ServerResponse) {
+  const allowed = request.headers.origin === studioOrigin
+  if (request.method === 'HEAD' && allowed) {
+    response.setHeader('access-control-allow-origin', studioOrigin)
+    response.setHeader('access-control-expose-headers', 'X-Sophia-Preview-Entry-SHA256')
+  }
+  return allowed
+}
 
 if (import.meta.main)
   createServer((request, response) => {
     if (request.url === '/health') return response.end('ok')
-    const match = /^\/v1\/previews\/synthetic-(missing-|wrong-hash-)?v([12])\/index\.html$/u.exec(request.url ?? '')
-    const allowed = request.headers.origin === 'http://127.0.0.1:5276'
-    if (request.method === 'HEAD' && allowed) {
-      response.setHeader('access-control-allow-origin', 'http://127.0.0.1:5276')
-      response.setHeader('access-control-expose-headers', 'X-Sophia-Preview-Entry-SHA256')
-    }
-    if (!match || match[1] === 'missing-') return response.writeHead(404).end()
-    const version = Number(match[2])
-    const headers = {
-      'content-type': 'text/html; charset=utf-8',
-      'content-security-policy': contentSecurityPolicy,
-      'referrer-policy': 'no-referrer',
-      'cache-control': 'private, no-store',
-    }
+    const match =
+      /^\/v1\/previews\/(synthetic-(?:(missing-|wrong-hash-)?v([12])|(early|external|local|ancestor)))\/(index|shell|document)\.html$/u.exec(
+        request.url ?? '',
+      )
+    const allowed = fixtureCors(request, response)
+    if (!match || match[2] === 'missing-') return response.writeHead(404).end()
+    const [, permit, variant, versionText, navigation, presentation] = match
+    const version = Number(versionText)
+    const source = navigation ? navigationPrototype(navigation) : prototype(version)
+    const { headers, body } = fixturePresentation(presentation, permit, source)
     if (request.method === 'HEAD') {
-      const digest = match[1] === 'wrong-hash-' ? '0'.repeat(64) : entryHash(version)
+      if (!allowed || presentation !== 'index') return response.writeHead(404).end()
+      const digest = variant === 'wrong-hash-' ? '0'.repeat(64) : createHash('sha256').update(source).digest('hex')
       return response.writeHead(200, { ...headers, 'x-sophia-preview-entry-sha256': digest }).end()
     }
-    return response.writeHead(200, headers).end(prototype(version))
+    if (request.method !== 'GET') return response.writeHead(404).end()
+    return response.writeHead(200, headers).end(body)
   }).listen(5277, 'localhost')
