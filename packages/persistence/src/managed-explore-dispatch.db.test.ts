@@ -223,10 +223,15 @@ it('fences create, event and root evidence through expiry, restart and the queue
   assert.ok(successor)
   assert.equal(successor.turnId, successorId)
   assert.equal(successor.createOperationId, first.createOperationId)
+  assert.equal(successor.previousRootId, root.rootId)
+  assert.equal((await readManagedExploreDispatch(worker, successor)).previousRootId, root.rootId)
   await assert.rejects(prepareManagedExploreDispatch(worker, successor, { kind: 'event', predecessorRootId: null }), {
     code: 'stale_revision',
   })
-  const next = await prepareManagedExploreDispatch(worker, successor, { kind: 'event', predecessorRootId: root.rootId })
+  const next = await prepareManagedExploreDispatch(worker, successor, {
+    kind: 'event',
+    predecessorRootId: successor.previousRootId,
+  })
   assert.equal(next.kind, 'event')
   const directions = {
     kind: 'root',

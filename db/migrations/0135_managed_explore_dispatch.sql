@@ -93,6 +93,14 @@ BEGIN
  RETURN c;
 END $$;
 
+CREATE FUNCTION sophia.managed_explore_previous_root(p_project uuid,p_session uuid,p_sequence bigint)
+RETURNS text LANGUAGE sql STABLE SET search_path=pg_catalog,sophia AS $$
+ SELECT x.provider_root_id FROM sophia.managed_explore_dispatch_turns x
+ JOIN sophia.managed_explore_turns t ON t.project_id=x.project_id AND t.id=x.turn_id
+ WHERE x.project_id=p_project AND x.session_id=p_session AND t.sequence<p_sequence AND x.provider_root_id IS NOT NULL
+ ORDER BY t.sequence DESC LIMIT 1
+$$;
+
 CREATE FUNCTION sophia.managed_explore_dispatch_view(c sophia.managed_explore_dispatch_context)
 RETURNS jsonb LANGUAGE sql STABLE SET search_path=pg_catalog,sophia AS $$
  SELECT jsonb_build_object('projectId',(c.t).project_id,'sessionId',(c.t).session_id,'turnId',(c.t).id,
@@ -102,7 +110,9 @@ RETURNS jsonb LANGUAGE sql STABLE SET search_path=pg_catalog,sophia AS $$
  'createPossibleAt',(c.d).create_possible_at,'providerSessionId',(c.d).provider_session_id,
  'environmentId',(c.d).provider_environment_id,'environmentStatus',(c.d).environment_status,
  'submissionId',(c.x).submission_id,'eventPossibleAt',(c.x).event_possible_at,'eventAcceptedAt',(c.x).event_accepted_at,
- 'eventRequestId',(c.x).event_request_id,'previousRootId',(c.x).predecessor_root_id,'rootId',(c.x).provider_root_id,
+ 'eventRequestId',(c.x).event_request_id,'previousRootId',CASE WHEN (c.x).event_possible_at IS NOT NULL
+  THEN (c.x).predecessor_root_id ELSE sophia.managed_explore_previous_root((c.t).project_id,(c.t).session_id,(c.t).sequence) END,
+ 'rootId',(c.x).provider_root_id,
  'rootStatus',(c.x).provider_root_status,'payloadSha256',(c.x).payload_sha256,'usage',(c.x).usage)
 $$;
 
@@ -269,10 +279,7 @@ BEGIN
   RETURN jsonb_build_object('kind','create','operationId',(c.d).create_operation_id,'model',(c.d).model,
    'sessionLimitCents',(c.d).session_limit_cents,'leaseUntil',(c.o).lease_until);
  END IF;
- SELECT x.provider_root_id INTO previous_root FROM sophia.managed_explore_dispatch_turns x
- JOIN sophia.managed_explore_turns t ON t.project_id=x.project_id AND t.id=x.turn_id
- WHERE x.project_id=p_project AND x.session_id=(c.s).id AND t.sequence<(c.t).sequence AND x.provider_root_id IS NOT NULL
- ORDER BY t.sequence DESC LIMIT 1;
+ previous_root:=sophia.managed_explore_previous_root(p_project,(c.s).id,(c.t).sequence);
  IF p_previous_root IS DISTINCT FROM previous_root THEN RAISE EXCEPTION 'Stale managed Explore predecessor' USING ERRCODE='40001'; END IF;
  payload_digest:=encode(sha256(convert_to((c.t).instruction,'UTF8')),'hex');
  IF payload_digest<>(c.t).request_digest THEN RAISE EXCEPTION 'Stale managed Explore input digest' USING ERRCODE='40001'; END IF;
@@ -426,6 +433,7 @@ END $$;
 
 REVOKE ALL ON FUNCTION sophia.managed_explore_grant_revision_guard(),
  sophia.managed_explore_dispatch_lock(uuid,uuid,uuid),
+ sophia.managed_explore_previous_root(uuid,uuid,bigint),
  sophia.managed_explore_dispatch_view(sophia.managed_explore_dispatch_context),
  sophia.claim_managed_explore_dispatch(text,text,bigint,text,text,integer,boolean),
  sophia.read_managed_explore_dispatch(uuid,uuid,uuid),
