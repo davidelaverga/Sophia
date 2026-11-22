@@ -38,6 +38,7 @@ export interface ManagedExploreDispatchLease extends ManagedExploreDispatchIdent
   sessionLimitCents: number
   createOperationId: string
   createPossibleAt: string | null
+  createRejectedAt: string | null
   providerSessionId: string | null
   environmentId: string | null
   environmentStatus: EnvironmentStatus | null

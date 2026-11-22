@@ -51,6 +51,7 @@ test('worker dispatch is independently off by default, and configured modes requ
 
 const missingReadiness = (statement: string, [procedures]: [string[]]) => {
   assert.match(statement, /managed_explore_provider_input/)
+  assert.match(statement, /managed_explore_session_terminal/)
   assert.match(statement, /has_function_privilege/)
   assert.ok(procedures.includes('sophia.refuse_managed_explore_session(uuid,uuid,uuid,text,text,text,text)'))
   assert.ok(procedures.includes('sophia.retain_managed_explore_output(uuid,uuid,uuid,jsonb,bytea)'))

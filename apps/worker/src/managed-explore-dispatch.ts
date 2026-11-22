@@ -45,6 +45,7 @@ export interface ManagedExploreDispatchLease extends ManagedExploreDispatchIdent
   sessionLimitCents: number
   createOperationId: string
   createPossibleAt: string | null
+  createRejectedAt: string | null
   providerSessionId: string | null
   environmentId: string | null
   environmentStatus: EnvironmentStatus | null
@@ -186,6 +187,10 @@ function isSessionRefusal(status: ManagedExploreSession['status']): status is Se
 
 function isEnvironmentReady(status: EnvironmentStatus | null): boolean {
   return status === 'ready' || status === 'connected'
+}
+
+function isEnvironmentTerminal(status: EnvironmentStatus | null): status is 'expired' | 'failed' {
+  return status === 'expired' || status === 'failed'
 }
 
 function hashInput(text: string): string {
@@ -344,8 +349,6 @@ class ExploreStep {
   }
 
   async #ready(providerSessionId: string, environmentId: string): Promise<Step | null> {
-    const knownStatus = this.#claim.sessionRefusalStatus
-    if (knownStatus) return this.#refuseSession(providerSessionId, environmentId, knownStatus, null)
     const session = await this.#read(() => this.#provider.readSession(providerSessionId))
     if (!session) return this.#defer('unknown')
     const { value } = session
@@ -373,10 +376,14 @@ class ExploreStep {
     if (!environment || environment.value.id !== environmentId) return this.#defer('unknown')
     const { status } = environment.value
     if (status !== this.#claim.environmentStatus) {
-      const result = status === 'expired' || status === 'failed' ? 'settled' : 'progressed'
-      return this.#record({ kind: 'environment', providerSessionId, environmentId, status }, result)
+      return this.#recordEnvironment(providerSessionId, environmentId, status)
     }
     return isEnvironmentReady(status) ? null : this.#defer('waiting')
+  }
+
+  #recordEnvironment(providerSessionId: string, environmentId: string, status: EnvironmentStatus): Promise<Step> {
+    const result = isEnvironmentTerminal(status) ? 'settled' : 'progressed'
+    return this.#record({ kind: 'environment', providerSessionId, environmentId, status }, result)
   }
 
   #refuseSession(
@@ -552,17 +559,33 @@ class ExploreStep {
     return retained === 'settled' ? 'settled' : this.#defer('retention_pending')
   }
 
+  async #settleRejectedCreate(): Promise<Step> {
+    // SQL denies an entirely local successor under its lease once it verifies the durable create rejection.
+    const result = await this.#dependencies.store.prepareManagedExploreDispatch(this.#claim, { kind: 'create' })
+    return result.kind === 'denied' ? 'settled' : 'waiting'
+  }
+
+  #unsent(canSend: boolean): Promise<Step> {
+    const { providerSessionId, environmentId, environmentStatus, sessionRefusalStatus: refusal } = this.#claim
+    if (!providerSessionId) {
+      if (this.#claim.createRejectedAt) return this.#settleRejectedCreate()
+      if (this.#claim.createPossibleAt) return this.#recoverSession()
+      return canSend ? this.#create() : this.#defer('waiting')
+    }
+    if (!environmentId) return this.#defer('unknown')
+    if (refusal) return this.#refuseSession(providerSessionId, environmentId, refusal, null)
+    if (isEnvironmentTerminal(environmentStatus)) {
+      return this.#recordEnvironment(providerSessionId, environmentId, environmentStatus)
+    }
+    return canSend ? this.#send(providerSessionId, environmentId) : this.#defer('waiting')
+  }
+
   run(allowSend: boolean): Promise<Step> {
     const claim = this.#claim
     if (!this.#leaseCurrent()) return Promise.resolve('waiting')
-    const canSend = allowSend && claim.allowSend
-    const { providerSessionId, environmentId } = claim
-    if (!providerSessionId && claim.createPossibleAt) return this.#recoverSession()
-    if (!providerSessionId) return canSend ? this.#create() : this.#defer('waiting')
-    if (!environmentId) return this.#defer('unknown')
-    if (!claim.eventPossibleAt) return canSend ? this.#send(providerSessionId, environmentId) : this.#defer('waiting')
+    if (!claim.eventPossibleAt) return this.#unsent(allowSend && claim.allowSend)
     const event = eventIdentity(claim)
-    return event ? this.#observe(event, environmentId) : this.#defer('unknown')
+    return event && claim.environmentId ? this.#observe(event, claim.environmentId) : this.#defer('unknown')
   }
 }
 

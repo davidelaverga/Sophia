@@ -44,6 +44,7 @@ const BASE = {
   model: 'model_fixture',
   sessionLimitCents: 500,
   createPossibleAt: null,
+  createRejectedAt: null,
   providerSessionId: null,
   environmentId: null,
   environmentStatus: null,
@@ -100,6 +101,7 @@ function fixture(initial: ManagedExploreDispatchLease) {
     prepareManagedExploreDispatch: (claim, action) => {
       if (state.expired || claim !== state.claim) return Promise.resolve({ kind: 'observe' })
       preparations.push(action.kind)
+      if (action.kind === 'create' && state.claim.createRejectedAt) return Promise.resolve({ kind: 'denied' })
       if (action.kind === 'create' && !state.claim.createPossibleAt) {
         state.claim = { ...state.claim, createPossibleAt: POSSIBLE_AT }
         return Promise.resolve({
@@ -800,4 +802,49 @@ test('matching create or create-recovery receipt already reporting failure settl
     assert.equal(f.observations[0]?.kind, 'created')
     assert.equal(f.observations[0]?.refusalStatus, 'failed')
   }
+})
+
+test('a definitive create rejection drains the unsent successor without any provider lookup', async () => {
+  const f = fixture({ ...BASE, createPossibleAt: POSSIBLE_AT, createRejectedAt: POSSIBLE_AT, allowSend: false })
+  const provider = fakeProvider({ findSessionByOperation: () => assert.fail('rejected create was searched') })
+  assert.equal(await dispatchManagedExplorePass({ ...SCOPE, allowSend: false }, { ...f, provider }), 'settled')
+  assert.deepEqual(f.preparations, ['create'])
+  assert.deepEqual(f.observations, [])
+  assert.equal(f.state.reads, 0)
+})
+
+test('a previously recorded terminal environment settles an unsent successor without provider I/O', async () => {
+  for (const status of ['expired', 'failed'] as const) {
+    const f = fixture({ ...EVENT_READY, environmentStatus: status, allowSend: false })
+    const provider = fakeProvider({
+      readSession: () => assert.fail('unexpected session read'),
+      readEnvironment: () => assert.fail('unexpected environment read'),
+    })
+    assert.equal(await dispatchManagedExplorePass({ ...SCOPE, allowSend: false }, { ...f, provider }), 'settled')
+    assert.deepEqual(f.preparations, [])
+    assert.deepEqual(f.observations, [
+      {
+        kind: 'environment',
+        providerSessionId: SESSION.id,
+        environmentId: SESSION.environmentId,
+        status,
+      },
+    ])
+  }
+})
+
+test('a possible event still reconciles its exact saved root after an environment becomes terminal', async () => {
+  const f = fixture({ ...EVENT_PREPARED, environmentStatus: 'expired', allowSend: false })
+  const provider = fakeProvider({
+    readSession: () => assert.fail('unexpected session read'),
+    readEnvironment: () => assert.fail('unexpected environment read'),
+    listRootTurns: () => receipt([root()]),
+    readTurnText: () => receipt('Recovered the saved answer.'),
+  })
+  assert.equal(await dispatchManagedExplorePass({ ...SCOPE, allowSend: false }, { ...f, provider }), 'settled')
+  assert.deepEqual(f.preparations, [])
+  assert.deepEqual(
+    f.observations.map(({ kind }) => kind),
+    ['root', 'settle'],
+  )
 })

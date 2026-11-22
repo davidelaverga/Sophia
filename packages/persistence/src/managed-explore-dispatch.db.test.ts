@@ -1163,3 +1163,97 @@ it('atomically binds a created session already in failure and settles its origin
     },
   ])
 })
+
+async function enqueueTerminalSuccessor(session: RetentionSession) {
+  const { projectId, sessionId } = session
+  const key = randomUUID()
+  const expectedSessionRevision = (await readSession(session)).revision
+  const request = {
+    kind: 'text',
+    instruction: 'A follow-up already admitted before the failure.',
+    expectedSessionRevision,
+  } as const
+  const admitByKey = (admissionKey: string, revision: number) =>
+    withActor(api, founder, 'write', (c) =>
+      admitManagedExploreTurn(c, projectId, sessionId, admissionKey, { ...request, expectedSessionRevision: revision }),
+    )
+  const admitted = await admitByKey(key, expectedSessionRevision)
+  return {
+    turnId: admitted.turnId,
+    replay: () => admitByKey(key, expectedSessionRevision),
+    fresh: async () => admitByKey(randomUUID(), (await readSession(session)).revision),
+  }
+}
+
+it('refuses new turns after a definite create rejection and drains the previously queued successor in observe mode', async () => {
+  const session = await admit()
+  const initial = await claimManagedExploreDispatch(worker, scope)
+  assert.ok(initial)
+  assert.equal(initial.projectId, session.projectId)
+  assert.equal((await prepareManagedExploreDispatch(worker, initial, { kind: 'create' })).kind, 'create')
+  const queued = await enqueueTerminalSuccessor(session)
+  await recordManagedExploreDispatch(worker, initial, {
+    kind: 'createRejected',
+    operationId: initial.createOperationId,
+    reason: 'authorization',
+    requestId: 'synthetic-create-denial',
+  })
+  await assert.rejects(queued.fresh(), { code: 'unavailable' })
+  assert.deepEqual(await queued.replay(), { turnId: queued.turnId })
+  assert.equal(await claimManagedExploreDispatch(worker, { ...paused, providerProject: 'wrong-project' }), null)
+  const successor = await claimManagedExploreDispatch(worker, paused)
+  assert.ok(successor?.createRejectedAt && successor.createPossibleAt)
+  assert.equal(successor.turnId, queued.turnId)
+  assert.equal(successor.providerSessionId, null)
+  assert.equal(successor.allowSend, false)
+  assert.deepEqual(await prepareManagedExploreDispatch(worker, successor, { kind: 'create' }), {
+    kind: 'denied',
+    reason: 'provider_session_unavailable',
+  })
+  const view = await readSession(session)
+  assert.deepEqual(
+    view.turns.map(({ status, error }) => ({ status, error })),
+    [
+      { status: 'failed', error: 'authorization' },
+      { status: 'failed', error: 'provider_session_unavailable' },
+    ],
+  )
+  assert.equal(await claimManagedExploreDispatch(worker, paused), null)
+})
+
+it('after recording an expired environment, recovers the original possible event and drains its already queued successor', async () => {
+  const session = await admit()
+  const first = await claimManagedExploreDispatch(worker, scope)
+  assert.ok(first)
+  assert.equal(first.projectId, session.projectId)
+  assert.equal((await prepareManagedExploreDispatch(worker, first, { kind: 'create' })).kind, 'create')
+  const { providerSessionId, environmentId } = await createReceipt(first)
+  const event = await prepareManagedExploreDispatch(worker, first, { kind: 'event', predecessorRootId: null })
+  assert.equal(event.kind, 'event')
+  const queued = await enqueueTerminalSuccessor(session)
+  const environment = { kind: 'environment', providerSessionId, environmentId, status: 'expired' } as const
+  await recordManagedExploreDispatch(worker, first, environment)
+  await assert.rejects(queued.fresh(), { code: 'unavailable' })
+  assert.deepEqual(await queued.replay(), { turnId: queued.turnId })
+  await expire(first)
+  const original = await claimManagedExploreDispatch(worker, paused)
+  assert.ok(original?.eventPossibleAt)
+  assert.equal(original.turnId, first.turnId)
+  assert.equal(original.payloadSha256, event.payloadSha256)
+  assert.equal(original.environmentStatus, 'expired')
+  const root = { ...event, rootId: 'synthetic-root-after-expiry', status: 'completed' } as const
+  await recordManagedExploreDispatch(worker, original, { ...root, kind: 'root' })
+  await recordManagedExploreDispatch(worker, original, { ...root, kind: 'settle', reply: 'The saved answer.' })
+  const successor = await claimManagedExploreDispatch(worker, paused)
+  assert.ok(successor)
+  assert.equal(successor.turnId, queued.turnId)
+  assert.equal(successor.environmentStatus, 'expired')
+  assert.equal(successor.eventPossibleAt, null)
+  assert.equal(successor.allowSend, false)
+  await recordManagedExploreDispatch(worker, successor, environment)
+  const view = await readSession(session)
+  assert.equal(view.turns[0]?.reply, 'The saved answer.')
+  assert.equal(view.turns[1]?.status, 'failed')
+  assert.equal(view.turns[1]?.error, 'provider_environment_unavailable')
+  assert.equal(await claimManagedExploreDispatch(worker, paused), null)
+})
