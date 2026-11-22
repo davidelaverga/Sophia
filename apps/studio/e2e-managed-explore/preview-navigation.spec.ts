@@ -63,22 +63,71 @@ test('early replacement cannot establish approval', async ({ page }) => {
   expect(reads()).toEqual([])
 })
 
-for (const kind of ['external', 'local'] as const) {
-  test(`later ${kind} navigation permanently revokes approval for this frame`, async ({ page }) => {
-    let outbound = 0
-    await page.route(fixedNavigation, (route) => {
-      outbound++
-      return route.fulfill({ body: 'Fixed local test destination' })
-    })
-    const { approve, document, reads, workspace } = await openPreview(page, kind)
-    await expect(approve).toBeEnabled()
-    await document.getByRole('button', { name: 'Leave prototype' }).click()
-    await expect(approve).toBeDisabled()
-    await expect(workspace.getByText('This version’s preview couldn’t be opened.')).toBeVisible()
-    expect(reads()).toEqual([])
-    expect(outbound).toBe(0)
+test('a refused off-origin navigation never contacts the destination or approves replacement content', async ({
+  page,
+}) => {
+  const originalUrl = 'http://localhost:5277/v1/previews/synthetic-external/document.html'
+  const blocked = 'Synthetic preview: off-origin frame navigation refused'
+  const departed = 'Synthetic preview: original document left'
+  await page.addInitScript(
+    (fixture) => {
+      addEventListener('securitypolicyviolation', (event) => {
+        if (event.effectiveDirective === 'frame-src' && event.blockedURI === fixture.destinationOrigin)
+          console.log(fixture.blocked)
+      })
+      if (location.href === fixture.originalUrl) {
+        addEventListener('pagehide', (event) => {
+          if (event.isTrusted) console.log(fixture.departed)
+        })
+      }
+    },
+    { originalUrl, destinationOrigin: new URL(fixedNavigation).origin, blocked, departed },
+  )
+  let outbound = 0
+  let originalLeft = false
+  page.on('console', (message) => {
+    if (message.text() === departed) originalLeft = true
   })
-}
+  await page.route(fixedNavigation, (route) => {
+    outbound++
+    return route.fulfill({ body: 'Fixed local test destination' })
+  })
+  const { approve, document, reads, workspace } = await openPreview(page, 'external')
+  await expect(approve).toBeEnabled()
+  const original = page.frames().find((frame) => frame.url() === originalUrl)
+  expect(original).toBeDefined()
+  page.on('framenavigated', (frame) => {
+    if (frame === original && frame.url() !== originalUrl) originalLeft = true
+  })
+  const refusal = page.waitForEvent('console', { predicate: (message) => message.text() === blocked })
+  await document.getByRole('button', { name: 'Leave prototype' }).click()
+  await refusal
+
+  const unavailable = workspace.getByText('This version’s preview couldn’t be opened.')
+  const approved = workspace.getByText('Approved · v2')
+  const click = approve.click({ timeout: 5000 }).catch(() => undefined)
+  await expect(unavailable.or(approved)).toBeVisible()
+  await click
+  expect(outbound).toBe(0)
+  if (await approved.isVisible()) {
+    expect(originalLeft).toBe(false)
+    expect(await document.locator('html').evaluate((element) => element.ownerDocument.URL)).toBe(originalUrl)
+    expect(reads()).toHaveLength(1)
+  } else {
+    expect(originalLeft).toBe(true)
+    await expect(approve).toBeDisabled()
+    expect(reads()).toEqual([])
+  }
+})
+
+test('later local document replacement permanently revokes approval', async ({ page }) => {
+  const { approve, document, reads, workspace } = await openPreview(page, 'local')
+  await expect(approve).toBeEnabled()
+  await document.getByRole('button', { name: 'Leave prototype' }).click()
+  await expect(approve).toBeDisabled()
+  await expect(workspace.getByText('This version’s preview couldn’t be opened.')).toBeVisible()
+  expect(reads()).toEqual([])
+})
 
 test('an ordinary same-document link preserves approval', async ({ page }) => {
   const { approve, document, reads, workspace } = await openPreview(page, 'local')
