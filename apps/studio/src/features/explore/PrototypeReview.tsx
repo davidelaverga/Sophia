@@ -226,13 +226,14 @@ function Approved({
 
 export function PrototypeReview(props: Props) {
   const { version, scope, session, contentOrigin, disabled, onDiscussion } = props
-  const [ready, setReady] = useState(false)
   const { id: sessionId } = session
   const { projectId, token } = scope
   const mint = useCallback(
     (signal: AbortSignal) => mintExplorePreview({ projectId, token }, sessionId, version, signal),
     [projectId, token, sessionId, version],
   )
+  const [confirmed, setConfirmed] = useState<{ mint: typeof mint } | null>(null)
+  const onFrame = useCallback((ready: boolean) => setConfirmed(ready ? { mint } : null), [mint])
   const approval = session.approvals.find(
     ({ versionId, manifestSha256 }) => versionId === version.id && manifestSha256 === version.manifestSha256,
   )
@@ -250,7 +251,7 @@ export function PrototypeReview(props: Props) {
         </div>
         {approval && <span className="explore-selected">Approved · v{version.number}</span>}
       </header>
-      <PrototypePreview version={version} mint={mint} contentOrigin={contentOrigin} onFrame={setReady} />
+      <PrototypePreview version={version} mint={mint} contentOrigin={contentOrigin} onFrame={onFrame} />
       <div className="managed-prototype-review">
         <p>{version.changeSummary}</p>
         {parent && <p className="muted">Revised from v{parent.number}</p>}
@@ -259,7 +260,7 @@ export function PrototypeReview(props: Props) {
         {approval ? (
           <Approved {...props} approval={approval} />
         ) : (
-          <ApproveForm {...props} disabled={disabled || !ready} />
+          <ApproveForm {...props} disabled={disabled || confirmed?.mint !== mint} />
         )}
       </div>
     </section>

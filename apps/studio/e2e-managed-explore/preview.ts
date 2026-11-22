@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 
 /** Synthetic demonstration bytes, delivered from a separate loopback origin to the ordinary Studio. */
@@ -26,17 +27,28 @@ export function prototype(version: number) {
     </script></body></html>`
 }
 
+export const entryHash = (version: number) => createHash('sha256').update(prototype(version)).digest('hex')
+
 if (import.meta.main)
   createServer((request, response) => {
     if (request.url === '/health') return response.end('ok')
-    const match = /^\/v1\/previews\/synthetic-v([12])\/index\.html$/u.exec(request.url ?? '')
-    if (!match) return response.writeHead(404).end()
-    return response
-      .writeHead(200, {
-        'content-type': 'text/html; charset=utf-8',
-        'content-security-policy': contentSecurityPolicy,
-        'referrer-policy': 'no-referrer',
-        'cache-control': 'private, no-store',
-      })
-      .end(prototype(Number(match[1])))
+    const match = /^\/v1\/previews\/synthetic-(missing-|wrong-hash-)?v([12])\/index\.html$/u.exec(request.url ?? '')
+    const allowed = request.headers.origin === 'http://127.0.0.1:5276'
+    if (request.method === 'HEAD' && allowed) {
+      response.setHeader('access-control-allow-origin', 'http://127.0.0.1:5276')
+      response.setHeader('access-control-expose-headers', 'X-Sophia-Preview-Entry-SHA256')
+    }
+    if (!match || match[1] === 'missing-') return response.writeHead(404).end()
+    const version = Number(match[2])
+    const headers = {
+      'content-type': 'text/html; charset=utf-8',
+      'content-security-policy': contentSecurityPolicy,
+      'referrer-policy': 'no-referrer',
+      'cache-control': 'private, no-store',
+    }
+    if (request.method === 'HEAD') {
+      const digest = match[1] === 'wrong-hash-' ? '0'.repeat(64) : entryHash(version)
+      return response.writeHead(200, { ...headers, 'x-sophia-preview-entry-sha256': digest }).end()
+    }
+    return response.writeHead(200, headers).end(prototype(version))
   }).listen(5277, 'localhost')

@@ -168,3 +168,94 @@ test('the real room opens and resumes the exact saved brief, prototype and appro
   await expect(v1Document.getByRole('button', { name: 'Acknowledge exception' })).toBeVisible()
   await expect(workspace.getByText('Approved · v2', { exact: true })).toHaveCount(0)
 })
+
+for (const [previewPath, status] of [
+  ['missing-', 404],
+  ['wrong-hash-', 200],
+] as const) {
+  test(`a ${previewPath === 'missing-' ? 'missing file' : 'wrong content hash'} keeps approval disabled`, async ({
+    page,
+  }) => {
+    const calls = await mockApi(page, { existingVersions: true, previewPath })
+    await page.goto(projectRoute)
+    await resume(page)
+    const checked = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'HEAD' && response.url().endsWith(`/synthetic-${previewPath}v1/index.html`),
+    )
+    await page.getByRole('button', { name: 'Open v1', exact: true }).click()
+    const response = await checked
+    expect(response.status()).toBe(status)
+    expect(response.request().headers()['authorization']).toBeUndefined()
+    expect(response.request().headers()['referer']).toBeUndefined()
+    await expect(page.getByText('This version’s preview couldn’t be opened.')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Approve this version' })).toBeDisabled()
+    expect(calls.writes.some(({ path }) => path.endsWith('/approvals'))).toBe(false)
+  })
+}
+
+test('a response for a version already left cannot enable the current approval', async ({ page, isMobile }) => {
+  const firstRequested = Promise.withResolvers<void>()
+  const secondRequested = Promise.withResolvers<void>()
+  const releaseFirst = Promise.withResolvers<void>()
+  const releaseSecond = Promise.withResolvers<void>()
+  await mockApi(page, { existingVersions: true })
+  // Simulate a network that still delivers the old response after the caller aborts.
+  await page.addInitScript(() => {
+    const send = window.fetch.bind(window)
+    window.fetch = (input, init) => {
+      const old = init?.method === 'HEAD' && input instanceof URL && input.pathname.includes('/synthetic-v1/')
+      return send(input, old ? { ...init, signal: null } : init)
+    }
+  })
+  const oldPreview = /\/synthetic-v1\/index\.html$/u
+  await page.route(/\/synthetic-v[12]\/index\.html$/u, async (route) => {
+    if (route.request().method() !== 'HEAD') return route.continue()
+    if (oldPreview.test(route.request().url())) {
+      firstRequested.resolve()
+      await releaseFirst.promise
+    } else {
+      secondRequested.resolve()
+      await releaseSecond.promise
+    }
+    return route.continue()
+  })
+  try {
+    await page.goto(projectRoute)
+    await resume(page)
+    await page.getByRole('button', { name: 'Open v1', exact: true }).click()
+    await firstRequested.promise
+    if (isMobile) await page.getByRole('button', { name: 'Back to discussion' }).click()
+    await page.getByRole('button', { name: 'Open v2 · Latest' }).click()
+    await secondRequested.promise
+    const lateResponse = page.waitForResponse(
+      (response) => response.request().method() === 'HEAD' && oldPreview.test(response.url()),
+    )
+    releaseFirst.resolve()
+    expect((await lateResponse).status()).toBe(200)
+    await page.evaluate(
+      () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
+    )
+    const approve = page.getByRole('button', { name: 'Approve this version' })
+    await expect(approve).toBeDisabled()
+    releaseSecond.resolve()
+    await expect(approve).toBeEnabled()
+  } finally {
+    releaseFirst.resolve()
+    releaseSecond.resolve()
+  }
+})
+
+test('a valid ten-minute grant opens with a slow browser clock and has a local display cap', async ({ page }) => {
+  await mockApi(page, { existingVersions: true })
+  await page.clock.install({ time: new Date(Date.now() - 30_000) })
+  await page.goto(projectRoute)
+  await resume(page)
+  await page.getByRole('button', { name: 'Open v1', exact: true }).click()
+  const approve = page.getByRole('button', { name: 'Approve this version' })
+  await expect(approve).toBeEnabled()
+  await page.clock.fastForward(10 * 60_000 + 1)
+  await expect(page.getByText('The preview expired.')).toBeVisible()
+  await expect(approve).toBeDisabled()
+  await expect(page.locator('.managed-prototype-frame')).toHaveCount(0)
+})

@@ -1,5 +1,4 @@
 const permitPath = /^\/v1\/previews\/[A-Za-z0-9_-]+\/index\.html$/u
-const lifetime = 10 * 60 * 1000
 const loopback = new Set(['127.0.0.1', 'localhost', '[::1]'])
 
 export interface PreviewPermit {
@@ -13,7 +12,6 @@ interface Boundary {
   contentOrigin: string
   studioOrigin: string
   apiOrigin: string
-  now: number
 }
 
 function separatedOrigin({ contentOrigin, studioOrigin, apiOrigin }: Boundary): URL | null {
@@ -32,8 +30,7 @@ export function previewAddress(
   version: Pick<PreviewPermit, 'entrySha256' | 'manifestSha256'>,
   boundary: Boundary,
 ): URL | null {
-  const expires = Date.parse(permit.expiresAt)
-  if (!Number.isFinite(expires) || expires <= boundary.now || expires > boundary.now + lifetime) return null
+  if (!Number.isFinite(Date.parse(permit.expiresAt))) return null
   if (permit.entrySha256 !== version.entrySha256 || permit.manifestSha256 !== version.manifestSha256) return null
   const configured = separatedOrigin(boundary)
   const url = URL.parse(permit.url)

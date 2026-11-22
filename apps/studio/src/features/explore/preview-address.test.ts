@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { previewAddress, type PreviewPermit } from './preview-address.ts'
 
-const now = Date.parse('2026-11-22T09:00:00Z')
 const version = { entrySha256: 'a'.repeat(64), manifestSha256: 'b'.repeat(64) }
 const content = 'https://preview.example.test'
 const permit = {
@@ -15,16 +14,14 @@ const open = (value: PreviewPermit, origin = content) =>
     contentOrigin: origin,
     studioOrigin: 'https://studio.example.test',
     apiOrigin: 'https://api.example.test',
-    now,
   })
 
-test('a fresh exact-version grant may open the configured separate content origin', () => {
+test('an exact-version grant addresses only the configured separate content origin', () => {
   assert.equal(open(permit)?.href, permit.url)
 })
 
-test('rejects expired or mismatched grants and unexpected origins or paths', () => {
-  assert.equal(open({ ...permit, expiresAt: '2026-11-22T09:00:00Z' }), null)
-  assert.equal(open({ ...permit, expiresAt: '2026-11-22T09:11:00Z' }), null)
+test('rejects malformed or mismatched grants and unexpected origins or paths', () => {
+  assert.equal(open({ ...permit, expiresAt: 'unknown' }), null)
   assert.equal(open({ ...permit, entrySha256: 'c'.repeat(64) }), null)
   assert.equal(open({ ...permit, manifestSha256: 'c'.repeat(64) }), null)
   assert.equal(open({ ...permit, url: `${permit.url}?key=other` }), null)

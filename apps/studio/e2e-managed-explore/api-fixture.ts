@@ -1,8 +1,7 @@
-import { createHash } from 'node:crypto'
 import { expect, type Page, type Route } from '@playwright/test'
 import { mission, membership, PROJECT, snapshot } from '../fixtures/data.ts'
 import { goalNote } from '../fixtures/brief-data.ts'
-import { prototype } from './preview.ts'
+import { entryHash, prototype } from './preview.ts'
 import type { ExploreApproval, ExploreDirection, ExploreSession, ExploreVersion } from '../src/api/managed-explore.ts'
 
 export const brief = 'Review a weekly energy exception. Compare a shore-first assignment with a vessel-first response.'
@@ -52,7 +51,6 @@ export const vessel: ExploreDirection = {
     { from: 'queue', to: 'assign' },
   ],
 }
-const entryHash = (version: number) => createHash('sha256').update(prototype(version)).digest('hex')
 const v1: ExploreVersion = {
   id: '00000000-0000-4000-8000-000000000921',
   number: 1,
@@ -86,7 +84,12 @@ type Write = { path: string; key: string; request: Record<string, unknown> }
 interface Fixture {
   calls: { writes: Write[]; preflights: number; rejectPermits: boolean }
   data: ExploreSession
-  options: { ineligible?: boolean; uncertain?: boolean }
+  options: {
+    ineligible?: boolean
+    uncertain?: boolean
+    existingVersions?: boolean
+    previewPath?: 'missing-' | 'wrong-hash-'
+  }
   started: boolean
   lostTextResponse: boolean
 }
@@ -135,14 +138,14 @@ function exploreRead(route: Route, url: URL, fixture: Fixture) {
   return json(route, fixture.data)
 }
 
-function previewPermit({ path, request }: Write, reject: boolean) {
+function previewPermit({ path, request }: Write, { calls, options }: Fixture) {
   const version = path.includes(v2.id) ? v2 : v1
   expect(request).toEqual({ entrySha256: version.entrySha256, manifestSha256: version.manifestSha256 })
   return {
-    url: `http://localhost:5277/v1/previews/synthetic-v${String(version.number)}/index.html`,
-    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    url: `http://localhost:5277/v1/previews/synthetic-${options.previewPath ?? ''}v${String(version.number)}/index.html`,
+    expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
     versionId: version.id,
-    entrySha256: reject ? 'f'.repeat(64) : version.entrySha256,
+    entrySha256: calls.rejectPermits ? 'f'.repeat(64) : version.entrySha256,
     manifestSha256: version.manifestSha256,
   }
 }
@@ -232,7 +235,7 @@ function exploreWrite(route: Route, path: string, fixture: Fixture) {
     fixture.started = true
     return json(route, { sessionId: session })
   }
-  if (path.endsWith('/preview-permits')) return json(route, previewPermit(write, fixture.calls.rejectPermits))
+  if (path.endsWith('/preview-permits')) return json(route, previewPermit(write, fixture))
   if (path.endsWith('/turns') && replay) return json(route, { turnId: fixture.data.turns.at(-1)?.id })
   expect(request['expectedSessionRevision']).toBe(fixture.data.revision)
   fixture.data.revision++
@@ -248,13 +251,13 @@ export async function mockApi(page: Page, options: Fixture['options'] = {}) {
       seed,
       funding,
       turns: [],
-      directions: [],
-      selectedDirectionId: null,
-      versions: [],
+      directions: options.existingVersions ? [shore, vessel] : [],
+      selectedDirectionId: options.existingVersions ? vessel.id : null,
+      versions: options.existingVersions ? [v1, v2] : [],
       approvals: [],
     },
     options,
-    started: false,
+    started: options.existingVersions ?? false,
     lostTextResponse: false,
   }
   await page.addInitScript(() => sessionStorage.setItem('sophia.dev.identity', 'Founder'))
