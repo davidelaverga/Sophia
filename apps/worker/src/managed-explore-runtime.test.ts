@@ -114,6 +114,67 @@ test('one worker pass drains with the outbound gate closed and no later pass', a
   assert.equal(passes, 1)
 })
 
+test('only send mode records its own readiness before claiming and retires it once drained', async () => {
+  for (const mode of ['observe', 'send'] as const) {
+    const config = managedExploreConfig({ ...ENV, SOPHIA_MANAGED_EXPLORE_WORKER: mode }, WORKER)
+    assert.ok(config.mode !== 'off')
+    const announced: unknown[][] = []
+    const claimCommitted = Promise.withResolvers<void>()
+    let claiming = false
+    const pool = {
+      connect: () =>
+        Promise.resolve({
+          query: (statement: string, args: unknown[]) => {
+            if (statement.includes('to_regprocedure')) {
+              assert.equal(
+                (args[0] as string[]).some((procedure) =>
+                  procedure.includes('record_managed_explore_worker_readiness'),
+                ),
+                mode === 'send',
+              )
+              return Promise.resolve({ rows: [{ ready: true }] })
+            }
+            if (statement.includes('record_managed_explore_worker_readiness')) {
+              announced.push(args)
+              return Promise.resolve({ rows: [] })
+            }
+            if (statement.includes('claim_managed_explore_dispatch')) {
+              assert.equal(announced.length, mode === 'send' ? 1 : 0)
+              claiming = true
+              return Promise.resolve({ rows: [{ result: null }] })
+            }
+            if (claiming && statement === 'COMMIT') claimCommitted.resolve()
+            return setupStatement(statement)
+          },
+          release: () => undefined,
+        }),
+    } as unknown as pg.Pool
+    const worker = await managedExploreWorkerFromConfig(pool, config, assert.fail, assert.fail)
+    assert.ok(worker)
+    assert.equal(announced.length, 0)
+    worker.tick()
+    await assertSettles(claimCommitted.promise)
+    await delay(0)
+    await Promise.all([worker.stop(), worker.stop()])
+    if (mode === 'send') {
+      const scope = [
+        config.scope.routeId,
+        config.scope.providerOrg,
+        config.scope.providerProject,
+        config.scope.credentialGeneration,
+        announced[0]?.[4],
+      ]
+      assert.match(String(scope[4]), /^[a-f0-9-]{36}$/)
+      assert.deepEqual(announced, [
+        [...scope, true],
+        [...scope, false],
+      ])
+    } else {
+      assert.deepEqual(announced, [])
+    }
+  }
+})
+
 test('the configured observe pass uses the restricted store and retains through the production adapter without a provider mutation', async (t) => {
   const config = managedExploreConfig({ ...ENV, SOPHIA_MANAGED_EXPLORE_WORKER: 'observe' }, WORKER)
   const input = 'saved typed input'

@@ -149,6 +149,9 @@ BEGIN
   AND g.grant_only_verified AND NOT g.paid_spillover AND g.expires_at>clock_timestamp()
   AND g.credential_expires_at>clock_timestamp() AND m.revision=s.member_revision FOR SHARE OF g;
  IF NOT FOUND OR NOT sophia.managed_explore_worker_ready(grant_row,clock_timestamp()) THEN RETURN NULL; END IF;
+ IF EXISTS(SELECT 1 FROM sophia.managed_explore_dispatch_sessions d
+   WHERE d.project_id=p_project AND d.session_id=p_session AND d.input_refused_status IS NOT NULL)
+ THEN RETURN NULL; END IF;
  IF EXISTS(SELECT 1 FROM sophia.managed_explore_turns WHERE project_id=p_project AND session_id=p_session AND status='queued') THEN
   RAISE EXCEPTION 'Explore already has a waiting turn' USING ERRCODE='40001'; END IF;
  IF direction IS NOT NULL AND direction IS DISTINCT FROM s.selected_direction_id THEN

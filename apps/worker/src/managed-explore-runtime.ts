@@ -1,9 +1,11 @@
+import { randomUUID } from 'node:crypto'
 import type pg from 'pg'
 import {
   claimManagedExploreDispatch,
   prepareManagedExploreDispatch,
   readManagedExploreDispatch,
   recordManagedExploreDispatch,
+  recordManagedExploreWorkerReadiness,
   withService,
   type retainManagedExploreOutput,
   type ServiceControl,
@@ -35,6 +37,8 @@ const DISPATCH_PROCEDURES = [
 const PASS_MS = 20_000
 const SQL_MS = 4_000
 const LEASE_SECONDS = 60
+const READINESS_RENEW_MS = 10_000
+const READINESS_PROCEDURE = 'sophia.record_managed_explore_worker_readiness(text,text,text,bigint,uuid,boolean)'
 
 type Config =
   | { mode: 'off' }
@@ -76,8 +80,12 @@ export function managedExploreConfig(env: Env, workerId: string): Config {
   }
 }
 
-async function checkReadiness(pool: pg.Pool): Promise<void> {
-  const control = { signal: AbortSignal.timeout(SQL_MS), deadline: performance.now() + SQL_MS }
+function standaloneSqlControl(): ServiceControl {
+  return { signal: AbortSignal.timeout(SQL_MS), deadline: performance.now() + SQL_MS }
+}
+
+async function checkReadiness(pool: pg.Pool, sending: boolean): Promise<void> {
+  const procedures = sending ? [...DISPATCH_PROCEDURES, READINESS_PROCEDURE] : DISPATCH_PROCEDURES
   const ready = await withService(
     pool,
     async (client) => {
@@ -86,11 +94,11 @@ async function checkReadiness(pool: pg.Pool): Promise<void> {
        AND to_regprocedure('sophia.managed_explore_provider_input(sophia.managed_explore_dispatch_context)') IS NOT NULL
        AND (SELECT bool_and(COALESCE(has_function_privilege(to_regprocedure(signature), 'EXECUTE'), false))
               FROM unnest($1::text[]) AS signatures(signature)) AS ready`,
-        [DISPATCH_PROCEDURES],
+        [procedures],
       )
       return rows[0]?.ready === true
     },
-    control,
+    standaloneSqlControl(),
   ).catch(() => {
     throw new Error('Managed Explore database readiness check failed')
   })
@@ -117,13 +125,16 @@ function dispatchStore(pool: pg.Pool, pass: ServiceControl): ManagedExploreDispa
 /** Driven by the worker's project-event/idle loop. At most one pass is active locally. */
 export class ManagedExploreWorker {
   #inFlight: Promise<void> | undefined
+  #stopping: Promise<void> | undefined
   readonly #drain = new AbortController()
   readonly #pass: Phase
   readonly #log: (line: string) => void
+  readonly #retire: (() => Promise<void>) | undefined
 
-  constructor(pass: Phase, log: (line: string) => void) {
+  constructor(pass: Phase, log: (line: string) => void, retire?: () => Promise<void>) {
     this.#pass = pass
     this.#log = log
+    this.#retire = retire
   }
 
   tick(): void {
@@ -140,9 +151,18 @@ export class ManagedExploreWorker {
       })
   }
 
-  async stop(): Promise<void> {
+  stop(): Promise<void> {
     this.#drain.abort()
+    return (this.#stopping ??= this.#finish())
+  }
+
+  async #finish(): Promise<void> {
     await this.#inFlight
+    try {
+      await this.#retire?.()
+    } catch {
+      this.#log('managed Explore readiness retirement failed; the current record will expire')
+    }
   }
 }
 
@@ -153,27 +173,53 @@ export async function managedExploreWorkerFromConfig(
   log: (line: string) => void,
 ): Promise<ManagedExploreWorker | null> {
   if (config.mode === 'off') return null
-  await checkReadiness(pool)
-  return new ManagedExploreWorker(async (maySend, pass) => {
-    const provider = createManagedExploreProvider({
-      apiKey: config.apiKey,
-      organizationId: config.scope.providerOrg,
-      projectId: config.scope.providerProject,
-      fetch: (input, init) =>
-        fetch(input, { ...init, signal: init?.signal ? AbortSignal.any([pass.signal, init.signal]) : pass.signal }),
-    })
-    const retainOutput = managedExploreRetention({
-      readTurnText: (sessionId, rootId) => provider.readTurnText(sessionId, rootId),
-      write: async (identity, output) => {
-        await writer(pool, identity, output, sqlControl(pass))
-      },
-    })
-    await dispatchManagedExplorePass(config.scope, {
-      provider,
-      store: dispatchStore(pool, pass),
-      instructions: INSTRUCTIONS,
-      retainOutput,
-      maySend: () => config.mode === 'send' && maySend(),
-    })
-  }, log)
+  const sending = config.mode === 'send'
+  await checkReadiness(pool, sending)
+  const instanceId = randomUUID()
+  let mayHaveAnnounced = false
+  let renewAt = 0
+  const retire = async () => {
+    if (!mayHaveAnnounced) return
+    await recordManagedExploreWorkerReadiness(pool, config.scope, instanceId, false, standaloneSqlControl())
+  }
+  return new ManagedExploreWorker(
+    async (maySend, pass) => {
+      const now = performance.now()
+      if (sending && maySend() && now >= renewAt) {
+        await recordManagedExploreWorkerReadiness(pool, config.scope, instanceId, true, sqlControl(pass)).catch(
+          (error: unknown) => {
+            // A timed-out COMMIT can leave readiness recorded. A failure before COMMIT cannot.
+            if (error instanceof Error && 'code' in error && error.code === 'outcome_unknown') {
+              mayHaveAnnounced = true
+            }
+            throw error
+          },
+        )
+        mayHaveAnnounced = true
+        renewAt = now + READINESS_RENEW_MS
+      }
+      const provider = createManagedExploreProvider({
+        apiKey: config.apiKey,
+        organizationId: config.scope.providerOrg,
+        projectId: config.scope.providerProject,
+        fetch: (input, init) =>
+          fetch(input, { ...init, signal: init?.signal ? AbortSignal.any([pass.signal, init.signal]) : pass.signal }),
+      })
+      const retainOutput = managedExploreRetention({
+        readTurnText: (sessionId, rootId) => provider.readTurnText(sessionId, rootId),
+        write: async (identity, output) => {
+          await writer(pool, identity, output, sqlControl(pass))
+        },
+      })
+      await dispatchManagedExplorePass(config.scope, {
+        provider,
+        store: dispatchStore(pool, pass),
+        instructions: INSTRUCTIONS,
+        retainOutput,
+        maySend: () => sending && maySend(),
+      })
+    },
+    log,
+    retire,
+  )
 }

@@ -985,6 +985,8 @@ it('persists the first exact terminal session refusal, denies unsent successors 
   const first = await claimManagedExploreDispatch(worker, scope)
   assert.ok(first?.providerSessionId && first.environmentId)
   assert.equal(first.projectId, session.projectId)
+  // A waiter enrolled before the provider refused must still be settled without sending.
+  const { turnId: alreadyQueued } = await admitText()
   const refusal = {
     kind: 'sessionRefused',
     providerSessionId: first.providerSessionId,
@@ -1000,13 +1002,15 @@ it('persists the first exact terminal session refusal, denies unsent successors 
   await recordManagedExploreDispatch(worker, first, refusal)
   await assert.rejects(recordManagedExploreDispatch(worker, first, refusal), { code: 'invalid_state' })
   const refused = await readSession(session)
-  assert.equal(refused.turns.at(-1)?.error, 'budget_exceeded')
+  assert.equal(refused.turns.find((turn) => turn.id === first.turnId)?.error, 'budget_exceeded')
   assert.equal(refused.turns[0]?.reply, 'Ready.')
 
-  await admitText()
+  await assert.rejects(admitText(), { code: 'unavailable' })
+  assert.equal((await readSession(session)).turns.length, refused.turns.length)
   const successor = await claimManagedExploreDispatch(worker, scope)
   assert.ok(successor)
   assert.equal(successor.projectId, session.projectId)
+  assert.equal(successor.turnId, alreadyQueued)
   assert.equal(successor.sessionRefusalStatus, 'budget_reached')
   assert.deepEqual(
     await prepareManagedExploreDispatch(worker, successor, {
