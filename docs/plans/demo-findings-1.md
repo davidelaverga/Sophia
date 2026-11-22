@@ -30,7 +30,10 @@
   `data-guide="held"`. The keys' tip does not show while either is on screen, nor for the rest of the page once steps
   have shown (`keysTipShows`, keys-tip.ts): a tip that is not shown is not counted (`countShowing` runs only when
   shown), so its turn comes on a later visit. A held place that ends with no steps (an account with archived projects)
-  holds nothing back after it, or such an account would never see the tip. The home fixture mounts the tip with
+  holds nothing back after it, or such an account would never see the tip. While the projects are still read and the first run
+  has not ended on this browser (`firstRunPending`, first-run.ts), Home itself carries `data-guide="held"`: the tip
+  would otherwise show, and be counted, a moment before the first run comes (review P2-1). The place under the greeting
+  is not held for it (`firstRunHolds` unchanged): Home's skeleton stays as before. The home fixture mounts the tip with
   `keys=1`.
 - Seen: in an empty project, Tasks says «No goals yet. They'll come from your conversations with Sophia in the room.»
   `GoalList` draws both Goals and Tasks (`controls`), and `NoGoals` is that shared empty state.

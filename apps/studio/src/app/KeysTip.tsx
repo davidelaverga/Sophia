@@ -46,8 +46,8 @@ function coversControl(tip: HTMLElement): boolean {
 type Clear = (covers: () => boolean) => boolean
 
 /**
- * A guide has the page: Home's first run marks itself `data-guide` (its place, held while it is decided, `held`; its
- * steps, `shown`). Steps once shown are kept for the page, so the tip never follows straight after them; its turn,
+ * A guide has the page: Home's first run marks itself `data-guide` (Home, while its projects are read and it may yet
+ * come, and its place, held while it is decided, `held`; its steps, `shown`). Steps once shown are kept for the page, so the tip never follows straight after them; its turn,
  * never counted, comes on a later visit. A held place that ends with no steps holds nothing back after it.
  */
 let guideShown = false
@@ -105,7 +105,7 @@ function useClear(on: boolean, tip: RefObject<HTMLDivElement | null>, clear: Cle
       subtree: true,
       childList: true,
       attributes: true,
-      attributeFilter: ['class', 'hidden', 'inert', 'aria-modal', 'data-typing-sink', 'data-target'],
+      attributeFilter: ['class', 'hidden', 'inert', 'aria-modal', 'data-typing-sink', 'data-target', 'data-guide'],
     })
     const events = ['resize', 'focusin', 'focusout'] as const
     for (const e of events) window.addEventListener(e, read)

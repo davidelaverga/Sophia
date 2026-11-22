@@ -4,7 +4,7 @@
 // notes, the sheets, the small menus) and wires the keys; the places render; the words come from the view modules. The
 // toast is the app's (SignedIn), so a result is said the same way in a project and here.
 import { InvitedBand } from '../access/InvitedBand.tsx'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { PersonalSpace as Space, ProjectRelease, ProjectSummary } from '@sophia/contracts'
 import { accountOf, tokenSubject } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -425,12 +425,13 @@ function useHomeSays(v: View, answers: boolean | undefined): Said[] {
  * Made, the project opens, with its Invite sheet when the person works with a team; made after it ended, the projects
  * are read again and nobody is taken into it.
  */
-function useHomeFirstRun(v: View) {
+function useHomeFirstRun(v: View): { node: ReactNode; pending: boolean } {
   const { identity, onOpenProject } = v.props
   const first = useFirstRun(identity, v.projects.data?.projects)
-  if (first.holds) return <FirstRunHeld />
-  if (!first.shows) return undefined
-  return (
+  const { pending } = first
+  if (first.holds) return { node: <FirstRunHeld />, pending }
+  if (!first.shows) return { node: undefined, pending }
+  const node = (
     <FirstRun
       identity={identity}
       profile={first.profile}
@@ -442,6 +443,7 @@ function useHomeFirstRun(v: View) {
       onAdded={() => void v.projects.refetch()}
     />
   )
+  return { node, pending }
 }
 
 function Home({ v }: { v: View }) {
@@ -467,9 +469,17 @@ function Home({ v }: { v: View }) {
   // Whether Sophia answers here, as the API says; unknown until the space is read (home-no-companion.md).
   const answers = data ? data.companion !== 'unavailable' : undefined
   const says = useHomeSays(v, answers)
-  const firstRun = useHomeFirstRun(v)
+  const first = useHomeFirstRun(v)
+  const firstRun = first.node
   return (
-    <div className="c-home" data-place-view="home" data-content hidden={!v.shown.includes('home')}>
+    <div
+      className="c-home"
+      data-place-view="home"
+      data-content
+      hidden={!v.shown.includes('home')}
+      // The first run may yet come (its projects unread): the keys' tip waits (KeysTip.tsx, demo-findings-1.md P2-1).
+      data-guide={first.pending ? 'held' : undefined}
+    >
       <Welcome
         hello={greeting(now.getHours(), null, fresh)}
         name={firstName(props.identity)}

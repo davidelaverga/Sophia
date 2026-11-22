@@ -23,7 +23,7 @@ import { requestAddress } from '../src/features/resources/link.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { ProjectSummary, ProjectUpdates } from '@sophia/contracts'
-import { StrictMode, useEffect, useState, type ComponentProps } from 'react'
+import { StrictMode, useEffect, useState, type ComponentProps, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { PersonalTurn } from '@sophia/contracts'
 import {
@@ -616,11 +616,12 @@ function useSays(projects: readonly ProjectSummary[] | undefined, away: boolean,
 }
 
 /** `first=…`: Home's first run, the Studio's own; what it opens is recorded ("open <id>", "invite <id>"). */
-function useFixtureFirstRun(projects: readonly ProjectSummary[] | undefined) {
+function useFixtureFirstRun(projects: readonly ProjectSummary[] | undefined): { node: ReactNode; pending: boolean } {
   const first = useFirstRun(FIRST_IDENTITY, projects, FIRST !== null)
-  if (first.holds) return <FirstRunHeld />
-  if (!first.shows) return undefined
-  return (
+  const { pending } = first
+  if (first.holds) return { node: <FirstRunHeld />, pending }
+  if (!first.shows) return { node: undefined, pending }
+  const node = (
     <FirstRun
       identity={FIRST_IDENTITY}
       profile={first.profile}
@@ -632,6 +633,7 @@ function useFixtureFirstRun(projects: readonly ProjectSummary[] | undefined) {
       onAdded={(projectId) => pressed.push(`added ${projectId}`)}
     />
   )
+  return { node, pending }
 }
 
 /** Home, with a way to step away from it (as going to another place does), for the checks of what stops out of sight. */
@@ -641,7 +643,8 @@ function Home() {
   const projects = SETS[shown]
   const inCall = useCall()
   const says = useSays(projects, away, inCall)
-  const firstRun = useFixtureFirstRun(projects)
+  const first = useFixtureFirstRun(projects)
+  const firstRun = first.node
   const fromApi = useNeeds(
     'fixture-token',
     {
@@ -662,7 +665,7 @@ function Home() {
         </button>
       )}
       {TURNS && <FixtureLog hidden={TURNS === 'hidden'} />}
-      <div className="c-home" data-place-view="home" hidden={away}>
+      <div className="c-home" data-place-view="home" hidden={away} data-guide={first.pending ? 'held' : undefined}>
         <Welcome
           hello={greeting(NOW.getHours(), null, false)}
           name="Luis"
