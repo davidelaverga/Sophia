@@ -26,6 +26,8 @@ type TurnKind = 'text' | 'directions' | 'prototype' | 'revision'
 const OUTPUT_READBACK_WINDOW_MS = 5 * 60 * 1000
 // Match the authenticated reply-size constraint in the durable dispatch settlement.
 const REPLY_MAX_BYTES = 65_536
+const MAX_PASS_STEPS = 6
+const DEFER_SECONDS = 5
 
 export interface ManagedExploreDispatchIdentity {
   projectId: string
@@ -112,6 +114,10 @@ export interface ManagedExploreDispatchStore {
   // authorization. Repeat calls or claims must observe the original effect.
   prepareManagedExploreDispatch(identity: ManagedExploreDispatchIdentity, action: Action): Promise<Prepared>
   recordManagedExploreDispatch(identity: ManagedExploreDispatchIdentity, observation: Observation): Promise<void>
+}
+
+export interface ManagedExploreDispatchContinuationStore extends ManagedExploreDispatchStore {
+  readManagedExploreDispatch(identity: ManagedExploreDispatchIdentity): Promise<ManagedExploreDispatchLease>
 }
 
 type Output = {
@@ -228,7 +234,7 @@ class ExploreStep {
   }
 
   #defer(result: 'waiting' | 'unknown' | 'retention_pending'): Promise<Step> {
-    return this.#record({ kind: 'defer', delaySeconds: 5 }, result)
+    return this.#record({ kind: 'defer', delaySeconds: DEFER_SECONDS }, result)
   }
 
   async #read<T>(action: () => Promise<ProviderResult<T>>): Promise<ProviderResult<T> | null> {
@@ -319,7 +325,8 @@ class ExploreStep {
     if (!environment || environment.value.id !== environmentId) return this.#defer('unknown')
     const { status } = environment.value
     if (status !== this.#claim.environmentStatus) {
-      return this.#record({ kind: 'environment', providerSessionId, environmentId, status }, 'progressed')
+      const result = status === 'expired' || status === 'failed' ? 'settled' : 'progressed'
+      return this.#record({ kind: 'environment', providerSessionId, environmentId, status }, result)
     }
     return isEnvironmentReady(status) ? null : this.#defer('waiting')
   }
@@ -499,4 +506,34 @@ export async function dispatchManagedExploreOnce(
   const claim = await dependencies.store.claimManagedExploreDispatch(scope)
   if (!claim) return 'idle'
   return new ExploreStep(claim, dependencies).run(scope.allowSend)
+}
+
+function sameLease(left: ManagedExploreDispatchIdentity, right: ManagedExploreDispatchIdentity): boolean {
+  return left.projectId === right.projectId && left.turnId === right.turnId && left.leaseToken === right.leaseToken
+}
+
+/** A pass claims one job and continues only from committed progress on the same lease. */
+export async function dispatchManagedExplorePass(
+  scope: ManagedExploreDispatchScope,
+  dependencies: Dependencies & { store: ManagedExploreDispatchContinuationStore },
+): Promise<Step> {
+  const { store, now = Date.now } = dependencies
+  const first = await store.claimManagedExploreDispatch(scope)
+  if (!first) return 'idle'
+  const { projectId, turnId, leaseToken } = first
+  const identity = { projectId, turnId, leaseToken }
+  const allowSend = scope.allowSend && first.allowSend
+  let claim = first
+  for (let steps = 1; steps <= MAX_PASS_STEPS; steps += 1) {
+    const result = await new ExploreStep(claim, dependencies).run(allowSend)
+    if (result !== 'progressed') return result
+    if (Date.parse(claim.leaseUntil) <= now()) return 'waiting'
+    if (steps === MAX_PASS_STEPS) break
+    const refreshed = await store.readManagedExploreDispatch(identity)
+    if (!sameLease(identity, refreshed)) return 'waiting'
+    claim = refreshed
+  }
+  // Progress records keep the lease. Yield it explicitly at the step limit.
+  await store.recordManagedExploreDispatch(identity, { kind: 'defer', delaySeconds: DEFER_SECONDS })
+  return 'progressed'
 }

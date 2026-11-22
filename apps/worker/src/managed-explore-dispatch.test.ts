@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import test from 'node:test'
-import { dispatchManagedExploreOnce } from './managed-explore-dispatch.ts'
-import type { ManagedExploreDispatchLease, ManagedExploreDispatchStore } from './managed-explore-dispatch.ts'
+import { dispatchManagedExploreOnce, dispatchManagedExplorePass } from './managed-explore-dispatch.ts'
+import type {
+  ManagedExploreDispatchContinuationStore,
+  ManagedExploreDispatchLease,
+  ManagedExploreDispatchStore,
+} from './managed-explore-dispatch.ts'
 import { ManagedExploreProviderError } from './managed-explore-provider.ts'
 import type { ManagedExploreRootTurn, ManagedExploreSession } from './managed-explore-provider.ts'
 
@@ -78,12 +82,20 @@ function receipt<T>(value: T) {
 }
 
 function fixture(initial: ManagedExploreDispatchLease) {
-  const state = { claim: initial, expired: false }
+  const state = { claim: initial, expired: false, claims: 0, reads: 0 }
   const observations: Observation[] = []
   const outputs: Parameters<Retain>[1][] = []
   const preparations: string[] = []
-  const store: ManagedExploreDispatchStore = {
-    claimManagedExploreDispatch: () => Promise.resolve(state.claim),
+  const store: ManagedExploreDispatchContinuationStore = {
+    claimManagedExploreDispatch: () => {
+      state.claims += 1
+      return Promise.resolve(state.claim)
+    },
+    readManagedExploreDispatch: (identity) => {
+      state.reads += 1
+      assert.deepEqual(identity, { projectId: BASE.projectId, turnId: BASE.turnId, leaseToken: BASE.leaseToken })
+      return Promise.resolve(state.claim)
+    },
     prepareManagedExploreDispatch: (claim, action) => {
       if (state.expired || claim !== state.claim) return Promise.resolve({ kind: 'observe' })
       preparations.push(action.kind)
@@ -116,7 +128,15 @@ function fixture(initial: ManagedExploreDispatchLease) {
       if (state.expired) return Promise.reject(new Error('lease expired'))
       observations.push(observation)
       if (observation.kind === 'created') {
-        state.claim = { ...EVENT_READY, turnKind: state.claim.turnKind, previousRootId: null }
+        state.claim = {
+          ...EVENT_READY,
+          turnKind: state.claim.turnKind,
+          previousRootId: null,
+          environmentStatus: null,
+        }
+      }
+      if (observation.kind === 'environment') {
+        state.claim = { ...state.claim, environmentStatus: observation.status }
       }
       if (observation.kind === 'root') {
         state.claim = {
@@ -543,4 +563,112 @@ test('settles text at the exact SQL byte limit and rejects larger retained text'
     assert.equal(observation?.kind, kind)
     if (observation?.kind === 'outputRejected') assert.equal(observation.reason, 'output_invalid')
   }
+})
+
+test('bounded pass continues committed progress under one lease through exact text settlement', async () => {
+  const f = fixture(BASE)
+  let creates = 0
+  let sends = 0
+  const provider = fakeProvider({
+    createSession: () => {
+      creates += 1
+      assert.equal(f.state.claim.createPossibleAt, POSSIBLE_AT)
+      return receipt(SESSION)
+    },
+    submitText: ({ text, idempotencyKey }) => {
+      sends += 1
+      assert.equal(f.state.claim.eventPossibleAt, POSSIBLE_AT)
+      assert.equal(text, SEED)
+      assert.equal(idempotencyKey, EVENT_READY.submissionId)
+      return receipt('accepted')
+    },
+    listRootTurns: () => receipt(sends ? [root()] : []),
+    readTurnText: () => receipt('Exact output.'),
+  })
+  assert.equal(await dispatchManagedExplorePass(SCOPE, { ...f, provider }), 'settled')
+  assert.equal(f.state.claims, 1)
+  assert.equal(f.state.reads, 4)
+  assert.equal(creates, 1)
+  assert.equal(sends, 1)
+  assert.deepEqual(
+    f.observations.map(({ kind }) => kind),
+    ['created', 'environment', 'eventAccepted', 'root', 'settle'],
+  )
+})
+
+test('pass stops on an ambiguous event even when send remains enabled', async () => {
+  const f = fixture(EVENT_READY)
+  let sends = 0
+  const provider = fakeProvider({
+    submitText: () => {
+      sends += 1
+      return Promise.reject(new ManagedExploreProviderError('delivery_unknown', 'retry_same_key'))
+    },
+  })
+  assert.equal(await dispatchManagedExplorePass(SCOPE, { ...f, provider }), 'unknown')
+  assert.equal(await dispatchManagedExplorePass(SCOPE, { ...f, provider }), 'unknown')
+  assert.equal(sends, 1)
+  assert.equal(f.state.reads, 0)
+  assert.deepEqual(f.preparations, ['event'])
+})
+
+test('pass stops when the same lease cannot be read safely', async (t) => {
+  for (const fault of ['replaced', 'expired', 'database_error'] as const) {
+    await t.test(fault, async () => {
+      const f = fixture({ ...EVENT_READY, environmentStatus: 'pending' })
+      let sessionReads = 0
+      const provider = fakeProvider({
+        readSession: () => {
+          sessionReads += 1
+          return receipt(SESSION)
+        },
+      })
+      const store: ManagedExploreDispatchContinuationStore = {
+        ...f.store,
+        readManagedExploreDispatch: () => {
+          if (fault === 'database_error') return Promise.reject(new Error('read failed'))
+          const lease = fault === 'replaced' ? { leaseToken: 'another_lease' } : { leaseUntil: POSSIBLE_AT }
+          return Promise.resolve({ ...f.state.claim, ...lease })
+        },
+      }
+      const pass = dispatchManagedExplorePass(SCOPE, { ...f, store, provider })
+      if (fault === 'database_error') await assert.rejects(pass, /read failed/)
+      else assert.equal(await pass, 'waiting')
+      assert.equal(sessionReads, 1)
+      assert.deepEqual(
+        f.observations.map(({ kind }) => kind),
+        ['environment'],
+      )
+      assert.deepEqual(f.preparations, [])
+    })
+  }
+})
+
+test('pass yields the lease at its step limit without extra provider work', async () => {
+  const f = fixture({ ...EVENT_READY, environmentStatus: 'pending' })
+  const provider = fakeProvider({
+    readEnvironment: () =>
+      receipt({
+        id: SESSION.environmentId,
+        status: f.state.claim.environmentStatus === 'pending' ? 'provisioning' : 'pending',
+      }),
+  })
+  assert.equal(await dispatchManagedExplorePass(SCOPE, { ...f, provider }), 'progressed')
+  assert.equal(f.state.claims, 1)
+  assert.equal(f.state.reads, 5)
+  assert.equal(f.observations.filter(({ kind }) => kind === 'environment').length, 6)
+  assert.deepEqual(f.observations.at(-1), { kind: 'defer', delaySeconds: 5 })
+  assert.deepEqual(f.preparations, [])
+})
+
+test('a terminal environment observation settles without rereading its released lease', async () => {
+  const f = fixture({ ...EVENT_READY, environmentStatus: 'pending' })
+  const provider = fakeProvider({ readEnvironment: () => receipt({ id: SESSION.environmentId, status: 'expired' }) })
+  assert.equal(await dispatchManagedExplorePass(SCOPE, { ...f, provider }), 'settled')
+  assert.equal(f.state.reads, 0)
+  assert.deepEqual(
+    f.observations.map(({ kind }) => kind),
+    ['environment'],
+  )
+  assert.deepEqual(f.preparations, [])
 })
