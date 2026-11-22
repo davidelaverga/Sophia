@@ -1,4 +1,9 @@
-import { isPrototypeSha256, prototypeEntrySha256, PROTOTYPE_ENTRY_MAX_BYTES } from '@sophia/design'
+import {
+  hasOnlyLocalPrototypeResources,
+  isPrototypeSha256,
+  prototypeEntrySha256,
+  PROTOTYPE_ENTRY_MAX_BYTES,
+} from '@sophia/design'
 
 export const PREVIEW_PERMIT_MAX_AGE_MS = 10 * 60 * 1000
 const PREVIEW_PATH = /^\/v1\/previews\/([a-zA-Z0-9_-]{32,128})\/index\.html$/u
@@ -87,7 +92,8 @@ export function createPrototypePreviewContentHandler(config: PreviewHost): (requ
 
     // Copy before hashing and sending, so a shared buffer cannot change after it was checked.
     const bytes = Uint8Array.from(entry.bytes)
-    if (prototypeEntrySha256(bytes) !== entry.entrySha256) return unavailable()
+    if (prototypeEntrySha256(bytes) !== entry.entrySha256 || !hasOnlyLocalPrototypeResources(bytes))
+      return unavailable()
     return new Response(bytes, {
       headers: {
         ...headers,

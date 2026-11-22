@@ -44,6 +44,7 @@ export {
 } from './package.ts'
 export { FULL_SCOPE, scopeFindings, type Edit, type EditScope } from './patch.ts'
 export { HTML_BYTES, SECTION_ID } from './policy.ts'
+export { hasOnlyLocalPrototypeResources } from './prototype-entry-policy.ts'
 export {
   isPrototypeSha256,
   prototypeEntrySha256,

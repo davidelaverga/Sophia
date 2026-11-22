@@ -80,3 +80,22 @@ test('missing scope, expired grants and corrupted entries have the same body', a
     /separate hosts/,
   )
 })
+
+test('refuses hash-valid documents that declare remote dependencies', async () => {
+  for (const html of [
+    '<script src="/outside.js"></script>',
+    '<meta http-equiv="refresh" content="1;url=https://missing.example/">',
+    '<style>@import "https://missing.example/theme.css";</style>',
+    '<p style="background: url(https://missing.example/p.png)">Preview</p>',
+    '<template><img src="//missing.example/p.png"></template>',
+  ]) {
+    const raw = new TextEncoder().encode(html)
+    const row = {
+      ...entry,
+      bytes: raw,
+      byteLength: raw.byteLength,
+      entrySha256: createHash('sha256').update(raw).digest('hex'),
+    }
+    assert.equal((await forEntry(() => Promise.resolve(row))(new Request(previewOrigin + exactPath))).status, 404)
+  }
+})
