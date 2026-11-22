@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import test from 'node:test'
+import { setTimeout as delay } from 'node:timers/promises'
 import type pg from 'pg'
 import {
   ManagedExploreWorker,
@@ -51,21 +52,40 @@ test('worker dispatch is independently off by default, and configured modes requ
 const missingReadiness = (statement: string, [procedures]: [string[]]) => {
   assert.match(statement, /managed_explore_provider_input/)
   assert.match(statement, /has_function_privilege/)
+  assert.ok(procedures.includes('sophia.refuse_managed_explore_session(uuid,uuid,uuid,text,text,text,text)'))
   assert.ok(procedures.includes('sophia.retain_managed_explore_output(uuid,uuid,uuid,jsonb,bytea)'))
   return Promise.resolve({ rows: [{ ready: false }] })
+}
+
+function setupStatement(statement: string) {
+  assert.ok(['BEGIN', 'COMMIT'].includes(statement) || statement.includes("set_config('statement_timeout'"), statement)
+  return Promise.resolve({ rows: [] })
+}
+
+async function assertSettles(pending: Promise<void>) {
+  const sentinel = Symbol('sentinel')
+  const timeout = new AbortController()
+  try {
+    assert.equal(await Promise.race([pending, delay(750, sentinel, { signal: timeout.signal })]), undefined)
+  } finally {
+    timeout.abort()
+  }
 }
 
 test('configured observation and sending refuse startup without dispatch and retention SQL', async () => {
   for (const mode of ['observe', 'send'] as const) {
     const config = managedExploreConfig({ ...ENV, SOPHIA_MANAGED_EXPLORE_WORKER: mode }, WORKER)
 
+    const pool = {
+      connect: () =>
+        Promise.resolve({
+          query: (statement: string, args: [string[]]) =>
+            statement.includes('to_regprocedure') ? missingReadiness(statement, args) : setupStatement(statement),
+          release: () => undefined,
+        }),
+    } as unknown as pg.Pool
     await assert.rejects(
-      managedExploreWorkerFromConfig(
-        { query: missingReadiness } as unknown as pg.Pool,
-        config,
-        () => assert.fail('unexpected retention'),
-        assert.fail,
-      ),
+      managedExploreWorkerFromConfig(pool, config, () => assert.fail('unexpected retention'), assert.fail),
       /must be ready/,
     )
   }
@@ -75,12 +95,13 @@ test('one worker pass drains with the outbound gate closed and no later pass', a
   const entered = Promise.withResolvers<void>()
   const resume = Promise.withResolvers<void>()
   let passes = 0
-  const worker = new ManagedExploreWorker(async (maySend) => {
+  const worker = new ManagedExploreWorker(async (maySend, control) => {
     passes += 1
     assert.equal(maySend(), true)
     entered.resolve()
     await resume.promise
     assert.equal(maySend(), false)
+    assert.equal(control.signal.aborted, true)
   }, assert.fail)
   worker.tick()
   await entered.promise
@@ -88,7 +109,7 @@ test('one worker pass drains with the outbound gate closed and no later pass', a
   const stop = worker.stop()
   worker.tick()
   resume.resolve()
-  await stop
+  await assertSettles(stop)
   worker.tick()
   assert.equal(passes, 1)
 })
@@ -179,18 +200,21 @@ test('the configured observe pass uses the restricted store and retains through 
       ])
       return Promise.resolve({ rows: [{ result: claim }] })
     }
-    assert.ok(['BEGIN', 'COMMIT'].includes(sql), sql)
-    return Promise.resolve({ rows: [] })
+    if (sql.includes('to_regprocedure')) return Promise.resolve({ rows: [{ ready: true }] })
+    return setupStatement(sql)
   }
   const pool = {
-    query: () => Promise.resolve({ rows: [{ ready: true }] }),
     connect: () => Promise.resolve({ query, release: () => undefined }),
   } as unknown as pg.Pool
   let writes = 0
+  const retained = Promise.withResolvers<void>()
   const worker = await managedExploreWorkerFromConfig(
     pool,
     config,
-    (usedPool, identity, output) => {
+    (usedPool, identity, output, control) => {
+      assert.ok(control)
+      assert.equal(control.signal.aborted, false)
+      assert.ok(control.deadline > performance.now())
       assert.equal(usedPool, pool)
       assert.deepEqual(
         { projectId: identity.projectId, turnId: identity.turnId, leaseToken: identity.leaseToken },
@@ -211,13 +235,54 @@ test('the configured observe pass uses the restricted store and retains through 
         directions,
       })
       writes += 1
+      retained.resolve()
       return Promise.resolve({ kind: 'completed' })
     },
     assert.fail,
   )
   assert.ok(worker)
   worker.tick()
-  await worker.stop()
+  await assertSettles(retained.promise)
+  await assertSettles(worker.stop())
   assert.equal(writes, 1)
   assert.equal(requests.length, 4)
+})
+
+test('drain settles an Explore pass waiting for a connection, and late checkout runs no SQL', async () => {
+  const config = managedExploreConfig({ ...ENV, SOPHIA_MANAGED_EXPLORE_WORKER: 'send' }, WORKER)
+  const queued = Promise.withResolvers<void>()
+  const returned = Promise.withResolvers<void>()
+  const late = Promise.withResolvers<{ query: () => never; release: () => void }>()
+  let checkouts = 0
+  const pool = {
+    connect: () => {
+      if (checkouts++ === 0) {
+        return Promise.resolve({
+          query: (sql: string) =>
+            sql.includes('to_regprocedure') ? Promise.resolve({ rows: [{ ready: true }] }) : setupStatement(sql),
+          release: () => undefined,
+        })
+      }
+      queued.resolve()
+      return late.promise
+    },
+  } as unknown as pg.Pool
+  const logs: string[] = []
+  const worker = await managedExploreWorkerFromConfig(
+    pool,
+    config,
+    () => assert.fail('unexpected retention'),
+    (line) => logs.push(line),
+  )
+  assert.ok(worker)
+  worker.tick()
+  await assertSettles(queued.promise)
+  await assertSettles(worker.stop())
+  late.resolve({
+    query: () => assert.fail('late checkout ran SQL after drain'),
+    release: () => returned.resolve(),
+  })
+  await assertSettles(returned.promise)
+  assert.equal(checkouts, 2)
+  assert.equal(logs.length, 1)
 })

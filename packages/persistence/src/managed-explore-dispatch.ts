@@ -1,5 +1,6 @@
 import type pg from 'pg'
 import type { ManagedExploreTurn } from '@sophia/contracts'
+import type { ServiceControl } from './service-control.ts'
 import { onlyRow } from './rows.ts'
 import { withService } from './tx.ts'
 
@@ -40,6 +41,7 @@ export interface ManagedExploreDispatchLease extends ManagedExploreDispatchIdent
   providerSessionId: string | null
   environmentId: string | null
   environmentStatus: EnvironmentStatus | null
+  sessionRefusalStatus: 'failed' | 'budget_reached' | null
   submissionId: string
   eventPossibleAt: string | null
   eventAcceptedAt: string | null
@@ -77,6 +79,8 @@ export type ManagedExplorePreparedDispatch =
         | 'parent_unavailable'
         | 'input_too_large'
         | 'provider_session_unavailable'
+        | 'provider_failed'
+        | 'budget_exceeded'
     }
 
 type ProviderReason =
@@ -98,10 +102,18 @@ export type ManagedExploreDispatchObservation =
       model: string
       sessionLimitCents: number
       networkAccess: 'disabled'
+      refusalStatus?: NonNullable<ManagedExploreDispatchLease['sessionRefusalStatus']>
       requestId?: string | null
     }
   | { kind: 'createRejected'; operationId: string; reason: ProviderReason; requestId?: string | null }
   | { kind: 'environment'; providerSessionId: string; environmentId: string; status: EnvironmentStatus }
+  | {
+      kind: 'sessionRefused'
+      providerSessionId: string
+      environmentId: string
+      status: 'failed' | 'budget_reached'
+      requestId: string | null
+    }
   | ({ kind: 'eventAccepted'; requestId?: string | null } & EventIdentity)
   | ({ kind: 'eventRejected'; reason: ProviderReason; requestId?: string | null } & EventIdentity)
   | ({
@@ -120,15 +132,28 @@ export type ManagedExploreDispatchObservation =
   | ({ kind: 'outputRejected'; rootId: string; reason: 'output_invalid' | 'output_missing' } & EventIdentity)
   | { kind: 'defer'; delaySeconds: number }
 
-async function workerQuery<T>(pool: pg.Pool, statement: string, parameters: unknown[]): Promise<T> {
-  return withService(pool, async (c) => {
-    const { rows } = await c.query<{ result: T }>(statement, parameters)
-    return onlyRow(rows, 'managed Explore dispatch').result
-  })
+async function workerQuery<T>(
+  pool: pg.Pool,
+  statement: string,
+  parameters: unknown[],
+  control?: ServiceControl,
+): Promise<T> {
+  return withService(
+    pool,
+    async (c) => {
+      const { rows } = await c.query<{ result: T }>(statement, parameters)
+      return onlyRow(rows, 'managed Explore dispatch').result
+    },
+    control,
+  )
 }
 
 /** Claim one exact route, or a possible prior effect on that route when new mutations are paused. */
-export function claimManagedExploreDispatch(pool: pg.Pool, scope: ManagedExploreDispatchScope) {
+export function claimManagedExploreDispatch(
+  pool: pg.Pool,
+  scope: ManagedExploreDispatchScope,
+  control?: ServiceControl,
+) {
   return workerQuery<ManagedExploreDispatchLease | null>(
     pool,
     'SELECT sophia.claim_managed_explore_dispatch($1,$2,$3,$4,$5,$6,$7) AS result',
@@ -141,17 +166,20 @@ export function claimManagedExploreDispatch(pool: pg.Pool, scope: ManagedExplore
       scope.leaseSeconds,
       scope.allowSend,
     ],
+    control,
   )
 }
 
 export function readManagedExploreDispatch(
   pool: pg.Pool,
   { projectId, turnId, leaseToken }: ManagedExploreDispatchIdentity,
+  control?: ServiceControl,
 ) {
   return workerQuery<ManagedExploreDispatchLease>(
     pool,
     'SELECT sophia.read_managed_explore_dispatch($1,$2,$3) AS result',
     [projectId, turnId, leaseToken],
+    control,
   )
 }
 
@@ -163,11 +191,13 @@ export function prepareManagedExploreDispatch(
   pool: pg.Pool,
   { projectId, turnId, leaseToken }: ManagedExploreDispatchIdentity,
   action: ManagedExploreDispatchAction,
+  control?: ServiceControl,
 ) {
   return workerQuery<ManagedExplorePreparedDispatch>(
     pool,
     'SELECT sophia.prepare_managed_explore_dispatch($1,$2,$3,$4,$5) AS result',
     [projectId, turnId, leaseToken, action.kind, action.kind === 'event' ? action.predecessorRootId : null],
+    control,
   )
 }
 
@@ -176,11 +206,31 @@ export async function recordManagedExploreDispatch(
   pool: pg.Pool,
   { projectId, turnId, leaseToken }: ManagedExploreDispatchIdentity,
   observation: ManagedExploreDispatchObservation,
+  control?: ServiceControl,
 ): Promise<void> {
-  await workerQuery<unknown>(pool, 'SELECT sophia.record_managed_explore_dispatch($1,$2,$3,$4) AS result', [
-    projectId,
-    turnId,
-    leaseToken,
-    JSON.stringify(observation),
-  ])
+  const identity = [projectId, turnId, leaseToken]
+  await withService(
+    pool,
+    async (client) => {
+      if (observation.kind !== 'sessionRefused') {
+        await client.query('SELECT sophia.record_managed_explore_dispatch($1,$2,$3,$4)', [
+          ...identity,
+          JSON.stringify(observation),
+        ])
+      }
+      if (observation.kind !== 'sessionRefused' && observation.kind !== 'created') return
+      const status = observation.kind === 'sessionRefused' ? observation.status : observation.refusalStatus
+      if (status) {
+        const { providerSessionId, environmentId, requestId } = observation
+        await client.query('SELECT sophia.refuse_managed_explore_session($1,$2,$3,$4,$5,$6,$7)', [
+          ...identity,
+          providerSessionId,
+          environmentId,
+          status,
+          requestId,
+        ])
+      }
+    },
+    control,
+  )
 }

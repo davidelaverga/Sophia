@@ -4,7 +4,9 @@ import {
   prepareManagedExploreDispatch,
   readManagedExploreDispatch,
   recordManagedExploreDispatch,
+  withService,
   type retainManagedExploreOutput,
+  type ServiceControl,
 } from '@sophia/persistence'
 import {
   dispatchManagedExplorePass,
@@ -27,9 +29,11 @@ const DISPATCH_PROCEDURES = [
   'sophia.read_managed_explore_dispatch(uuid,uuid,uuid)',
   'sophia.prepare_managed_explore_dispatch(uuid,uuid,uuid,text,text)',
   'sophia.record_managed_explore_dispatch(uuid,uuid,uuid,jsonb)',
+  'sophia.refuse_managed_explore_session(uuid,uuid,uuid,text,text,text,text)',
   'sophia.retain_managed_explore_output(uuid,uuid,uuid,jsonb,bytea)',
 ]
-const PROVIDER_PASS_MS = 20_000
+const PASS_MS = 20_000
+const SQL_MS = 4_000
 const LEASE_SECONDS = 60
 
 type Config =
@@ -73,26 +77,47 @@ export function managedExploreConfig(env: Env, workerId: string): Config {
 }
 
 async function checkReadiness(pool: pg.Pool): Promise<void> {
-  const { rows } = await pool
-    .query<{ ready: boolean }>(
-      `SELECT has_schema_privilege('sophia', 'USAGE')
+  const control = { signal: AbortSignal.timeout(SQL_MS), deadline: performance.now() + SQL_MS }
+  const ready = await withService(
+    pool,
+    async (client) => {
+      const { rows } = await client.query<{ ready: boolean }>(
+        `SELECT has_schema_privilege('sophia', 'USAGE')
        AND to_regprocedure('sophia.managed_explore_provider_input(sophia.managed_explore_dispatch_context)') IS NOT NULL
        AND (SELECT bool_and(COALESCE(has_function_privilege(to_regprocedure(signature), 'EXECUTE'), false))
               FROM unnest($1::text[]) AS signatures(signature)) AS ready`,
-      [DISPATCH_PROCEDURES],
-    )
-    .catch(() => {
-      throw new Error('Managed Explore database readiness check failed')
-    })
-  if (rows[0]?.ready !== true) throw new Error('Managed Explore dispatch and retention SQL must be ready')
+        [DISPATCH_PROCEDURES],
+      )
+      return rows[0]?.ready === true
+    },
+    control,
+  ).catch(() => {
+    throw new Error('Managed Explore database readiness check failed')
+  })
+  if (!ready) throw new Error('Managed Explore dispatch and retention SQL must be ready')
 }
 
-type Phase = (maySend: () => boolean, signal: AbortSignal) => Promise<unknown>
+type Phase = (maySend: () => boolean, control: ServiceControl) => Promise<unknown>
+
+function sqlControl(pass: ServiceControl): ServiceControl {
+  return { signal: pass.signal, deadline: Math.min(pass.deadline, performance.now() + SQL_MS) }
+}
+
+function dispatchStore(pool: pg.Pool, pass: ServiceControl): ManagedExploreDispatchContinuationStore {
+  return {
+    claimManagedExploreDispatch: (scope) => claimManagedExploreDispatch(pool, scope, sqlControl(pass)),
+    readManagedExploreDispatch: (identity) => readManagedExploreDispatch(pool, identity, sqlControl(pass)),
+    prepareManagedExploreDispatch: (identity, action) =>
+      prepareManagedExploreDispatch(pool, identity, action, sqlControl(pass)),
+    recordManagedExploreDispatch: (identity, observation) =>
+      recordManagedExploreDispatch(pool, identity, observation, sqlControl(pass)),
+  }
+}
 
 /** Driven by the worker's project-event/idle loop. At most one pass is active locally. */
 export class ManagedExploreWorker {
   #inFlight: Promise<void> | undefined
-  #draining = false
+  readonly #drain = new AbortController()
   readonly #pass: Phase
   readonly #log: (line: string) => void
 
@@ -102,8 +127,12 @@ export class ManagedExploreWorker {
   }
 
   tick(): void {
-    if (this.#draining || this.#inFlight) return
-    this.#inFlight = this.#pass(() => !this.#draining, AbortSignal.timeout(PROVIDER_PASS_MS))
+    if (this.#drain.signal.aborted || this.#inFlight) return
+    const control = {
+      signal: AbortSignal.any([this.#drain.signal, AbortSignal.timeout(PASS_MS)]),
+      deadline: performance.now() + PASS_MS,
+    }
+    this.#inFlight = this.#pass(() => !control.signal.aborted && performance.now() < control.deadline, control)
       .then(() => undefined)
       .catch(() => this.#log('managed Explore pass failed; pending work remains fenced'))
       .finally(() => {
@@ -112,7 +141,7 @@ export class ManagedExploreWorker {
   }
 
   async stop(): Promise<void> {
-    this.#draining = true
+    this.#drain.abort()
     await this.#inFlight
   }
 }
@@ -125,32 +154,26 @@ export async function managedExploreWorkerFromConfig(
 ): Promise<ManagedExploreWorker | null> {
   if (config.mode === 'off') return null
   await checkReadiness(pool)
-  const store: ManagedExploreDispatchContinuationStore = {
-    claimManagedExploreDispatch: (scope) => claimManagedExploreDispatch(pool, scope),
-    readManagedExploreDispatch: (identity) => readManagedExploreDispatch(pool, identity),
-    prepareManagedExploreDispatch: (identity, action) => prepareManagedExploreDispatch(pool, identity, action),
-    recordManagedExploreDispatch: (identity, observation) => recordManagedExploreDispatch(pool, identity, observation),
-  }
-  return new ManagedExploreWorker(async (maySend, deadline) => {
+  return new ManagedExploreWorker(async (maySend, pass) => {
     const provider = createManagedExploreProvider({
       apiKey: config.apiKey,
       organizationId: config.scope.providerOrg,
       projectId: config.scope.providerProject,
       fetch: (input, init) =>
-        fetch(input, { ...init, signal: init?.signal ? AbortSignal.any([deadline, init.signal]) : deadline }),
+        fetch(input, { ...init, signal: init?.signal ? AbortSignal.any([pass.signal, init.signal]) : pass.signal }),
     })
     const retainOutput = managedExploreRetention({
       readTurnText: (sessionId, rootId) => provider.readTurnText(sessionId, rootId),
       write: async (identity, output) => {
-        await writer(pool, identity, output)
+        await writer(pool, identity, output, sqlControl(pass))
       },
     })
     await dispatchManagedExplorePass(config.scope, {
       provider,
-      store,
+      store: dispatchStore(pool, pass),
       instructions: INSTRUCTIONS,
       retainOutput,
-      maySend: () => config.mode === 'send' && !deadline.aborted && maySend(),
+      maySend: () => config.mode === 'send' && maySend(),
     })
   }, log)
 }

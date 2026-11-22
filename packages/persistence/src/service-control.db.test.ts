@@ -13,7 +13,7 @@ let observer: pg.Pool
 const noop = () => {}
 before(async () => {
   db = await createTestDatabase()
-  pool = createPool(db.apiUrl, { max: 1, connectionTimeoutMillis: 500 })
+  pool = createPool(db.apiUrl, { max: 1, connectionTimeoutMillis: 5000 })
   const owner = createPool(db.ownerUrl)
   observer = createPool(db.ownerUrl)
   try {
@@ -130,10 +130,9 @@ async function cleanLateAcquisition(abort: boolean) {
   try {
     assert.equal(pool.waitingCount, 1, 'the real single-client pool queues the controlled request')
     if (abort) controller.abort()
-    await delay(70)
+    assert.equal(await beforeSentinel(errorCode(pending)), 'unavailable')
     held.release()
     released = true
-    assert.equal(await beforeSentinel(errorCode(pending)), 'unavailable')
     assert.equal(calls, 0)
     const fresh = await beforeSentinel(pool.query<{ pid: number }>('SELECT pg_backend_pid() AS pid'))
     assert.equal(fresh.rows[0]?.pid, old.rows[0]?.pid, 'a late-acquired clean client is reused, not retired')

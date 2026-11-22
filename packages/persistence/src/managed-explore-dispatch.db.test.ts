@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { createHash, randomUUID } from 'node:crypto'
 import { after, before, it } from 'node:test'
+import { setTimeout as delay } from 'node:timers/promises'
 import type pg from 'pg'
 import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
 import {
@@ -964,4 +965,195 @@ it('denies output after founder membership or the exact seed is withdrawn', asyn
     [[withoutMember.projectId, withoutSeed.projectId]],
   )
   assert.deepEqual(rows, [{ count: 0 }])
+})
+
+it('persists the first exact terminal session refusal, denies unsent successors and preserves prior replies', async () => {
+  const session = await startRetentionSession()
+  const admitText = async () => {
+    const view = await readSession(session)
+    return withActor(api, founder, 'write', (c) =>
+      admitManagedExploreTurn(c, session.projectId, session.sessionId, randomUUID(), {
+        kind: 'text',
+        instruction: 'What else should I verify?',
+        expectedSessionRevision: view.revision,
+      }),
+    )
+  }
+  await admitText()
+  const first = await claimManagedExploreDispatch(worker, scope)
+  assert.ok(first?.providerSessionId && first.environmentId)
+  assert.equal(first.projectId, session.projectId)
+  const refusal = {
+    kind: 'sessionRefused',
+    providerSessionId: first.providerSessionId,
+    environmentId: first.environmentId,
+    status: 'budget_reached',
+    requestId: 'synthetic-budget-readback',
+  } as const
+  await assert.rejects(
+    recordManagedExploreDispatch(worker, first, { ...refusal, environmentId: 'unexpected-environment' }),
+    { code: 'stale_revision' },
+  )
+  await assert.rejects(recordManagedExploreDispatch(api, first, refusal), { code: 'forbidden' })
+  await recordManagedExploreDispatch(worker, first, refusal)
+  await assert.rejects(recordManagedExploreDispatch(worker, first, refusal), { code: 'invalid_state' })
+  const refused = await readSession(session)
+  assert.equal(refused.turns.at(-1)?.error, 'budget_exceeded')
+  assert.equal(refused.turns[0]?.reply, 'Ready.')
+
+  await admitText()
+  const successor = await claimManagedExploreDispatch(worker, scope)
+  assert.ok(successor)
+  assert.equal(successor.projectId, session.projectId)
+  assert.equal(successor.sessionRefusalStatus, 'budget_reached')
+  assert.deepEqual(
+    await prepareManagedExploreDispatch(worker, successor, {
+      kind: 'event',
+      predecessorRootId: successor.previousRootId,
+    }),
+    { kind: 'denied', reason: 'budget_exceeded' },
+  )
+  const kept = await owner.query<{ input_refused_status: string; input_refused_request_id: string; possible: number }>(
+    `SELECT input_refused_status,input_refused_request_id,
+      (SELECT count(*)::int FROM sophia.managed_explore_dispatch_turns t
+        WHERE t.project_id=d.project_id AND event_possible_at IS NOT NULL) AS possible
+     FROM sophia.managed_explore_dispatch_sessions d WHERE project_id=$1`,
+    [session.projectId],
+  )
+  assert.deepEqual(kept.rows, [
+    {
+      input_refused_status: 'budget_reached',
+      input_refused_request_id: 'synthetic-budget-readback',
+      possible: 1,
+    },
+  ])
+})
+
+it('rejects a session-level refusal for a possible event and retains that exact event for reconciliation', async () => {
+  const session = await admit()
+  const lease = await claimManagedExploreDispatch(worker, scope)
+  assert.ok(lease)
+  assert.equal(lease.projectId, session.projectId)
+  assert.equal((await prepareManagedExploreDispatch(worker, lease, { kind: 'create' })).kind, 'create')
+  const { providerSessionId, environmentId } = await createReceipt(lease)
+  const event = await prepareManagedExploreDispatch(worker, lease, { kind: 'event', predecessorRootId: null })
+  assert.equal(event.kind, 'event')
+  await assert.rejects(
+    recordManagedExploreDispatch(worker, lease, {
+      kind: 'sessionRefused',
+      providerSessionId,
+      environmentId,
+      status: 'failed',
+      requestId: null,
+    }),
+    { code: 'stale_revision' },
+  )
+  const mailed = await readManagedExploreDispatch(worker, lease)
+  assert.equal(mailed.payloadSha256, event.payloadSha256)
+  assert.equal(mailed.sessionRefusalStatus, null)
+  await recordManagedExploreDispatch(worker, lease, {
+    ...event,
+    kind: 'root',
+    rootId: 'refusal-test-reconciled-root',
+    status: 'failed',
+  })
+  await recordManagedExploreDispatch(worker, lease, {
+    ...event,
+    kind: 'settle',
+    rootId: 'refusal-test-reconciled-root',
+    status: 'failed',
+    reason: 'provider_failed',
+  })
+  assert.equal((await readSession(session)).turns[0]?.error, 'provider_failed')
+})
+
+async function waitForPrepareLock() {
+  const deadline = performance.now() + 1500
+  while (performance.now() < deadline) {
+    const { rowCount } = await owner.query(`SELECT 1 FROM pg_stat_activity
+      WHERE datname=current_database() AND wait_event_type='Lock'
+        AND query LIKE 'SELECT sophia.prepare_managed_explore_dispatch%'`)
+    if (rowCount) return
+    await delay(10)
+  }
+  assert.fail('Explore prepare did not reach its blocked statement')
+}
+
+it('drains a blocked Explore prepare without authorizing a send and a new lease can prepare once', async () => {
+  const session = await admit()
+  const first = await claimManagedExploreDispatch(worker, scope)
+  assert.ok(first)
+  assert.equal(first.projectId, session.projectId)
+  const lock = await owner.connect()
+  const stop = new AbortController()
+  try {
+    await lock.query('BEGIN')
+    await lock.query('SELECT id FROM sophia.projects WHERE id=$1 FOR UPDATE', [session.projectId])
+    const pending = prepareManagedExploreDispatch(
+      worker,
+      first,
+      { kind: 'create' },
+      {
+        signal: stop.signal,
+        deadline: performance.now() + 3000,
+      },
+    )
+    const rejected = assert.rejects(pending, { code: 'unavailable' })
+    await waitForPrepareLock()
+    stop.abort()
+    const timer = new AbortController()
+    try {
+      assert.equal(await Promise.race([rejected, delay(750, 'still blocked', { signal: timer.signal })]), undefined)
+    } finally {
+      timer.abort()
+    }
+  } finally {
+    stop.abort()
+    await lock.query('ROLLBACK')
+    lock.release()
+  }
+  const afterDrain = await readManagedExploreDispatch(worker, first)
+  assert.equal(afterDrain.createPossibleAt, null)
+  await expire(first)
+  const next = await claimManagedExploreDispatch(worker, scope)
+  assert.ok(next)
+  assert.equal(next.turnId, first.turnId)
+  assert.notEqual(next.leaseToken, first.leaseToken)
+  assert.equal((await prepareManagedExploreDispatch(worker, next, { kind: 'create' })).kind, 'create')
+  assert.deepEqual(await prepareManagedExploreDispatch(worker, next, { kind: 'create' }), { kind: 'observe' })
+})
+
+it('atomically binds a created session already in failure and settles its original unsent turn', async () => {
+  const session = await admit()
+  const lease = await claimManagedExploreDispatch(worker, scope)
+  assert.ok(lease)
+  assert.equal(lease.projectId, session.projectId)
+  assert.equal((await prepareManagedExploreDispatch(worker, lease, { kind: 'create' })).kind, 'create')
+  const receipt = {
+    kind: 'created',
+    operationId: lease.createOperationId,
+    providerSessionId: randomUUID(),
+    environmentId: 'failed-at-creation',
+    model: lease.model,
+    sessionLimitCents: lease.sessionLimitCents,
+    networkAccess: 'disabled',
+    requestId: 'synthetic-terminal-creation',
+    refusalStatus: 'failed',
+  } as const
+  await recordManagedExploreDispatch(worker, lease, receipt)
+  assert.equal((await readSession(session)).turns[0]?.error, 'provider_failed')
+  const row = await owner.query(
+    `SELECT d.provider_session_id,d.input_refused_status,x.event_possible_at
+     FROM sophia.managed_explore_dispatch_sessions d
+     JOIN sophia.managed_explore_dispatch_turns x USING (project_id,session_id)
+     WHERE d.project_id=$1`,
+    [session.projectId],
+  )
+  assert.deepEqual(row.rows, [
+    {
+      provider_session_id: receipt.providerSessionId,
+      input_refused_status: 'failed',
+      event_possible_at: null,
+    },
+  ])
 })

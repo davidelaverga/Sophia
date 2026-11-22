@@ -21,6 +21,7 @@ export interface ManagedExploreDispatchScope {
 
 type EnvironmentStatus = Awaited<ReturnType<ManagedExploreProvider['readEnvironment']>>['value']['status']
 type RootStatus = ManagedExploreRootTurn['status']
+type SessionRefusal = Extract<ManagedExploreSession['status'], 'failed' | 'budget_reached'>
 type ProviderUsage = NonNullable<ManagedExploreRootTurn['usage']>
 type TurnKind = 'text' | 'directions' | 'prototype' | 'revision'
 const OUTPUT_READBACK_WINDOW_MS = 5 * 60 * 1000
@@ -47,6 +48,7 @@ export interface ManagedExploreDispatchLease extends ManagedExploreDispatchIdent
   providerSessionId: string | null
   environmentId: string | null
   environmentStatus: EnvironmentStatus | null
+  sessionRefusalStatus: SessionRefusal | null
   submissionId: string
   eventPossibleAt: string | null
   previousRootId: string | null
@@ -90,10 +92,18 @@ type Observation =
       model: string
       sessionLimitCents: number
       networkAccess: 'disabled'
+      refusalStatus?: NonNullable<ManagedExploreDispatchLease['sessionRefusalStatus']>
       requestId: string | null
     }
   | { kind: 'createRejected'; operationId: string; reason: ProviderReason; requestId: string | null }
   | { kind: 'environment'; providerSessionId: string; environmentId: string; status: EnvironmentStatus }
+  | {
+      kind: 'sessionRefused'
+      providerSessionId: string
+      environmentId: string
+      status: SessionRefusal
+      requestId: string | null
+    }
   | ({ kind: 'eventAccepted'; requestId: string | null } & EventIdentity)
   | ({ kind: 'eventRejected'; reason: ProviderReason; requestId: string | null } & EventIdentity)
   | ({ kind: 'root'; rootId: string; status: RootStatus; usage: ProviderUsage | null } & EventIdentity)
@@ -168,6 +178,10 @@ function providerReason(value: unknown): ProviderReason {
 
 function isSettled(root: ManagedExploreRootTurn): boolean {
   return root.status === 'completed' || root.status === 'failed' || root.status === 'cancelled'
+}
+
+function isSessionRefusal(status: ManagedExploreSession['status']): status is SessionRefusal {
+  return status === 'failed' || status === 'budget_reached'
 }
 
 function isEnvironmentReady(status: EnvironmentStatus | null): boolean {
@@ -266,6 +280,7 @@ class ExploreStep {
 
   #recordSession({ value, requestId }: ProviderResult<ManagedExploreSession>): Promise<Step> {
     if (!this.#sameSession(value)) return this.#defer('unknown')
+    const refusalStatus = isSessionRefusal(value.status) ? value.status : null
     return this.#record(
       {
         kind: 'created',
@@ -276,8 +291,9 @@ class ExploreStep {
         sessionLimitCents: this.#claim.sessionLimitCents,
         networkAccess: 'disabled',
         requestId,
+        ...(refusalStatus ? { refusalStatus } : {}),
       },
-      'progressed',
+      refusalStatus ? 'settled' : 'progressed',
     )
   }
 
@@ -328,13 +344,31 @@ class ExploreStep {
   }
 
   async #ready(providerSessionId: string, environmentId: string): Promise<Step | null> {
+    const knownStatus = this.#claim.sessionRefusalStatus
+    if (knownStatus) return this.#refuseSession(providerSessionId, environmentId, knownStatus, null)
     const session = await this.#read(() => this.#provider.readSession(providerSessionId))
     if (!session) return this.#defer('unknown')
     const { value } = session
     if (!this.#sameSession(value) || value.id !== providerSessionId || value.environmentId !== environmentId) {
       return this.#defer('unknown')
     }
+    if (isSessionRefusal(value.status)) {
+      return this.#record(
+        {
+          kind: 'sessionRefused',
+          providerSessionId,
+          environmentId,
+          status: value.status,
+          requestId: session.requestId,
+        },
+        'settled',
+      )
+    }
     if (value.status !== 'idle') return this.#defer('waiting')
+    return this.#readyEnvironment(providerSessionId, environmentId)
+  }
+
+  async #readyEnvironment(providerSessionId: string, environmentId: string): Promise<Step | null> {
     const environment = await this.#read(() => this.#provider.readEnvironment(environmentId))
     if (!environment || environment.value.id !== environmentId) return this.#defer('unknown')
     const { status } = environment.value
@@ -343,6 +377,15 @@ class ExploreStep {
       return this.#record({ kind: 'environment', providerSessionId, environmentId, status }, result)
     }
     return isEnvironmentReady(status) ? null : this.#defer('waiting')
+  }
+
+  #refuseSession(
+    providerSessionId: string,
+    environmentId: string,
+    status: SessionRefusal,
+    requestId: string | null,
+  ): Promise<Step> {
+    return this.#record({ kind: 'sessionRefused', providerSessionId, environmentId, status, requestId }, 'settled')
   }
 
   async #readExactRoot(

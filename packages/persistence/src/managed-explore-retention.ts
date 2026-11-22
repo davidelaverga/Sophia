@@ -2,6 +2,7 @@
 import type { ManagedExploreDirection } from '@sophia/contracts'
 import type pg from 'pg'
 import type { ManagedExploreDispatchIdentity, ManagedExploreDispatchObservation } from './managed-explore-dispatch.ts'
+import type { ServiceControl } from './service-control.ts'
 import { onlyRow } from './rows.ts'
 import { withService } from './tx.ts'
 
@@ -47,15 +48,20 @@ export function retainManagedExploreOutput(
   pool: pg.Pool,
   { projectId, turnId, leaseToken }: ManagedExploreDispatchIdentity,
   output: ManagedExploreRetentionOutput,
+  control?: ServiceControl,
 ): Promise<ManagedExploreRetentionResult> {
   const { metadata, bytes } = splitOutput(output)
-  return withService(pool, async (c) => {
-    const { rows } = await c.query<{ result: ManagedExploreRetentionResult }>(
-      'SELECT sophia.retain_managed_explore_output($1,$2,$3,$4,$5) AS result',
-      [projectId, turnId, leaseToken, JSON.stringify(metadata), bytes],
-    )
-    return onlyRow(rows, 'managed Explore retention').result
-  })
+  return withService(
+    pool,
+    async (c) => {
+      const { rows } = await c.query<{ result: ManagedExploreRetentionResult }>(
+        'SELECT sophia.retain_managed_explore_output($1,$2,$3,$4,$5) AS result',
+        [projectId, turnId, leaseToken, JSON.stringify(metadata), bytes],
+      )
+      return onlyRow(rows, 'managed Explore retention').result
+    },
+    control,
+  )
 }
 
 function splitOutput(output: ManagedExploreRetentionOutput) {

@@ -18,7 +18,7 @@ runnerDispatchFromEnv(process.env)
 const log = (line: string) => console.log(`[sophia-worker] ${line}`)
 const workerId = `${hostname()}:${process.pid}`
 const exploreConfig = managedExploreConfig(process.env, workerId)
-const pool = createPool(url, { max: 4 })
+const pool = createPool(url, { max: 4, connectionTimeoutMillis: 4_000 })
 await checkRoleSafety(pool, 'sophia_worker') // refuse to run as an owner, superuser or BYPASSRLS login
 const managedExplore = await managedExploreWorkerFromConfig(pool, exploreConfig, retainManagedExploreOutput, log)
 // Optional: a login admitted to the conversation assembler role (Q13), or the fixed assembly through this worker's own

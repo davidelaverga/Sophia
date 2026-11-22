@@ -47,6 +47,7 @@ const BASE = {
   providerSessionId: null,
   environmentId: null,
   environmentStatus: null,
+  sessionRefusalStatus: null,
   submissionId: 'event_fixture',
   eventPossibleAt: null,
   previousRootId: null,
@@ -730,5 +731,73 @@ test('callback output rejection settles only the recorded root and uses the exis
     } else {
       assert.deepEqual(f.observations, [{ kind: 'defer', delaySeconds: 5 }])
     }
+  }
+})
+
+test('a confirmed provider failure or session budget pause refuses an unsent event without preparing it', async () => {
+  for (const status of ['failed', 'budget_reached'] as const) {
+    const f = fixture(EVENT_READY)
+    const provider = fakeProvider({
+      readSession: () => receipt({ ...SESSION, status }),
+      readEnvironment: () => assert.fail('session refusal must precede environment read'),
+    })
+    assert.equal(await dispatchManagedExploreOnce(SCOPE, { ...f, provider }), 'settled')
+    assert.deepEqual(f.preparations, [])
+    assert.deepEqual(f.observations, [
+      {
+        kind: 'sessionRefused',
+        providerSessionId: SESSION.id,
+        environmentId: SESSION.environmentId,
+        status,
+        requestId: 'req_fixture',
+      },
+    ])
+  }
+})
+
+test('a durable session refusal carries forward to unsent successors, while a possible event reconciles from its root', async () => {
+  const refusal = { sessionRefusalStatus: 'budget_reached' } as const
+  const provider = fakeProvider({
+    readSession: () => assert.fail('durable session state should require no provider session read'),
+    readEnvironment: () => assert.fail('unexpected environment metadata read'),
+    listRootTurns: () => receipt([root()]),
+  })
+  const unsent = fixture({ ...EVENT_READY, ...refusal })
+  assert.equal(await dispatchManagedExploreOnce(SCOPE, { ...unsent, provider }), 'settled')
+  assert.equal(unsent.observations[0]?.kind, 'sessionRefused')
+  assert.deepEqual(unsent.preparations, [])
+  const sent = fixture({ ...EVENT_PREPARED, ...refusal })
+  assert.equal(await dispatchManagedExploreOnce(SCOPE, { ...sent, provider }), 'progressed')
+  assert.equal(sent.observations[0]?.kind, 'root')
+  assert.deepEqual(sent.preparations, [])
+})
+
+test('a failed status from a mismatched provider session is unresolved', async () => {
+  const f = fixture(EVENT_READY)
+  const provider = fakeProvider({
+    readSession: () => receipt({ ...SESSION, operationId: 'different_operation', status: 'failed' }),
+  })
+  assert.equal(await dispatchManagedExploreOnce(SCOPE, { ...f, provider }), 'unknown')
+  assert.deepEqual(
+    f.observations.map(({ kind }) => kind),
+    ['defer'],
+  )
+  assert.deepEqual(f.preparations, [])
+})
+
+test('matching create or create-recovery receipt already reporting failure settles before an input read', async () => {
+  for (const recovering of [false, true]) {
+    const f = fixture(recovering ? { ...BASE, createPossibleAt: POSSIBLE_AT } : BASE)
+    const failed = { ...SESSION, status: 'failed' } as const
+    const provider = fakeProvider({
+      createSession: () => receipt(failed),
+      findSessionByOperation: () => receipt(failed),
+      readSession: () => receipt(failed),
+    })
+    assert.equal(await dispatchManagedExplorePass(SCOPE, { ...f, provider }), 'settled')
+    assert.equal(f.state.reads, 0)
+    assert.deepEqual(f.preparations, recovering ? [] : ['create'])
+    assert.equal(f.observations[0]?.kind, 'created')
+    assert.equal(f.observations[0]?.refusalStatus, 'failed')
   }
 })
