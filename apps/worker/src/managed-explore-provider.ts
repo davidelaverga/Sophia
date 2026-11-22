@@ -363,6 +363,14 @@ function finalTextParts(value: unknown, turnId: string): string[] {
   })
 }
 
+function savedUserText(value: unknown, turnId: string): string | null | undefined {
+  const item = record(value)
+  if (item?.type !== 'message' || item.role !== 'user' || item.turn_id !== turnId) return undefined
+  if (item.status !== 'completed' || !Array.isArray(item.content) || item.content.length !== 1) return null
+  const part = record(item.content[0])
+  return part?.type === 'input_text' && typeof part.text === 'string' && part.text.isWellFormed() ? part.text : null
+}
+
 function contentType(response: Response): string | undefined {
   return response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase()
 }
@@ -662,6 +670,19 @@ export class ManagedExploreProvider {
         root.value.status === 'cancelled' || root.value.status === 'failed' ? 'terminal' : 'retry_read'
       throw new ManagedExploreProviderError('turn_not_completed', disposition, root.requestId)
     }
+  }
+
+  async readTurnInputDigest(sessionId: string, turnId: string): Promise<ProviderResult<string | null>> {
+    const query = new URLSearchParams({ order: 'asc', limit: '20' })
+    const { value, requestId } = await this.#list(`${turnPath(sessionId, turnId)}/items`, query, (items) =>
+      items.flatMap((item) => {
+        const text = savedUserText(item, turnId)
+        return text === undefined ? [] : [text]
+      }),
+    )
+    const text = value[0]
+    if (value.length !== 1 || !text) return { value: null, requestId }
+    return { value: createHash('sha256').update(text, 'utf8').digest('hex'), requestId }
   }
 
   async readTurnText(sessionId: string, turnId: string): Promise<ProviderResult<string | null>> {

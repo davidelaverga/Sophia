@@ -538,3 +538,31 @@ test('create verifies the observed model, network policy and owner-approved boun
   await assert.rejects(client.createSession(input), providerError('invalid_response', 'reconcile', 'req_fixture'))
   assert.equal(calls, 3)
 })
+
+test('root input identity hashes one exact saved user message and ignores unrelated items', async () => {
+  const text = 'Exact fictional UTF-8 input.\r\n'
+  const item = {
+    type: 'message',
+    role: 'user',
+    status: 'completed',
+    phase: null,
+    turn_id: 'turn_one',
+    content: [{ type: 'input_text', text }],
+  }
+  let items = [{ ...item, turn_id: 'turn_old' }, item]
+  const client = createManagedExploreProvider({
+    apiKey: KEY,
+    fetch: mockFetch(({ pathname }) => {
+      assert.equal(pathname, `${BASE_PATH}/sess_one/turns/turn_one/items`)
+      return wireJson(page(items))
+    }),
+  })
+  assert.equal(
+    (await client.readTurnInputDigest('sess_one', 'turn_one')).value,
+    createHash('sha256').update(text).digest('hex'),
+  )
+  items = [item, item]
+  assert.equal((await client.readTurnInputDigest('sess_one', 'turn_one')).value, null)
+  items = [{ ...item, content: [{ type: 'input_image', text }] }]
+  assert.equal((await client.readTurnInputDigest('sess_one', 'turn_one')).value, null)
+})
