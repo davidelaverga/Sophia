@@ -5,9 +5,9 @@
 | Goal and attempt | FOUNDER-EXPLORE-TO-BUILD-001, first implementation and integration attempt |
 | Human owner | Davide Laverga |
 | Executor resources | Codex coordinator with GPT-6.2 Sol Medium engineering and Studio design threads, plus separate GPT-6.2 Sol High source review and app verification |
-| Native session | The implementation and local verification used Codex threads. The pilot’s founder-operated official Codex Build session remains pending. |
+| Native session | Native implementation session IDs were unrecorded in the worker receipts. The pilot’s founder-operated official Codex Build session remains pending. |
 | Starting worktree and commit | Isolated worktrees from Sophia main `df4b4a518575111e6face5a07afd09e7fec03b1a` |
-| Integration | [PR #541](https://github.com/davidelaverga/Sophia/pull/541). The staged terminal-queue repair is `b1e0f6871f7f4a6fd59a44c21ffe85632d769adb`, tree `d02d80dab0ff67733e33884b8c5a96e60a7218e5`. Use the current PR head and checks for integration. |
+| Integration | [PR #541](https://github.com/davidelaverga/Sophia/pull/541). The staged terminal-queue repair is `b1e0f6871f7f4a6fd59a44c21ffe85632d769adb`, tree `d02d80dab0ff67733e33884b8c5a96e60a7218e5`. Use the current PR head and checks for integration. [Exact staged diff](https://github.com/davidelaverga/Sophia/compare/df4b4a518575111e6face5a07afd09e7fec03b1a...b1e0f6871f7f4a6fd59a44c21ffe85632d769adb) |
 | Owner decision | Davide approved funding design `f35bf5019df9797bd0a933aad3879f3a209cf792`. The exact reviewed design changes remain identifiable in the integration history. |
 
 ## Outcome
@@ -28,7 +28,7 @@ The running provider, signed-in production app and first client repository remai
 
 ## Decisions and changes
 
-The pilot uses an independently qualified owner project on OpenAI for Explore, and a separate founder-operated ChatGPT subscription for Build. The parent source comes from the authorized retained version. The v1 event path refuses a parent that cannot be read or fit within the bounded input. The file remains retained for preview and export. The product does not infer approval or verified implementation from provider text.
+The pilot targets the owner-selected OpenAI project for Explore, pending live qualification. Build uses a separate founder-operated ChatGPT subscription. The parent source comes from the authorized retained version. The v1 event path refuses a parent that cannot be read or fit within the bounded input. The file remains retained for preview and export. The product does not infer approval or verified implementation from provider text.
 
 Live testing is limited to Davide’s authorized USD 100 aggregate pilot ceiling, using ChatGPT API grant credits only. An operator must verify the current grant, purchased-credit status, exact project credential scope and model access before the first paid effect. No live pilot charge or production mutation was made in this attempt.
 
