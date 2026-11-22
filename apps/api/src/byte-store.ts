@@ -89,6 +89,8 @@ export interface S3StorageConfig {
 
 type Fetch = typeof fetch
 
+const EXACT_READ_MS = 3_000
+
 /** The five settings of the S3 byte store, all or none. */
 export const STORAGE_SETTINGS = [
   'SOPHIA_STORAGE_S3_ENDPOINT',
@@ -253,6 +255,10 @@ function expectExactLength({ expectedBytes, maxBytes }: ExactByteRead): number {
   return expectedBytes
 }
 
+function exactReadTimedOut(): ByteStoreError {
+  return new ByteStoreError(503, 'store exact get: timed out')
+}
+
 function mismatchedLength(): ByteStoreError {
   return new ByteStoreError(409, 'store exact get: object size did not match the recorded byte length')
 }
@@ -357,8 +363,18 @@ export function s3ByteStore(
     },
     async getExact(path, bounds) {
       const expected = expectExactLength(bounds)
-      const res = await send('GET', path, null, { 'accept-encoding': 'identity' })
-      return readExactBody(exactBody(res, expected), expected)
+      // The fetch signal remains attached after headers so a body stalled before EOF is cancelled too.
+      const control = { deadline: performance.now() + EXACT_READ_MS, signal: AbortSignal.timeout(EXACT_READ_MS) }
+      let bytes: Uint8Array
+      try {
+        const res = await send('GET', path, null, { 'accept-encoding': 'identity' }, control)
+        bytes = await readExactBody(exactBody(res, expected), expected)
+      } catch (error) {
+        if (byteWriteExpired(control)) throw exactReadTimedOut()
+        throw error
+      }
+      if (byteWriteExpired(control)) throw exactReadTimedOut()
+      return bytes
     },
   }
 }

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
+import { createServer } from 'node:http'
 import { describe, it } from 'node:test'
-import { setImmediate as nextTurn } from 'node:timers/promises'
+import { setImmediate as nextTurn, setTimeout as delay } from 'node:timers/promises'
 import { BACKUP_WRITE_MS } from './byte-backup.ts'
 import {
   ByteStoreError,
@@ -243,6 +244,39 @@ describe('report byte store (D5)', () => {
     assert.equal(pulled, 0)
     assert.equal(cancelled, 3)
     await assert.rejects(store.getExact('a/b', bounds), /recorded byte length/)
+  })
+
+  it('ends a signed exact GET when the body supplies the expected bytes but stalls before EOF', async () => {
+    let requests = 0
+    const disconnected = Promise.withResolvers<void>()
+    const server = createServer((_request, response) => {
+      requests += 1
+      response.on('close', () => disconnected.resolve())
+      // Without a Content-Length, the final HTTP chunk is what proves the exact prefix is complete.
+      response.write(Buffer.from([7, 8, 9]))
+    })
+    const listening = Promise.withResolvers<void>()
+    server.listen(0, '127.0.0.1', () => listening.resolve())
+    await listening.promise
+    const sentinel = new AbortController()
+    try {
+      const address = server.address()
+      assert.ok(address && typeof address !== 'string')
+      const store = s3ByteStore({ ...config, endpoint: `http://127.0.0.1:${String(address.port)}` })
+      assert.ok(typeof store.getExact === 'function')
+      const pending = store.getExact('synthetic/object', { expectedBytes: 3, maxBytes: 8 })
+      const checks = Promise.all([
+        assert.rejects(pending, (error) => error instanceof ByteStoreError && error.status === 503),
+        disconnected.promise,
+      ])
+      const expired = delay(5_000, 'read did not time out and disconnect', { signal: sentinel.signal })
+      assert.deepEqual(await Promise.race([checks, expired]), [undefined, undefined])
+      assert.equal(requests, 1)
+    } finally {
+      sentinel.abort()
+      server.close()
+      server.closeAllConnections()
+    }
   })
 
   it('keeps bytes in memory for tests, with the same write-once rule', async () => {
