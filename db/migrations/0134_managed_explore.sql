@@ -453,6 +453,7 @@ CREATE TABLE sophia.managed_explore_preview_permits (
  entry_sha256 text NOT NULL CHECK(entry_sha256 ~ '^[a-f0-9]{64}$'),
  issued_at timestamptz NOT NULL,
  expires_at timestamptz NOT NULL CHECK(expires_at>issued_at AND expires_at<=issued_at+interval '10 minutes'),
+ served_at timestamptz CHECK(served_at>=issued_at AND served_at<expires_at),
  FOREIGN KEY(project_id,session_id,version_id) REFERENCES sophia.managed_explore_versions(project_id,session_id,id)
 );
 CREATE INDEX managed_explore_permits_by_version ON sophia.managed_explore_preview_permits(project_id,session_id,version_id,actor_id);
@@ -525,7 +526,8 @@ BEGIN
   RAISE EXCEPTION 'Stale prototype entry or manifest digest' USING ERRCODE='40001'; END IF;
  token:=replace(gen_random_uuid()::text||gen_random_uuid()::text,'-','');
  expires:=issued+interval '10 minutes';
- INSERT INTO sophia.managed_explore_preview_permits VALUES(encode(sha256(convert_to(token,'UTF8')),'hex'),
+ INSERT INTO sophia.managed_explore_preview_permits(token_sha256,project_id,session_id,version_id,actor_id,
+  manifest_sha256,entry_sha256,issued_at,expires_at) VALUES(encode(sha256(convert_to(token,'UTF8')),'hex'),
   p_project,p_session,p_version,s.founder_id,p_manifest,p_entry,issued,expires);
  result:=jsonb_build_object('token',token,'expiresAt',to_char(expires AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
   'versionId',v.id,'entrySha256',v.entry_sha256,'manifestSha256',v.manifest_sha256);
@@ -551,6 +553,36 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,so
    AND p.token_sha256=encode(sha256(convert_to(p_token,'UTF8')),'hex') AND p.expires_at>statement_timestamp()
 $$;
 
+-- Called by the dedicated content host after checking integrity and policy for a GET, before sending its response.
+-- A bearer authenticates the scoped permit only; no member or target is accepted as a supplied argument.
+CREATE FUNCTION sophia.mark_managed_explore_preview_served(p_token text)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE token_digest text; permit sophia.managed_explore_preview_permits; viewed_at timestamptz;
+BEGIN
+ IF sophia.actor_id() IS NOT NULL OR p_token IS NULL OR p_token !~ '^[a-f0-9]{64}$' THEN RETURN false; END IF;
+ token_digest:=encode(sha256(convert_to(p_token,'UTF8')),'hex');
+ SELECT * INTO permit FROM sophia.managed_explore_preview_permits WHERE token_sha256=token_digest;
+ IF NOT FOUND OR permit.expires_at<=clock_timestamp() THEN RETURN false; END IF;
+ -- The project leads the same lock order as approval and withdrawal.
+ PERFORM 1 FROM sophia.projects WHERE id=permit.project_id AND archived_at IS NULL FOR UPDATE;
+ IF NOT FOUND THEN RETURN false; END IF;
+ PERFORM 1 FROM sophia.project_members WHERE project_id=permit.project_id AND actor_id=permit.actor_id
+   AND active AND role IN ('admin','editor') FOR SHARE;
+ IF NOT FOUND THEN RETURN false; END IF;
+ PERFORM 1 FROM sophia.source_objects source
+ JOIN sophia.managed_explore_versions v ON v.project_id=source.project_id AND v.entry_source_id=source.id
+ WHERE v.project_id=permit.project_id AND v.session_id=permit.session_id AND v.id=permit.version_id FOR SHARE OF source;
+ IF NOT FOUND THEN RETURN false; END IF;
+ PERFORM 1 FROM sophia.source_objects source
+ JOIN sophia.managed_explore_sessions s ON s.project_id=source.project_id AND s.seed_source_id=source.id
+ WHERE s.project_id=permit.project_id AND s.id=permit.session_id FOR SHARE OF source;
+ IF NOT FOUND OR sophia.resolve_managed_explore_preview(p_token) IS NULL THEN RETURN false; END IF;
+ viewed_at:=clock_timestamp();
+ UPDATE sophia.managed_explore_preview_permits SET served_at=coalesce(served_at,viewed_at)
+ WHERE token_sha256=token_digest AND expires_at>viewed_at;
+ RETURN FOUND;
+END $$;
+
 CREATE FUNCTION sophia.approve_managed_explore_version(p_project uuid, p_session uuid, p_key text, p_version uuid,
  p_manifest text, p_revision bigint, p_criteria text[])
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
@@ -575,8 +607,9 @@ BEGIN
   RAISE EXCEPTION 'Invalid prototype acceptance criteria' USING ERRCODE='22023'; END IF;
  IF NOT EXISTS(SELECT 1 FROM sophia.managed_explore_preview_permits
    WHERE project_id=p_project AND session_id=p_session AND version_id=p_version AND actor_id=s.founder_id
-     AND manifest_sha256=v.manifest_sha256 AND entry_sha256=v.entry_sha256) THEN
-  RAISE EXCEPTION 'Open this exact prototype before approval' USING ERRCODE='40001'; END IF;
+     AND manifest_sha256=v.manifest_sha256 AND entry_sha256=v.entry_sha256
+     AND served_at IS NOT NULL AND expires_at>clock_timestamp()) THEN
+  RAISE EXCEPTION 'Open this exact prototype with a current permit before approval' USING ERRCODE='40001'; END IF;
  IF EXISTS(SELECT 1 FROM sophia.managed_explore_approvals WHERE project_id=p_project AND session_id=p_session AND version_id=p_version) THEN
   RAISE EXCEPTION 'This prototype already has an approval' USING ERRCODE='40001'; END IF;
  INSERT INTO sophia.managed_explore_approvals(project_id,session_id,actor_id,version_id,manifest_sha256,acceptance_criteria)
@@ -608,12 +641,12 @@ END $$;
 
 REVOKE ALL ON FUNCTION sophia.managed_explore_version_entry(sophia.managed_explore_versions,uuid),
  sophia.read_managed_explore_entry(uuid,uuid,uuid),
- sophia.issue_managed_explore_preview(uuid,uuid,uuid,text,text,text),sophia.resolve_managed_explore_preview(text),
+ sophia.issue_managed_explore_preview(uuid,uuid,uuid,text,text,text),sophia.resolve_managed_explore_preview(text),sophia.mark_managed_explore_preview_served(text),
  sophia.approve_managed_explore_version(uuid,uuid,text,uuid,text,bigint,text[]),
  sophia.read_managed_explore_handoff(uuid,uuid,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.read_managed_explore_entry(uuid,uuid,uuid),
  sophia.issue_managed_explore_preview(uuid,uuid,uuid,text,text,text),
- sophia.resolve_managed_explore_preview(text),sophia.approve_managed_explore_version(uuid,uuid,text,uuid,text,bigint,text[]),
+ sophia.resolve_managed_explore_preview(text),sophia.mark_managed_explore_preview_served(text),sophia.approve_managed_explore_version(uuid,uuid,text,uuid,text,bigint,text[]),
  sophia.read_managed_explore_handoff(uuid,uuid,uuid) TO sophia_api;
 
 COMMIT;

@@ -14,7 +14,14 @@ import type {
   ManagedExploreTurnReceipt,
   MissionReceipt,
 } from '@sophia/contracts'
-import { createPool, readSnapshot, shownReach, startExchange, withActor } from '@sophia/persistence'
+import {
+  createPool,
+  markManagedExplorePreviewServed,
+  readSnapshot,
+  shownReach,
+  startExchange,
+  withActor,
+} from '@sophia/persistence'
 import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
@@ -259,7 +266,7 @@ it('uses a real saved voice note and atomically admits one authorized start acro
 const fixtureHtml = '<!DOCTYPE html>\r\n<title>Sample</title>\r\n'
 const sha256 = (data: string) => createHash('sha256').update(data, 'utf8').digest('hex')
 
-async function finishedPrototype(projectId: string, sessionId: string) {
+async function finishedPrototype(projectId: string, sessionId: string, html = fixtureHtml) {
   const directionId = randomUUID()
   await owner.query(
     `INSERT INTO sophia.managed_explore_directions(project_id,session_id,id,revision,position,candidate)
@@ -271,14 +278,14 @@ async function finishedPrototype(projectId: string, sessionId: string) {
   )
   const versionId = randomUUID()
   const sourceId = randomUUID()
-  const entrySha256 = sha256(fixtureHtml)
-  const byteLength = Buffer.byteLength(fixtureHtml)
+  const entrySha256 = sha256(html)
+  const byteLength = Buffer.byteLength(html)
   await owner.query(
     `INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
       VALUES($1,$2,$3,'private',$4,'text/html',$5,$6,true,'ready')`,
     [projectId, sourceId, founder, entrySha256, `inline/${projectId}/${sourceId}`, byteLength],
   )
-  await owner.query('INSERT INTO sophia.source_texts VALUES($1,$2,$3)', [projectId, sourceId, fixtureHtml])
+  await owner.query('INSERT INTO sophia.source_texts VALUES($1,$2,$3)', [projectId, sourceId, html])
   // These keys are in the canonical lexical order. The digest is over the manifest without its own digest.
   const manifest = JSON.stringify({
     artifactId: sessionId,
@@ -348,6 +355,10 @@ it('binds a preview and one approval to verified retained bytes, then rechecks p
   const read = managedExplorePreviewReader(pool, null)
   const shown = await read(permit)
   assert.deepEqual(shown, { expiresAt: receipt.expiresAt, entrySha256, byteLength, bytes: Buffer.from(fixtureHtml) })
+  // Issuing the permit and resolving its bytes do not prove that the content host offered an authorized GET.
+  assert.equal((await request(approvalPath, { payload: approve })).statusCode, 409)
+  assert.equal(await markManagedExplorePreviewServed(pool, 'a'.repeat(64)), false)
+  assert.equal(await markManagedExplorePreviewServed(pool, permit), true)
 
   assert.equal((await request(approvalPath, { payload: { ...approve, expectedSessionRevision: 1 } })).statusCode, 409)
   const approvalKey = randomUUID()
@@ -390,10 +401,14 @@ it('binds a preview and one approval to verified retained bytes, then rechecks p
   ])
   await owner.query(
     `UPDATE sophia.managed_explore_preview_permits SET issued_at=clock_timestamp()-interval '11 min',
-      expires_at=clock_timestamp()-interval '2 min' WHERE project_id=$1 AND session_id=$2`,
+      expires_at=clock_timestamp()-interval '2 min',served_at=clock_timestamp()-interval '3 min' WHERE project_id=$1 AND session_id=$2`,
     [projectId, sessionId],
   )
   assert.equal(await read(permit), null)
+  assert.equal(await markManagedExplorePreviewServed(pool, permit), false)
+  const replayed = await request(approvalPath, { payload: approve, key: approvalKey })
+  assert.equal(replayed.statusCode, 200, replayed.body)
+  assert.deepEqual(replayed.json<ManagedExploreApproval>(), first)
   assert.equal((await request(permits, { payload: { manifestSha256, entrySha256 }, key: permitKey })).statusCode, 409)
   const refreshed = await request(permits, { payload: { manifestSha256, entrySha256 } })
   assert.equal(refreshed.statusCode, 200, refreshed.body)
@@ -405,4 +420,28 @@ it('binds a preview and one approval to verified retained bytes, then rechecks p
   ])
   assert.equal((await request(handoffPath)).statusCode, 404)
   assert.equal((await request(permits, { payload: { manifestSha256, entrySha256 } })).statusCode, 404)
+})
+
+it('refuses a retained artifact that fails the content host resource policy before mint and approval', async () => {
+  const { projectId, sessionId, path } = await startFixture()
+  const { versionId, entrySha256, manifestSha256 } = await finishedPrototype(
+    projectId,
+    sessionId,
+    '<!doctype html><title>Test only</title><img src="https://preview-fixture.invalid/image.png">',
+  )
+  const permit = await request(`${path}/versions/${versionId}/preview-permits`, {
+    payload: { entrySha256, manifestSha256 },
+  })
+  assert.equal(permit.statusCode, 409, permit.body)
+  assert.match(permit.body, /did not meet preview policy/)
+  const approval = await request(`${path}/approvals`, {
+    payload: {
+      prototypeVersionId: versionId,
+      expectedManifestDigest: manifestSha256,
+      expectedSessionRevision: 1,
+      acceptanceCriteria: ['The fixture has no remote resources.'],
+    },
+  })
+  assert.equal(approval.statusCode, 409, approval.body)
+  assert.match(approval.body, /did not meet preview policy/)
 })

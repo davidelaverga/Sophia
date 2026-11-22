@@ -489,6 +489,7 @@ export {
   admitManagedExploreTurn,
   approveManagedExploreVersion,
   issueManagedExplorePreview,
+  markManagedExplorePreviewServed,
   readManagedExploreEntry,
   readManagedExploreHandoff,
   resolveManagedExplorePreviewEntry,

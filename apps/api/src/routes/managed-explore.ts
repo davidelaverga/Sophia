@@ -7,6 +7,7 @@ import type {
   ManagedExploreTurnRequest,
 } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
+import { hasOnlyLocalPrototypeResources } from '@sophia/design'
 import {
   admitManagedExploreTurn,
   approveManagedExploreVersion,
@@ -36,6 +37,7 @@ export const MANAGED_EXPLORE_SCHEMA = `SELECT
   AND to_regprocedure('sophia.read_managed_explore_entry(uuid,uuid,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.issue_managed_explore_preview(uuid,uuid,uuid,text,text,text)') IS NOT NULL
   AND to_regprocedure('sophia.resolve_managed_explore_preview(text)') IS NOT NULL
+  AND to_regprocedure('sophia.mark_managed_explore_preview_served(text)') IS NOT NULL
   AND to_regprocedure('sophia.approve_managed_explore_version(uuid,uuid,text,uuid,text,bigint,text[])') IS NOT NULL
   AND to_regprocedure('sophia.read_managed_explore_handoff(uuid,uuid,uuid)') IS NOT NULL
   AS ok`
@@ -262,10 +264,8 @@ async function readRetainedEntry(entry: ManagedExploreRetainedEntry, store: Byte
   if (bytes.byteLength !== byteLength || createHash('sha256').update(bytes).digest('hex') !== entrySha256) {
     throw new DomainError('invalid_state', 'The retained prototype bytes did not match their record')
   }
-  try {
-    new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-  } catch (err) {
-    throw new DomainError('invalid_state', 'The retained prototype has invalid UTF-8', { cause: err })
+  if (!hasOnlyLocalPrototypeResources(bytes)) {
+    throw new DomainError('invalid_state', 'The exact retained prototype did not meet preview policy')
   }
   return bytes
 }

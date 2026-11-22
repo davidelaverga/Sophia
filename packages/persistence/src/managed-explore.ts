@@ -16,6 +16,7 @@ import type {
 } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { onlyRow } from './rows.ts'
+import { withService } from './tx.ts'
 
 /** Run under withActor. SQL owns authorization, locks, receipts and the outbox transaction. */
 async function exploreQuery<T>(c: pg.PoolClient, query: string, parameters: unknown[]): Promise<T> {
@@ -132,6 +133,17 @@ export async function resolveManagedExplorePreviewEntry(
     [token],
   )
   return onlyRow(rows, 'resolve managed Explore preview').result
+}
+
+/** The content listener calls this only after verifying policy and the exact bytes of a GET. */
+export async function markManagedExplorePreviewServed(pool: pg.Pool, token: string): Promise<boolean> {
+  return withService(pool, async (c) => {
+    const { rows } = await c.query<{ served: boolean }>(
+      'SELECT sophia.mark_managed_explore_preview_served($1) AS served',
+      [token],
+    )
+    return onlyRow(rows, 'mark managed Explore preview served').served
+  })
 }
 
 export const approveManagedExploreVersion = (
