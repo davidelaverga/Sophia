@@ -522,3 +522,9 @@ export {
   recordFounderBuildReturn,
   type FounderBuildScope,
 } from './founder-build-handoff.ts'
+
+export {
+  retainManagedExploreOutput,
+  type ManagedExploreRetentionOutput,
+  type ManagedExploreRetentionResult,
+} from './managed-explore-retention.ts'

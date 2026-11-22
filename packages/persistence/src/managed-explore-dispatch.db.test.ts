@@ -6,10 +6,14 @@ import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test
 import {
   admitManagedExploreTurn,
   createPool,
+  readManagedExploreEntry,
   readManagedExploreSession,
   recordMissionEntry,
+  retainManagedExploreOutput,
+  selectManagedExploreDirection,
   startManagedExplore,
   withActor,
+  type ManagedExploreRetentionOutput,
 } from './index.ts'
 import {
   claimManagedExploreDispatch,
@@ -85,7 +89,7 @@ async function createReceipt(lease: ManagedExploreDispatchLease) {
   const observation = {
     kind: 'created',
     operationId: lease.createOperationId,
-    providerSessionId: 'synthetic-session-1',
+    providerSessionId: randomUUID(),
     environmentId: 'synthetic-environment-1',
     model: lease.model,
     sessionLimitCents: lease.sessionLimitCents,
@@ -359,4 +363,345 @@ it('skips an expired stale unsent lease and preserves a possible send under its 
     kind: 'blocked',
     reason: 'worker_send_disabled',
   })
+})
+
+type RetentionSession = Awaited<ReturnType<typeof admit>>
+type DirectionOutput = Extract<ManagedExploreRetentionOutput, { kind: 'directions' }>
+type PrototypeOutput = Extract<ManagedExploreRetentionOutput, { kind: 'prototype' }>
+type Direction = DirectionOutput['directions'][number]
+type TurnRequest = Parameters<typeof admitManagedExploreTurn>[4]
+
+function readSession({ projectId, sessionId }: RetentionSession) {
+  return withActor(api, founder, 'read', (c) => readManagedExploreSession(c, projectId, sessionId))
+}
+
+async function startRetentionSession() {
+  const session = await admit()
+  const first = await claimManagedExploreDispatch(worker, scope)
+  assert.ok(first)
+  assert.equal(first.projectId, session.projectId)
+  assert.equal((await prepareManagedExploreDispatch(worker, first, { kind: 'create' })).kind, 'create')
+  await createReceipt(first)
+  const identity = await recordCompletedRoot(await readManagedExploreDispatch(worker, first))
+  await recordManagedExploreDispatch(worker, first, {
+    ...identity,
+    kind: 'settle',
+    status: 'completed',
+    reply: 'Ready.',
+  })
+  return session
+}
+
+async function recordCompletedRoot(lease: ManagedExploreDispatchLease) {
+  assert.ok(lease.environmentId)
+  const event = await prepareManagedExploreDispatch(worker, lease, {
+    kind: 'event',
+    predecessorRootId: lease.previousRootId,
+  })
+  assert.equal(event.kind, 'event')
+  const { providerSessionId, submissionId, payloadSha256, previousRootId } = event
+  const identity = { providerSessionId, submissionId, payloadSha256, previousRootId, rootId: randomUUID() }
+  await recordManagedExploreDispatch(worker, lease, {
+    ...identity,
+    kind: 'root',
+    status: 'completed',
+    usage: { inputTokens: 5, outputTokens: 3, totalTokens: 8 },
+  })
+  return { ...identity, environmentId: lease.environmentId }
+}
+
+async function completeTurn(session: RetentionSession, request: Omit<TurnRequest, 'expectedSessionRevision'>) {
+  const { revision } = await readSession(session)
+  const { projectId, sessionId } = session
+  const { turnId } = await withActor(api, founder, 'write', (c) =>
+    admitManagedExploreTurn(c, projectId, sessionId, randomUUID(), { ...request, expectedSessionRevision: revision }),
+  )
+  const lease = await claimManagedExploreDispatch(worker, scope)
+  assert.ok(lease)
+  assert.equal(lease.turnId, turnId)
+  return { lease, event: await recordCompletedRoot(lease) }
+}
+
+function candidate(firstLane: 'shore' | 'vessel', secondLane: 'shore' | 'vessel'): Direction {
+  return {
+    label: `${firstLane} acts first`,
+    firstActor: firstLane,
+    nextStep: `${secondLane} confirms`,
+    rationale: 'Keep one operator responsible for the next action.',
+    tradeoff: 'The first actor has to act before the other has a complete picture.',
+    steps: [
+      { id: 'start', label: 'Start assignment', lane: firstLane },
+      { id: 'confirm', label: 'Confirm assignment', lane: secondLane },
+    ],
+    edges: [{ from: 'start', to: 'confirm' }],
+  }
+}
+
+async function directionResult(session: RetentionSession) {
+  const { lease, event } = await completeTurn(session, { kind: 'directions', instruction: 'Show both workflows.' })
+  const first = candidate('shore', 'vessel')
+  const second = candidate('vessel', 'shore')
+  const output: DirectionOutput = { ...event, kind: 'directions', directions: [first, second] }
+  return { lease, output, first, second }
+}
+
+async function selectDirection(session: RetentionSession, position: number) {
+  const { directions, revision } = await readSession(session)
+  const direction = directions[position]
+  assert.ok(direction)
+  const { projectId, sessionId } = session
+  await withActor(api, founder, 'write', (c) =>
+    selectManagedExploreDirection(c, projectId, sessionId, randomUUID(), {
+      directionId: direction.id,
+      expectedDirectionRevision: direction.revision,
+      expectedSessionRevision: revision,
+    }),
+  )
+  return direction.id
+}
+
+function artifact(event: Omit<DirectionOutput, 'kind' | 'directions'>, bytes: Buffer): PrototypeOutput {
+  return {
+    ...event,
+    kind: 'prototype',
+    artifactId: randomUUID(),
+    artifactRequestId: randomUUID(),
+    path: '/workspace/outputs/index.html',
+    byteLength: bytes.length,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+    bytes,
+    changeSummary: 'Add the confirm action.',
+    acceptanceCriteria: ['Keyboard confirmation changes the state.'],
+    mockReplacements: ['Replace the fictional assignment.'],
+  }
+}
+
+it('retains only the exact completed direction pair and makes an ambiguous commit retry safe', async () => {
+  const session = await startRetentionSession()
+  const { lease, output, first, second } = await directionResult(session)
+  const otherProject = { ...lease, projectId: randomUUID() }
+  await assert.rejects(retainManagedExploreOutput(api, lease, output), { code: 'forbidden' })
+  await assert.rejects(retainManagedExploreOutput(worker, otherProject, output), { code: 'invalid_state' })
+  await assert.rejects(retainManagedExploreOutput(worker, lease, { ...output, environmentId: randomUUID() }), {
+    code: 'stale_revision',
+  })
+  await assert.rejects(retainManagedExploreOutput(worker, lease, { ...output, rootId: randomUUID() }), {
+    code: 'stale_revision',
+  })
+  await assert.rejects(retainManagedExploreOutput(worker, lease, { ...output, payloadSha256: 'a'.repeat(64) }), {
+    code: 'stale_revision',
+  })
+  const invalidPair: DirectionOutput['directions'] = [first, { ...second, edges: [{ from: 'missing', to: 'confirm' }] }]
+  await assert.rejects(retainManagedExploreOutput(worker, lease, { ...output, directions: invalidPair }), {
+    code: 'invalid_request',
+  })
+  await assert.rejects(retainManagedExploreOutput(worker, lease, { ...output, directions: [first, first] }), {
+    code: 'invalid_request',
+  })
+  const retaining = await readSession(session)
+  assert.equal(retaining.directions.length, 0)
+  assert.equal(retaining.turns.at(-1)?.status, 'retaining')
+
+  await expire(lease)
+  await assert.rejects(retainManagedExploreOutput(worker, lease, output), { code: 'invalid_state' })
+  const retry = await claimManagedExploreDispatch(worker, paused)
+  assert.ok(retry)
+  assert.equal(retry.turnId, lease.turnId)
+  await owner.query('UPDATE sophia.managed_explore_grants SET enabled=false WHERE project_id=$1', [session.projectId])
+  assert.deepEqual(
+    await Promise.all([
+      retainManagedExploreOutput(worker, retry, output),
+      retainManagedExploreOutput(worker, retry, output),
+    ]),
+    [{ kind: 'completed' }, { kind: 'completed' }],
+  )
+  const ready = await readSession(session)
+  assert.equal(ready.revision, retaining.revision + 1)
+  assert.equal(ready.turns.at(-1)?.status, 'completed')
+  assert.deepEqual(
+    ready.directions.map(({ label }) => label),
+    [first.label, second.label],
+  )
+  await assert.rejects(retainManagedExploreOutput(worker, retry, { ...output, directions: [second, first] }), {
+    code: 'stale_revision',
+  })
+  await assert.rejects(retainManagedExploreOutput(worker, lease, output), { code: 'stale_revision' })
+  assert.deepEqual(await readSession(session), ready)
+  await assert.rejects(readManagedExploreDispatch(worker, retry), { code: 'invalid_state' })
+})
+
+async function preparePrototype(session: RetentionSession) {
+  const { lease, output } = await directionResult(session)
+  assert.deepEqual(await retainManagedExploreOutput(worker, lease, output), { kind: 'completed' })
+  const directionId = await selectDirection(session, 0)
+  const work = await completeTurn(session, { kind: 'prototype', instruction: 'Build the prototype.', directionId })
+  return { directionId, ...work }
+}
+
+function fullEntry() {
+  const start = Buffer.from('\uFEFF<!doctype html>\r\n<meta charset="utf-8"><button>Confirm 🚢</button><!--')
+  const end = Buffer.from('-->')
+  return Buffer.concat([start, Buffer.alloc(2_097_152 - start.length - end.length, 'x'), end])
+}
+
+function readEntry(session: RetentionSession, versionId: string) {
+  return withActor(api, founder, 'read', (c) =>
+    readManagedExploreEntry(c, session.projectId, session.sessionId, versionId),
+  )
+}
+
+async function assertInvalidArtifacts(lease: ManagedExploreDispatchLease, output: PrototypeOutput) {
+  const { rootId, environmentId, submissionId, previousRootId, payloadSha256, providerSessionId } = output
+  const event = { rootId, environmentId, submissionId, previousRootId, payloadSha256, providerSessionId }
+  const excess = artifact(event, Buffer.alloc(2_097_153, 'x'))
+  const malformed = artifact(event, Buffer.from([0xc0, 0xaf]))
+  const injectedScope = { ...output, storageKey: 'an-untrusted-choice' }
+  const injectedParent = { ...output, parentVersionId: randomUUID() }
+  for (const bad of [
+    excess,
+    malformed,
+    injectedScope,
+    injectedParent,
+    { ...output, byteLength: 1 },
+    {
+      ...output,
+      sha256: 'a'.repeat(64),
+    },
+  ]) {
+    await assert.rejects(retainManagedExploreOutput(worker, lease, bad), { code: 'invalid_request' })
+  }
+}
+
+it('retains the exact 2 MiB entry, creates immutable revision lineage and rejects stale or invalid output', async () => {
+  const session = await startRetentionSession()
+  const { directionId, lease, event } = await preparePrototype(session)
+  const bytes = fullEntry()
+  const output = artifact(event, bytes)
+  await assertInvalidArtifacts(lease, output)
+  assert.deepEqual((await readSession(session)).versions, [])
+  assert.deepEqual(await retainManagedExploreOutput(worker, lease, output), { kind: 'completed' })
+  const first = await readSession(session)
+  const v1 = first.versions[0]
+  assert.ok(v1)
+  assert.equal(v1.directionId, directionId)
+  assert.equal(first.turns.at(-1)?.resultVersionId, v1.id)
+  assert.equal(v1.parentVersionId, null)
+  assert.deepEqual(await retainManagedExploreOutput(worker, lease, output), { kind: 'completed' })
+  const entry = await readEntry(session, v1.id)
+  assert.equal(entry.byteLength, 2_097_152)
+  assert.equal(entry.entrySha256, output.sha256)
+  assert.deepEqual(Buffer.from(entry.text ?? ''), bytes)
+  await assert.rejects(worker.query('SELECT provider_artifact_id FROM sophia.managed_explore_retention_receipts'), {
+    code: '42501',
+  })
+  await assert.rejects(api.query('SELECT body FROM sophia.managed_explore_entry_bodies'), { code: '42501' })
+  assert.equal(JSON.stringify(first).includes(output.artifactId), false)
+
+  const revision = await completeTurn(session, {
+    kind: 'revision',
+    instruction: 'Show the success state.',
+    directionId,
+    parentVersionId: v1.id,
+  })
+  const changed = artifact(revision.event, Buffer.from('<!doctype html><button>Done</button>'))
+  await assert.rejects(
+    retainManagedExploreOutput(worker, revision.lease, { ...changed, artifactId: output.artifactId }),
+    {
+      code: 'stale_revision',
+    },
+  )
+  assert.deepEqual((await readSession(session)).versions, first.versions)
+  assert.deepEqual(await retainManagedExploreOutput(worker, revision.lease, changed), { kind: 'completed' })
+  const second = await readSession(session)
+  const v2 = second.versions[1]
+  assert.ok(v2)
+  assert.equal(v2.number, 2)
+  assert.equal(v2.parentVersionId, v1.id)
+  assert.equal(v2.entrySha256, changed.sha256)
+  assert.notEqual(v2.manifestSha256, v1.manifestSha256)
+  assert.deepEqual(await readEntry(session, v1.id), entry)
+  assert.equal(await readEntry(session, v2.id).then(({ text }) => text), Buffer.from(changed.bytes).toString())
+})
+
+it('settles completed provider work without publishing a prototype after a change in selected direction', async () => {
+  const session = await startRetentionSession()
+  const { lease, event } = await preparePrototype(session)
+  await selectDirection(session, 1)
+  const output = artifact(event, Buffer.from('<!doctype html><button>Confirm</button>'))
+  assert.deepEqual(await retainManagedExploreOutput(worker, lease, output), {
+    kind: 'denied',
+    reason: 'direction_unavailable',
+  })
+  const view = await readSession(session)
+  assert.deepEqual(view.versions, [])
+  assert.equal(view.turns.at(-1)?.status, 'failed')
+  assert.equal(view.turns.at(-1)?.error, 'direction_unavailable')
+  const { rows } = await owner.query<{ state: string; usage: unknown }>(
+    `SELECT o.state,x.usage FROM sophia.outbox o JOIN sophia.managed_explore_dispatch_turns x
+       ON x.project_id=o.project_id AND x.turn_id=o.managed_explore_turn_id
+     WHERE o.project_id=$1 AND o.id=$2`,
+    [session.projectId, lease.outboxId],
+  )
+  assert.deepEqual(rows, [{ state: 'denied', usage: { inputTokens: 5, outputTokens: 3, totalTokens: 8 } }])
+})
+
+it('refuses a revision when its exact parent was withdrawn during provider work', async () => {
+  const session = await startRetentionSession()
+  const { directionId, lease, event } = await preparePrototype(session)
+  const first = artifact(event, Buffer.from('<!doctype html><button>Prior version</button>'))
+  assert.deepEqual(await retainManagedExploreOutput(worker, lease, first), { kind: 'completed' })
+  const parent = (await readSession(session)).versions[0]
+  assert.ok(parent)
+  const work = await completeTurn(session, {
+    kind: 'revision',
+    instruction: 'Keep the original interaction.',
+    directionId,
+    parentVersionId: parent.id,
+  })
+  const { sourceId } = await readEntry(session, parent.id)
+  await owner.query("UPDATE sophia.source_objects SET eligible=false,state='blocked' WHERE project_id=$1 AND id=$2", [
+    session.projectId,
+    sourceId,
+  ])
+  const output = artifact(work.event, Buffer.from('<!doctype html><button>Unpublished revision</button>'))
+  assert.deepEqual(await retainManagedExploreOutput(worker, work.lease, output), {
+    kind: 'denied',
+    reason: 'parent_unavailable',
+  })
+  const rejected = await readSession(session)
+  assert.deepEqual(rejected.versions, [])
+  assert.equal(rejected.turns.at(-1)?.resultVersionId, null)
+  const { rows } = await owner.query<{ count: number }>(
+    'SELECT count(*)::integer AS count FROM sophia.managed_explore_versions WHERE project_id=$1',
+    [session.projectId],
+  )
+  assert.deepEqual(rows, [{ count: 1 }])
+})
+
+it('denies output after founder membership or the exact seed is withdrawn', async () => {
+  const withoutMember = await startRetentionSession()
+  const member = await directionResult(withoutMember)
+  await owner.query('UPDATE sophia.project_members SET active=false WHERE project_id=$1 AND actor_id=$2', [
+    withoutMember.projectId,
+    founder,
+  ])
+  assert.deepEqual(await retainManagedExploreOutput(worker, member.lease, member.output), {
+    kind: 'denied',
+    reason: 'membership_changed',
+  })
+  const withoutSeed = await startRetentionSession()
+  const seed = await directionResult(withoutSeed)
+  await owner.query("UPDATE sophia.source_objects SET eligible=false,state='blocked' WHERE project_id=$1 AND id=$2", [
+    withoutSeed.projectId,
+    withoutSeed.sourceId,
+  ])
+  assert.deepEqual(await retainManagedExploreOutput(worker, seed.lease, seed.output), {
+    kind: 'denied',
+    reason: 'source_unavailable',
+  })
+  const { rows } = await owner.query<{ count: number }>(
+    'SELECT count(*)::integer AS count FROM sophia.managed_explore_directions WHERE project_id=ANY($1)',
+    [[withoutMember.projectId, withoutSeed.projectId]],
+  )
+  assert.deepEqual(rows, [{ count: 0 }])
 })
