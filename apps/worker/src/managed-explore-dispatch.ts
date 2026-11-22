@@ -24,6 +24,8 @@ type RootStatus = ManagedExploreRootTurn['status']
 type ProviderUsage = NonNullable<ManagedExploreRootTurn['usage']>
 type TurnKind = 'text' | 'directions' | 'prototype' | 'revision'
 const OUTPUT_READBACK_WINDOW_MS = 5 * 60 * 1000
+// Match the authenticated reply-size constraint in the durable dispatch settlement.
+const REPLY_MAX_BYTES = 65_536
 
 export interface ManagedExploreDispatchIdentity {
   projectId: string
@@ -442,6 +444,7 @@ class ExploreStep {
     const { value: text, requestId: outputRequestId } = receipt
     if (!text?.trim()) return this.#rejectOutput(event, root.id, 'output_missing')
     if (turnKind === 'text') {
+      if (Buffer.byteLength(text) > REPLY_MAX_BYTES) return this.#rejectOutput(event, root.id, 'output_invalid')
       return this.#record({ kind: 'settle', ...event, rootId: root.id, status: 'completed', reply: text }, 'settled')
     }
     return this.#retain({ kind: 'directions', event, root, rootRequestId, outputRequestId, text })

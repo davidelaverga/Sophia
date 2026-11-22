@@ -524,3 +524,23 @@ test('a transient artifact read stays unknown beyond the missing-output window',
   assert.equal(f.outputs.length, 0)
   assert.deepEqual(f.preparations, [])
 })
+
+test('settles text at the exact SQL byte limit and rejects larger retained text', async () => {
+  const atLimit = 'é'.repeat(32_768)
+  for (const [text, kind] of [
+    [atLimit, 'settle'],
+    [atLimit + 'a', 'outputRejected'],
+  ] as const) {
+    const f = fixture({
+      ...EVENT_PREPARED,
+      rootId: 'turn_fixture',
+      rootStatus: 'completed',
+      rootCompletedSeenAt: new Date(NOW).toISOString(),
+    })
+    const provider = fakeProvider({ readTurnText: () => receipt(text) })
+    assert.equal(await dispatchManagedExploreOnce(SCOPE, { ...f, provider }), 'settled')
+    const observation = f.observations[0]
+    assert.equal(observation?.kind, kind)
+    if (observation?.kind === 'outputRejected') assert.equal(observation.reason, 'output_invalid')
+  }
+})
