@@ -5,6 +5,7 @@ import { createActorVerifier } from './auth.ts'
 import { personalCompanionFrom } from './companion-config.ts'
 import { parseOrigins } from './cors.ts'
 import type { InviteConfig } from './invite-token.ts'
+import { managedExploreAccountFromEnv } from './managed-explore-account.ts'
 import { byteStoreFromEnv } from './byte-store.ts'
 import { RENDER_BODY_MS } from './renderer-upload-admission.ts'
 import { folderMailer, resendMailer, type Mailer } from './mail.ts'
@@ -116,6 +117,7 @@ const app = buildApp({
   voiceQualification: voiceQualificationFromEnv(),
   ownerRunnerAdmissions: ownerRunnerAdmissionsFromEnv(),
   managedExplore: managedExploreAdmissionsFromEnv(),
+  managedExploreAccountSnapshot: managedExploreAccountFromEnv(optional('SOPHIA_MANAGED_EXPLORE_ACCOUNT_SNAPSHOT')),
   founderBuildHandoff: founderBuildHandoffFromEnv(),
   managedExplorePreviewOrigin: optional('SOPHIA_MANAGED_EXPLORE_PREVIEW_ORIGIN'),
   ...(mediaBridgeTokenSha256 ? { mediaBridgeTokenSha256 } : {}),

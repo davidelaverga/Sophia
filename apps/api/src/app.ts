@@ -29,6 +29,7 @@ import { searchRoutes } from './routes/search.ts'
 import { humanTaskRoutes, TASK_WRITES } from './routes/human-tasks.ts'
 import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
 import { missionRoutes } from './routes/mission.ts'
+import type { ManagedExploreAccountConfig } from './managed-explore-account.ts'
 import { MANAGED_EXPLORE_SCHEMA, managedExploreRoutes } from './routes/managed-explore.ts'
 import { FOUNDER_BUILD_SCHEMA, founderBuildRoutes } from './routes/founder-build-handoff.ts'
 import { personalRoutes } from './routes/personal.ts'
@@ -159,6 +160,8 @@ export interface AppDeps {
   apiContributions?: boolean
   /** Managed Explore admissions are off unless explicitly enabled by the operator. */
   managedExplore?: boolean
+  /** Optional display-only API account observation, scoped to one project, founder and route. */
+  managedExploreAccountSnapshot?: ManagedExploreAccountConfig | undefined
   /** Manual Build handoff with an independently installed destination grant. Off by default. */
   founderBuildHandoff?: boolean
   /** Distinct HTTPS origin hosting the exact-file preview handler. Prototype permits require it. */
@@ -430,6 +433,7 @@ function registerMissionRoutes(app: FastifyInstance, deps: AppDeps, store: ByteS
     pool: deps.pool,
     store,
     admissions: deps.managedExplore === true,
+    accountSnapshot: deps.managedExploreAccountSnapshot,
     ...(deps.managedExplorePreviewOrigin ? { previewOrigin: deps.managedExplorePreviewOrigin } : {}),
     ...(deps.corsOrigins ? { studioOrigins: deps.corsOrigins } : {}),
   })

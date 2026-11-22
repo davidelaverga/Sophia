@@ -38,6 +38,48 @@
     },
     {
       "op": "add",
+      "path": "/components/schemas/ManagedExploreAccountSnapshot",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "An optional operator-supplied account observation. It provides no grant, live balance guarantee, or spending authority.",
+        "properties": {
+          "balanceCents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "enum": ["USD"]
+          },
+          "autoRechargeEnabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["balanceCents", "currency", "autoRechargeEnabled", "observedAt"]
+      }
+    },
+    {
+      "op": "add",
       "path": "/components/schemas/ManagedExploreFunding",
       "value": {
         "type": "object",
@@ -50,6 +92,9 @@
           "label": {
             "type": "string",
             "enum": ["OpenAI API credits"]
+          },
+          "accountSnapshot": {
+            "$ref": "#/components/schemas/ManagedExploreAccountSnapshot"
           }
         },
         "required": ["routeId", "label"]

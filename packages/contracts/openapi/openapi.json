@@ -45354,6 +45354,51 @@
           "sha256"
         ]
       },
+      "ManagedExploreAccountSnapshot": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "An optional operator-supplied account observation. It provides no grant, live balance guarantee, or spending authority.",
+        "properties": {
+          "balanceCents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD"
+            ]
+          },
+          "autoRechargeEnabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "balanceCents",
+          "currency",
+          "autoRechargeEnabled",
+          "observedAt"
+        ]
+      },
       "ManagedExploreFunding": {
         "type": "object",
         "additionalProperties": false,
@@ -45367,6 +45412,9 @@
             "enum": [
               "OpenAI API credits"
             ]
+          },
+          "accountSnapshot": {
+            "$ref": "#/components/schemas/ManagedExploreAccountSnapshot"
           }
         },
         "required": [

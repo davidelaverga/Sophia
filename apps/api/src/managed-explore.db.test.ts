@@ -25,6 +25,7 @@ import {
 import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
+import { managedExploreAccountFromEnv } from './managed-explore-account.ts'
 import { managedExplorePreviewReader } from './routes/managed-explore.ts'
 
 const issuer = 'https://synthetic.supabase.test/auth/v1'
@@ -444,4 +445,61 @@ it('refuses a retained artifact that fails the content host resource policy befo
   })
   assert.equal(approval.statusCode, 409, approval.body)
   assert.match(approval.body, /did not meet preview policy/)
+})
+
+it('serializes the scoped funding observation only after the founder preflight or session is authorized', async () => {
+  const { projectId } = await seedProject(db.ownerUrl, { admin, editors: [founder, editor] })
+  await addGrant(projectId)
+  const note = await recordVoiceNote(projectId)
+  assert.ok(note.entryId)
+  const root = `/api/v1/projects/${projectId}/explore`
+  const preflight = `${root}/preflight?seedEntryId=${note.entryId}&expectedSeedRevision=${String(note.ledgerRevision)}`
+  const observation = {
+    balanceCents: 0,
+    currency: 'USD' as const,
+    autoRechargeEnabled: null,
+    observedAt: '2026-11-21T13:00:00Z',
+  }
+  const account = managedExploreAccountFromEnv(
+    JSON.stringify({ projectId, founderId: founder, routeId, ...observation }),
+  )
+  assert.ok(account)
+  const verifyActor = createActorVerifier({ issuer, audience: 'authenticated', secret })
+  const configured = buildApp({ pool, verifyActor, managedExplore: true, managedExploreAccountSnapshot: account })
+  try {
+    const scoped = await request(preflight, { server: configured })
+    assert.equal(scoped.statusCode, 200, scoped.body)
+    assert.equal(scoped.headers['cache-control'], 'private, no-store')
+    assert.deepEqual(scoped.json<ManagedExplorePreflight>().funding, {
+      routeId,
+      label: 'OpenAI API credits',
+      accountSnapshot: observation,
+    })
+    assert.equal((await request(preflight, { actor: editor, server: configured })).statusCode, 503)
+    assert.equal((await request(preflight)).json<ManagedExplorePreflight>().funding.accountSnapshot, undefined)
+    const admitted = await request(`${root}/sessions`, {
+      server: configured,
+      payload: { seedEntryId: note.entryId, expectedSeedRevision: note.ledgerRevision, routeId },
+    })
+    assert.equal(admitted.statusCode, 202, admitted.body)
+    const receipt = admitted.json<ManagedExploreStartReceipt>()
+    assert.deepEqual(Object.keys(receipt), ['sessionId'])
+    const session = `${root}/sessions/${receipt.sessionId}`
+    const read = await request(session, { server: configured })
+    assert.equal(read.statusCode, 200, read.body)
+    assert.equal(read.headers['cache-control'], 'private, no-store')
+    assert.deepEqual(read.json<ManagedExploreSession>().funding.accountSnapshot, observation)
+    assert.equal((await request(session, { actor: editor, server: configured })).statusCode, 404)
+    assert.equal((await request(session)).json<ManagedExploreSession>().funding.accountSnapshot, undefined)
+
+    // Observations can still be read when authorized, but can never replace an active grant for another turn.
+    await owner.query('UPDATE sophia.managed_explore_grants SET enabled=false WHERE project_id=$1', [projectId])
+    const blocked = await request(`${session}/turns`, {
+      server: configured,
+      payload: { kind: 'text', instruction: 'A second turn.', expectedSessionRevision: 1 },
+    })
+    assert.equal(blocked.statusCode, 503)
+  } finally {
+    await configured.close()
+  }
 })

@@ -25,6 +25,7 @@ import {
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import type pg from 'pg'
 import type { ByteStore } from '../byte-store.ts'
+import { withManagedExploreAccount, type ManagedExploreAccountConfig } from '../managed-explore-account.ts'
 import { readRetainedPrototype } from '../retained-prototype.ts'
 import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
 
@@ -79,6 +80,7 @@ interface Deps {
   pool: pg.Pool
   store: ByteStore | null
   admissions: boolean
+  accountSnapshot?: ManagedExploreAccountConfig | undefined
   previewOrigin?: string
   studioOrigins?: readonly string[]
 }
@@ -91,7 +93,7 @@ function requireAdmissions(admissions: boolean): void {
   if (!admissions) throw new DomainError('unavailable', 'Managed Explore is unavailable')
 }
 
-function admissionRoutes(app: FastifyInstance, { pool, admissions }: Deps): void {
+function admissionRoutes(app: FastifyInstance, { pool, admissions, accountSnapshot }: Deps): void {
   app.get<{ Params: ProjectPath; Querystring: { seedEntryId: string; expectedSeedRevision: string } }>(
     `${base}/preflight`,
     {
@@ -106,9 +108,10 @@ function admissionRoutes(app: FastifyInstance, { pool, admissions }: Deps): void
       const { seedEntryId, expectedSeedRevision } = req.query
       const revision = Number(expectedSeedRevision)
       if (!Number.isSafeInteger(revision)) throw new DomainError('invalid_request', 'Invalid saved brief revision')
-      return withActor(pool, req.actorId, 'read', (c) =>
+      const view = await withActor(pool, req.actorId, 'read', (c) =>
         readManagedExplorePreflight(c, req.params.projectId, seedEntryId, revision, admissions),
       )
+      return withManagedExploreAccount(view, req.params.projectId, req.actorId, accountSnapshot)
     },
   )
 
@@ -153,20 +156,21 @@ export function managedExploreRoutes(app: FastifyInstance, deps: Deps): void {
       })
     })
     admissionRoutes(scoped, deps)
-    sessionRoutes(scoped, deps.pool)
+    sessionRoutes(scoped, deps)
     retentionRoutes(scoped, deps, preview)
     done()
   })
 }
 
-function sessionRoutes(app: FastifyInstance, pool: pg.Pool): void {
+function sessionRoutes(app: FastifyInstance, { pool, accountSnapshot }: Deps): void {
   app.get<{ Params: SessionPath }>(
     `${base}/sessions/:sessionId`,
     { schema: { params: sessionParams, response: { 200: schemaRef('ManagedExploreSession') } } },
     async (req, reply) => {
       noStore(reply)
       const { projectId, sessionId } = req.params
-      return withActor(pool, req.actorId, 'read', (c) => readManagedExploreSession(c, projectId, sessionId))
+      const view = await withActor(pool, req.actorId, 'read', (c) => readManagedExploreSession(c, projectId, sessionId))
+      return withManagedExploreAccount(view, projectId, req.actorId, accountSnapshot)
     },
   )
 
