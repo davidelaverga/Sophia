@@ -432,6 +432,8 @@ test('terminal provider failures, transient reads and ambiguous writes have dist
     [429, 'rate_limit_exceeded', 'delivery_unknown', 'retry_same_key'],
     [400, 'invalid_request_error', 'declined', 'terminal'],
     [409, 'conflict', 'conflict', 'reconcile'],
+    [409, 'invalid_request', 'conflict', 'reconcile'],
+    [409, 'credit_balance_exhausted', 'conflict', 'reconcile'],
     [200, '', 'invalid_response', 'reconcile'],
   ] as const
   for (const [status, remote, code, disposition] of cases) {

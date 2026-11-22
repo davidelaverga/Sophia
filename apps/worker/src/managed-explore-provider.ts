@@ -200,6 +200,10 @@ function providerFailure(code: unknown): Failure | undefined {
 
 async function classifyHttp(response: Response, mode: RequestMode, signal: AbortSignal) {
   if (response.status >= 500 || response.status === 408) return transportFailure(mode, response)
+  // A mutation conflict leaves delivery unresolved regardless of its error body.
+  if (response.status === 409) {
+    return new ManagedExploreProviderError('conflict', mode === 'read' ? 'terminal' : 'reconcile', response)
+  }
   const payload = await jsonBody(response, signal, 16 * 1024)
   const known = providerFailure(record(record(payload)?.error)?.code)
   if (known) return new ManagedExploreProviderError(known, 'terminal', response)
@@ -212,9 +216,6 @@ function classifyStatus(response: Response, mode: RequestMode): ManagedExplorePr
     return new ManagedExploreProviderError('authorization', 'terminal', response)
   }
   if (response.status === 404) return new ManagedExploreProviderError('not_found', 'terminal', response)
-  if (response.status === 409) {
-    return new ManagedExploreProviderError('conflict', mode === 'read' ? 'terminal' : 'reconcile', response)
-  }
   if (response.status >= 400 && response.status < 500) {
     return new ManagedExploreProviderError('declined', 'terminal', response)
   }
