@@ -75,6 +75,7 @@ const store: ByteStore = {
 before(async () => {
   db = await createTestDatabase()
   owner = createPool(db.ownerUrl)
+  await owner.query('UPDATE sophia.managed_explore_pilot_budget SET cap_micros=100000000 WHERE singleton')
   pool = createPool(db.apiUrl)
   const worker = createPool(db.workerUrl)
   try {
@@ -139,7 +140,7 @@ async function startPrototype() {
     `INSERT INTO sophia.managed_explore_grants(project_id,founder_id,route_id,provider_org,provider_project,
       credential_generation,model,currency,per_turn_micros,per_session_micros,environment_micros,funding_evidence_ref,
       grant_only_verified,enabled,expires_at,credential_expires_at)
-      VALUES($1,$2,$3,'fixture-org','fixture-project',1,'fixture-model','USD',10,100,20,'fixture-proof',
+      VALUES($1,$2,$3,'fixture-org','fixture-project',1,'fixture-model','USD',10,10000,20,'fixture-proof',
       true,true,now()+interval '1 hour',now()+interval '1 hour')`,
     [projectId, founder, routeId],
   )

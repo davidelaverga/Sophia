@@ -46,6 +46,7 @@ let worker: pg.Pool
 before(async () => {
   db = await createTestDatabase()
   owner = createPool(db.ownerUrl)
+  await owner.query('UPDATE sophia.managed_explore_pilot_budget SET cap_micros=100000000 WHERE singleton')
   api = createPool(db.apiUrl)
   worker = createPool(db.workerUrl)
 })
