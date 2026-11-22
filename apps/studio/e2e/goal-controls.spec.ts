@@ -74,20 +74,39 @@ test('goal controls · a text button that is disabled shows no hover and the ste
   await expect.poll(decoration).not.toBe(read?.rest)
 })
 
-test('goal controls @phone · on a coarse pointer Hold and Stop keep their reaching targets apart', async ({ page }) => {
+test('goal controls @phone · on a coarse pointer Hold and Stop reach 44 × 44 px each, and their targets never meet (demo-findings-1 #9)', async ({
+  page,
+}) => {
   await page.goto('/room.html?demo=1&place=work')
   await drawn(page, DRAWN.tasks)
-  const read = await page
+  const targets = await page
     .locator('.controls .control-row')
     .first()
-    .evaluate((row) => {
-      const press = row.querySelector('.text-button')
-      const reach = press ? Math.abs(parseFloat(getComputedStyle(press, '::after').left)) : NaN
-      return { gap: parseFloat(getComputedStyle(row).columnGap), reach }
-    })
-  // The target reaches `reach` px past each side of its words: two side by side need twice that between them.
-  expect(read.reach).toBe(4)
-  expect(read.gap).toBeGreaterThanOrEqual(2 * read.reach)
+    .evaluate((row) =>
+      [...row.querySelectorAll<HTMLElement>('button.text-button')].map((press) => {
+        // The target is the press's ::after, placed around it: its box, from the press's box and its offsets.
+        const box = press.getBoundingClientRect()
+        const after = getComputedStyle(press, '::after')
+        const left = box.left + parseFloat(after.left)
+        const right = box.right - parseFloat(after.right)
+        const top = box.top + parseFloat(after.top)
+        const bottom = box.bottom - parseFloat(after.bottom)
+        return {
+          words: press.childNodes[0]?.textContent?.trim() ?? '',
+          left,
+          right,
+          width: right - left,
+          height: bottom - top,
+        }
+      }),
+    )
+  expect(targets.map((t) => t.words)).toEqual(['Hold', 'Stop'])
+  for (const t of targets) {
+    expect(t.width, t.words).toBeGreaterThanOrEqual(44)
+    expect(t.height, t.words).toBeGreaterThanOrEqual(44)
+  }
+  const [hold, stop] = targets
+  expect(hold && stop && hold.right <= stop.left).toBe(true)
 })
 
 test('goal controls · Stop still asks in place; Keep working puts the text button back', async ({ page }) => {
