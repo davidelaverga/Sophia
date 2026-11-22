@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { createHash, randomUUID } from 'node:crypto'
 import { after, before, it } from 'node:test'
+import { setTimeout as delay } from 'node:timers/promises'
 import type { FastifyInstance } from 'fastify'
 import { SignJWT } from 'jose'
 import type pg from 'pg'
@@ -188,6 +189,43 @@ it('requires fresh matching worker readiness for new admissions and preserves pr
         [projectId],
       )
     ).rows[0]?.count
+  assert.equal(await count(), 0)
+
+  await recordManagedExploreWorkerReadiness(worker, route, workerInstance, true)
+  const blocker = await owner.connect()
+  let blockedStart: ReturnType<typeof request> | undefined
+  try {
+    const {
+      rows: [process],
+    } = await blocker.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
+    assert.ok(process)
+    await blocker.query('BEGIN')
+    await blocker.query('SELECT id FROM sophia.projects WHERE id=$1 FOR UPDATE', [projectId])
+    blockedStart = request(start, { payload, key })
+    let waiting = false
+    for (let attempt = 0; attempt < 100 && !waiting; attempt++) {
+      const {
+        rows: [activity],
+      } = await owner.query<{ waiting: boolean }>(
+        "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock' AND $1::int=ANY(pg_blocking_pids(pid))) AS waiting",
+        [process.pid],
+      )
+      waiting = activity?.waiting === true
+      if (!waiting) await delay(10)
+    }
+    assert.ok(waiting, 'start must have entered PostgreSQL and be waiting on the project lock')
+    await blocker.query(
+      'UPDATE sophia.managed_explore_worker_readiness SET ready_until=clock_timestamp() WHERE instance_id=$1 AND route_id=$2 AND credential_generation=$3',
+      [workerInstance, route.routeId, route.credentialGeneration],
+    )
+    await blocker.query('COMMIT')
+    const afterExpiry = await blockedStart
+    assert.equal(afterExpiry.statusCode, 503, afterExpiry.body)
+  } finally {
+    await blocker.query('ROLLBACK')
+    blocker.release()
+    await blockedStart
+  }
   assert.equal(await count(), 0)
 
   await recordManagedExploreWorkerReadiness(worker, route, workerInstance, true)

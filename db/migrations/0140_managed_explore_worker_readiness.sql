@@ -37,12 +37,12 @@ BEGIN
  END IF;
 END $$;
 
-CREATE FUNCTION sophia.managed_explore_worker_ready(g sophia.managed_explore_grants)
+CREATE FUNCTION sophia.managed_explore_worker_ready(g sophia.managed_explore_grants,p_at timestamptz)
 RETURNS boolean LANGUAGE sql STABLE SET search_path=pg_catalog,sophia AS $$
  SELECT EXISTS(
   SELECT 1 FROM sophia.managed_explore_worker_readiness r
   WHERE r.route_id=g.route_id AND r.provider_org=g.provider_org AND r.provider_project=g.provider_project
-   AND r.credential_generation=g.credential_generation AND r.ready_until>statement_timestamp())
+   AND r.credential_generation=g.credential_generation AND r.ready_until>p_at)
 $$;
 
 CREATE OR REPLACE FUNCTION sophia.read_managed_explore_preflight(p_project uuid, p_entry uuid, p_revision bigint, p_admissions boolean)
@@ -54,7 +54,7 @@ BEGIN
  THEN RETURN NULL; END IF;
  IF p_admissions THEN
   grant_row:=sophia.managed_explore_eligible_grant(p_project,actor);
-  IF grant_row.id IS NOT NULL AND NOT sophia.managed_explore_worker_ready(grant_row) THEN grant_row:=NULL; END IF;
+  IF grant_row.id IS NOT NULL AND NOT sophia.managed_explore_worker_ready(grant_row,statement_timestamp()) THEN grant_row:=NULL; END IF;
  END IF;
  SELECT * INTO seed FROM sophia.managed_explore_seed(p_project,actor,p_entry);
  IF NOT FOUND THEN
@@ -102,7 +102,7 @@ BEGIN
  PERFORM 1 FROM sophia.managed_explore_grants WHERE project_id=p_project AND id=grant_row.id AND revision=grant_row.revision
   AND enabled AND grant_only_verified AND NOT paid_spillover AND route_id=p_route
   AND credential_generation=grant_row.credential_generation AND expires_at>clock_timestamp() AND credential_expires_at>clock_timestamp() FOR SHARE;
- IF NOT FOUND OR NOT sophia.managed_explore_worker_ready(grant_row) THEN RETURN NULL; END IF;
+ IF NOT FOUND OR NOT sophia.managed_explore_worker_ready(grant_row,clock_timestamp()) THEN RETURN NULL; END IF;
  IF EXISTS(SELECT 1 FROM sophia.managed_explore_sessions
    WHERE project_id=p_project AND founder_id=actor AND seed_entry_id=p_entry AND seed_revision=p_revision) THEN
   RAISE EXCEPTION 'An Explore session already exists for the saved brief' USING ERRCODE='40001'; END IF;
@@ -148,7 +148,7 @@ BEGIN
   AND g.route_id=s.route_id AND g.credential_generation=s.credential_generation AND g.enabled
   AND g.grant_only_verified AND NOT g.paid_spillover AND g.expires_at>clock_timestamp()
   AND g.credential_expires_at>clock_timestamp() AND m.revision=s.member_revision FOR SHARE OF g;
- IF NOT FOUND OR NOT sophia.managed_explore_worker_ready(grant_row) THEN RETURN NULL; END IF;
+ IF NOT FOUND OR NOT sophia.managed_explore_worker_ready(grant_row,clock_timestamp()) THEN RETURN NULL; END IF;
  IF EXISTS(SELECT 1 FROM sophia.managed_explore_turns WHERE project_id=p_project AND session_id=p_session AND status='queued') THEN
   RAISE EXCEPTION 'Explore already has a waiting turn' USING ERRCODE='40001'; END IF;
  IF direction IS NOT NULL AND direction IS DISTINCT FROM s.selected_direction_id THEN
@@ -175,7 +175,7 @@ BEGIN
  RETURN result;
 END $$;
 
-REVOKE ALL ON FUNCTION sophia.managed_explore_worker_ready(sophia.managed_explore_grants),
+REVOKE ALL ON FUNCTION sophia.managed_explore_worker_ready(sophia.managed_explore_grants,timestamptz),
  sophia.record_managed_explore_worker_readiness(text,text,text,bigint,uuid,boolean) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.record_managed_explore_worker_readiness(text,text,text,bigint,uuid,boolean) TO sophia_worker;
 COMMIT;
