@@ -38,12 +38,14 @@ This was a fixture-only candidate for the existing suspended
 register a runner, start the production supervisor, access production credentials,
 or deploy the Sophia application. No production acceptance is claimed.
 
-The image builds Linux 6.12.101 from the hash-checked official archive, applies
+The image builds Linux 6.18.64 from the hash-checked official archive, applies
 `kernel-abi.patch`, and builds a minimal read-only ext4 guest from an explicit
 runtime file list. The patch fixes UML's seccomp signal ABI: restore the original
 syscall number and report the saved userspace instruction pointer. It removes no
 seccomp rule or Chromium check. Kernel module loading is disabled at build time;
 unused guest `io_uring` is disabled before running the browser.
+UML keeps its default ptrace mode. This kernel discovers the host floating-point
+register state size through ptrace at boot.
 
 UML is **not** the host security boundary. Before its kernel starts, the host
 launcher drops to real UID/GID 10001, clears supplementary groups, creates fresh
