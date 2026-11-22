@@ -1,0 +1,175 @@
+{
+  "id": "A55",
+  "goal": "INC03-CC-003-A3",
+  "title": "Personal controlled space: the versioned initial read of a whole Personal space with controlled inputs",
+  "why": [
+    "SOPHIA-INC-2026-11 INC-03, INC03-CC-003 A3 R3 (PR514 finding 4561086642, backend half): a capable reader needs the whole initial space of an owner with controlled inputs, which A54 does not give in one read: the owner's companion, the revision and epoch, the days over the whole conversation in the reader's time zone, the notes and carried notes, and the newest controlled page with its inputs. Its generated output is regenerated with `pnpm --filter @sophia/contracts generate`, never by hand.",
+    "Additive only. A10, A52, A53 and A54 are unchanged: no old enum is widened, no A54 schema is rewritten, and the old unversioned reads still answer 503 projection_unavailable to an owner with controlled inputs. The new read reuses A54's PersonalControlledTurn and PersonalAnswerControlView and A10's PersonalNote and PersonalRelease.",
+    "Served whenever 0103 is installed, as the rest of A54: neither paid gate nor a live companion is needed. Without 0103 it answers 503 projection_unavailable; a failed read, 503 unavailable: never an empty or legacy answer. It is effect-free: nothing is prepared, reserved, granted, woken or written."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalControlledSpace",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "spaceContract": {
+            "type": "string",
+            "enum": ["personal_controlled_space_v1"]
+          },
+          "companion": {
+            "type": "string",
+            "enum": ["rehearsal", "live", "unavailable"],
+            "description": "The companion as it answers this owner, as in PersonalSpace: live or rehearsal only to whom it answers; anyone else's space reads unavailable."
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "epoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Moves with each erasure: a write names the epoch it was made against, and one made against another is refused."
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "The days on which the person wrote, over the whole conversation (not only the turns listed), as `timeZone` counts them (UTC without it): the same count as PersonalSpace.days."
+          },
+          "turns": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/PersonalControlledTurn"
+            },
+            "description": "The newest page of the conversation as it is kept, in seq order (earlier ones are read back with readPersonalControlledTurns, `before`)."
+          },
+          "earlier": {
+            "type": "boolean"
+          },
+          "pending": {
+            "type": "boolean",
+            "description": "Whether any reply is still pending, as PersonalControlledTurnPage says."
+          },
+          "inputs": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/PersonalAnswerControlView"
+            },
+            "description": "Each automatic input whose turn is on this page, in turn order, as it stands (admission history, control, replacement links, calls, withheld answers). An input on another page is read with readPersonalAnswerControl."
+          },
+          "notes": {
+            "type": "array",
+            "maxItems": 2000,
+            "items": {
+              "$ref": "#/components/schemas/PersonalNote"
+            }
+          },
+          "releases": {
+            "type": "array",
+            "maxItems": 2000,
+            "items": {
+              "$ref": "#/components/schemas/PersonalRelease"
+            }
+          }
+        },
+        "required": [
+          "spaceContract",
+          "companion",
+          "revision",
+          "epoch",
+          "days",
+          "turns",
+          "earlier",
+          "pending",
+          "inputs",
+          "notes",
+          "releases"
+        ],
+        "description": "The whole initial read of the caller's own space with controlled inputs, versioned (personal_controlled_space_v1), from one database snapshot. A control may later change an already listed turn without a new seq: a reader that sees `revision` change re-reads what it holds, rather than only appending. No cross-read snapshot is promised."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1personal~1answer-controls~1space",
+      "value": {
+        "get": {
+          "operationId": "getPersonalControlledSpace",
+          "summary": "The caller's own space with controlled inputs, as one versioned initial read: the companion as it answers this owner, the revision and epoch, the days over the whole conversation in the reader's `timeZone`, the newest controlled page with the views of its inputs, and the notes and carried notes. Owner-only and effect-free. Served whenever 0103 is installed, whatever the paid gates; the old unversioned read (getPersonalSpace) still refuses an owner with controlled inputs.",
+          "tags": ["personal"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC03-CC-003-A3",
+          "parameters": [
+            {
+              "name": "timeZone",
+              "in": "query",
+              "required": false,
+              "description": "The reader's IANA time zone (Europe/Madrid), for counting `days`; one the server doesn't know is refused (422), as getPersonalSpace refuses it.",
+              "schema": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+){0,2}$"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalControlledSpace"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted: a guest",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or names a time zone the server doesn't know",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "0103 is not installed on this database (projection_unavailable), or the database is unavailable (unavailable): never an empty or legacy answer",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

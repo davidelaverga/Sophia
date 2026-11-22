@@ -2,8 +2,7 @@
 // as text to copy; and deleting it all, with a typed confirmation for the one thing that can't be undone. Behind the
 // padlock it shows nothing of the space, not even the counts, until the person confirms it's them.
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import type { PersonalSpace } from '@sophia/contracts'
-import { exportPersonalSpace } from '../../api/personal.ts'
+import { exportControlledSpace, exportPersonalSpace, isControlled, type SpaceRead } from '../../api/personal.ts'
 import { tokenSubject } from '../../app/auth-callback.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import type { ShowToast } from '../../app/Toast.tsx'
@@ -26,7 +25,7 @@ import { personalFailure } from './write-words.ts'
 interface Props {
   token: string
   who: string
-  space: PersonalSpace | undefined
+  space: SpaceRead | undefined
   /** How the space's read stands: a slow or failed one is said here too, with Try again (never bare dashes). */
   read: Read
   /** The space's epoch as this page knows it (epochNow): a copy is read against it, and an erasure moves it. */
@@ -42,7 +41,7 @@ interface Props {
   onErase: () => Promise<unknown>
 }
 
-function Facts({ space }: { space: PersonalSpace | undefined }) {
+function Facts({ space }: { space: SpaceRead | undefined }) {
   const facts = space ? factsOf(space) : null
   const words = factWords(facts ?? { days: 0, notes: 0, carried: 0 })
   return (
@@ -98,7 +97,7 @@ function Erase({ onErase }: { onErase: () => Promise<void> }) {
 }
 
 interface BodyProps {
-  space: PersonalSpace | undefined
+  space: SpaceRead | undefined
   read: Read
   locked: boolean
   onUnlock: () => void
@@ -206,7 +205,9 @@ function useCopy(props: Props, calledOff: CalledOff, erasingNow: RefObject<boole
     const kept = () => open.current && !lockedNow() && !erasingNow.current && epochNow.current === epoch
     try {
       const signal = calledOff.signal()
-      const load = async () => exportText(await exportPersonalSpace(token, epoch, signal), who)
+      // A controlled space is copied whole through its own export (A54), with every message's control and calls.
+      const read = props.space && isControlled(props.space) ? exportControlledSpace : exportPersonalSpace
+      const load = async () => exportText(await read(token, epoch, signal), who)
       await copyFetched(load, browserClip(), kept, () => toast(NOTICE.copied))
       toast(NOTICE.copied)
     } catch (err: unknown) {
