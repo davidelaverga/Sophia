@@ -99,14 +99,22 @@ function accepted(): Response {
       {
         code: 'forbidden',
         message: 'This invitation is for another email address',
-        requestId: 'fixture',
+        requestId: '00000000-0000-4000-8000-0000000000c5',
         retry: 'never',
       },
       403,
     )
   }
   if (how === 'down')
-    return json({ code: 'unavailable', message: 'Sophia is unavailable', requestId: 'fixture', retry: 'never' }, 503)
+    return json(
+      {
+        code: 'unavailable',
+        message: 'Sophia is unavailable',
+        requestId: '00000000-0000-4000-8000-0000000000c5',
+        retry: 'never',
+      },
+      503,
+    )
   return json({ projectId: '00000000-0000-4000-8000-0000000000c6' })
 }
 
