@@ -37,7 +37,7 @@
   `keys=1`.
 - Seen: in an empty project, Tasks says «No goals yet. They'll come from your conversations with Sophia in the room.»
   `GoalList` draws both Goals and Tasks (`controls`), and `NoGoals` is that shared empty state.
-- Change: under Tasks: «No tasks yet. Tasks start when a goal has a plan.» Goals keeps its line.
+- Change: under Tasks: «No tasks yet. They start from a goal’s plan, and goals come from your conversations with Sophia.» Goals keeps its line.
 - Test: unit, `keys-tip.test.ts` (`keysTipShows`); e2e, `keys-tip.spec.ts` (first run on screen: no tip, nothing kept)
   and `views-goals.spec.ts` (Tasks' line).
 

@@ -97,7 +97,9 @@ test('goals · Tasks with no goals says so in its own words; Goals keeps its lin
 }) => {
   await page.goto('/room.html?place=work')
   await expect(page.getByRole('heading', { name: 'Tasks', level: 2 })).toBeVisible()
-  await expect(page.getByText('No tasks yet. Tasks start when a goal has a plan.')).toBeVisible()
+  await expect(
+    page.getByText('No tasks yet. They start from a goal’s plan, and goals come from your conversations with Sophia.'),
+  ).toBeVisible()
   await expect(page.getByText(/No goals yet/)).toHaveCount(0)
   await views(page).getByRole('link', { name: 'Goals' }).click()
   await expect(

@@ -444,7 +444,7 @@ function NoGoals({
       }
     >
       {tasks
-        ? 'No tasks yet. Tasks start when a goal has a plan.'
+        ? 'No tasks yet. They start from a goal’s plan, and goals come from your conversations with Sophia.'
         : 'No goals yet. They’ll come from your conversations with Sophia in the room.'}
     </EmptyState>
   )
