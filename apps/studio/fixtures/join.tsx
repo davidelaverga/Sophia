@@ -6,6 +6,9 @@
 // the fixture pages don't have); `state=expired|revoked|used_up`: a closed link;
 // `session=1`: the invitation names a session; `answer=admit|deny|block`: how the room answers the knock (otherwise
 // it waits until `window.joinFixture.answer(…)`). `window.joinFixture.asked` lists each request, in order.
+// `signed=outsider` (with `kind=member`): signed in with an account, as in dev mode, where nothing checks the address
+// before Accept; `accept=other`: Accept is refused as the API refuses another address (403), `accept=down`: the API
+// is unavailable (503). `window.joinFixture.signedOut` counts the sign-outs asked for.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -22,7 +25,7 @@ type Answer = 'admit' | 'deny' | 'block'
 
 declare global {
   interface Window {
-    joinFixture?: { asked: string[]; answer: (a: Answer) => void }
+    joinFixture?: { asked: string[]; answer: (a: Answer) => void; signedOut: number }
   }
 }
 
@@ -66,7 +69,7 @@ const STATUS: Record<Answer, LobbyEntry['status']> = { admit: 'admitted', deny: 
 function answer(a: Answer) {
   if (entry) entry = { ...entry, status: STATUS[a], decidedAt: at(0) }
 }
-window.joinFixture = { asked, answer }
+window.joinFixture = { asked, answer, signedOut: 0 }
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -88,11 +91,31 @@ function knocked(init: RequestInit | undefined): Response {
   return json(entry)
 }
 
-/** The four requests the door makes; anything else is a fixture's mistake and says so. */
+/** Accept, as the API answers it: `accept=other` another address's refusal, `accept=down` an outage; else joined. */
+function accepted(): Response {
+  const how = query.get('accept')
+  if (how === 'other') {
+    return json(
+      {
+        code: 'forbidden',
+        message: 'This invitation is for another email address',
+        requestId: 'fixture',
+        retry: 'never',
+      },
+      403,
+    )
+  }
+  if (how === 'down')
+    return json({ code: 'unavailable', message: 'Sophia is unavailable', requestId: 'fixture', retry: 'never' }, 503)
+  return json({ projectId: '00000000-0000-4000-8000-0000000000c6' })
+}
+
+/** The requests the door makes; anything else is a fixture's mistake and says so. */
 function answerOf(path: string, init: RequestInit | undefined): Response {
   asked.push(path)
   if (path === '/api/v1/join/preview') return json(preview)
   if (path === '/api/v1/join/knock') return knocked(init)
+  if (path === '/api/v1/join/accept') return accepted()
   if (entry && path === `/api/v1/lobby/${entry.id}`) return json(entry)
   if (entry && path === `/api/v1/lobby/${entry.id}/room-token`) {
     return json({
@@ -114,6 +137,7 @@ window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 const guest = { name: 'Fixture guest', token: 'fixture-guest-token', role: 'guest' as const }
+const outsider = { name: 'outsider@sophia.test', token: 'fixture-outsider-token', role: 'member' }
 // The room token the door issues is a guest's, as the API signs it: media only, no data channel (livekit.ts).
 signViewerAs('guest')
 
@@ -126,9 +150,12 @@ createRoot(root).render(
     </p>
     <QueryClientProvider client={queryClient}>
       <JoinFlow
-        auth={{ status: 'signed_in', identity: guest }}
+        auth={{ status: 'signed_in', identity: query.get('signed') === 'outsider' ? outsider : guest }}
         onChooseDev={() => undefined}
-        onSignOut={() => Promise.resolve(true)}
+        onSignOut={() => {
+          if (window.joinFixture) window.joinFixture.signedOut += 1
+          return Promise.resolve(true)
+        }}
         onOpenProject={() => undefined}
       />
     </QueryClientProvider>

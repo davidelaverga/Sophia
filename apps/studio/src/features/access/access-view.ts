@@ -145,6 +145,15 @@ export const sentNoteShown = (
 ): boolean => !list.find((i) => i.id === sent.id)?.revokedAt
 
 /**
+ * Whether Accept failed because the invitation is bound to another address than the one signed in: the API's refusal
+ * (0010's words, kept by persistence's errors.ts as a 403). Signing out is the way on then, not Accept again
+ * (demo-findings-1.md #10).
+ */
+export function wrongAddress(err: { message: string; status?: number }): boolean {
+  return err.status === 403 && err.message.startsWith('This invitation is for')
+}
+
+/**
  * A guest in the Invite sheet's door record (let in, declined or blocked): what still matters about them (a removal
  * under way, asking again), then when it was decided. The list's title already says what was decided.
  */

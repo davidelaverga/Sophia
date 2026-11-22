@@ -22,6 +22,7 @@ import {
   readJoinToken,
   sessionLabel,
   withoutToken,
+  wrongAddress,
 } from './access-view.ts'
 import { GuestRoom, VisitEnd } from './GuestRoom.tsx'
 import { useNow } from '../../app/use-now.ts'
@@ -471,7 +472,7 @@ function MemberJoin({ preview, token, identity, onChooseDev, onSignOut, onOpenPr
         You’ll join as {role}, signed in as {identity.name}.
       </p>
       <SessionNote preview={preview} />
-      <Accept token={token} identity={identity} preview={preview} onOpenProject={onOpenProject} />
+      <Accept token={token} identity={identity} preview={preview} onSignOut={onSignOut} onOpenProject={onOpenProject} />
     </Centered>
   )
 }
@@ -507,18 +508,20 @@ function SignOutAs({ email, onSignOut }: { email: string; onSignOut: () => Promi
   )
 }
 
-function Accept({
-  token,
-  identity,
-  preview,
-  onOpenProject,
-}: {
+interface AcceptProps {
   token: string
   identity: Identity
   preview: InvitationPreview
+  onSignOut: () => Promise<boolean>
   onOpenProject: (projectId: string) => void
-}) {
-  const [error, setError] = useState<string | null>(null)
+}
+
+/**
+ * Accept, and a way on when it fails (demo-findings-1.md #10): the way home beside the error, and for an invitation bound
+ * to another address, the sign-out the Supabase branch offers before Accept, in its place (Accept would only fail again).
+ */
+function Accept({ token, identity, preview, onSignOut, onOpenProject }: AcceptProps) {
+  const [error, setError] = useState<{ words: string; otherAddress: boolean } | null>(null)
   const [busy, setBusy] = useState(false)
   const accept = async () => {
     setBusy(true)
@@ -530,19 +533,30 @@ function Accept({
       rememberWelcome({ projectId, inviter: preview.inviterName ? inviter(preview) : null, role, at: Date.now() })
       onOpenProject(projectId)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not accept the invitation.')
+      setError(
+        err instanceof Error
+          ? { words: err.message, otherAddress: wrongAddress(err) }
+          : { words: 'Could not accept the invitation.', otherAddress: false },
+      )
       setBusy(false)
     }
   }
   return (
     <>
-      <button type="button" className="pill primary" disabled={busy} onClick={() => void accept()}>
-        {busy ? 'Joining…' : 'Accept and open the project'}
-      </button>
+      {error?.otherAddress ? (
+        <SignOutAs email={preview.email ?? ''} onSignOut={onSignOut} />
+      ) : (
+        <button type="button" className="pill primary" disabled={busy} onClick={() => void accept()}>
+          {busy ? 'Joining…' : 'Accept and open the project'}
+        </button>
+      )}
       {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
+        <>
+          <p className="form-error" role="alert">
+            {error.words}
+          </p>
+          <HomeLink />
+        </>
       )}
     </>
   )
