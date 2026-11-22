@@ -512,3 +512,13 @@ export {
   type ManagedExploreDispatchScope,
   type ManagedExplorePreparedDispatch,
 } from './managed-explore-dispatch.ts'
+export {
+  bindFounderBuildRepository,
+  prepareFounderBuildExport,
+  readFounderBuildBindingEntry,
+  readFounderBuildDestination,
+  readFounderBuildExport,
+  readFounderBuildExportFile,
+  recordFounderBuildReturn,
+  type FounderBuildScope,
+} from './founder-build-handoff.ts'

@@ -92,6 +92,13 @@ function managedExploreAdmissionsFromEnv(): boolean {
   return true
 }
 
+function founderBuildHandoffFromEnv(): boolean {
+  const value = optional('SOPHIA_FOUNDER_BUILD_HANDOFF')
+  if (value === undefined || value === 'off') return false
+  if (value !== 'on') throw new Error('SOPHIA_FOUNDER_BUILD_HANDOFF is on, off or unset')
+  return true
+}
+
 const app = buildApp({
   pool,
   logger: true,
@@ -109,6 +116,7 @@ const app = buildApp({
   voiceQualification: voiceQualificationFromEnv(),
   ownerRunnerAdmissions: ownerRunnerAdmissionsFromEnv(),
   managedExplore: managedExploreAdmissionsFromEnv(),
+  founderBuildHandoff: founderBuildHandoffFromEnv(),
   managedExplorePreviewOrigin: optional('SOPHIA_MANAGED_EXPLORE_PREVIEW_ORIGIN'),
   ...(mediaBridgeTokenSha256 ? { mediaBridgeTokenSha256 } : {}),
   ...(livekitUrl

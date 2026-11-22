@@ -398,6 +398,15 @@ export type ManagedExplorePreviewRequest = { "manifestSha256": string; "entrySha
 export type ManagedExplorePreviewPermit = { "url": string; "expiresAt": string; "versionId": string; "manifestSha256": string; "entrySha256": string; };
 export type ManagedExploreHandoffFile = { "path": string; "mime": string; "byteCount": number; "sha256": string; };
 export type ManagedExploreHandoff = { "approvalId": string; "versionId": string; "manifestSha256": string; "seedText": string; "acceptanceCriteria": ReadonlyArray<string>; "mockReplacements": ReadonlyArray<string>; "limitations": ReadonlyArray<string>; "files": ReadonlyArray<ManagedExploreHandoffFile>; };
+export type FounderBuildBindingRequest = { "expectedRevision": number; "repositoryId": string; "repository": string; "defaultBranch": string; "seedCommit": string; "privateConfirmed": true; };
+export type FounderBuildBinding = { "id": string; "revision": number; "repositoryId": string; "repository": string; "defaultBranch": string; "seedCommit": string; "privateConfirmed": true; "provenance": "reported" | "independently_checked"; };
+export type FounderBuildExportRequest = { "expectedRevision": number; "bindingId": string; };
+export type FounderBuildExportFile = { "id": string; "sourceId": string; "path": "index.html"; "mime": "text/html"; "byteCount": number; "sha256": string; };
+export type FounderBuildExportManifest = { "approvalId": string; "versionId": string; "prototypeManifestSha256": string; "bindingId": string; "repositoryId": string; "repository": string; "defaultBranch": string; "seedCommit": string; "recipient": string; "transport": "manual_owner_codex"; "acceptanceCriteria": ReadonlyArray<string>; "files": ReadonlyArray<FounderBuildExportFile>; };
+export type FounderBuildExport = { "id": string; "revision": number; "sha256": string; "manifest": FounderBuildExportManifest; };
+export type FounderBuildReturnRequest = { "expectedRevision": number; "exportId": string; "exportSha256": string; "repositoryId": string; "candidateSha"?: string; "pullRequestNumber"?: number; "mergeSha"?: string; "deploymentReference"?: string; "deployedSha"?: string; };
+export type FounderBuildReturn = { "id": string; "exportId": string; "exportSha256": string; "repositoryId": string; "status": "reported"; "candidateSha"?: string; "pullRequestNumber"?: number; "mergeSha"?: string; "deploymentReference"?: string; "deployedSha"?: string; };
+export type FounderBuildDestination = { "revision": number; "binding": FounderBuildBinding | null; "export": FounderBuildExport | null; "returns": ReadonlyArray<FounderBuildReturn>; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -626,4 +635,10 @@ export interface Operations {
   "issueManagedExplorePreviewPermit": { method: "POST"; path: "/api/v1/projects/{projectId}/explore/sessions/{sessionId}/versions/{versionId}/preview-permits"; request: ManagedExplorePreviewRequest; response: ManagedExplorePreviewPermit; };
   "approveManagedExploreVersion": { method: "POST"; path: "/api/v1/projects/{projectId}/explore/sessions/{sessionId}/approvals"; request: ManagedExploreApprovalRequest; response: ManagedExploreApproval; };
   "readManagedExploreHandoff": { method: "GET"; path: "/api/v1/projects/{projectId}/explore/sessions/{sessionId}/handoff/{approvalId}"; request: undefined; response: ManagedExploreHandoff; };
+  "readFounderBuildDestination": { method: "GET"; path: "/api/v1/projects/{projectId}/explore/sessions/{sessionId}/handoff/{approvalId}/destination"; request: undefined; response: FounderBuildDestination; };
+  "bindFounderBuildRepository": { method: "POST"; path: "/api/v1/projects/{projectId}/explore/sessions/{sessionId}/handoff/{approvalId}/repository-binding"; request: FounderBuildBindingRequest; response: FounderBuildBinding; };
+  "prepareFounderBuildExport": { method: "POST"; path: "/api/v1/projects/{projectId}/explore/sessions/{sessionId}/handoff/{approvalId}/exports"; request: FounderBuildExportRequest; response: FounderBuildExport; };
+  "readFounderBuildExport": { method: "GET"; path: "/api/v1/projects/{projectId}/explore/sessions/{sessionId}/handoff/{approvalId}/exports/{exportId}/manifest"; request: undefined; response: FounderBuildExport; };
+  "downloadFounderBuildExportFile": { method: "GET"; path: "/api/v1/projects/{projectId}/explore/sessions/{sessionId}/handoff/{approvalId}/exports/{exportId}/files/{fileId}"; request: undefined; response: Uint8Array; };
+  "recordFounderBuildReturn": { method: "POST"; path: "/api/v1/projects/{projectId}/explore/sessions/{sessionId}/handoff/{approvalId}/returns"; request: FounderBuildReturnRequest; response: FounderBuildReturn; };
 }

@@ -6,6 +6,7 @@
 interface Schema {
   $ref?: string
   const?: unknown
+  format?: string
   enum?: unknown[]
   anyOf?: Schema[]
   oneOf?: Schema[]
@@ -78,6 +79,8 @@ function responseTypeOf(op: Operation): string {
   if (status === undefined) return 'never'
   const response = success?.content?.['application/json']?.schema
   if (response) return typeOf(response)
+  const plain = success?.content?.['text/plain']?.schema
+  if (plain) return plain.format === 'binary' ? 'Uint8Array' : typeOf(plain)
   // A 204 has no body; any other success without a JSON schema is the event stream.
   return status === '204' ? 'undefined' : STREAM_RESPONSE
 }

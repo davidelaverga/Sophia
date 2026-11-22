@@ -30,6 +30,7 @@ import { humanTaskRoutes, TASK_WRITES } from './routes/human-tasks.ts'
 import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
 import { missionRoutes } from './routes/mission.ts'
 import { MANAGED_EXPLORE_SCHEMA, managedExploreRoutes } from './routes/managed-explore.ts'
+import { FOUNDER_BUILD_SCHEMA, founderBuildRoutes } from './routes/founder-build-handoff.ts'
 import { personalRoutes } from './routes/personal.ts'
 import { personalInputRoutes } from './routes/personal-inputs.ts'
 import { PERSONAL_ANSWERS_SCHEMA, personalAnswerRoutes } from './routes/personal-answers.ts'
@@ -158,6 +159,8 @@ export interface AppDeps {
   apiContributions?: boolean
   /** Managed Explore admissions are off unless explicitly enabled by the operator. */
   managedExplore?: boolean
+  /** Manual Build handoff with an independently installed destination grant. Off by default. */
+  founderBuildHandoff?: boolean
   /** Distinct HTTPS origin hosting the exact-file preview handler. Prototype permits require it. */
   managedExplorePreviewOrigin?: string | undefined
 }
@@ -422,6 +425,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
 function registerMissionRoutes(app: FastifyInstance, deps: AppDeps, store: ByteStore | null): void {
   missionRoutes(app, { pool: deps.pool })
+  if (deps.founderBuildHandoff === true) founderBuildRoutes(app, { pool: deps.pool, store })
   managedExploreRoutes(app, {
     pool: deps.pool,
     store,
@@ -636,6 +640,7 @@ interface Health {
   ownerRunners: boolean
   apiContributions: boolean
   managedExplore: boolean
+  founderBuildHandoff: boolean
   commit: string | null
 }
 
@@ -649,6 +654,7 @@ const healthOf = (deps: AppDeps): Health => ({
   ownerRunners: deps.ownerRunnerAdmissions === 'admit',
   apiContributions: deps.apiContributions === true,
   managedExplore: deps.managedExplore === true,
+  founderBuildHandoff: deps.founderBuildHandoff === true,
   commit: deps.commit ?? null,
 })
 
@@ -664,6 +670,7 @@ async function schemaReady(
     ownerRunners,
     apiContributions,
     managedExplore,
+    founderBuildHandoff,
   }: Health,
 ): Promise<boolean> {
   const part = async (on: boolean, sql: string) => !on || (await pool.query<{ ok: boolean }>(sql)).rows[0]?.ok === true
@@ -676,7 +683,8 @@ async function schemaReady(
     (await part(voice, VOICE_SCHEMA)) &&
     (await part(ownerRunners, OWNER_RUNNER_SCHEMA)) &&
     (await part(apiContributions, CONTRIBUTION_FUNDING_SCHEMA)) &&
-    (await part(managedExplore, MANAGED_EXPLORE_SCHEMA))
+    (await part(managedExplore, MANAGED_EXPLORE_SCHEMA)) &&
+    (await part(founderBuildHandoff, FOUNDER_BUILD_SCHEMA))
   )
 }
 
