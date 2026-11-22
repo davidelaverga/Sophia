@@ -23,6 +23,7 @@ type EnvironmentStatus = Awaited<ReturnType<ManagedExploreProvider['readEnvironm
 type RootStatus = ManagedExploreRootTurn['status']
 type ProviderUsage = NonNullable<ManagedExploreRootTurn['usage']>
 type TurnKind = 'text' | 'directions' | 'prototype' | 'revision'
+const OUTPUT_READBACK_WINDOW_MS = 5 * 60 * 1000
 
 export interface ManagedExploreDispatchIdentity {
   projectId: string
@@ -47,6 +48,7 @@ export interface ManagedExploreDispatchLease extends ManagedExploreDispatchIdent
   previousRootId: string | null
   rootId: string | null
   rootStatus: RootStatus | null
+  rootCompletedSeenAt: string | null
   payloadSha256: string | null
 }
 
@@ -73,6 +75,7 @@ const REASONS = [
   'declined',
 ] as const
 type ProviderReason = (typeof REASONS)[number] | 'provider_failed' | 'cancelled'
+type OutputRejection = 'output_invalid' | 'output_missing'
 
 type Observation =
   | {
@@ -97,6 +100,7 @@ type Observation =
       reply?: string
       reason?: ProviderReason
     } & EventIdentity)
+  | ({ kind: 'outputRejected'; rootId: string; reason: OutputRejection } & EventIdentity)
   | { kind: 'defer'; delaySeconds: number }
 
 export interface ManagedExploreDispatchStore {
@@ -185,6 +189,15 @@ function sendRejection(error: unknown): { reason: ProviderReason; requestId: str
   return { reason: providerReason(error.code), requestId: error.requestId }
 }
 
+function outputRejection(error: unknown): OutputRejection | null {
+  if (!(error instanceof ManagedExploreProviderError)) return null
+  if (error.code === 'artifact_missing') return 'output_missing'
+  if (error.disposition === 'terminal' && (error.code === 'artifact_invalid' || error.code === 'invalid_response')) {
+    return 'output_invalid'
+  }
+  return null
+}
+
 class ExploreStep {
   readonly #claim: ManagedExploreDispatchLease
   readonly #dependencies: Dependencies
@@ -198,8 +211,12 @@ class ExploreStep {
     return this.#dependencies.provider
   }
 
+  #now(): number {
+    return (this.#dependencies.now ?? Date.now)()
+  }
+
   #leaseCurrent(leaseUntil = this.#claim.leaseUntil): boolean {
-    return Date.parse(leaseUntil) > (this.#dependencies.now ?? Date.now)()
+    return Date.parse(leaseUntil) > this.#now()
   }
 
   async #record(observation: Observation, result: Step): Promise<Step> {
@@ -385,34 +402,62 @@ class ExploreStep {
     return this.#collect(event, exact, environmentId)
   }
 
-  async #collect(
+  async #readOutput<T>(
+    action: () => Promise<ProviderResult<T>>,
+  ): Promise<{ receipt: ProviderResult<T>; reason: null } | { receipt: null; reason: OutputRejection | null }> {
+    try {
+      return { receipt: await action(), reason: null }
+    } catch (error: unknown) {
+      return { receipt: null, reason: outputRejection(error) }
+    }
+  }
+
+  #rejectOutput(event: EventIdentity, rootId: string, reason: OutputRejection | null): Promise<Step> {
+    if (!reason) return this.#defer('unknown')
+    if (reason === 'output_missing') {
+      // The provider timestamp may skew or predate our first opportunity to read output.
+      const recorded = this.#claim.rootCompletedSeenAt
+      const seenAt = recorded ? Date.parse(recorded) : NaN
+      if (!Number.isFinite(seenAt) || this.#now() - seenAt < OUTPUT_READBACK_WINDOW_MS) {
+        return this.#defer('unknown')
+      }
+    }
+    return this.#record({ kind: 'outputRejected', ...event, rootId, reason }, 'settled')
+  }
+
+  #collect(event: EventIdentity, root: ProviderResult<ManagedExploreRootTurn>, environmentId: string): Promise<Step> {
+    const { turnKind } = this.#claim
+    return turnKind === 'text' || turnKind === 'directions'
+      ? this.#collectText(event, root, turnKind)
+      : this.#collectArtifact(event, root, environmentId, turnKind)
+  }
+
+  async #collectText(
+    event: EventIdentity,
+    { value: root, requestId: rootRequestId }: ProviderResult<ManagedExploreRootTurn>,
+    turnKind: 'text' | 'directions',
+  ): Promise<Step> {
+    const { receipt, reason } = await this.#readOutput(() => this.#provider.readTurnText(root.sessionId, root.id))
+    if (!receipt) return this.#rejectOutput(event, root.id, reason)
+    const { value: text, requestId: outputRequestId } = receipt
+    if (!text?.trim()) return this.#rejectOutput(event, root.id, 'output_missing')
+    if (turnKind === 'text') {
+      return this.#record({ kind: 'settle', ...event, rootId: root.id, status: 'completed', reply: text }, 'settled')
+    }
+    return this.#retain({ kind: 'directions', event, root, rootRequestId, outputRequestId, text })
+  }
+
+  async #collectArtifact(
     event: EventIdentity,
     { value: root, requestId: rootRequestId }: ProviderResult<ManagedExploreRootTurn>,
     environmentId: string,
+    turnKind: 'prototype' | 'revision',
   ): Promise<Step> {
-    const { turnKind } = this.#claim
-    if (turnKind !== 'text' && !this.#dependencies.retainOutput) return this.#defer('retention_pending')
-    if (turnKind === 'text' || turnKind === 'directions') {
-      const output = await this.#read(() => this.#provider.readTurnText(root.sessionId, root.id))
-      if (!output?.value) return this.#defer('unknown')
-      if (turnKind === 'text') {
-        return this.#record(
-          { kind: 'settle', ...event, rootId: root.id, status: 'completed', reply: output.value },
-          'settled',
-        )
-      }
-      return this.#retain({
-        kind: 'directions',
-        event,
-        root,
-        rootRequestId,
-        outputRequestId: output.requestId,
-        text: output.value,
-      })
-    }
-    const output = await this.#read(() => this.#provider.downloadPrototype(root.sessionId, root.id, environmentId))
-    if (!output) return this.#defer('unknown')
-    const { value: artifact, requestId: outputRequestId } = output
+    const { receipt, reason } = await this.#readOutput(() =>
+      this.#provider.downloadPrototype(root.sessionId, root.id, environmentId),
+    )
+    if (!receipt) return this.#rejectOutput(event, root.id, reason)
+    const { value: artifact, requestId: outputRequestId } = receipt
     if (
       artifact.turnId !== root.id ||
       artifact.sessionId !== root.sessionId ||

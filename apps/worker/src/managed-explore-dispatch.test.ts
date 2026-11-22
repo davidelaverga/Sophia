@@ -48,6 +48,7 @@ const BASE = {
   previousRootId: null,
   rootId: null,
   rootStatus: null,
+  rootCompletedSeenAt: null,
   payloadSha256: null,
 } satisfies ManagedExploreDispatchLease
 const EVENT_READY = {
@@ -118,7 +119,12 @@ function fixture(initial: ManagedExploreDispatchLease) {
         state.claim = { ...EVENT_READY, turnKind: state.claim.turnKind, previousRootId: null }
       }
       if (observation.kind === 'root') {
-        state.claim = { ...state.claim, rootId: observation.rootId, rootStatus: observation.status }
+        state.claim = {
+          ...state.claim,
+          rootId: observation.rootId,
+          rootStatus: observation.status,
+          rootCompletedSeenAt: observation.status === 'completed' ? new Date(NOW).toISOString() : null,
+        }
       }
       return Promise.resolve()
     },
@@ -352,6 +358,23 @@ test('a recovered completed revision uses its exact provider root and environmen
       },
     },
   ])
+  const pending = fixture({
+    ...EVENT_PREPARED,
+    turnKind: 'revision',
+    rootId: 'turn_fixture',
+    rootStatus: 'completed',
+    rootCompletedSeenAt: new Date(NOW - 600_000).toISOString(),
+  })
+  assert.equal(
+    await dispatchManagedExploreOnce(SCOPE, {
+      provider,
+      store: pending.store,
+      instructions: pending.instructions,
+      now: pending.now,
+    }),
+    'retention_pending',
+  )
+  assert.deepEqual(pending.observations, [{ kind: 'defer', delaySeconds: 5 }])
 })
 
 test('a cancelled, failed, or unrelated root never reaches output publication', async (t) => {
@@ -398,7 +421,10 @@ test('a valid directions root waits for authenticated retention before settling'
   const { retainOutput, ...dependencies } = f
   assert.equal(typeof retainOutput, 'function')
   assert.equal(
-    await dispatchManagedExploreOnce(SCOPE, { ...dependencies, provider: fakeProvider() }),
+    await dispatchManagedExploreOnce(SCOPE, {
+      ...dependencies,
+      provider: fakeProvider({ readTurnText: () => receipt('Two complete directions.') }),
+    }),
     'retention_pending',
   )
   assert.deepEqual(f.observations, [{ kind: 'defer', delaySeconds: 5 }])
@@ -411,5 +437,90 @@ test('environment readiness is recorded before event preparation', async () => {
   assert.deepEqual(f.observations, [
     { kind: 'environment', environmentId: SESSION.environmentId, providerSessionId: SESSION.id, status: 'connected' },
   ])
+  assert.deepEqual(f.preparations, [])
+})
+
+test('a completed immutable artifact rejected by provider validation settles immediately', async () => {
+  const f = fixture({ ...EVENT_PREPARED, turnKind: 'prototype', rootId: 'turn_fixture', rootStatus: 'completed' })
+  const provider = fakeProvider({
+    downloadPrototype: () => Promise.reject(new ManagedExploreProviderError('artifact_invalid', 'terminal')),
+  })
+  assert.equal(await dispatchManagedExploreOnce(SCOPE, { ...f, provider }), 'settled')
+  assert.deepEqual(f.observations, [
+    {
+      kind: 'outputRejected',
+      rootId: 'turn_fixture',
+      providerSessionId: SESSION.id,
+      submissionId: EVENT_READY.submissionId,
+      payloadSha256: INPUT_SHA256,
+      previousRootId: EVENT_READY.previousRootId,
+      reason: 'output_invalid',
+    },
+  ])
+  assert.equal(f.outputs.length, 0)
+  assert.deepEqual(f.preparations, [])
+})
+
+test('a missing artifact waits for the bound measured from the first durable completed observation', async (t) => {
+  const cases = [
+    { label: 'unrecorded DB time', seenAt: null, result: 'unknown' },
+    { label: 'invalid DB time', seenAt: 'invalid', result: 'unknown' },
+    { label: 'one second inside the window', seenAt: new Date(NOW - 299_000).toISOString(), result: 'unknown' },
+    { label: 'at the window boundary', seenAt: new Date(NOW - 300_000).toISOString(), result: 'settled' },
+  ]
+  for (const scenario of cases) {
+    await t.test(scenario.label, async () => {
+      const f = fixture({
+        ...EVENT_PREPARED,
+        turnKind: 'revision',
+        rootId: 'turn_fixture',
+        rootStatus: 'completed',
+        rootCompletedSeenAt: scenario.seenAt,
+      })
+      const provider = fakeProvider({
+        downloadPrototype: () => Promise.reject(new ManagedExploreProviderError('artifact_missing', 'retry_read')),
+      })
+      assert.equal(await dispatchManagedExploreOnce(SCOPE, { ...f, provider }), scenario.result)
+      const observation = f.observations[0]
+      if (scenario.result === 'settled') {
+        assert.ok(observation?.kind === 'outputRejected')
+        assert.equal(observation.reason, 'output_missing')
+      } else {
+        assert.equal(observation?.kind, 'defer')
+      }
+      assert.equal(f.outputs.length, 0)
+      assert.deepEqual(f.preparations, [])
+    })
+  }
+})
+
+test('known empty saved text settles only after the output window', async () => {
+  const f = fixture({
+    ...EVENT_PREPARED,
+    rootId: 'turn_fixture',
+    rootStatus: 'completed',
+    rootCompletedSeenAt: new Date(NOW - 300_000).toISOString(),
+  })
+  const provider = fakeProvider({ readTurnText: () => receipt(' \r\n') })
+  assert.equal(await dispatchManagedExploreOnce(SCOPE, { ...f, provider }), 'settled')
+  const observation = f.observations[0]
+  assert.ok(observation?.kind === 'outputRejected')
+  assert.equal(observation.reason, 'output_missing')
+})
+
+test('a transient artifact read stays unknown beyond the missing-output window', async () => {
+  const f = fixture({
+    ...EVENT_PREPARED,
+    turnKind: 'prototype',
+    rootId: 'turn_fixture',
+    rootStatus: 'completed',
+    rootCompletedSeenAt: new Date(NOW - 360_000).toISOString(),
+  })
+  const provider = fakeProvider({
+    downloadPrototype: () => Promise.reject(new ManagedExploreProviderError('transient', 'retry_read')),
+  })
+  assert.equal(await dispatchManagedExploreOnce(SCOPE, { ...f, provider }), 'unknown')
+  assert.deepEqual(f.observations, [{ kind: 'defer', delaySeconds: 5 }])
+  assert.equal(f.outputs.length, 0)
   assert.deepEqual(f.preparations, [])
 })
