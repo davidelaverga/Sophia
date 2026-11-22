@@ -135,6 +135,16 @@ export function invitationState(
 }
 
 /**
+ * Whether the note under a send form («Sent.», or the link to copy by hand) still holds: not once the list's copy of the
+ * invitation it sent is cancelled, where it would sit beside «1 closed». Not in the list yet (a refresh on its way): as
+ * the send said (demo-findings-1.md #11).
+ */
+export const sentNoteShown = (
+  sent: Pick<Invitation, 'id'>,
+  list: readonly Pick<Invitation, 'id' | 'revokedAt'>[],
+): boolean => !list.find((i) => i.id === sent.id)?.revokedAt
+
+/**
  * A guest in the Invite sheet's door record (let in, declined or blocked): what still matters about them (a removal
  * under way, asking again), then when it was decided. The list's title already says what was decided.
  */

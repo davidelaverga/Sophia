@@ -23,6 +23,7 @@ import {
   qrPath,
   readJoinToken,
   scheduleLines,
+  sentNoteShown,
   sessionFromForm,
   sessionLabel,
   withoutToken,
@@ -59,6 +60,17 @@ describe('room access, as the Studio shows it', () => {
     assert.equal(invitationState({ ...open, uses: 1, emailStatus: 'sent' }, now), 'joined')
     assert.equal(invitationState({ ...open, revokedAt: '2026-10-01T10:00:00Z', emailStatus: 'sent' }, now), 'cancelled')
     assert.equal(invitationState({ ...open, expiresAt: '2026-09-30T12:00:00Z', emailStatus: 'failed' }, now), 'expired')
+  })
+
+  it('says «Sent.» under the form only while the invitation it sent is not cancelled (demo-findings-1 #11)', () => {
+    const sent = { id: 'a', revokedAt: null }
+    // The list not refreshed yet: what the send said stands.
+    assert.equal(sentNoteShown(sent, []), true)
+    assert.equal(sentNoteShown(sent, [{ id: 'a', revokedAt: null }]), true)
+    // Cancelled since: «Sent.» would contradict «1 closed».
+    assert.equal(sentNoteShown(sent, [{ id: 'a', revokedAt: '2026-10-01T10:00:00Z' }]), false)
+    // Another invitation cancelled says nothing about this one.
+    assert.equal(sentNoteShown(sent, [{ id: 'b', revokedAt: '2026-10-01T10:00:00Z' }]), true)
   })
 
   it('counts down the minute before a declined guest may ask again', () => {
