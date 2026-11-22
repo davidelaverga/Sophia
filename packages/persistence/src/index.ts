@@ -500,3 +500,15 @@ export {
   selectManagedExploreDirection,
   startManagedExplore,
 } from './managed-explore.ts'
+export {
+  claimManagedExploreDispatch,
+  readManagedExploreDispatch,
+  prepareManagedExploreDispatch,
+  recordManagedExploreDispatch,
+  type ManagedExploreDispatchAction,
+  type ManagedExploreDispatchIdentity,
+  type ManagedExploreDispatchLease,
+  type ManagedExploreDispatchObservation,
+  type ManagedExploreDispatchScope,
+  type ManagedExplorePreparedDispatch,
+} from './managed-explore-dispatch.ts'
