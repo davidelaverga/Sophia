@@ -73,7 +73,9 @@ export type ManagedExplorePreparedDispatch =
         | 'membership_changed'
         | 'funding_unavailable'
         | 'source_unavailable'
+        | 'direction_unavailable'
         | 'parent_unavailable'
+        | 'input_too_large'
         | 'provider_session_unavailable'
     }
 
