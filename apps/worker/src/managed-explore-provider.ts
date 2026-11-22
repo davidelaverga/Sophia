@@ -113,6 +113,8 @@ interface KeyedEvent {
 
 interface Options {
   apiKey: string
+  organizationId?: string
+  projectId?: string
   fetch?: typeof fetch
   /** Override for a local fixture. Trusted code may inject fetch for tests. */
   baseUrl?: string
@@ -405,6 +407,19 @@ function providerBase(input: string | undefined): string {
   return `${url.origin}/v1`
 }
 
+function routeHeaders(organizationId?: string, projectId?: string): Record<string, string> {
+  if (organizationId === undefined && projectId === undefined) return {}
+  if (
+    typeof organizationId !== 'string' ||
+    !/^org[-_][A-Za-z0-9]{1,124}$/.test(organizationId) ||
+    typeof projectId !== 'string' ||
+    !/^proj_[A-Za-z0-9]{1,123}$/.test(projectId)
+  ) {
+    throw new ManagedExploreProviderError('invalid_input', 'terminal')
+  }
+  return { 'OpenAI-Organization': organizationId, 'OpenAI-Project': projectId }
+}
+
 function sessionPath(sessionId: string): string {
   return `${SESSIONS}/${pathId(sessionId)}`
 }
@@ -420,6 +435,7 @@ export function createManagedExploreProvider(options: Options): ManagedExplorePr
 export class ManagedExploreProvider {
   readonly #fetch: typeof fetch
   readonly #apiKey: string
+  readonly #routeHeaders: Record<string, string>
   readonly #base: string
   readonly #timeoutMs: number
 
@@ -429,6 +445,7 @@ export class ManagedExploreProvider {
       throw new ManagedExploreProviderError('invalid_input', 'terminal')
     }
     this.#apiKey = options.apiKey
+    this.#routeHeaders = routeHeaders(options.organizationId, options.projectId)
     this.#base = providerBase(options.baseUrl)
     this.#fetch = options.fetch ?? fetch
     this.#timeoutMs = timeoutMs
@@ -438,6 +455,7 @@ export class ManagedExploreProvider {
     const headers = new Headers({
       Authorization: `Bearer ${this.#apiKey}`,
       'OpenAI-Beta': 'agents=v1',
+      ...this.#routeHeaders,
       Accept: request.accept ?? 'application/json',
     })
     const init: RequestInit = { method: request.mode === 'read' ? 'GET' : 'POST', headers, redirect: 'manual', signal }

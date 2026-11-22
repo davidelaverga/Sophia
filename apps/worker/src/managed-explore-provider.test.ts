@@ -566,3 +566,52 @@ test('root input identity hashes one exact saved user message and ignores unrela
   items = [{ ...item, content: [{ type: 'input_image', text }] }]
   assert.equal((await client.readTurnInputDigest('sess_one', 'turn_one')).value, null)
 })
+
+test('explicit organization and project route header values accompany every request', async () => {
+  const requests: string[] = []
+  const client = createManagedExploreProvider({
+    apiKey: KEY,
+    organizationId: 'org-Fixture',
+    projectId: 'proj_Fixture',
+    fetch: mockFetch(({ pathname }, init) => {
+      const headers = new Headers(init?.headers)
+      assert.equal(headers.get('OpenAI-Organization'), 'org-Fixture')
+      assert.equal(headers.get('OpenAI-Project'), 'proj_Fixture')
+      assert.equal(headers.get('Authorization'), `Bearer ${KEY}`)
+      assert.equal(init?.redirect, 'manual')
+      requests.push(`${init.method ?? ''} ${pathname}`)
+      return wireJson(session())
+    }),
+  })
+  await client.createSession({
+    operationId: 'op_create',
+    model: 'fixture-model',
+    instructions: 'Fiction only.',
+    sessionLimitCents: 100,
+  })
+  await client.readSession('sess_one')
+  assert.deepEqual(requests, [`POST ${BASE_PATH}`, `GET ${BASE_PATH}/sess_one`])
+})
+
+test('partial or malformed organization and project routes fail before transport', () => {
+  const routes = [
+    { organizationId: 'org-Fixture' },
+    { projectId: 'proj_Fixture' },
+    { organizationId: 'org-Fixture\r\nX-Routing: other', projectId: 'proj_Fixture' },
+    { organizationId: 'org-Fixture', projectId: 'org-Fixture' },
+    { organizationId: 'org-Fixture', projectId: 'proj_Fixture ' },
+    { organizationId: 'org-Fixture', projectId: 'proj_' },
+    { organizationId: 'org-Fixture', projectId: `proj_${'a'.repeat(124)}` },
+  ]
+  for (const route of routes) {
+    assert.throws(
+      () =>
+        createManagedExploreProvider({
+          apiKey: KEY,
+          ...route,
+          fetch: () => assert.fail('invalid routes must not contact the transport'),
+        }),
+      providerError('invalid_input', 'terminal'),
+    )
+  }
+})
