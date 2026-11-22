@@ -181,11 +181,10 @@ export function managedExploreRetention({
     }
     if (!isExactArtifact(output)) return 'invalid'
     const { artifact } = output
-    const receipt = await readTurnText(root.sessionId, root.id).catch((error: unknown) =>
-      error instanceof ManagedExploreProviderError && error.disposition === 'terminal' ? null : undefined,
+    const receipt = await readTurnText(root.sessionId, root.id).catch((error: unknown): 'invalid' | 'pending' =>
+      error instanceof ManagedExploreProviderError && error.disposition === 'terminal' ? 'invalid' : 'pending',
     )
-    if (receipt === undefined) return 'pending'
-    if (receipt === null) return 'invalid'
+    if (typeof receipt === 'string') return receipt
     if (!receipt.value?.trim()) return 'missing'
     const notes = parseManagedExplorePrototypeNotes(receipt.value)
     if (!notes) return 'invalid'
