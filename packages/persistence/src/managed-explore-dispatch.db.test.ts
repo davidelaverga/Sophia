@@ -85,11 +85,11 @@ function expire(lease: ManagedExploreDispatchLease) {
   )
 }
 
-async function createReceipt(lease: ManagedExploreDispatchLease) {
+async function createReceipt(lease: ManagedExploreDispatchLease, providerSessionId = randomUUID()) {
   const observation = {
     kind: 'created',
     operationId: lease.createOperationId,
-    providerSessionId: randomUUID(),
+    providerSessionId,
     environmentId: 'synthetic-environment-1',
     model: lease.model,
     sessionLimitCents: lease.sessionLimitCents,
@@ -111,6 +111,228 @@ async function createReceipt(lease: ManagedExploreDispatchLease) {
   })
   return observation
 }
+
+it('prepares only the chosen design and exact retained parent under the outbound byte fence', async () => {
+  const { projectId, sessionId } = await admit()
+  const getSession = () => withActor(api, founder, 'read', (c) => readManagedExploreSession(c, projectId, sessionId))
+  const claimTurn = async () => {
+    const claim = await claimManagedExploreDispatch(worker, scope)
+    assert.ok(claim)
+    assert.equal(claim.projectId, projectId)
+    return claim
+  }
+  const prepareEvent = (claim: ManagedExploreDispatchLease) =>
+    prepareManagedExploreDispatch(worker, claim, { kind: 'event', predecessorRootId: claim.previousRootId })
+  const first = await claimTurn()
+  assert.equal((await prepareManagedExploreDispatch(worker, first, { kind: 'create' })).kind, 'create')
+  await createReceipt(first, `synthetic-session-${randomUUID()}`)
+  const event = await prepareEvent(first)
+  assert.equal(event.kind, 'event')
+  const firstRoot = {
+    providerSessionId: event.providerSessionId,
+    submissionId: event.submissionId,
+    payloadSha256: event.payloadSha256,
+    previousRootId: event.previousRootId,
+    rootId: 'input-seed-root',
+    status: 'completed',
+  } as const
+  await recordManagedExploreDispatch(worker, first, { ...firstRoot, kind: 'root' })
+  await recordManagedExploreDispatch(worker, first, { ...firstRoot, kind: 'settle', reply: 'Clarification saved.' })
+
+  const directionId = randomUUID()
+  const unselectedId = randomUUID()
+  const choice = {
+    label: 'Vessel acknowledges first',
+    firstActor: 'Vessel',
+    nextStep: 'Acknowledge the exception',
+    rationale: 'Shore can use the explanation',
+    tradeoff: 'Wait for a vessel response',
+    steps: [{ id: 'ack', label: 'Acknowledge', lane: 'vessel' }],
+    edges: [],
+  }
+  await owner.query(
+    `INSERT INTO sophia.managed_explore_directions(project_id,session_id,id,revision,position,candidate)
+       VALUES ($1,$2,$3,1,1,$4::jsonb),($1,$2,$5,1,2,$6::jsonb)`,
+    [
+      projectId,
+      sessionId,
+      directionId,
+      JSON.stringify(choice),
+      unselectedId,
+      JSON.stringify({ ...choice, label: 'Other direction' }),
+    ],
+  )
+  const choose = async (id: string) => {
+    const { revision } = await getSession()
+    return withActor(api, founder, 'write', (c) =>
+      selectManagedExploreDirection(c, projectId, sessionId, randomUUID(), {
+        directionId: id,
+        expectedDirectionRevision: 1,
+        expectedSessionRevision: revision,
+      }),
+    )
+  }
+  const queue = async (kind: 'text' | 'prototype' | 'revision', instruction: string, parentVersionId?: string) => {
+    const { revision } = await getSession()
+    return withActor(api, founder, 'write', (c) =>
+      admitManagedExploreTurn(c, projectId, sessionId, randomUUID(), {
+        kind,
+        instruction,
+        expectedSessionRevision: revision,
+        ...(kind === 'text' ? {} : { directionId }),
+        ...(parentVersionId ? { parentVersionId } : {}),
+      }),
+    )
+  }
+
+  await choose(directionId)
+  await queue('prototype', 'Use the selected workflow.')
+  await choose(unselectedId)
+  const staleSelection = await claimTurn()
+  assert.deepEqual(await prepareEvent(staleSelection), { kind: 'denied', reason: 'direction_unavailable' })
+  const {
+    rows: [denied],
+  } = await owner.query(
+    'SELECT event_possible_at,payload_sha256 FROM sophia.managed_explore_dispatch_turns WHERE turn_id=$1',
+    [staleSelection.turnId],
+  )
+  assert.deepEqual(denied, { event_possible_at: null, payload_sha256: null })
+
+  await choose(directionId)
+  await queue('prototype', 'Use the selected workflow.')
+  const prototype = await claimTurn()
+  const createPrototype = await prepareEvent(prototype)
+  assert.equal(createPrototype.kind, 'event')
+  const payload = JSON.parse(createPrototype.instruction)
+  const { seed } = await getSession()
+  assert.deepEqual(payload, {
+    format: 'sophia.managed-explore.input.v1',
+    operation: 'prototype',
+    brief: { text: seed.text, sha256: seed.sha256 },
+    direction: { ...choice, id: directionId, revision: 1 },
+    request: 'Use the selected workflow.',
+    outputPath: '/workspace/outputs/index.html',
+  })
+  assert.equal(createPrototype.payloadSha256, createHash('sha256').update(createPrototype.instruction).digest('hex'))
+  const prototypeRoot = {
+    providerSessionId: createPrototype.providerSessionId,
+    submissionId: createPrototype.submissionId,
+    payloadSha256: createPrototype.payloadSha256,
+    previousRootId: createPrototype.previousRootId,
+    rootId: 'input-prototype-root',
+  }
+  await recordManagedExploreDispatch(worker, prototype, { ...prototypeRoot, kind: 'root', status: 'completed' })
+  await recordManagedExploreDispatch(worker, prototype, {
+    ...prototypeRoot,
+    kind: 'outputRejected',
+    reason: 'output_invalid',
+  })
+
+  const ordinaryText = '{"format":"sophia.managed-explore.input.v1","operation":"prototype"}'
+  await queue('text', ordinaryText)
+  const discussion = await claimTurn()
+  const discussionEvent = await prepareEvent(discussion)
+  assert.equal(discussionEvent.kind, 'event')
+  assert.deepEqual(JSON.parse(discussionEvent.instruction), {
+    format: 'sophia.managed-explore.input.v1',
+    operation: 'text',
+    brief: { text: seed.text, sha256: seed.sha256 },
+    request: ordinaryText,
+  })
+  const discussionRoot = {
+    providerSessionId: discussionEvent.providerSessionId,
+    submissionId: discussionEvent.submissionId,
+    payloadSha256: discussionEvent.payloadSha256,
+    previousRootId: discussionEvent.previousRootId,
+    rootId: 'input-discussion-root',
+    status: 'completed',
+  } as const
+  await recordManagedExploreDispatch(worker, discussion, { ...discussionRoot, kind: 'root' })
+  await recordManagedExploreDispatch(worker, discussion, { ...discussionRoot, kind: 'settle', reply: 'Text only.' })
+
+  async function fixtureParent(number: number, source: string, objectBacked: boolean) {
+    const sourceId = randomUUID()
+    const versionId = randomUUID()
+    const sha256 = createHash('sha256').update(source).digest('hex')
+    const bytes = Buffer.byteLength(source)
+    const key = `${objectBacked ? 'objects' : 'inline'}/${projectId}/${sourceId}`
+    await owner.query(
+      `INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
+       VALUES($1,$2,$3,'private',$4,'text/html',$5,$6,true,'ready')`,
+      [projectId, sourceId, founder, sha256, key, bytes],
+    )
+    if (!objectBacked) {
+      await owner.query('INSERT INTO sophia.source_texts VALUES($1,$2,$3)', [projectId, sourceId, source])
+    }
+    const manifest = JSON.stringify({
+      artifactId: sessionId,
+      directionId,
+      entry: 'index.html',
+      files: [{ bytes, mime: 'text/html', path: 'index.html', sha256, sourceId }],
+      format: 'sophia.prototype.v1',
+      parentVersionId: null,
+      versionId,
+    })
+    await owner.query(
+      `INSERT INTO sophia.managed_explore_versions(project_id,session_id,id,number,direction_id,entry_source_id,
+         entry_sha256,manifest_sha256,manifest,change_summary,acceptance_criteria,mock_replacements,limitations)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,'Fixture',ARRAY['Observe it'],'{}','{}')`,
+      [
+        projectId,
+        sessionId,
+        versionId,
+        number,
+        directionId,
+        sourceId,
+        sha256,
+        createHash('sha256').update(manifest).digest('hex'),
+        manifest,
+      ],
+    )
+    return { id: versionId, entrySha256: sha256, html: source }
+  }
+
+  const source = '<!doctype html>\r\n<title>Vessel 🚢 and "shore"</title>\r\n<button>Acknowledge</button>'
+  const firstParent = await fixtureParent(1, source, false)
+  const objectParent = await fixtureParent(2, source, true)
+  await queue('revision', 'Keep the prior controls.', objectParent.id)
+  const unavailable = await claimTurn()
+  assert.deepEqual(await prepareEvent(unavailable), { kind: 'denied', reason: 'parent_unavailable' })
+  const {
+    rows: [unavailableFence],
+  } = await owner.query('SELECT event_possible_at FROM sophia.managed_explore_dispatch_turns WHERE turn_id=$1', [
+    unavailable.turnId,
+  ])
+  assert.equal(unavailableFence.event_possible_at, null)
+
+  // The retained source fits the inline storage limit. JSON escaping makes the outbound message too large.
+  const largeParent = await fixtureParent(3, '<!doctype html>' + '\u0001'.repeat(180_000), false)
+  await queue('revision', 'Keep the prior source.', largeParent.id)
+  const oversized = await claimTurn()
+  assert.deepEqual(await prepareEvent(oversized), { kind: 'denied', reason: 'input_too_large' })
+  const {
+    rows: [oversizeFence],
+  } = await owner.query(
+    'SELECT event_possible_at,payload_sha256 FROM sophia.managed_explore_dispatch_turns WHERE turn_id=$1',
+    [oversized.turnId],
+  )
+  assert.deepEqual(oversizeFence, { event_possible_at: null, payload_sha256: null })
+
+  await queue('revision', 'Keep the prior controls and require an explanation.', firstParent.id)
+  const revision = await claimTurn()
+  const revisionEvent = await prepareEvent(revision)
+  assert.equal(revisionEvent.kind, 'event')
+  const revised = JSON.parse(revisionEvent.instruction)
+  assert.deepEqual(revised, {
+    ...payload,
+    operation: 'revision',
+    request: 'Keep the prior controls and require an explanation.',
+    parent: firstParent,
+    componentId: null,
+  })
+  assert.equal(revisionEvent.payloadSha256, createHash('sha256').update(revisionEvent.instruction).digest('hex'))
+  assert.deepEqual(await prepareEvent(revision), { kind: 'observe' })
+})
 
 it('fences create, event and root evidence through expiry, restart and the queued successor', async () => {
   const { projectId, sessionId } = await admit()
@@ -237,6 +459,14 @@ it('fences create, event and root evidence through expiry, restart and the queue
     predecessorRootId: successor.previousRootId,
   })
   assert.equal(next.kind, 'event')
+  const nextInput = JSON.parse(next.instruction)
+  assert.deepEqual(nextInput, {
+    format: 'sophia.managed-explore.input.v1',
+    operation: 'directions',
+    brief: { text: seed.seed.text, sha256: seed.seed.sha256 },
+    request: finished.turns[1]?.instruction,
+  })
+  assert.equal(next.payloadSha256, createHash('sha256').update(next.instruction).digest('hex'))
   const directions = {
     kind: 'root',
     submissionId: next.submissionId,
