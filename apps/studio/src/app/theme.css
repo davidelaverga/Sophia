@@ -5091,6 +5091,9 @@ button.contribution-quote:hover {
   }
   .controls .control-row .text-button::after {
     inset: -10px min(-8px, calc((100% - 44px) / 2));
+    /* The insets reach 44 px only to the subpixel (a 23.98 px press made a 43.98 px target): the floor is stated. */
+    min-width: 44px;
+    min-height: 44px;
   }
 }
 /* Asking first, in place: what will happen, the safe answer, then the one that acts. */

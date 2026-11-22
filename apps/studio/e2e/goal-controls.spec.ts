@@ -84,19 +84,17 @@ test('goal controls @phone · on a coarse pointer Hold and Stop reach 44 × 44 p
     .first()
     .evaluate((row) =>
       [...row.querySelectorAll<HTMLElement>('button.text-button')].map((press) => {
-        // The target is the press's ::after, placed around it: its box, from the press's box and its offsets.
+        // The target is the press's ::after, placed around it: its used size, and where it starts from the press's box.
         const box = press.getBoundingClientRect()
         const after = getComputedStyle(press, '::after')
         const left = box.left + parseFloat(after.left)
-        const right = box.right - parseFloat(after.right)
-        const top = box.top + parseFloat(after.top)
-        const bottom = box.bottom - parseFloat(after.bottom)
+        const width = parseFloat(after.width)
         return {
           words: press.childNodes[0]?.textContent?.trim() ?? '',
           left,
-          right,
-          width: right - left,
-          height: bottom - top,
+          right: left + width,
+          width,
+          height: parseFloat(after.height),
         }
       }),
     )
