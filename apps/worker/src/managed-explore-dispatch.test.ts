@@ -367,6 +367,7 @@ test('a recovered completed revision uses its exact provider root and environmen
     {
       kind: 'revision',
       root: root(),
+      environmentId: SESSION.environmentId,
       rootRequestId: 'req_fixture',
       outputRequestId: 'req_fixture',
       artifact,
@@ -671,4 +672,63 @@ test('a terminal environment observation settles without rereading its released 
     ['environment'],
   )
   assert.deepEqual(f.preparations, [])
+})
+
+test('drain fences create and event mutations even when it starts during committed send preparation', async () => {
+  for (const [initial, action] of [
+    [BASE, 'create'],
+    [EVENT_READY, 'event'],
+  ] as const) {
+    const f = fixture(initial)
+    let open = true
+    const store: ManagedExploreDispatchContinuationStore = {
+      ...f.store,
+      prepareManagedExploreDispatch: async (identity, requested) => {
+        const prepared = await f.store.prepareManagedExploreDispatch(identity, requested)
+        assert.equal(prepared.kind, action)
+        open = false
+        return prepared
+      },
+    }
+    const provider = fakeProvider({
+      createSession: () => assert.fail('mutation called during drain'),
+      submitText: () => assert.fail('mutation called during drain'),
+    })
+    assert.equal(await dispatchManagedExplorePass(SCOPE, { ...f, store, provider, maySend: () => open }), 'unknown')
+    assert.deepEqual(f.preparations, [action])
+    assert.deepEqual(f.observations, [{ kind: 'defer', delaySeconds: 5 }])
+  }
+})
+
+test('callback output rejection settles only the recorded root and uses the existing missing-output window', async () => {
+  for (const [result, elapsed, expected] of [
+    ['invalid', 0, 'settled'],
+    ['missing', 0, 'unknown'],
+    ['missing', 300_000, 'settled'],
+  ] as const) {
+    const f = fixture({
+      ...EVENT_PREPARED,
+      turnKind: 'directions',
+      rootId: 'turn_fixture',
+      rootStatus: 'completed',
+      rootCompletedSeenAt: new Date(NOW - elapsed).toISOString(),
+    })
+    const provider = fakeProvider({ readTurnText: () => receipt('fixture') })
+    assert.equal(
+      await dispatchManagedExplorePass(SCOPE, {
+        ...f,
+        provider,
+        retainOutput: () => Promise.resolve(result),
+      }),
+      expected,
+    )
+    const observation = f.observations[0]
+    if (expected === 'settled') {
+      assert.equal(observation?.kind, 'outputRejected')
+      assert.equal(observation.rootId, f.state.claim.rootId)
+      assert.equal(observation.reason, `output_${result}`)
+    } else {
+      assert.deepEqual(f.observations, [{ kind: 'defer', delaySeconds: 5 }])
+    }
+  }
 })

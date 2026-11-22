@@ -10,6 +10,7 @@
 //   3. claims pending native rows, Hold/Stop first, and dispatches each under its lease: the database rechecks
 //      authority and either queues one runtime command or records an explicit denial.
 import type pg from 'pg'
+import type { ManagedExploreWorker } from './managed-explore-runtime.ts'
 import {
   assembleReply,
   checkedLimits,
@@ -165,9 +166,12 @@ export class RuntimeDispatcher {
   private readonly listener: ProjectEventListener
   private loop: Promise<void> | null = null
   private readonly pool: pg.Pool
-  private readonly options: DispatcherOptions & { idleMs?: number }
+  private readonly options: DispatcherOptions & { idleMs?: number; managedExplore?: ManagedExploreWorker | null }
 
-  constructor(pool: pg.Pool, options: DispatcherOptions & { idleMs?: number }) {
+  constructor(
+    pool: pg.Pool,
+    options: DispatcherOptions & { idleMs?: number; managedExplore?: ManagedExploreWorker | null },
+  ) {
     this.pool = pool
     this.options = options
     this.listener = new ProjectEventListener(pool, {
@@ -184,6 +188,7 @@ export class RuntimeDispatcher {
   private async run(): Promise<void> {
     await Promise.race([this.listener.listening, this.halted])
     while (!this.stopped) {
+      this.options.managedExplore?.tick()
       try {
         const pass = await dispatchOnce(this.pool, this.options)
         if (pass.outcomes.length > 0 || pass.expired > 0 || pass.reconciled > 0) continue
@@ -204,10 +209,11 @@ export class RuntimeDispatcher {
 
   async stop(): Promise<void> {
     this.stopped = true
+    const exploreDrain = this.options.managedExplore?.stop()
     this.halt()
     this.wake?.()
     // The listener first: it may still be retrying its first LISTEN, and its retries must end for the process to.
     await this.listener.stop()
-    await this.loop
+    await Promise.all([this.loop, exploreDrain])
   }
 }

@@ -188,6 +188,15 @@ test(
               turn_id: 'turn_child',
               content: [output],
             },
+            {
+              type: 'message',
+              role: 'assistant',
+              status: 'completed',
+              phase: 'final_answer',
+              turn_id: 'turn_one',
+              subagent_id: 'subagent_child',
+              content: [output],
+            },
           ]),
         )
       }

@@ -123,9 +123,15 @@ export interface ManagedExploreDispatchContinuationStore extends ManagedExploreD
 type Output = {
   event: EventIdentity
   root: ManagedExploreRootTurn
+  environmentId: string
   rootRequestId: string | null
   outputRequestId: string | null
 } & ({ kind: 'directions'; text: string } | { kind: 'prototype' | 'revision'; artifact: ManagedExplorePrototype })
+
+export type ManagedExploreRetentionCallback = (
+  identity: ManagedExploreDispatchIdentity,
+  output: Output,
+) => Promise<'settled' | 'pending' | 'invalid' | 'missing'>
 
 type Provider = Pick<
   ManagedExploreProvider,
@@ -150,7 +156,9 @@ interface Dependencies {
   instructions: string
   // The receiver must validate and finalize the retained output atomically
   // under this lease before returning settled. Missing retention leaves the job pending.
-  retainOutput?: (identity: ManagedExploreDispatchIdentity, output: Output) => Promise<'settled' | 'pending'>
+  retainOutput?: ManagedExploreRetentionCallback
+  /** The local outbound gate closes immediately when the worker starts draining. */
+  maySend?: () => boolean
   now?: () => number
 }
 
@@ -285,7 +293,12 @@ class ExploreStep {
     return this.#recordSession(exact)
   }
 
+  #maySend(): boolean {
+    return this.#dependencies.maySend?.() ?? true
+  }
+
   async #create(): Promise<Step> {
+    if (!this.#maySend()) return this.#defer('waiting')
     const claim = this.#claim
     const prepared = await this.#dependencies.store.prepareManagedExploreDispatch(claim, { kind: 'create' })
     if (prepared.kind !== 'create') return 'waiting'
@@ -297,6 +310,7 @@ class ExploreStep {
     ) {
       return this.#defer('unknown')
     }
+    if (!this.#maySend()) return this.#defer('unknown')
     let receipt: ProviderResult<ManagedExploreSession>
     try {
       receipt = await this.#provider.createSession({
@@ -356,6 +370,7 @@ class ExploreStep {
     if (ready) return ready
     const blocked = await this.#predecessor(providerSessionId)
     if (blocked) return blocked
+    if (!this.#maySend()) return this.#defer('waiting')
     const claim = this.#claim
     const prepared = await this.#dependencies.store.prepareManagedExploreDispatch(claim, {
       kind: 'event',
@@ -366,6 +381,7 @@ class ExploreStep {
     if (!preparedEventMatches(prepared, claim)) return this.#defer('unknown')
     const { providerSessionId: sessionId, submissionId, payloadSha256, previousRootId, instruction } = prepared
     const identity = { providerSessionId: sessionId, submissionId, payloadSha256, previousRootId }
+    if (!this.#maySend()) return this.#defer('unknown')
     let receipt: ProviderResult<'accepted'>
     try {
       receipt = await this.#provider.submitText({ sessionId, idempotencyKey: submissionId, text: instruction })
@@ -437,13 +453,14 @@ class ExploreStep {
   #collect(event: EventIdentity, root: ProviderResult<ManagedExploreRootTurn>, environmentId: string): Promise<Step> {
     const { turnKind } = this.#claim
     return turnKind === 'text' || turnKind === 'directions'
-      ? this.#collectText(event, root, turnKind)
+      ? this.#collectText(event, root, environmentId, turnKind)
       : this.#collectArtifact(event, root, environmentId, turnKind)
   }
 
   async #collectText(
     event: EventIdentity,
     { value: root, requestId: rootRequestId }: ProviderResult<ManagedExploreRootTurn>,
+    environmentId: string,
     turnKind: 'text' | 'directions',
   ): Promise<Step> {
     const { receipt, reason } = await this.#readOutput(() => this.#provider.readTurnText(root.sessionId, root.id))
@@ -454,7 +471,7 @@ class ExploreStep {
       if (Buffer.byteLength(text) > REPLY_MAX_BYTES) return this.#rejectOutput(event, root.id, 'output_invalid')
       return this.#record({ kind: 'settle', ...event, rootId: root.id, status: 'completed', reply: text }, 'settled')
     }
-    return this.#retain({ kind: 'directions', event, root, rootRequestId, outputRequestId, text })
+    return this.#retain({ kind: 'directions', event, root, environmentId, rootRequestId, outputRequestId, text })
   }
 
   async #collectArtifact(
@@ -475,13 +492,20 @@ class ExploreStep {
     ) {
       return this.#defer('unknown')
     }
-    return this.#retain({ kind: turnKind, event, root, rootRequestId, outputRequestId, artifact })
+    return this.#retain({ kind: turnKind, event, root, environmentId, rootRequestId, outputRequestId, artifact })
   }
 
   async #retain(output: Output): Promise<Step> {
     const retain = this.#dependencies.retainOutput
     if (!retain || !this.#leaseCurrent()) return this.#defer('retention_pending')
     const retained = await retain(this.#claim, output)
+    if (retained === 'invalid' || retained === 'missing') {
+      return this.#rejectOutput(
+        output.event,
+        output.root.id,
+        retained === 'invalid' ? 'output_invalid' : 'output_missing',
+      )
+    }
     return retained === 'settled' ? 'settled' : this.#defer('retention_pending')
   }
 

@@ -356,6 +356,7 @@ function finalTextParts(value: unknown, turnId: string): string[] {
     item.status !== 'completed' ||
     item.phase !== 'final_answer' ||
     item.turn_id !== turnId ||
+    (item.subagent_id !== null && item.subagent_id !== undefined) ||
     !Array.isArray(item.content)
   )
     return []
