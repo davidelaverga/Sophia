@@ -24,6 +24,8 @@ BEGIN
   OR p_generation IS NULL OR p_generation NOT BETWEEN 1 AND 9007199254740991
   OR p_instance IS NULL OR p_ready IS NULL THEN
   RAISE EXCEPTION 'Invalid managed Explore readiness scope' USING ERRCODE='22023'; END IF;
+ -- A retirement must see a first announcement whose COMMIT was sent but not acknowledged by the worker.
+ PERFORM pg_advisory_xact_lock(hashtextextended('sophia.managed_explore_worker_readiness/'||p_instance::text,0));
  DELETE FROM sophia.managed_explore_worker_readiness
  WHERE route_id=p_route AND provider_org=p_org AND provider_project=p_provider_project
   AND credential_generation=p_generation

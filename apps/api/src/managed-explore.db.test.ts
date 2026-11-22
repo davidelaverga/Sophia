@@ -157,6 +157,20 @@ async function addGrant(projectId: string, route = routeId, announce = true) {
     await recordManagedExploreWorkerReadiness(worker, { ...workerRoute, routeId: route }, workerInstance, true)
 }
 
+async function waitForBlockedTransaction(pid: number) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const {
+      rows: [activity],
+    } = await owner.query<{ waiting: boolean }>(
+      "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock' AND $1::int=ANY(pg_blocking_pids(pid))) AS waiting",
+      [pid],
+    )
+    if (activity?.waiting) return true
+    await delay(10)
+  }
+  return false
+}
+
 it('requires fresh matching worker readiness for new admissions and preserves prior receipts while it is offline', async () => {
   const { projectId } = await seedProject(db.ownerUrl, { admin, editors: [founder] })
   const root = `/api/v1/projects/${projectId}/explore`
@@ -202,18 +216,7 @@ it('requires fresh matching worker readiness for new admissions and preserves pr
     await blocker.query('BEGIN')
     await blocker.query('SELECT id FROM sophia.projects WHERE id=$1 FOR UPDATE', [projectId])
     blockedStart = request(start, { payload, key })
-    let waiting = false
-    for (let attempt = 0; attempt < 100 && !waiting; attempt++) {
-      const {
-        rows: [activity],
-      } = await owner.query<{ waiting: boolean }>(
-        "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock' AND $1::int=ANY(pg_blocking_pids(pid))) AS waiting",
-        [process.pid],
-      )
-      waiting = activity?.waiting === true
-      if (!waiting) await delay(10)
-    }
-    assert.ok(waiting, 'start must have entered PostgreSQL and be waiting on the project lock')
+    assert.ok(await waitForBlockedTransaction(process.pid), 'start must be waiting on the project lock')
     await blocker.query(
       'UPDATE sophia.managed_explore_worker_readiness SET ready_until=clock_timestamp() WHERE instance_id=$1 AND route_id=$2 AND credential_generation=$3',
       [workerInstance, route.routeId, route.credentialGeneration],
@@ -255,6 +258,40 @@ it('requires fresh matching worker readiness for new admissions and preserves pr
   })
   assert.equal(refused.statusCode, 503, refused.body)
   assert.equal(await count(), 1)
+})
+
+it('retires its readiness even if the first announcement was still committing', async () => {
+  const route = { ...workerRoute, routeId: 'fixture-worker-commit-race' }
+  const instance = randomUUID()
+  const announcing = await worker.connect()
+  let retirement: Promise<void> | undefined
+  try {
+    const {
+      rows: [process],
+    } = await announcing.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
+    assert.ok(process)
+    await announcing.query('BEGIN')
+    await announcing.query('SELECT sophia.record_managed_explore_worker_readiness($1,$2,$3,$4,$5,true)', [
+      route.routeId,
+      route.providerOrg,
+      route.providerProject,
+      route.credentialGeneration,
+      instance,
+    ])
+    retirement = recordManagedExploreWorkerReadiness(worker, route, instance, false)
+    assert.ok(await waitForBlockedTransaction(process.pid), 'retirement must wait for the first readiness write')
+    await announcing.query('COMMIT')
+    await retirement
+    const { rows } = await owner.query(
+      'SELECT instance_id FROM sophia.managed_explore_worker_readiness WHERE instance_id=$1',
+      [instance],
+    )
+    assert.deepEqual(rows, [])
+  } finally {
+    await announcing.query('ROLLBACK')
+    announcing.release()
+    await retirement
+  }
 })
 
 it('uses a real saved voice note and atomically admits one authorized start across retries', async () => {
