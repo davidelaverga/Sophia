@@ -2816,9 +2816,12 @@ img.avatar {
   .chat-start {
     height: 52px;
   }
+  /* 16 px: a touch browser zooms the page into a smaller field as it takes the focus (iOS Safari). The line keeps its
+     20 px, so the bar keeps its height (docs/plans/touch-fields.md). */
   .message-bar textarea {
     min-height: 40px;
     padding: 10px 0;
+    font-size: 16px;
   }
   .send {
     width: 40px;
@@ -4843,6 +4846,13 @@ button.contribution-quote:hover {
 .sheet-form .field,
 .sheet-form > input {
   width: 100%;
+}
+/* Invite's addresses at 16 px on touch, as the chat's field (docs/plans/touch-fields.md): no zoom as they take the focus,
+   and the row keeps its height beside its press or its role. */
+@media (pointer: coarse) {
+  .sheet-form .field input[type='email'] {
+    font-size: 16px;
+  }
 }
 /* A chosen report's cited sources (A43), under it and set in, so each belongs to its report. */
 .review-cited {
