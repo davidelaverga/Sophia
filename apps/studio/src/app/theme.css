@@ -2121,6 +2121,11 @@ img.avatar {
 .outcome:empty {
   display: none;
 }
+/* A goal's tips opening below its controls (visual-fit.md) wait while a line stands under them: what a command came
+   to, or a retirement's results, are never covered; the controls' own words say what they are. */
+.controls:has(> .control-row ~ :not(:empty)) > .control-row .tip[data-side='bottom'] {
+  visibility: hidden;
+}
 /* The way back in: the projects this device opened, as quiet rows. The home scrolls if they need room. */
 .home {
   overflow-y: auto;
@@ -6137,12 +6142,17 @@ button.contribution-quote:hover {
     font-size: 9.5px;
     font-weight: 600;
   }
-  /* A control with no tip of its own says its words in one, as every icon in the dock does. */
+  /* A control with no tip of its own says its words in one, as every icon in the dock does; and every icon's tip
+     shows under a pointer, from the keyboard, or pressed and held, also where a narrow window or a touch screen hides
+     tips (up to 760 px), since an icon alone doesn't say what it does. */
   .dock[data-tight] .dock-tip {
     display: inline-flex;
   }
-  .dock[data-tight] button:is(:hover, :focus-visible) > .dock-tip {
+  .dock[data-tight] button:is(:hover, :focus-visible, :active) > .tip {
+    display: inline-flex;
     opacity: 1;
+  }
+  .dock[data-tight] button:is(:hover, :focus-visible, :active) > .dock-tip {
     transform: translate(-50%, 0);
     transition-delay: 320ms;
   }

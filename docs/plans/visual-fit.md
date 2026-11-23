@@ -31,17 +31,22 @@
 - **15 · A goal's tips never cover its criteria** (`WorkControls.tsx`, `ConfirmButton`'s new `tipSide`). Where the
   controls stand at the content's start (a goal without a plan, under its criteria), their tips open below
   (`tipSideOf`); at its end (over a plan, the card's top) they open above, as before. `ConfirmButton` (Stop, Retire)
-  takes the side as it already took the alignment.
+  takes the side as it already took the alignment. While a line stands under the row (what a command came to, a
+  retirement's results), the tips below wait (`visibility: hidden`, as the floor's tips do beside its error): the
+  controls' own words say what they are, and the line is never covered.
 - **16 · The dock keeps one row before it wraps** (`dock-fit.ts` with tests, `useDockFit.ts`, theme.css). The dock
   is tried with its words; where they would wrap (`wraps`: a control starts under where another ends), it is marked
   `data-tight` and its word controls (Take the floor, Speak with Sophia, Pass to…, End, Sophia's others) show their
   icon alone in a 36 px square, as on a phone; their captions (Floor, Sophia) are read but not seen, and the
   separators go. Who holds the floor stays in sight. The words stay the controls' names; a control with no tip of its
-  own (Take the floor) says them in its tip. Only if the icons don't fit either does it wrap, as before.
+  own (Take the floor) says them in its tip, and every icon's tip shows under a pointer, from the keyboard or pressed
+  and held, also up to 760 px, where a narrow window or a touch screen otherwise hides tips. Only if the icons don't
+  fit either does it wrap, as before.
   - It is decided in one go before anything paints (the attribute taken off, the row read, put back if it wraps), when
-    the controls change (a `MutationObserver` on the dock, the call's clock left out) and when the stage does (a
-    `ResizeObserver` on the stage: a panel opened, a window resized). The dock's own size is not observed for this, so
-    it never feeds back on itself (no ResizeObserver loop).
+    the dock mounts, when its controls change (a `MutationObserver` on the dock; the call's clock only when it reads
+    longer, 9:59 to 10:00 or past an hour), when the stage does (a `ResizeObserver` on the stage: a panel opened, a
+    window resized), and once the web font has arrived. The dock's own size is not observed for this, so it never feeds
+    back on itself (no ResizeObserver loop).
   - The `--dock-h` contract stands: the dock's height is still measured after, by its own observer, and is 48 px with
     the panel open.
   - A phone's dock is icons already: the tight rules apply above 600 px only.
@@ -57,7 +62,7 @@ No new words. 14 reuses the sign-in screen's «Check the address: it needs a nam
   second; one control or none never wraps.
 - `e2e/visual-fit.spec.ts`: a member's address without «@» is said under the field, with `aria-invalid`,
   `aria-describedby`, the focus kept and nothing sent, the words gone once it changes; a goal without a plan has its
-  tips below and none covers a word of the page; at 1280 × 800 the dock keeps one row with the panel open (icons,
+  tips below and none covers a word of the page, and once Hold is pressed they wait over its line; at 1280 × 800 the dock keeps one row with the panel open (icons,
   48 px), with Sophia in too, and its words come back when the panel closes.
 - Before and after, both themes, 1280 × 800 and 390 × 844 (fixture): the error line 9.6:1 on dark, 6.25:1 on light,
   8 px under its field, inside the width at 390; the dock 673 px with words closed, 448–450 px with icons open, 48 px
@@ -65,8 +70,7 @@ No new words. 14 reuses the sign-in screen's «Check the address: it needs a nam
 
 ## Not done
 
-- After a command is sent, the line under a goal's controls («Sent · Hold requested…») is covered by the next tip
-  while the pointer rests on a control: below, the tips cover that line; above, they would cover the criteria. Neither
-  side is free in that state, and the line stays after the tip goes.
-- The dock's fit is checked when its controls or the stage change, not when a web font arrives late; the next change
-  checks it again.
+- While a command's line stands under a goal without a plan, its controls show no tips (their words stay); a tip
+  there would cover either that line or the criteria.
+- Resending the same wrong address doesn't announce the same words again (the alert doesn't change); the focus goes
+  back to the field.
