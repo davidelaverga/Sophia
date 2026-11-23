@@ -196,6 +196,19 @@ for (const [who, tag] of [
   })
 }
 
+// A short phone (375 × 667, a 575 px stage): a band above the dock would leave no height for her line, what she made
+// and two captions (room-made.spec.ts), so the corner keeps to the lenses' line there, as before.
+test('dock · on a short phone the corner stays under the lenses, high on the stage @phone', async ({ page }) => {
+  await enter(page, 'people=2', 375)
+  await page.setViewportSize({ width: 375, height: 667 })
+  await expect.poll(async () => (await cornerRead(page))?.corner.top ?? 0).toBeLessThan(667 / 2)
+  const read = await cornerRead(page)
+  if (!read) return
+  expect(read.corner.top).toBeGreaterThanOrEqual(
+    await page.locator('.lens-bar').evaluate((el) => el.getBoundingClientRect().bottom),
+  )
+})
+
 test('dock · on a phone, a menu opened from the dock rises over the corner where they meet (five-decisions.md, 23)', async ({
   page,
 }) => {
