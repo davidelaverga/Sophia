@@ -26,9 +26,9 @@ test('calendar · the date and time chosen are read back on the 24-hour clock un
   await time.fill('18:30')
   const said = page.locator('#calendar-when-said')
   // A range's spaces may be no-break ones (\s matches them), with a word joiner after the dash.
-  await expect(said).toHaveText(/ · 18:30\s–⁠?\s19:30$/)
+  await expect(said).toHaveText(/ · 18:30\s–\u2060?\s19:30$/)
   await expect(time).toHaveAttribute('aria-describedby', 'calendar-when-said')
-  await expect(page.getByLabel('Date')).toHaveAttribute('aria-describedby', 'calendar-when-said')
+  await expect(page.getByLabel('Date', { exact: true })).toHaveAttribute('aria-describedby', 'calendar-when-said')
 })
 
 test('goals · a target date is read back as the Studio says it, under the browser’s field', async ({ page }) => {
