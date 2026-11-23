@@ -181,6 +181,14 @@ for (const [who, tag] of [
 ] as const) {
   test(`dock · on ${who}, Chat, People and Brief sit just above the dock, on the right${tag}`, async ({ page }) => {
     await enter(page, 'people=2', 390)
+    // Once the dock has published its settled height (--dock-h, rounded up): read once, the corner may still stand
+    // on an earlier one.
+    await expect
+      .poll(async () => {
+        const settled = await cornerRead(page)
+        return settled ? settled.dock.top - settled.corner.bottom : 0
+      })
+      .toBeLessThanOrEqual(10)
     const read = await cornerRead(page)
     expect(read).not.toBeNull()
     if (!read) return
