@@ -72,3 +72,12 @@ export function madeOnStage(notices: readonly ChatNoticeItem[], away: ReadonlySe
 /** One revision of one result: a revision put away doesn't keep its next one away. */
 export const madeKey = (n: Pick<ChatNoticeItem, 'taskId' | 'resultRevision'>) =>
   `${n.taskId}:${String(n.resultRevision)}`
+
+/** How much of the object stands in its room under her line (made-fits.md): all of it, all but its facts and who asked,
+ *  or its one row (its title, Open, Close). */
+export type MadeFit = 'whole' | 'brief' | 'row'
+
+/** The first that fits, tried in that order. Its one row is the last resort: it is never measured. */
+export function madeFit(fits: (fit: MadeFit) => boolean): MadeFit {
+  return (['whole', 'brief'] as const).find((fit) => fits(fit)) ?? 'row'
+}

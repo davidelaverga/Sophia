@@ -246,9 +246,16 @@ test('made · born once: back in sight after Chat, it is simply there', async ({
   await expect(made(page)).not.toHaveClass(/born/)
 })
 
-for (const [width, height] of [
-  [1366, 657],
-  [375, 667],
+/** Where the object's words end, not its box: squeezed, its box once ended above the captions while its words ran on. */
+const madeEnds = (page: Page) => made(page).evaluate((el) => el.getBoundingClientRect().top + el.scrollHeight)
+
+// Each stage keeps what fits (made-fits.md): whole, without its facts and who asked, or its one row; on a very short
+// phone the earlier caption gives way to it.
+for (const [width, height, captions] of [
+  [1366, 657, 2],
+  [390, 844, 2],
+  [360, 740, 2],
+  [375, 667, 1],
 ] as const) {
   test(`made · a short stage (${String(width)}×${String(height)}) with two captions: it stays above them`, async ({
     page,
@@ -259,14 +266,14 @@ for (const [width, height] of [
     await say(page, 1, 'Here is the report on the pilot you asked for this morning')
     await say(page, 2, 'It covers fourteen teams over six weeks, with two limits')
     await expect(page.locator('.stage-caption')).toHaveCount(2)
+    await expect(page.locator('.stage-caption:visible')).toHaveCount(captions)
     await made(page).evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
     await expect
-      .poll(async () => {
-        const object = await box(page, '.stage-made')
-        const words = await box(page, '.stage-captions')
-        return words.y - (object.y + object.height)
-      })
+      .poll(async () => (await box(page, '.stage-captions')).y - (await madeEnds(page)))
       .toBeGreaterThanOrEqual(0)
+    // Its one row always stands: what it is, and Open.
+    await expect(made(page).locator('.made-title')).toBeVisible()
+    await expect(made(page).getByRole('button', { name: 'Open', exact: true })).toBeVisible()
     // Nor over Sophia's line: her state stays readable.
     const object = await box(page, '.stage-made')
     const herLine = await box(page, '.sophia-line')

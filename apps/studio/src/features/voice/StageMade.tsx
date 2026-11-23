@@ -27,7 +27,7 @@ import { useCommands } from '../../app/useCommands.ts'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
 import { escapeStepsDown } from '../artifacts/report-view.ts'
 import { noticeActions, noticeOpenRequest, noticeTitle, type ChatNoticeItem } from '../conversation/chat-view.ts'
-import { factWords, madeFacts, madeHeading, madeKey, madeOnStage } from './made-view.ts'
+import { factWords, madeFacts, madeFit, madeHeading, madeKey, madeOnStage } from './made-view.ts'
 import { memberLabel, withMe, type RoomNames } from './StageCaptions.tsx'
 import type { ShowRender } from './ShowEveryone.tsx'
 import type { ProjectRoom } from './useProjectRoom.ts'
@@ -297,6 +297,30 @@ function RetryRead({ onRetry }: { onRetry: () => void }) {
   )
 }
 
+/**
+ * As much of it as its room under her line holds (made-fits.md): the room is the lens body, between her line and the
+ * captions or the dock. Its facts and who asked go first, then her words; its one row stays. Measured before the
+ * first paint, and again as the room or the object changes (captions coming, the record read).
+ */
+function useMadeFit(self: RefObject<HTMLDivElement | null>) {
+  useLayoutEffect(() => {
+    const made = self.current
+    const room = made?.closest<HTMLElement>('.stage-body')
+    if (!made || !room) return undefined
+    const fit = () => {
+      made.dataset.fit = madeFit((f) => {
+        made.dataset.fit = f
+        return made.scrollHeight <= room.clientHeight
+      })
+    }
+    fit()
+    const sized = new ResizeObserver(fit)
+    sized.observe(room)
+    sized.observe(made)
+    return () => sized.disconnect()
+  }, [self])
+}
+
 export function StageMade(props: Props) {
   const { notice, nameOf, fresh, onBorn } = props
   const self = useRef<HTMLDivElement>(null)
@@ -304,6 +328,7 @@ export function StageMade(props: Props) {
   const { version, card } = record
   const { ready, key, open, close, onKeyDown } = useMadeActions(props, self, record)
   useUnderHerLine(self)
+  useMadeFit(self)
   const [born] = useState(fresh)
   useEffect(() => onBorn(notice), [onBorn, notice])
   const heading = madeHeading(version, card?.title, noticeTitle(notice.taskKind))

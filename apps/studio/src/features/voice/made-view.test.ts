@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ChatNoticeItem } from '../conversation/chat-view.ts'
-import { factWords, madeFacts, madeHeading, madeKey, madeOnStage } from './made-view.ts'
+import { factWords, madeFacts, madeFit, madeHeading, madeKey, madeOnStage, type MadeFit } from './made-view.ts'
 
 const words = (n: number) => Array.from({ length: n }, () => 'word').join(' ')
 
@@ -97,5 +97,29 @@ describe('the object’s heading', () => {
       title: 'Research report ready',
       meta: 'Report',
     })
+  })
+})
+
+/** What madeFit chose in a room where only `room` fits, and what it measured on the way. */
+const tried = (room: readonly MadeFit[]) => {
+  const asked: MadeFit[] = []
+  const fit = madeFit((f) => {
+    asked.push(f)
+    return room.includes(f)
+  })
+  return { fit, asked }
+}
+
+describe('as much of the object as its room holds', () => {
+  it('stands whole where it fits, and tries nothing else', () => {
+    assert.deepEqual(tried(['whole', 'brief']), { fit: 'whole', asked: ['whole'] })
+  })
+
+  it('leaves out its facts and who asked before her words', () => {
+    assert.deepEqual(tried(['brief']), { fit: 'brief', asked: ['whole', 'brief'] })
+  })
+
+  it('keeps its one row when nothing more fits, without measuring it', () => {
+    assert.deepEqual(tried([]), { fit: 'row', asked: ['whole', 'brief'] })
   })
 })

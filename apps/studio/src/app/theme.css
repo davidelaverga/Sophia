@@ -2625,6 +2625,29 @@ img.avatar {
 .made-by {
   color: var(--text-3);
 }
+/* As much of it as its room holds (made-fits.md; StageMade measures it): first its facts and who asked go, then her
+   words. Its one row (its title, Open, Close) always stands. It never shrinks under its words: squeezed, its box
+   stayed the room's size while its words ran past it, and nothing saw them grow. */
+.stage-body .stage-made {
+  flex-shrink: 0;
+}
+.stage-made:is([data-fit='brief'], [data-fit='row']) .made-facts,
+.stage-made[data-fit='row'] .made-summary {
+  display: none;
+}
+/* Its kind and version on one line beside a narrow title, not two. */
+.made-meta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* A very short phone stage (375 × 667 gives 575 px): her line, the object's one row and two captions don't fit
+   together. While it is there, the earlier caption, the quieter one, gives way to it. */
+@container (max-width: 560px) and (max-height: 640px) {
+  .room-stage:has(.stage-made) .stage-caption:not(:last-child) {
+    display: none;
+  }
+}
 @media (max-width: 560px) {
   .made-facts .made-fact {
     display: none;
