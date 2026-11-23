@@ -18,7 +18,7 @@ import { micOnJoin, useMicOnJoin } from './mic-preference.ts'
 import { usePushToTalk } from './usePushToTalk.ts'
 import { useMirror } from './mirror-preference.ts'
 import { callClock, callClockWords } from './call-clock.ts'
-import { noteRole } from './call-end.ts'
+import { noteRole, RELOADED_IN_CALL } from './call-end.ts'
 import { STALE_PART } from './part-gone.ts'
 import { StalePart } from './StalePart.tsx'
 import { useNow } from '../../app/use-now.ts'
@@ -110,8 +110,7 @@ export function RoomDock(props: Props) {
   const talking = usePushToTalk(micOn, room, live)
   const note = room.mediaError ?? room.error
   const sound = soundView(room, props.sophia)
-  // A reload in the call: the way back, offered once (call-way-back.md).
-  const back = useReloadOffer(props.projectId, props.identity, room)
+  const { back, said } = useWayBack(props, note, live)
   return (
     <>
       {/* Beside the dock, not in it: the dock's measured height (--dock-h) is the dock's alone. */}
@@ -119,9 +118,8 @@ export function RoomDock(props: Props) {
       <div ref={wrap} className="dock-wrap">
         <LookingIndicator text={props.sophia.looking} />
         {/* What stopped a device, or why this person is out of the call: a failed join, or a call that ended. */}
-        <DockNote note={note} className="dock-note" />
+        <DockNote note={said} className="dock-note" />
         <SoundBlocked shown={sound.notice} room={room} />
-        <ReloadedLine shown={!!back.offer && !live && !note} />
         {/* Speech on a muted microphone (muted-speech.md): said while it is still off. */}
         {live && room.mutedHint && !micOn && (
           <p className="dock-note" role="status">
@@ -284,20 +282,15 @@ function CheckOpener({ room }: { room: ProjectRoom }) {
 }
 
 /**
- * A reload left the call (call-way-back.md): said politely, from a line there before it speaks, while the way back is
- * Join; it goes once back in, or with another note to say.
+ * A reload in the call: the way back, offered once (call-way-back.md), and what the dock's one polite line says: its
+ * note, else the reload, once that line is in the page (a live region born full is often not read).
  */
-function ReloadedLine({ shown }: { shown: boolean }) {
-  // Its words come after the line is in the page, so a screen reader hears them (a live region born full is often
-  // not read).
+function useWayBack(props: Props, note: string | null, live: boolean) {
+  const back = useReloadOffer(props.projectId, props.identity, props.room)
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
-  const said = shown && mounted
-  return (
-    <p className={said ? 'dock-note' : 'sr-only'} role="status">
-      {said && 'You were in the call before the page reloaded.'}
-    </p>
-  )
+  const offered = back.offer !== null && !live && mounted
+  return { back, said: note ?? (offered ? RELOADED_IN_CALL : null) }
 }
 
 /** Join; after a reload in the call, as the call was (`onJoin`, useReloadOffer). */

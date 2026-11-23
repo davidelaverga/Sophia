@@ -35,6 +35,8 @@ test('way back · a reload in the call says so, politely, and Join goes back in;
   await drawn(page, DRAWN.room)
   const line = page.locator('.dock-wrap').getByRole('status').filter({ hasText: LINE })
   await expect(line).toBeVisible()
+  // On the dock's one polite line, as its connection's lines are (BASE-03): never a second one beside it.
+  await expect(page.locator('.dock-wrap > p[role="status"]:not(.dock-sound)')).toHaveCount(1)
   // Nothing joins on its own: the microphone is the person's to bring back.
   await expect(leave(page)).toHaveCount(0)
   await join(page).click()

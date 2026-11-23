@@ -101,7 +101,11 @@ export function keptNote(next: string | null, at: { online: boolean; lost: boole
  * the call gone after a deploy, which the notice at the top has already said (stale-part-call.md). A screen an admin
  * stopped is news, not a failure, and is said politely too (removed-and-stopped-said.md).
  */
+/** After a reload in the call, beside Join (call-way-back.md): news, said politely. */
+export const RELOADED_IN_CALL = 'You were in the call before the page reloaded.'
+
 const POLITE = new Set([
+  RELOADED_IN_CALL,
   OFFLINE_END,
   BACK_ONLINE,
   OFFLINE_JOIN,
