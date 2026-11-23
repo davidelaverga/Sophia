@@ -9,6 +9,7 @@ import type { LobbyEntry } from '@sophia/contracts'
 import { Button, ConfirmButton } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { knockNote } from './access-view.ts'
+import { nextExpiry, undoable, type Declined } from './lobby-undo.ts'
 import { useLobbyDecision } from './useAccess.ts'
 import { lasted } from '../../app/time-words.ts'
 import { useNow } from '../../app/use-now.ts'
@@ -25,37 +26,53 @@ interface Props {
   projectTitle: string | undefined
 }
 
-/** How long "Let in instead" stays after a decline. */
-const UNDO_MS = 8000
-
 /** How long they have waited: "just now", then "5 min" (app/time-words.ts). */
 function waitedFor(requestedAt: string, now: number): string {
   const waited = now - Date.parse(requestedAt)
   return waited < 60_000 ? 'just now' : lasted(waited)
 }
 
-/** The people just declined, for a few seconds: a slip is one click from undone. */
-function useJustDeclined(): [readonly LobbyEntry[], (entries: readonly LobbyEntry[]) => void] {
-  const [declined, setDeclined] = useState<readonly LobbyEntry[]>([])
+/**
+ * The people declined here whose decline still holds (lobby-undo.ts): a slip is one click from undone until they could
+ * ask again on their own, a minute on, or until they ask again, leave, or are let in. The clock wakes the panel when
+ * the next one's minute is up.
+ */
+function useJustDeclined(
+  lobby: readonly LobbyEntry[] | undefined,
+  decide: (entries: readonly LobbyEntry[], decision: 'deny') => Promise<boolean>,
+) {
+  const [declined, setDeclined] = useState<readonly Declined[]>([])
+  const [now, setNow] = useState(() => Date.now())
+  const at = nextExpiry(declined)
+  // Woken when the next one's minute is up; woken early (a timer a little ahead), it waits again.
   useEffect(() => {
-    if (declined.length === 0) return undefined
-    const t = setTimeout(() => setDeclined([]), UNDO_MS)
+    if (at === null) return undefined
+    const t = setTimeout(() => setNow(Date.now()), Math.max(0, at - Date.now()) + 1)
     return () => clearTimeout(t)
-  }, [declined])
-  return [declined, setDeclined]
+  }, [at, now])
+  const shown = undoable(declined, lobby, Math.max(now, Date.now())).map((d) => d.entry)
+  return {
+    declined: shown,
+    /** Declined at once; a Decline that doesn't go through gives them back their row and its answers. */
+    decline: (entries: readonly LobbyEntry[]) => {
+      setDeclined(entries.map((entry) => ({ entry, at: Date.now() })))
+      void decide(entries, 'deny').then((went) => {
+        if (!went) setDeclined((was) => was.filter((d) => !entries.some((e) => e.id === d.entry.id)))
+      })
+    },
+    clear: () => setDeclined([]),
+  }
 }
 
 export function LobbyPanel({ projectId, identity, lobby, canDecide, projectTitle = '' }: Props) {
   const now = useNow(30_000)
   const { busy, error, decide } = useLobbyDecision(projectId, identity)
-  const [declined, setDeclined] = useJustDeclined()
-  const waiting = (lobby ?? []).filter((e) => e.status === 'waiting')
+  const just = useJustDeclined(lobby, decide)
+  const declined = just.declined
+  const waiting = (lobby ?? []).filter((e) => e.status === 'waiting' && !declined.some((d) => d.id === e.id))
   useKnockAlert(waiting, { projectId, projectTitle, canDecide, loaded: lobby !== undefined })
   if (waiting.length === 0 && declined.length === 0) return null
-  const decline = (entries: readonly LobbyEntry[]) => {
-    setDeclined(entries)
-    void decide(entries, 'deny')
-  }
+  const decline = just.decline
   return (
     <aside className="lobby arrive" aria-label="Waiting to come in">
       <LobbyHead
@@ -91,7 +108,7 @@ export function LobbyPanel({ projectId, identity, lobby, canDecide, projectTitle
         <Undo
           declined={declined}
           onLetIn={() => {
-            setDeclined([])
+            just.clear()
             void decide(declined, 'admit')
           }}
         />

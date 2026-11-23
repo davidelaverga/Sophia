@@ -32,6 +32,7 @@ import { LookingIndicator, SophiaControls } from './SophiaControls.tsx'
 import type { SophiaView } from './sophia-view.ts'
 import { SOUND_BLOCKED, soundView } from './sound-view.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
+import { useReloadOffer } from './useReloadOffer.ts'
 import { DockWord } from './DockWord.tsx'
 import { useMedia } from '../../app/useMedia.ts'
 
@@ -109,6 +110,8 @@ export function RoomDock(props: Props) {
   const talking = usePushToTalk(micOn, room, live)
   const note = room.mediaError ?? room.error
   const sound = soundView(room, props.sophia)
+  // A reload in the call: the way back, offered once (call-way-back.md).
+  const back = useReloadOffer(props.projectId, props.identity, room)
   return (
     <>
       {/* Beside the dock, not in it: the dock's measured height (--dock-h) is the dock's alone. */}
@@ -118,6 +121,7 @@ export function RoomDock(props: Props) {
         {/* What stopped a device, or why this person is out of the call: a failed join, or a call that ended. */}
         <DockNote note={note} className="dock-note" />
         <SoundBlocked shown={sound.notice} room={room} />
+        <ReloadedLine shown={!!back.offer && !live && !note} />
         {/* Speech on a muted microphone (muted-speech.md): said while it is still off. */}
         {live && room.mutedHint && !micOn && (
           <p className="dock-note" role="status">
@@ -135,7 +139,7 @@ export function RoomDock(props: Props) {
             <LiveControls {...props} sophiaAllow={sound.sophiaAllow} />
           ) : (
             <>
-              {!partGone(room) && <JoinButton room={room} />}
+              {!partGone(room) && <JoinButton room={room} onJoin={back.join} />}
               <CheckOpener room={room} />
               <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
               <RejoinLeave room={room} />
@@ -279,7 +283,25 @@ function CheckOpener({ room }: { room: ProjectRoom }) {
   )
 }
 
-function JoinButton({ room }: { room: ProjectRoom }) {
+/**
+ * A reload left the call (call-way-back.md): said politely, from a line there before it speaks, while the way back is
+ * Join; it goes once back in, or with another note to say.
+ */
+function ReloadedLine({ shown }: { shown: boolean }) {
+  // Its words come after the line is in the page, so a screen reader hears them (a live region born full is often
+  // not read).
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const said = shown && mounted
+  return (
+    <p className={said ? 'dock-note' : 'sr-only'} role="status">
+      {said && 'You were in the call before the page reloaded.'}
+    </p>
+  )
+}
+
+/** Join; after a reload in the call, as the call was (`onJoin`, useReloadOffer). */
+function JoinButton({ room, onJoin }: { room: ProjectRoom; onJoin: (() => void) | null }) {
   // Its tip says the microphone's default (joinTip): drawn again as Settings changes it (Codex P2 on #398).
   useMicOnJoin()
   const label = room.status === 'joining' ? 'joining' : room.status === 'failed' ? 'retry' : 'join'
@@ -290,7 +312,7 @@ function JoinButton({ room }: { room: ProjectRoom }) {
       // Where a switch beside it that goes away hands the focus (TextMode).
       data-call-anchor
       disabled={room.status === 'joining' || !room.ready}
-      onClick={() => void room.join()}
+      onClick={() => (onJoin ? onJoin() : void room.join())}
     >
       <span className="pill-dot" aria-hidden />
       <SwapLabel value={label} labels={{ join: 'Join the room', joining: 'Joining…', retry: 'Try again' }} />
