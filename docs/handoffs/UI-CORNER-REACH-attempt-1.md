@@ -24,7 +24,9 @@ Ending commit/tree and changed files: content commit `1138bfea6` (`apps/studio/s
 - 700 × 900 and 1280 × 800 were measured unchanged.
 - Each new check was seen failing in the page.
 - `pnpm format:check`, `lint` and `typecheck` all return 0.
-- Playwright through `pw-gentle.ps1` was not run because a heavy app was open. The PR's `pull_request` run is the record.
+- First `pull_request` run: two failures, both fixed (`corner-reach.md`, «CI's first run and the fixes»).
+- Through `pw-gentle.ps1` after the fixes: `room-made`, `light-shadows`, `room-dock` and `room-captions`, 64 of 65.
+  The one left was the corner read before the dock settled; with the wait, 12 of 12 over three repeats.
 
 ## Decisions and changes
 
@@ -36,7 +38,11 @@ Ending commit/tree and changed files: content commit `1138bfea6` (`apps/studio/s
 
 ## Remaining obligations
 
-- The PR is not merged, and its specs have not been run locally.
+- The PR is not merged.
+- On a short phone the corner stays up: the reach is for stages 720 px tall or more (390 × 844 and up).
+- Seen while measuring, not fixed here: at 390 × 844 with what she made and two captions, the card's contents are
+  98 px tall in a 75 px box, so its last line runs onto the captions. On `main` the same happens at 375 × 667, and
+  worse. The spec measures the box, not its contents.
 
 ## Next bounded action
 

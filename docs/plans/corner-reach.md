@@ -12,7 +12,7 @@ The room at 390 × 844, in a call, dark and light:
 
 ## What changes
 
-When the stage is ≤ 560 px wide (a phone), the corner sits at `--floor` + `--dock-h` + 8 px from the bottom, on the
+When the stage is ≤ 560 px wide (a phone) and at least 720 px tall, the corner sits at `--floor` + `--dock-h` + 8 px from the bottom, on the
 right gutter. This is the existing mechanism: the dock already publishes its height.
 
 What ends above the dock ends above the corner instead: the captions, the gallery, a shared screen and the lens body.
@@ -21,8 +21,9 @@ The new variable `--corner-h` holds the corner's height: 48 px, or 52 px under a
 On a phone the corner sits under the dock's layer, so a menu opened from the dock (React, a device list) rises over
 it where they meet.
 
-The phone-only rule that put the corner at `top: 72px` with Sophia's light is gone, because the corner no longer
-sits up there.
+A shorter phone stage (375 × 667 gives 575 px) keeps the corner up, as on `main`, with its `top: 72px` rule under
+the lenses. The band above the dock costs 60 px of height. There, her line, what she made and two captions no longer
+fit over it: the first CI run measured what she made 35 px into the captions (`room-made.spec.ts`).
 
 Nothing else moves:
 
@@ -40,8 +41,19 @@ Nothing else moves:
 
 The results are the same in dark and light.
 
+## CI's first run and the fixes
+
+- `room-made.spec.ts` at 375 × 667: what she made ended 35 px into the captions. Fixed by the 720 px floor above:
+  the corner stays up, and the gap is 12 px again.
+- `light-shadows.spec.ts` @phone: «the dock: four pixels out» read 1.39. Its 48 px margin took in the toggles, which
+  now stand 8 px above it, so their edge counted as the dock's shadow. No blotch shows between them. The check now
+  measures each one alone.
+- The corner's 8–10 px check read the corner once, before the dock had published its settled height (11.1 px in a
+  local run). It now waits for it.
+
 ## Checks
 
+- **On a short phone (375 × 667, @phone):** the corner stays under the lenses, high on the stage.
 - **`e2e/room-dock.spec.ts`,** under a mouse at 390 and on the phone project:
   - the corner sits 8–10 px over the dock, 16 px from the right edge, low on the screen;
   - the lens body ends above it;
