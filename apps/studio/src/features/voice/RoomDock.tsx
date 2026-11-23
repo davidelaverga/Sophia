@@ -33,6 +33,7 @@ import type { SophiaView } from './sophia-view.ts'
 import { SOUND_BLOCKED, soundView } from './sound-view.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
 import { DockWord } from './DockWord.tsx'
+import { useDockFit } from './useDockFit.ts'
 import { useMedia } from '../../app/useMedia.ts'
 
 interface Props {
@@ -105,6 +106,7 @@ export function RoomDock(props: Props) {
   const live = room.status === 'live' || room.status === 'reconnecting'
   const wrap = useRef<HTMLDivElement>(null)
   useDockHeight(wrap)
+  useDockFit(wrap)
   const micOn = !!room.participants.find((p) => p.local)?.micOn
   const talking = usePushToTalk(micOn, room, live)
   const note = room.mediaError ?? room.error

@@ -46,6 +46,12 @@ function tipAlignOf(kind: CommandKind, edge: Edge): TipAlign {
 }
 
 /**
+ * Where a control's tip opens: a row at the content's start stands under the goal's criteria, so its tips open below
+ * and never cover them (docs/plans/visual-fit.md); at its end, the row is at the card's top, and they open above.
+ */
+const tipSideOf = (edge: Edge) => (edge === 'start' ? 'bottom' : 'top')
+
+/**
  * A goal's command, sent: its admission (refreshing the goal either way), and its line as the goal moves
  * (`useCommandLine`), from the authority it was sent at: its own admission moves it one step, a later command past it.
  */
@@ -89,7 +95,13 @@ export function WorkControls({ goal, projectId, identity, token, admin = false, 
       <div className="control-row">
         {available.map((kind) =>
           kind === 'retire_sessions' ? (
-            <RetireButton key={kind} align={tipAlignOf(kind, edge)} disabled={busy} onConfirm={retire} />
+            <RetireButton
+              key={kind}
+              align={tipAlignOf(kind, edge)}
+              side={tipSideOf(edge)}
+              disabled={busy}
+              onConfirm={retire}
+            />
           ) : kind === 'stop' ? (
             // Stopping is final, so it asks, says so, and waits: no timer takes the question away.
             <ConfirmButton
@@ -102,6 +114,7 @@ export function WorkControls({ goal, projectId, identity, token, admin = false, 
               // Its tip as Hold has its own: the destructive press says what it does too (Codex on #253).
               tip={COMMAND.stop.hint}
               tipAlign={tipAlignOf(kind, edge)}
+              tipSide={tipSideOf(edge)}
               disabled={busy}
               onConfirm={() => send('stop')}
             />
@@ -115,7 +128,7 @@ export function WorkControls({ goal, projectId, identity, token, admin = false, 
               onClick={() => send(kind)}
             >
               {COMMAND[kind].verb}
-              <Tip label={COMMAND[kind].hint} align={tipAlignOf(kind, edge)} />
+              <Tip label={COMMAND[kind].hint} side={tipSideOf(edge)} align={tipAlignOf(kind, edge)} />
             </button>
           ),
         )}
@@ -147,7 +160,14 @@ function useCommandLine(
 }
 
 /** An owner's explicit fence for a completed goal's sessions (A41): it asks, says what stays, and waits. */
-function RetireButton({ align, disabled, onConfirm }: { align: TipAlign; disabled: boolean; onConfirm: () => void }) {
+interface RetireProps {
+  align: TipAlign
+  side: 'top' | 'bottom'
+  disabled: boolean
+  onConfirm: () => void
+}
+
+function RetireButton({ align, side, disabled, onConfirm }: RetireProps) {
   return (
     <ConfirmButton
       label={COMMAND.retire_sessions.verb}
@@ -157,6 +177,7 @@ function RetireButton({ align, disabled, onConfirm }: { align: TipAlign; disable
       className="text-button"
       tip={COMMAND.retire_sessions.hint}
       tipAlign={align}
+      tipSide={side}
       disabled={disabled}
       onConfirm={onConfirm}
     />
