@@ -6078,6 +6078,8 @@ button.contribution-quote:hover {
 .room-stage {
   /* What the dock leaves free on each side for the corner: its three toggles (Chat, People, Brief) and a gap. */
   --corner-room: 144px;
+  /* The corner's own height: three 36 px toggles in their 5 px bar (48), on a phone above the dock. */
+  --corner-h: 48px;
 }
 .stage-corner {
   position: absolute;
@@ -6104,13 +6106,6 @@ button.contribution-quote:hover {
     bottom: auto;
   }
 }
-/* No room beside the lenses either (a phone): under them. With video on the stage there are no lenses, and the
-   tiles start where that would put it, so the corner keeps to the lenses' empty line. */
-@container (max-width: 560px) {
-  .room-stage[data-mode='light'] .stage-corner {
-    top: 72px;
-  }
-}
 /* The lobby card takes a phone's width and sat where that puts the corner. It goes under it: someone waiting at
    the door never hides the chat and the brief. */
 @media (max-width: 560px) {
@@ -6123,11 +6118,29 @@ button.contribution-quote:hover {
 @media (pointer: coarse) {
   .room-stage {
     --corner-room: 156px;
+    --corner-h: 52px;
   }
   @container (max-width: 799.98px) {
     .stage-corner {
       top: 12px;
     }
+  }
+}
+/* A phone (five-decisions.md, 23): no room beside the lenses, so the corner sits just above the dock on the right,
+   in the thumb's reach, as it sits level with the dock on a computer. What ends above the dock (the captions, the
+   video, the lens body) ends above the corner instead. */
+@container (max-width: 560px) {
+  /* Under the dock's layer: a menu opened from the dock (React's, a device list) rises over the corner. */
+  .stage-corner {
+    top: auto;
+    bottom: calc(var(--floor) + var(--dock-h, 48px) + 8px);
+    z-index: 3;
+  }
+  .room-stage:has(> .stage-corner) > :is(.stage-captions, .gallery, .present, .stage-body) {
+    bottom: calc(var(--floor) + var(--dock-h, 48px) + 8px + var(--corner-h) + 12px);
+  }
+  .room-stage:has(> .stage-corner):has(> .stage-captions) > :is(.gallery, .present, .stage-body) {
+    bottom: calc(var(--floor) + var(--dock-h, 48px) + 8px + var(--corner-h) + 12px + var(--captions-h, 0px) + 12px);
   }
 }
 .panel-toggles {

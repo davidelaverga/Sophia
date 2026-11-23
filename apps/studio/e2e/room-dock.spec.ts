@@ -162,6 +162,64 @@ test('dock · on a phone, its box hugs the row: no empty sides', async ({ page }
   expect(gap).toBeLessThanOrEqual(16)
 })
 
+/** Where the corner (Chat, People, Brief) stands against the dock and the lens body above it. */
+const cornerRead = (page: Page) =>
+  page.evaluate(() => {
+    // oxlint-disable-next-line unicorn/consistent-function-scoping -- page.evaluate sends only this function to the page
+    const box = (selector: string) => document.querySelector(selector)?.getBoundingClientRect() ?? null
+    const corner = box('.stage-corner')
+    const dockBox = box('.dock')
+    const body = box('.stage-body')
+    return corner && dockBox && body ? { corner, dock: dockBox, body, width: innerWidth, height: innerHeight } : null
+  })
+
+// Chat, People and Brief within the thumb's reach (five-decisions.md, 23): on a phone the corner sits just above the
+// dock on the right, and what ends above the dock ends above the corner. Under a mouse (a narrow window) and a finger.
+for (const [who, tag] of [
+  ['a narrow window', ''],
+  ['a phone', ' @phone'],
+] as const) {
+  test(`dock · on ${who}, Chat, People and Brief sit just above the dock, on the right${tag}`, async ({ page }) => {
+    await enter(page, 'people=2', 390)
+    const read = await cornerRead(page)
+    expect(read).not.toBeNull()
+    if (!read) return
+    const { corner, dock: under, body } = read
+    // Above the dock, 8 px over it (9 with the dock's height rounded up), at the stage's right gutter, low on the
+    // screen.
+    expect(under.top - corner.bottom).toBeGreaterThanOrEqual(8)
+    expect(under.top - corner.bottom).toBeLessThanOrEqual(10)
+    expect(Math.round(read.width - corner.right)).toBe(16)
+    expect(corner.top).toBeGreaterThan(read.height * 0.75)
+    // The lens body ends above the corner: nothing it says runs under the toggles.
+    expect(body.bottom).toBeLessThanOrEqual(corner.top)
+  })
+}
+
+test('dock · on a phone, a menu opened from the dock rises over the corner where they meet (five-decisions.md, 23)', async ({
+  page,
+}) => {
+  await enter(page, 'people=2&video=screen', 390)
+  await dock(page).getByRole('button', { name: 'React', exact: true }).click()
+  const menu = page.locator('.react-list')
+  await expect(menu).toBeVisible()
+  // Every point the menu and the corner share belongs to the menu (none at all would prove nothing).
+  const shared = await menu.evaluate((list) => {
+    const m = list.getBoundingClientRect()
+    const c = document.querySelector('.stage-corner')?.getBoundingClientRect()
+    if (!c) return []
+    const points: boolean[] = []
+    for (let x = Math.max(m.left, c.left) + 3; x < Math.min(m.right, c.right) - 2; x += 8) {
+      for (let y = Math.max(m.top, c.top) + 3; y < Math.min(m.bottom, c.bottom) - 2; y += 8) {
+        points.push(list.contains(document.elementFromPoint(x, y)))
+      }
+    }
+    return points
+  })
+  expect(shared.length).toBeGreaterThan(0)
+  expect(shared.every(Boolean)).toBe(true)
+})
+
 test('dock · on a phone with Sophia in the conversation: her controls are icons too, and no «Sophia» label', async ({
   page,
 }) => {
