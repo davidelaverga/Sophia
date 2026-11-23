@@ -1,14 +1,21 @@
-import { expect, test, type Browser, type Page } from '@playwright/test'
+import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test'
 import { DRAWN, drawn } from './drawn.ts'
 
 // A phone's room (docs/plans/touch-fields.md): the fields a person types in on touch are 16 px, so the browser
 // doesn't zoom into them, at the height they had; and a session's time range never breaks across lines. Every name
 // is synthetic, and the page says it is a fixture.
 
+/** A phone's context (390 px, touch), closed after each check whatever its outcome, a skip included. */
+let phoneContext: BrowserContext | null = null
+test.afterEach(async () => {
+  await phoneContext?.close()
+  phoneContext = null
+})
+
 /** A phone: 390 px, touch. Where the browser doesn't report a coarse pointer for it, the check says so and skips. */
 async function phone(browser: Browser, path: string): Promise<Page> {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
-  const page = await context.newPage()
+  phoneContext = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+  const page = await phoneContext.newPage()
   await page.route(
     (url) => url.origin !== 'http://127.0.0.1:5199',
     (route) => route.abort(),
@@ -48,7 +55,6 @@ test('touch · the chat’s field and Invite’s addresses are 16 px, at the hei
   await page.getByRole('tab', { name: 'Guests' }).click()
   expect(await sized(page, '#guest-email', '.field')).toEqual(same)
   expect(await page.evaluate(() => [...(window.fixture?.unexpected ?? [])])).toEqual([])
-  await page.context().close()
 })
 
 test('touch · the session’s time range («18:30 – 19:30») stays on one line at 390 px', async ({ browser }) => {
@@ -59,7 +65,8 @@ test('touch · the session’s time range («18:30 – 19:30») stays on one lin
   const range = await line.evaluate((el) => {
     const text = el.firstChild
     if (!(text instanceof Text)) return null
-    const dash = text.data.indexOf('–')
+    // The range's own dash, after its no-break space: never one in the session's title.
+    const dash = text.data.indexOf('\u00a0–') + 1
     const tops = [dash - 6, dash, dash + 7].map((i) => {
       const r = document.createRange()
       r.setStart(text, i)
@@ -70,5 +77,4 @@ test('touch · the session’s time range («18:30 – 19:30») stays on one lin
   })
   expect(range).toBe(1)
   expect(await page.evaluate(() => [...(window.fixture?.unexpected ?? [])])).toEqual([])
-  await page.context().close()
 })

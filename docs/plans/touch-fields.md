@@ -17,7 +17,8 @@
 
 ## What changes
 
-- **21 · On touch, the fields a person types in here are 16 px** (theme.css, inside `@media (pointer: coarse)`): the
+- **21 · On touch, the fields a person types in here are at least 16 px** (`max(16px, var(--type-body))`, so text
+  made larger in the browser still grows them) (theme.css, inside `@media (pointer: coarse)`): the
   chat's field, beside the bar's touch sizes, and Invite's addresses (`.sheet-form .field input[type='email']`). Each
   keeps its height: the chat's line keeps its 20 px; the address rows' heights come from their presses (40 px) and
   the role's 28 px, not the type. Measured after: the same heights, still centred, and «name@company.com» fits (156
@@ -41,7 +42,10 @@ No new words; the range reads as before.
 
 ## Not done
 
-- Other fields stay under 16 px on touch: measured at 390, the project's search («Search this project») and a mission
-  note's field are 13 px. They weren't in the evaluation's list; the same rule would serve them, one by one with their
-  heights measured.
+- Other fields stay under 16 px on touch, outside the evaluation's list: measured at 390, the project's search
+  («Search this project») and a mission note's field (13 px); read in the code, Invite's Calendar title, the door's
+  name, the sign-in address, the field that edits a sent message (13 px), and the personal space's composer (15 px,
+  `personal.css`, a more specific rule). The same rule would serve each, one by one with its height measured.
+- Copied, the room's line carries the range's no-break spaces and word joiner; nothing in the Studio copies, exports
+  or compares it today.
 - Not tried on an iOS device: whether Safari still zooms is inferred from its documented behaviour.

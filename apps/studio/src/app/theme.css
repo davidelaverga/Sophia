@@ -2816,12 +2816,13 @@ img.avatar {
   .chat-start {
     height: 52px;
   }
-  /* 16 px: a touch browser zooms the page into a smaller field as it takes the focus (iOS Safari). The line keeps its
-     20 px, so the bar keeps its height (docs/plans/touch-fields.md). */
+  /* At least 16 px: a touch browser zooms the page into a smaller field as it takes the focus (iOS Safari); larger
+     text set in the browser still grows it. The line keeps its 20 px, so the bar keeps its height
+     (docs/plans/touch-fields.md). */
   .message-bar textarea {
     min-height: 40px;
     padding: 10px 0;
-    font-size: 16px;
+    font-size: max(16px, var(--type-body));
   }
   .send {
     width: 40px;
@@ -4851,7 +4852,7 @@ button.contribution-quote:hover {
    and the row keeps its height beside its press or its role. */
 @media (pointer: coarse) {
   .sheet-form .field input[type='email'] {
-    font-size: 16px;
+    font-size: max(16px, var(--type-body));
   }
 }
 /* A chosen report's cited sources (A43), under it and set in, so each belongs to its report. */
