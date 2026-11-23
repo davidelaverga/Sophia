@@ -19,7 +19,7 @@ import type { MentionsUnderWay } from './MentionPicker.tsx'
 const firstWords = (text: string) => (text.length > 48 ? `${text.slice(0, 47).trimEnd()}…` : text)
 
 /** A message to the room, and the entry of the discussion it answers (A20, the vision flag's), if any. */
-interface RoomMessage {
+export interface RoomMessage {
   text: string
   replyTo: string | null
   /** The members it names (A37); none leaves `mentions` out of the request, as before. */
@@ -73,17 +73,56 @@ function useKeptMessage(projectId: string, identity: Identity) {
   }
 }
 
-export function useRoomMessage(
-  projectId: string,
-  identity: Identity,
-  draft: string,
+/**
+ * What follows a send (chat-pace.md): recorded; refused, back to an empty bar, or onto a row of its own (a row's own
+ * Try again refused keeps its row); with no reply, nothing yet (its row offers it again). A row's message goes from its
+ * row once it is recorded or back in the bar.
+ */
+export function afterSend(ok: boolean, refused: boolean, barEmpty: boolean, fromRow: boolean) {
+  if (ok) return { goes: 'recorded', letGoRow: true } as const
+  if (refused && barEmpty) return { goes: 'bar', letGoRow: true } as const
+  if (refused && !fromRow) return { goes: 'row', letGoRow: false } as const
+  return { goes: 'nowhere', letGoRow: false } as const
+}
+
+/**
+ * The message a press sends: a refused row's own (not while one goes, or one waits on its lost reply: that one goes
+ * first), else the one whose reply was lost, else the bar's words; none for an empty bar.
+ */
+function toSend(
+  again: RoomMessage | undefined,
+  admission: { status: string; args?: RoomMessage },
+  now: { draft: string; reply: ReplyUnderWay; mentions: MentionsUnderWay },
+): RoomMessage | null {
+  const unknown = admission.status === 'unknown' ? admission.args : undefined
+  if (again && (unknown || admission.status === 'sending')) return null
+  const message = again ?? unknown ?? { text: now.draft.trim(), replyTo: now.reply.id, mentions: now.mentions.ids }
+  return message.text ? message : null
+}
+
+/** Whether the send that just ended was refused for good: read after it, as the write's catch set it. */
+const wasRefused = (refused: { current: boolean }) => refused.current
+
+/**
+ * A message recorded: the reply it went as is let go (another chosen meanwhile, while it went or after no reply, stays),
+ * and so are the members it named, unless the choice is no longer the one sent: that is the next message's (409 P2
+ * 4304921244). The bar clears only if it still holds what was sent.
+ */
+function recorded(
+  message: RoomMessage,
+  now: { draft: string; reply: ReplyUnderWay; mentions: MentionsUnderWay },
   onDraft: (text: string) => void,
-  /** The entry it answers (A20) and the members it names (A37), when there are. */
-  { reply = NO_REPLY, mentions = NO_MENTIONS }: { reply?: ReplyUnderWay; mentions?: MentionsUnderWay } = {},
 ) {
+  if (message.replyTo !== null && message.replyTo === now.reply.id) now.reply.done()
+  if (now.draft.trim() === message.text) onDraft('')
+  if (message.mentions.length > 0 && sameMembers(now.mentions.ids, message.mentions)) now.mentions.done()
+}
+
+/** The room's message written under its key, kept in the tab until answered (held-in-tab.ts); `refused` says how. */
+function useRoomWrite(projectId: string, identity: Identity, refused: { current: boolean }) {
   const queryClient = useQueryClient()
   const kept = useKeptMessage(projectId, identity)
-  const write = useAdmission<RoomMessage, ContributionReceipt>(async (key, message) => {
+  return useAdmission<RoomMessage, ContributionReceipt>(async (key, message) => {
     // Kept before it goes: a page that goes, or reloads, before the reply finds it.
     kept.keep(key, message)
     try {
@@ -99,12 +138,29 @@ export function useRoomMessage(
       return receipt
     } catch (err: unknown) {
       // Refused for good, it is let go; with no reply, kept (useAdmission reads anything but an ApiError as none).
-      if (err instanceof ApiError && err.retry !== 'same_admission_key') kept.letGo(key)
+      refused.current = err instanceof ApiError && err.retry !== 'same_admission_key'
+      if (refused.current) kept.letGo(key)
       throw err
     } finally {
       void queryClient.invalidateQueries({ queryKey: snapshotKey(projectId, identity.name) })
     }
   }, kept.resumed)
+}
+
+export function useRoomMessage(
+  projectId: string,
+  identity: Identity,
+  draft: string,
+  onDraft: (text: string) => void,
+  /** The entry it answers (A20) and the members it names (A37), when there are. */
+  { reply = NO_REPLY, mentions = NO_MENTIONS }: { reply?: ReplyUnderWay; mentions?: MentionsUnderWay } = {},
+) {
+  // Whether the last send was refused for good (not merely unanswered): its words then go back to the bar.
+  const refused = useRef(false)
+  // Refused messages whose words the bar couldn't take back (it held others by then): each keeps a row of its own, with
+  // its own reply and mentions, until its own Try again lands (chat-pace.md).
+  const [failed, setFailed] = useState<readonly RoomMessage[]>([])
+  const write = useRoomWrite(projectId, identity, refused)
   // The draft and the reply as they are now: read after the answer, never from the press's render.
   const latest = useRef({ draft, reply, mentions })
   useLayoutEffect(() => {
@@ -112,28 +168,38 @@ export function useRoomMessage(
   })
   const unknown = write.state.status === 'unknown' ? write.state.args : null
   /**
-   * Sends the draft. While one goes, Send is off and Enter sends only what Send would (Composer); after no reply, a
-   * press resends that message with its own key (pressFor), never a second one. Recorded, the bar clears only if it
-   * still holds what was sent: words written meanwhile stay.
+   * Sends the draft, or `again` (a refused message, from its own row, as it first went). The message is drawn at once in
+   * the discussion (chat-pace.md), so the bar empties for the next words. While one goes, Send is off and Enter sends
+   * only what Send would (Composer); after no reply, a press resends that message with its own key (pressFor), never a
+   * second one, and no refused row goes meanwhile. Refused, its words go back to the bar if it is empty, or keep a row:
+   * they are never lost.
    */
-  const send = async () => {
-    const message = unknown ?? { text: draft.trim(), replyTo: reply.id, mentions: mentions.ids }
-    if (!message.text || !(await write.send(message))) return
-    // The reply sent is let go; another chosen meanwhile (while it went, or a message re-sent after no reply) stays.
-    const now = latest.current.reply
-    if (message.replyTo !== null && message.replyTo === now.id) now.done()
-    if (latest.current.draft.trim() === message.text) onDraft('')
-    // The members it named were named: the choice clears for the next message, unless it is no longer the one sent
-    // (another chosen while it went, or after no reply): that is the next message's (409 P2 4304921244).
-    const named = latest.current.mentions
-    if (message.mentions.length > 0 && sameMembers(named.ids, message.mentions)) named.done()
+  const send = async (again?: RoomMessage) => {
+    const message = toSend(again, write.state, { draft, reply, mentions })
+    if (!message) return
+    refused.current = false
+    if (!again && latest.current.draft.trim() === message.text) onDraft('')
+    const ok = (await write.send(message)) !== undefined
+    const next = afterSend(ok, wasRefused(refused), latest.current.draft.trim() === '', again !== undefined)
+    if (next.letGoRow) setFailed((was) => was.filter((m) => m !== again))
+    if (next.goes === 'recorded') recorded(message, latest.current, onDraft)
+    if (next.goes === 'bar') onDraft(message.text)
+    if (next.goes === 'row') setFailed((was) => [...was, message])
   }
   const words = unknown
     ? `Not confirmed: “${firstWords(unknown.text)}”`
     : write.state.status === 'rejected'
       ? write.state.error.message
       : null
-  return { state: write.state.status, words, held: unknown ? firstWords(unknown.text) : null, send }
+  return {
+    state: write.state.status,
+    words,
+    held: unknown ? firstWords(unknown.text) : null,
+    send,
+    /** The admission as it stands, and the refused messages kept off the bar: the rows on their way (pendingOf). */
+    admission: write.state,
+    failed,
+  }
 }
 
 /**

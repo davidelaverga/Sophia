@@ -790,7 +790,7 @@ function ProjectBody(props: BodyProps) {
   const { view, projectId, identity, room, membership, snapshot, pulse, onShow, background } = props
   // The side panel's state lives here, past a visit to another view (useRoomPanel). Out of sight for its call, its open
   // tab isn't in view: what arrives there meanwhile is new when the person comes back.
-  const panel = useRoomPanel(snapshot, room, view === 'studio' && !background)
+  const panel = useRoomPanel(snapshot, room, view === 'studio' && !background, membership?.actorId ?? null)
   // So is the stage captions' hold: back from another view, what was said meanwhile has gone, as in the room.
   const captions = useHeldCaptions(room.captions)
   // And what Sophia made, once put away: it stays away past a visit to another view.
