@@ -24,8 +24,12 @@ included.
   ResizeObserver runs before paint.
 - `dock-fit.test.ts` passes 6 of 6.
 - `pnpm format:check`, `lint` and `typecheck` all return 0.
-- Playwright through `pw-gentle.ps1` was not run because a heavy app was open. The PR's `pull_request` run is the
-  record.
+- First `pull_request` run:
+  - `runtime-unit` failed on `elevation.test.ts` («the room keeps every shadow it cast»): the tray's shadow was not in
+    the room's list. It is the menu's own value, now listed.
+  - `account-settings.spec.ts:104` read 131 against 132, a pixel in Settings, which this PR does not touch. Through
+    the guard it passed 5 of 5.
+- Through `pw-gentle.ps1` after the fix: `dock-fold`, `account-settings`, `visual-fit` and `room-dock`, 40 of 40.
 
 ## Decisions and changes
 
@@ -39,7 +43,6 @@ included.
 ## Remaining obligations
 
 - The PR is not merged. It needs #548 merged first, or merged together with it.
-- The new spec has not been run locally.
 
 ## Next bounded action
 
