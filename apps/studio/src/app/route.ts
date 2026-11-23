@@ -55,9 +55,18 @@ export interface Route {
   view: View
   /** Where the person is outside a project; a project lives in Work. */
   place: Place
+  buildReview?: BuildReviewAddress | null
+}
+
+export interface BuildReviewAddress {
+  projectId: string
+  sessionId: string
+  approvalId: string
+  returnId: string
 }
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+const BUILD_REVIEW = new RegExp(`^/build-review/(${UUID})/(${UUID})/(${UUID})/(${UUID})/?$`, 'i')
 const PROJECT_VIEW = new RegExp(`^/p/(${UUID})(?:/([a-z]+))?/?$`, 'i')
 /** Links shared before S1-04 (/projects/<id>) keep working. */
 const LEGACY_PROJECT = new RegExp(`^/projects/(${UUID})/?$`, 'i')
@@ -82,8 +91,16 @@ export const opensJoinPage = (pathname: string, authStatus: string): boolean =>
 
 const project = (projectId: string, view: View): Route => ({ projectId: projectId.toLowerCase(), view, place: 'work' })
 
+export const isBuildReviewPath = (pathname: string) => /^\/build-review(?:\/|$)/iu.test(pathname)
+
+function buildReviewAt(pathname: string): BuildReviewAddress | null {
+  const [, projectId, sessionId, approvalId, returnId] = BUILD_REVIEW.exec(pathname.toLowerCase()) ?? []
+  return projectId && sessionId && approvalId && returnId ? { projectId, sessionId, approvalId, returnId } : null
+}
+
 /** Unknown paths and views fall back to the nearest valid route rather than a blank page. */
 export function parseRoute(pathname: string): Route {
+  if (isBuildReviewPath(pathname)) return { ...HOME, buildReview: buildReviewAt(pathname) }
   const current = PROJECT_VIEW.exec(pathname)
   if (current?.[1]) return project(current[1], isView(current[2]) ? current[2] : 'studio')
   const legacy = LEGACY_PROJECT.exec(pathname)
@@ -98,11 +115,26 @@ export function parseRoute(pathname: string): Route {
  * strip the lens of the project Back or Forward went to).
  */
 export function pathIsFor(pathname: string, projectId: string): boolean {
-  const named = parseRoute(pathname).projectId
-  return named === null || named === projectId.toLowerCase()
+  const route = parseRoute(pathname)
+  return route.buildReview === undefined && (route.projectId === null || route.projectId === projectId.toLowerCase())
 }
 
-export function routePath({ projectId, view, place }: { projectId: string | null; view: View; place?: Place }): string {
+export function buildReviewPath({ projectId, sessionId, approvalId, returnId }: BuildReviewAddress): string {
+  return `/build-review/${projectId}/${sessionId}/${approvalId}/${returnId}`
+}
+
+export function routePath({
+  projectId,
+  view,
+  place,
+  buildReview,
+}: {
+  projectId: string | null
+  view: View
+  place?: Place
+  buildReview?: BuildReviewAddress | null
+}): string {
+  if (buildReview !== undefined) return buildReview === null ? '/build-review' : buildReviewPath(buildReview)
   if (projectId) return `/p/${projectId}/${view}`
   return !place || place === 'home' ? '/' : `/${place}`
 }
