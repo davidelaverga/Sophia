@@ -17,7 +17,7 @@ import type { ShowToast } from '../../app/Toast.tsx'
 import { DataSheet } from './DataSheet.tsx'
 import { epochNow } from './epoch.ts'
 import {
-  focusConversation,
+  conversationLanding,
   focusLater,
   focusNotesToggle,
   focusPersonalSwitch,
@@ -186,14 +186,11 @@ function useCarried(place: Place) {
 
 type Carried = ReturnType<typeof useCarried>
 
-/** Where to land after arriving: Home's row for the side left, the conversation (focusConversation), Work's heading. */
-function focusOnArrival(place: Place, left: Place) {
-  if (place === 'personal') {
-    focusConversation()
-    return
-  }
+/** Where to land after arriving: Home's row for the side left, the conversation, or Work's heading. */
+function arrivalLanding(place: Place, left: Place): HTMLElement | null {
+  if (place === 'personal') return conversationLanding()
   const door = place === 'home' ? homeRowFor(left) : null
-  ;(door ?? document.getElementById(place === 'work' ? 'c-w-h' : 'c-p-h'))?.focus({ preventScroll: true })
+  return door ?? document.getElementById(place === 'work' ? 'c-w-h' : 'c-p-h')
 }
 
 function useArrival(place: Place) {
@@ -203,7 +200,8 @@ function useArrival(place: Place) {
     last.current = place
     if (left === null || left === place) return undefined
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
-    const timer = setTimeout(() => focusOnArrival(place, left), reduced ? 0 : 420)
+    const land = focusLater()
+    const timer = setTimeout(() => land(arrivalLanding(place, left)), reduced ? 0 : 420)
     return () => clearTimeout(timer)
   }, [place])
 }
