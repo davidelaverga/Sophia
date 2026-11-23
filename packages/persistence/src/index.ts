@@ -519,3 +519,49 @@ export {
   type OwnerHostView,
   type RedeemResult,
 } from './owner-host-enrollment.ts'
+export {
+  admitManagedExploreTurn,
+  approveManagedExploreVersion,
+  issueManagedExplorePreview,
+  markManagedExplorePreviewServed,
+  readManagedExploreEntry,
+  readManagedExploreHandoff,
+  resolveManagedExplorePreviewEntry,
+  type ManagedExplorePreviewEntry,
+  type ManagedExploreRetainedEntry,
+  readManagedExplorePreflight,
+  readManagedExploreSession,
+  selectManagedExploreDirection,
+  startManagedExplore,
+} from './managed-explore.ts'
+export {
+  claimManagedExploreDispatch,
+  readManagedExploreDispatch,
+  prepareManagedExploreDispatch,
+  recordManagedExploreDispatch,
+  type ManagedExploreDispatchAction,
+  type ManagedExploreDispatchIdentity,
+  type ManagedExploreDispatchLease,
+  type ManagedExploreDispatchObservation,
+  type ManagedExploreDispatchScope,
+  type ManagedExplorePreparedDispatch,
+} from './managed-explore-dispatch.ts'
+export {
+  bindFounderBuildRepository,
+  prepareFounderBuildExport,
+  readFounderBuildBindingEntry,
+  readFounderBuildDestination,
+  readFounderBuildExport,
+  readFounderBuildExportFile,
+  recordFounderBuildReturn,
+  readFounderBuildVerification,
+  recordFounderBuildVerification,
+  type FounderBuildScope,
+} from './founder-build-handoff.ts'
+
+export {
+  retainManagedExploreOutput,
+  type ManagedExploreRetentionOutput,
+  type ManagedExploreRetentionResult,
+} from './managed-explore-retention.ts'
+export { recordManagedExploreWorkerReadiness } from './managed-explore-worker-readiness.ts'

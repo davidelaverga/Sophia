@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import { LINK_FAILED, OTHER_BROWSER_NOTICE } from '../../app/auth-callback.ts'
 import { ago } from '../../app/time-words.ts'
 import {
+  acceptFailure,
   admissionLabel,
   askAgainIn,
   clashWith,
@@ -23,9 +24,11 @@ import {
   qrPath,
   readJoinToken,
   scheduleLines,
+  sentNoteShown,
   sessionFromForm,
   sessionLabel,
   withoutToken,
+  wrongAddress,
 } from './access-view.ts'
 
 const at = (iso: string) => Date.parse(iso)
@@ -59,6 +62,41 @@ describe('room access, as the Studio shows it', () => {
     assert.equal(invitationState({ ...open, uses: 1, emailStatus: 'sent' }, now), 'joined')
     assert.equal(invitationState({ ...open, revokedAt: '2026-10-01T10:00:00Z', emailStatus: 'sent' }, now), 'cancelled')
     assert.equal(invitationState({ ...open, expiresAt: '2026-09-30T12:00:00Z', emailStatus: 'failed' }, now), 'expired')
+  })
+
+  it('says «Sent.» under the form only while the invitation it sent is not cancelled (demo-findings-1 #11)', () => {
+    const sent = { id: 'a', revokedAt: null }
+    // The list not refreshed yet: what the send said stands.
+    assert.equal(sentNoteShown(sent, []), true)
+    assert.equal(sentNoteShown(sent, [{ id: 'a', revokedAt: null }]), true)
+    // Cancelled since: «Sent.» would contradict «1 closed».
+    assert.equal(sentNoteShown(sent, [{ id: 'a', revokedAt: '2026-10-01T10:00:00Z' }]), false)
+    // Another invitation cancelled says nothing about this one.
+    assert.equal(sentNoteShown(sent, [{ id: 'b', revokedAt: '2026-10-01T10:00:00Z' }]), true)
+  })
+
+  it('tells the address refusal on Accept from any other failure (demo-findings-1 #10)', () => {
+    // The API's words for it (0010, kept by persistence's errors.ts).
+    assert.equal(wrongAddress({ status: 403, message: 'This invitation is for another email address' }), true)
+    assert.equal(wrongAddress({ status: 403, message: 'Not permitted' }), false)
+    assert.equal(wrongAddress({ status: 503, message: 'This invitation is for another email address' }), false)
+    assert.equal(wrongAddress(new Error('Failed to fetch')), false)
+  })
+
+  it('says a refused Accept plainly: another address in the words the sign-in check uses (review P3-5)', () => {
+    const other = { status: 403, message: 'This invitation is for another email address' }
+    assert.deepEqual(acceptFailure(other, 'ana@sophia.test', 'outsider@sophia.test'), {
+      words: 'This invitation is for ana@sophia.test; you’re signed in as outsider@sophia.test.',
+      otherAddress: true,
+    })
+    assert.deepEqual(acceptFailure({ status: 503, message: 'Sophia is unavailable' }, 'ana@sophia.test', 'x'), {
+      words: 'Sophia is unavailable',
+      otherAddress: false,
+    })
+    assert.deepEqual(acceptFailure('boom', 'ana@sophia.test', 'x'), {
+      words: 'Could not accept the invitation.',
+      otherAddress: false,
+    })
   })
 
   it('counts down the minute before a declined guest may ask again', () => {

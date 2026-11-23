@@ -14,12 +14,12 @@ import type { Identity } from './dev-identity.ts'
 import { endedNotice } from './ended-notice.ts'
 import { forgetRecent, recentFor } from './palette-recent.ts'
 import { forgetPendingUnlock } from './provider-leave.ts'
-import { opensJoinPage } from './route.ts'
+import { opensJoinPage, type BuildReviewAddress } from './route.ts'
 import { legalDoc } from './legal.ts'
 import { forgetViewerDrafts } from '../features/studio/viewer-state.ts'
 import { LegalPage } from './Legal.tsx'
 import { signOutForgetting } from './sign-out.ts'
-import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
+import { Centered, HomeLink, LinkOffer, SignIn } from './SignIn.tsx'
 import { useOpening } from './useOpening.ts'
 import { useProjectRoute } from './useProjectRoute.ts'
 import { LoadFailed } from './LoadFailed.tsx'
@@ -28,6 +28,10 @@ import { loadSignedIn, warmSignedIn } from './signed-in-load.ts'
 
 // Invitation links are a separate door: their page loads only when someone opens one.
 const JoinFlow = lazy(() => import('../features/access/JoinFlow.tsx').then((m) => ({ default: m.JoinFlow })))
+const BuildReview =
+  import.meta.env.VITE_SOPHIA_MANAGED_EXPLORE === '1'
+    ? lazy(() => import('../features/explore/BuildReview.tsx').then((m) => ({ default: m.BuildReview })))
+    : null
 // The signed-in Studio is its own chunk (docs/plans/signed-in-later.md): a sign-in page never downloads it.
 const Studio = lazy(() => loadSignedIn().then((m) => ({ default: m.Studio })))
 
@@ -155,12 +159,12 @@ function useSignedInAhead(state: AuthState, door: boolean) {
 
 /**
  * The pages that are their own: the join page, and the terms and the privacy notice, which anyone reads, signed in or
- * not (terms-privacy.md). None prepares the Studio.
+ * not (terms-privacy.md), and the scoped Build review after sign-in. None prepares the Studio.
  */
-function useOwnPage(state: AuthState) {
+function useOwnPage(state: AuthState, buildReview: boolean) {
   const joinPage = opensJoinPage(window.location.pathname, state.status)
   const legal = legalDoc(window.location.pathname)
-  const ownPage = joinPage || legal !== null
+  const ownPage = joinPage || legal !== null || buildReview
   useSignedInAhead(state, ownPage)
   // The opening hands off once all is ready: the Studio's once it has prepared what the person opens first.
   useOpening(state.status, state.status === 'signed_in' && state.identity.role !== 'guest' && !ownPage)
@@ -220,6 +224,56 @@ function JoinPage(props: {
   )
 }
 
+function BuildReviewPage({
+  queryClient,
+  address,
+  identity,
+  onSignOut,
+}: {
+  queryClient: ReturnType<typeof useAccountCache>
+  address: BuildReviewAddress | null
+  identity: Identity
+  onSignOut: () => Promise<boolean>
+}) {
+  const account = accountOf(identity)
+  return (
+    <QueryClientProvider client={queryClient}>
+      <LoadFailed>
+        <Suspense fallback={<Centered title="Opening Build review…" busy />}>
+          {BuildReview && address ? (
+            <BuildReview
+              key={JSON.stringify([account, address])}
+              scope={{ ...address, token: identity.token }}
+              account={account}
+              onSignOut={onSignOut}
+            />
+          ) : (
+            <Centered title="Build review is unavailable">
+              <HomeLink />
+            </Centered>
+          )}
+        </Suspense>
+      </LoadFailed>
+    </QueryClientProvider>
+  )
+}
+
+function StudioPage({
+  queryClient,
+  ...studio
+}: ComponentProps<typeof Studio> & { queryClient: ReturnType<typeof useAccountCache> }) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      {/* The opening hands off once Studio mounts Home. */}
+      <LoadFailed>
+        <Suspense fallback={<Centered title="Sophia" busy />}>
+          <Studio {...studio} />
+        </Suspense>
+      </LoadFailed>
+    </QueryClientProvider>
+  )
+}
+
 function AppBody() {
   const { state, chooseDev, signOut, signOutEverywhere, acceptLink, declineLink } = useAuth()
   const routing = useProjectRoute()
@@ -231,7 +285,8 @@ function AppBody() {
   // Who is in, for writes that outlive their part (signed-in.ts): set as it changes, cleared at once on leaving.
   useEffect(() => setSignedIn(signedInAs), [signedInAs])
   const wordsWent = useDraftsOnlyOfWhoIsIn(state)
-  const { joinPage, legal } = useOwnPage(state)
+  const { buildReview } = routing.route
+  const { joinPage, legal } = useOwnPage(state, buildReview !== undefined)
 
   // Cached server state belongs to one identity; drop it whenever the identity changes.
   const switchIdentity = (identity: Identity | null) => {
@@ -264,23 +319,26 @@ function AppBody() {
   }
   // A guest's session left over from a room's door is no account: the Studio asks them to sign in.
   if (state.identity.role === 'guest') return <SignIn onChooseDev={switchIdentity} />
+  if (buildReview !== undefined)
+    return (
+      <BuildReviewPage
+        queryClient={queryClient}
+        address={buildReview}
+        identity={state.identity}
+        onSignOut={leaveSession}
+      />
+    )
 
   return (
-    <QueryClientProvider client={queryClient}>
-      {/* Its chunk on its way, the session's face stays: the opening hands off once Home is mounted (Studio). */}
-      <LoadFailed>
-        <Suspense fallback={<Centered title="Sophia" busy />}>
-          <Studio
-            identity={state.identity}
-            notice={state.notice}
-            routing={routing}
-            onChooseDev={switchIdentity}
-            onSignOut={leaveSession}
-            onSignOutEverywhere={leaveEverywhere}
-          />
-        </Suspense>
-      </LoadFailed>
-    </QueryClientProvider>
+    <StudioPage
+      queryClient={queryClient}
+      identity={state.identity}
+      notice={state.notice}
+      routing={routing}
+      onChooseDev={switchIdentity}
+      onSignOut={leaveSession}
+      onSignOutEverywhere={leaveEverywhere}
+    />
   )
 }
 

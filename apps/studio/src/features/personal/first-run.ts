@@ -38,6 +38,13 @@ export const firstRunShows = (f: FirstRunFacts): boolean =>
 export const firstRunHolds = (f: FirstRunFacts): boolean =>
   mayShow(f) && (f.archived === 'reading' || f.profile === 'reading')
 
+/**
+ * Whether it may yet come, the projects still unread: not a place to hold (Home's own skeleton stays), only a guide that
+ * the keys' tip waits for, so it never shows, and is counted, a moment before the first run (demo-findings-1.md P2-1).
+ * A read that fails keeps it pending on that page: the tip waits for a later visit.
+ */
+export const firstRunPending = (f: FirstRunFacts): boolean => !f.done && f.projects === undefined
+
 /** The profile as the first run reads it (profileFacts' cases). */
 export function profileFacts(profile: Profile | null, trouble: ReadTrouble | null): ProfileFacts {
   if (profile) return { chosen: profile.chosen }

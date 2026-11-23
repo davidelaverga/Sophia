@@ -36,6 +36,7 @@ import {
   homeRows,
   notesLabel,
   rowNote,
+  showsAllProjects,
   type HomeAction,
   type HomeLine,
   type HomeRow,
@@ -228,8 +229,8 @@ function Index(props: Pick<Props, 'projects' | 'loadingProjects' | 'now' | 'inCa
           onPress={() => actions.room(row.project.projectId, row.action)}
         />
       ))}
-      <li style={{ '--i': rows.length }}>
-        {projects.length === 0 ? (
+      {projects.length === 0 && (
+        <li style={{ '--i': rows.length }}>
           <button className="hw-row hw-more" type="button" onClick={actions.newProject}>
             <span className="hw-n" aria-hidden>
               +
@@ -237,7 +238,10 @@ function Index(props: Pick<Props, 'projects' | 'loadingProjects' | 'now' | 'inCa
             <span className="hw-t">Start a project</span>
             <span className="hw-m">Invite your team when you’re ready</span>
           </button>
-        ) : (
+        </li>
+      )}
+      {showsAllProjects(projects) && (
+        <li style={{ '--i': rows.length }}>
           <button className="hw-row hw-more" type="button" onClick={actions.work}>
             <span className="hw-n" aria-hidden />
             <span className="hw-t">All {props.count}</span>
@@ -245,8 +249,8 @@ function Index(props: Pick<Props, 'projects' | 'loadingProjects' | 'now' | 'inCa
               <span aria-hidden>→</span>
             </span>
           </button>
-        )}
-      </li>
+        </li>
+      )}
     </ol>
   )
 }

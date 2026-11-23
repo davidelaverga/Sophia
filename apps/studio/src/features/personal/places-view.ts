@@ -348,6 +348,12 @@ export function workCount(projects: readonly ProjectSummary[] | undefined): stri
   return `${String(projects.length)} project${projects.length === 1 ? '' : 's'}${carried ? ` · ${String(carried)} from you` : ''}`
 }
 
+/**
+ * Whether Home's index ends with the link to all projects: with two or more. One project is its own row, and «All 1
+ * project» would only open the same (demo-findings-1.md #16); with none, the index offers «Start a project».
+ */
+export const showsAllProjects = (projects: readonly ProjectSummary[]): boolean => projects.length > 1
+
 /** Who is in a project's room and where: "Davide and Sophia are in Pitch deck" (Home's attention line). */
 export function roomCaption(project: ProjectSummary | null): string {
   if (!project?.room || project.room.people.length === 0) return ''

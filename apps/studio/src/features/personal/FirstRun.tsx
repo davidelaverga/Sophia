@@ -291,7 +291,7 @@ function ProjectStep({ token, heading, onCreated, onAdded, onNotNow }: ProjectPr
 
 /** The first run's place under the greeting, held while it can't tell yet whether it shows: Home is never swapped. */
 export function FirstRunHeld() {
-  return <div className="hw-first-held" aria-busy="true" />
+  return <div className="hw-first-held" aria-busy="true" data-guide="held" />
 }
 
 /** The focus goes to each new step's title as it comes; the first step shown leaves the focus where Home put it. */
@@ -333,7 +333,8 @@ export function FirstRun({ identity, profile, onEnd, onCreated, onAdded }: Props
   useEscapeEnds(root, onEnd)
   const next = () => setAt(afterStep(step) ?? step)
   return (
-    <div className="hw-first-run" ref={root}>
+    // A guide: the keys' tip waits while it is here, and for a later visit once it has been (KeysTip.tsx, #17).
+    <div className="hw-first-run" ref={root} data-guide="shown">
       {step === 'name' && (
         // A save that lands moves on only from the name: a step reached meanwhile is never taken back.
         <NameStep identity={identity} heading={heading} onNext={(saved) => (saved ? setAt(savedFrom) : next())} />

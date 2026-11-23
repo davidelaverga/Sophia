@@ -4,8 +4,8 @@
 // here must be typed for the conversation to work, and an empty field is one plain line, not an empty card. It
 // refreshes with the project's events (the snapshot cursor) and after each write.
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useId, useState } from 'react'
-import type { MissionContext, MissionReceipt } from '@sophia/contracts'
+import { useEffect, useId, useState, type ReactNode } from 'react'
+import type { MissionContext, MissionEntry, MissionReceipt } from '@sophia/contracts'
 import { Tag, Tip } from '@sophia/ui'
 import {
   getMission,
@@ -40,9 +40,10 @@ interface Props {
   me: string
   names: ReadonlyMap<string, string>
   onRevision?: (revision: number) => void
+  exploreNote?: ((entry: MissionEntry) => ReactNode) | undefined
 }
 
-export function MissionPanel({ projectId, identity, cursor, me, names, onRevision }: Props) {
+export function MissionPanel({ projectId, identity, cursor, me, names, onRevision, exploreNote }: Props) {
   const mission = useQuery({
     queryKey: [...missionKey(projectId), identity.name, cursor],
     queryFn: () => getMission(identity.token, projectId),
@@ -65,7 +66,7 @@ export function MissionPanel({ projectId, identity, cursor, me, names, onRevisio
   // Unavailable is said as such: it is never shown as an empty mission.
   if (mission.isError) return <p className="mission muted">The mission couldn’t be read just now.</p>
   const ctx = frozen ?? mission.data
-  const parts = { ctx, projectId, identity, me, names, onEditing: editing }
+  const parts = { ctx, projectId, identity, me, names, onEditing: editing, exploreNote }
   return (
     <section className="mission" aria-label="Mission">
       <DirectionLine ctx={ctx} />

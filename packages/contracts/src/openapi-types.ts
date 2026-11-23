@@ -6,6 +6,7 @@
 interface Schema {
   $ref?: string
   const?: unknown
+  format?: string
   enum?: unknown[]
   anyOf?: Schema[]
   oneOf?: Schema[]
@@ -76,8 +77,11 @@ function typeOf(s: Schema): string {
 function responseTypeOf(op: Operation): string {
   const [status, success] = Object.entries(op.responses).find(([code]) => code.startsWith('2')) ?? []
   if (status === undefined) return 'never'
-  const response = success?.content?.['application/json']?.schema
+  const content = success?.content
+  const response = content?.['application/json']?.schema
   if (response) return typeOf(response)
+  const plain = content?.['text/plain']?.schema
+  if (plain) return plain.format === 'binary' ? 'Uint8Array' : typeOf(plain)
   // A 204 has no body; any other success without a JSON schema is the event stream.
   return status === '204' ? 'undefined' : STREAM_RESPONSE
 }

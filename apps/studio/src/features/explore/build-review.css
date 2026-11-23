@@ -1,0 +1,93 @@
+.build-review {
+  width: min(100%, 660px);
+  min-height: 100dvh;
+  margin-inline: auto;
+  padding: 24px clamp(16px, 5vw, 40px) 40px;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  overflow-wrap: anywhere;
+}
+
+.build-review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.build-review-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.build-review-brand svg {
+  width: 20px;
+  height: 20px;
+}
+
+.build-review-content,
+.build-review-form,
+.build-review-measurements,
+.build-verification-target {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.build-review-form,
+.build-review nav {
+  padding-top: 12px;
+  border-top: 1px solid var(--line-2);
+}
+
+.build-review-form .field {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.build-review-form .field textarea,
+.build-review-form .field textarea:focus-visible {
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  resize: vertical;
+}
+
+.build-review-form .pill {
+  justify-self: start;
+}
+
+.build-verification-target {
+  margin: 0;
+}
+
+.build-verification-target dd {
+  margin: 0;
+}
+
+.build-verification-target dt {
+  font-weight: 600;
+}
+
+@media (min-width: 600px) {
+  .build-verification-target > div {
+    display: grid;
+    grid-template-columns: minmax(0, 9rem) minmax(0, 1fr);
+    gap: 12px;
+  }
+}
+
+.build-review-measurements {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.build-review-measurements legend {
+  padding: 0;
+  font-weight: 600;
+}
