@@ -33,6 +33,7 @@ export type IconName =
   | 'stop'
   | 'search'
   | 'hand'
+  | 'floor'
   | 'sophia'
   | 'sophiaOff'
   | 'eye'
@@ -178,7 +179,16 @@ const PATHS: Record<IconName, ReactNode> = {
   hand: (
     <path d="M8 12V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4a1.5 1.5 0 0 1 3 0v6M14 10V5.5a1.5 1.5 0 0 1 3 0V13c0 4-2.5 7-6 7s-5-2-6.5-5l-1.6-3a1.4 1.4 0 0 1 2.4-1.4L8 13" />
   ),
-  // Raise hand: the hand, and a wave above it, asking for a turn (raise-hand.md); Take the floor's hand has none.
+  // Take the floor: a person on a lit spot, the room's turn to speak to Sophia; the hand stays Raise hand's alone
+  // (five-decisions.md, 22).
+  floor: (
+    <>
+      <circle cx="12" cy="6.5" r="2.6" />
+      <path d="M7.5 16c0-2.8 2-4.8 4.5-4.8s4.5 2 4.5 4.8" />
+      <ellipse cx="12" cy="19" rx="7.5" ry="2" />
+    </>
+  ),
+  // Raise hand: the hand, and a wave above it, asking for a turn (raise-hand.md).
   handRaise: (
     <>
       <path d="M8 13V7.5a1.5 1.5 0 0 1 3 0V12M11 11V6a1.5 1.5 0 0 1 3 0v5M14 11V7.5a1.5 1.5 0 0 1 3 0V14c0 4-2.5 7-6 7s-5-2-6.5-5l-1.6-3a1.4 1.4 0 0 1 2.4-1.4L8 14" />

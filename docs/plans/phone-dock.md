@@ -18,7 +18,7 @@ squared controls), in one row, and the dock's box hugs them:
 | Control                             | Icon                     |
 | ----------------------------------- | ------------------------ |
 | Microphone, camera, screen, leave   | as today                 |
-| Take the floor                      | a raised hand            |
+| Take the floor                      | a person on a lit spot   |
 | Pass to … (one person, or the menu) | an arrow handed on       |
 | Speak with Sophia                   | her light                |
 | Show Sophia your screen / camera    | an eye                   |
