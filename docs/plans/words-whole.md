@@ -27,11 +27,13 @@
     bracket.
 - **26 · Read back on the Studio's clock** (`CalendarTab.tsx`, `GoalTargets.tsx`). Under Calendar's date and time,
   the session as the calendar will list it («Today · 18:30 – 19:30», `sessionLabel`); under the target date, the day
-  as the Studio says it («15 Dec 2026», `dayOf`). Each is the fields' description (`aria-describedby`). The fields
+  as the Studio says it («15 Dec 2026», `dayOf`); a value that isn't a day (a five-digit year, which the field allows)
+  is not read back. Each is the fields' description (`aria-describedby`). The fields
   stay the browser's: no new control.
 - **27 · The limit in sight** (`name-limit.ts` with tests, `NameLimit.tsx`, `useCapped`'s `onCut`; `document-title.ts`
   with tests). The project's name, in «Start a project», the first run and Rename:
-  - held to 180 characters as the API counts them, Rename too (it had `maxLength`);
+  - held to 180 characters as the API counts them, Rename too (it had `maxLength`), whose Save waits until an older
+    title past the most fits;
   - «165 / 180» under the field from 160 characters on, as its description, never announced at every key;
   - a paste that didn't all fit says «Only the first 180 characters fit.» politely, once, until the next change;
   - the tab says at most 60 characters of the title, then «…» (`tabTitle`), never cutting inside a character.
