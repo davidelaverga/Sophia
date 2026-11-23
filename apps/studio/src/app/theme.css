@@ -1116,9 +1116,14 @@ select option {
 }
 /* A goal's text commands, waiting while another one sends: the step of a disabled pill there. Elsewhere a disabled
    button keeps the kit's 0.45 (Codex on #253: unscoped, it lifted every text button). */
-.controls .text-button:disabled {
+.controls .text-button:disabled,
+.controls .text-button[aria-disabled='true'] {
   cursor: default;
   opacity: 0.6;
+}
+/* A goal's status line takes the focus only when no control is left to hold it (focus-kept.md): no ring for a mouse. */
+.controls .outcome:focus:not(:focus-visible) {
+  outline: none;
 }
 /* The scale of a press (docs/plans/control-heights.md): 24 · 28 · 32 · 36 px. Each kind draws its own size by its
    class alone (a pill 32, a ghost 28, a square 36, an inline action 24); a modifier takes it one step down or up
@@ -4783,8 +4788,13 @@ button.contribution-quote:hover {
 .sheet-body > .pill,
 .sheet-body > .text-button,
 .sheet-tab-body > .pill,
-.sheet-tab-body > .text-button {
+.sheet-tab-body > .text-button,
+.room-link-slot > .pill {
   justify-self: start;
+}
+/* The room link's slot watches its focus (focus-kept.md) and takes no box: its parts stay the tab's own rows. */
+.room-link-slot {
+  display: contents;
 }
 .room-link {
   display: grid;
@@ -7886,6 +7896,15 @@ button.contribution-quote:hover {
 .in-project-people .sheet-status {
   grid-column: 1 / -1;
   margin: 0;
+}
+/* A role's «Saved», for a moment, under the select that changed (focus-kept.md). */
+.in-project-people .row-saved {
+  justify-self: end;
+}
+/* A role change on its way: the select waits, keeping the focus (aria-disabled), and reads as waiting. */
+.in-project-role select[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.45;
 }
 /* Asked to confirm, Remove takes its own line under the row: the name and the role stay in sight. */
 .in-project-people .confirm {

@@ -11,6 +11,7 @@ import { replyLost } from '../../api/reply-lost.ts'
 import { useMembers } from '../work/GoalTargets.tsx'
 import { membershipKey, type SheetContext } from './useAccess.ts'
 import { removalKeys } from './removal-keys.ts'
+import { afterSave, SAVED_MS, savedGone, savedNote, type RowNote } from './role-notes.ts'
 
 type Role = ProjectMember['role']
 
@@ -20,12 +21,13 @@ const isRole = (value: string): value is Role => value === 'admin' || value === 
 function RoleSelect(props: { member: ProjectMember; label: string; onChange: (role: Role) => void; busy: boolean }) {
   return (
     <div className="field in-project-role">
+      {/* While its change is on its way it waits, keeping the focus (aria-disabled): a disabled select drops it. */}
       <select
         aria-label={props.label}
         value={props.member.role}
-        disabled={props.busy}
+        aria-disabled={props.busy || undefined}
         onChange={(e) => {
-          if (isRole(e.target.value)) props.onChange(e.target.value)
+          if (!props.busy && isRole(e.target.value)) props.onChange(e.target.value)
         }}
       >
         <option value="admin">Admin</option>
@@ -34,12 +36,6 @@ function RoleSelect(props: { member: ProjectMember; label: string; onChange: (ro
       </select>
     </div>
   )
-}
-
-/** What a row says after a change or a removal: a refusal as an alert, a change found landed as a status. */
-interface RowNote {
-  text: string
-  polite?: boolean
 }
 
 /** Each member's row on its own: a change or a removal on the way, and what it said last. */
@@ -93,14 +89,24 @@ function useRows() {
       else notes.delete(actorId)
       return { busy, notes }
     })
-  return { rows, begin, end }
+  /** A role change landed: the row is free and says Saved for a moment; no refusal from before stays (role-notes.ts). */
+  const saved = (actorId: string) => {
+    const note = savedNote()
+    setRows((r) => {
+      const busy = new Set(r.busy)
+      busy.delete(actorId)
+      return { busy, notes: afterSave(r.notes, actorId, note) }
+    })
+    setTimeout(() => setRows((r) => ({ ...r, notes: savedGone(r.notes, actorId, note) })), SAVED_MS)
+  }
+  return { rows, begin, end, saved }
 }
 
 /** A role change in flight, and what its row says; reads the members and one's own membership again after. */
 function useRoleChange(context: SheetContext) {
   const { projectId, identity } = context
   const client = useQueryClient()
-  const { rows, begin, end } = useRows()
+  const { rows, begin, end, saved } = useRows()
   const membersKey = ['members', projectId, identity.name]
   const readAgain = () =>
     Promise.all([
@@ -111,7 +117,7 @@ function useRoleChange(context: SheetContext) {
     begin(member.actorId)
     changeMemberRole(identity.token, projectId, member.actorId, role).then(
       async () => {
-        end(member.actorId)
+        saved(member.actorId)
         await readAgain()
       },
       async (err: unknown) => {
@@ -146,7 +152,8 @@ function useRoleChange(context: SheetContext) {
 
 function RowSaid({ note }: { note: RowNote }) {
   return note.polite ? (
-    <p className="sheet-status" role="status">
+    // Saved sits under the select that changed; a longer status line reads from the row's start.
+    <p className={note.saved ? 'sheet-status row-saved' : 'sheet-status'} role="status">
       {note.text}
     </p>
   ) : (

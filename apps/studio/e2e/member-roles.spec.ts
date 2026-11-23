@@ -46,6 +46,23 @@ test('roles · the only admin stepping down is told why, and their role stays', 
   await expect(mine).toHaveValue('admin')
 })
 
+test('roles · a change that lands says Saved beside its select, then goes, and clears an earlier refusal (focus-kept.md)', async ({
+  page,
+}) => {
+  const list = await inProject(page, '&admins=1')
+  await list.getByRole('combobox', { name: 'Your role' }).selectOption('editor')
+  await expect(list.getByRole('alert')).toContainText('A project needs an admin')
+  const marco = list.getByRole('combobox', { name: 'Role of Marco' })
+  await marco.focus()
+  await marco.selectOption('viewer')
+  const row = list.getByRole('listitem').filter({ hasText: 'Marco' })
+  await expect(row.getByRole('status')).toHaveText('Saved')
+  await expect(list.getByRole('alert')).toHaveCount(0)
+  // The keyboard's place is kept: the select waited as it saved, never dropping the focus to the page.
+  await expect(marco).toBeFocused()
+  await expect(row.getByRole('status')).toHaveCount(0, { timeout: 6_000 })
+})
+
 test('roles · an editor sees who is in the project and their roles, with nothing to change', async ({ page }) => {
   await page.goto('/room.html?demo=1&role=editor')
   await drawn(page, DRAWN.room)
@@ -107,14 +124,15 @@ test('roles · one member’s change answered never frees another’s select whi
   const marco = list.getByRole('combobox', { name: 'Role of Marco' })
   const lucia = list.getByRole('combobox', { name: 'Role of Lucía' })
   await page.evaluate(() => window.fixture?.holdSaves(true))
+  // A select whose change is on its way waits (aria-disabled), keeping the focus (focus-kept.md).
   await marco.selectOption('viewer')
-  await expect(marco).toBeDisabled()
+  await expect(marco).toHaveAttribute('aria-disabled', 'true')
   await lucia.selectOption('editor')
-  await expect(lucia).toBeDisabled()
-  await expect(marco).toBeDisabled()
+  await expect(lucia).toHaveAttribute('aria-disabled', 'true')
+  await expect(marco).toHaveAttribute('aria-disabled', 'true')
   await page.evaluate(() => window.fixture?.holdSaves(false))
-  await expect(marco).toBeEnabled()
-  await expect(lucia).toBeEnabled()
+  await expect(marco).not.toHaveAttribute('aria-disabled')
+  await expect(lucia).not.toHaveAttribute('aria-disabled')
   await expect(marco).toHaveValue('viewer')
   await expect(lucia).toHaveValue('editor')
 })

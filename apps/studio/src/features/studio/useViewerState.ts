@@ -43,7 +43,7 @@ function wroteFor() {
  * A count of the address's moves made by the app (`pushState`, Back and Forward): a press of the view already shown
  * pushes its path again, without the lens, under a shell that stays mounted.
  */
-function useAddressMoves() {
+export function useAddressMoves() {
   const [moves, setMoves] = useState(0)
   useEffect(() => {
     const moved = () => setMoves((n) => n + 1)

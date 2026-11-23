@@ -2,7 +2,8 @@
 // greeting, each one skippable. Its fixture page is Home's (fixtures/home.tsx): `first=new` (a name not chosen yet) or
 // `first=named` (chosen), over `projects=none`; the rest of its switches are first-run-api.ts's. The profile's save and
 // the project's creation are answered as the API would, and recorded in `homeFixture.pressed`. «Your projects» is the
-// index's own name (Welcome.tsx's `aria-label`).
+// index's own name (Welcome.tsx's `aria-label`). As a step comes, its field or first choice takes the focus
+// (focus-kept.md), never its title.
 import { expect, test, type Page } from '@playwright/test'
 
 const CREATED = '00000000-0000-4000-8000-0000000000f1'
@@ -30,14 +31,14 @@ test('home first run · name, a team, the project: saved, created, opened with I
   await field.fill('Luis')
   await field.press('Enter')
   const how = step(page, HOW)
-  await expect(how.getByRole('heading', { name: HOW })).toBeFocused()
+  await expect(how.getByRole('button', { name: /On my own/ })).toBeFocused()
   await expect(name).toHaveCount(0)
   await expect(how.getByRole('button', { name: /On my own/ })).toContainText(
     'A project for you and Sophia. You can invite people later.',
   )
   await how.getByRole('button', { name: /With a team/ }).click()
   const project = step(page, PROJECT)
-  await expect(project.getByRole('heading', { name: PROJECT })).toBeFocused()
+  await expect(project.getByRole('textbox', { name: 'Project name' })).toBeFocused()
   const title = project.getByRole('textbox', { name: 'Project name' })
   await title.fill('Onboarding pilot')
   await title.press('Enter')
@@ -64,9 +65,9 @@ test('home first run · a chosen name is not asked again; on your own, no Invite
 test('home first run · every step skips; «Not now» leaves Home as today, for good', async ({ page }) => {
   await page.goto('/home.html?projects=none&first=new')
   await step(page, NAME).getByRole('button', { name: 'Skip' }).click()
-  await expect(step(page, HOW).getByRole('heading', { name: HOW })).toBeFocused()
+  await expect(step(page, HOW).getByRole('button', { name: /On my own/ })).toBeFocused()
   await step(page, HOW).getByRole('button', { name: 'Skip' }).click()
-  await expect(step(page, PROJECT).getByRole('heading', { name: PROJECT })).toBeFocused()
+  await expect(step(page, PROJECT).getByRole('textbox', { name: 'Project name' })).toBeFocused()
   await step(page, PROJECT).getByRole('button', { name: 'Not now, just talk to Sophia' }).click()
   await homeAsToday(page)
   expect(await pressed(page)).toEqual([])
@@ -150,7 +151,7 @@ test('home first run · no reply: the name held as sent, one Try again, the same
   const again = step(page, NAME).getByRole('button', { name: 'Try again' })
   await expect(again).toHaveCount(1)
   await again.click()
-  await expect(step(page, HOW).getByRole('heading', { name: HOW })).toBeFocused()
+  await expect(step(page, HOW).getByRole('button', { name: /On my own/ })).toBeFocused()
   expect(await pressed(page)).toEqual(['name Luis'])
   const [first, second] = await puts(page)
   expect(second).toBe(first)
@@ -200,7 +201,7 @@ test('home first run · while the name is saved, Skip waits; saved, it moves on'
   await nameField(page).press('Enter')
   await expect(step(page, NAME).getByRole('button', { name: 'Skip' })).toBeDisabled()
   await release(page)
-  await expect(step(page, HOW).getByRole('heading', { name: HOW })).toBeFocused()
+  await expect(step(page, HOW).getByRole('button', { name: /On my own/ })).toBeFocused()
   expect(await pressed(page)).toEqual(['name Luis'])
 })
 

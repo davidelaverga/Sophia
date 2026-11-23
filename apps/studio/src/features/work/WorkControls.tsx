@@ -1,11 +1,13 @@
 // work.stop / goal controls (frontend bindings: WorkControls → admitGoalCommand).
 // A receipt means "sent", never "done": the goal's status changes when Sophia confirms. An unknown outcome
 // offers a retry with the same key, so it can never be sent twice.
+import { useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Goal, Receipt } from '@sophia/contracts'
 import { ConfirmButton, Tag, Tip } from '@sophia/ui'
 import { admitGoalCommand, type ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
+import { useFocusKept } from '../../app/useFocusKept.ts'
 import { VISION } from '../../app/vision.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
 import { COMMAND, goalCommands, retirementView, type CommandKind } from './labels.ts'
@@ -53,9 +55,12 @@ export function WorkControls({ goal, projectId, identity, token, admin = false, 
   const busy = admission.state.status === 'sending'
   const available = goalCommands(goal.status, VISION, admin)
   const retire = () => void admission.submit('retire_sessions')
+  // A press that changes the goal takes its control away (Hold becomes Resume): the focus goes to what takes its place.
+  const box = useRef<HTMLDivElement>(null)
+  useFocusKept(box)
 
   return (
-    <div className="controls">
+    <div ref={box} className="controls">
       <div className="control-row">
         {available.map((kind) =>
           kind === 'retire_sessions' ? (
@@ -76,25 +81,43 @@ export function WorkControls({ goal, projectId, identity, token, admin = false, 
               onConfirm={() => void admission.submit('stop')}
             />
           ) : (
-            <button
+            <CommandButton
               key={kind}
-              type="button"
-              // One filled press per goal (docs/plans/goal-controls-text.md): the rest are text, with their tips.
-              className={kind === 'request_review' ? 'pill primary has-tip' : 'text-button has-tip'}
-              disabled={busy}
-              onClick={() => void admission.submit(kind)}
-            >
-              {COMMAND[kind].verb}
-              <Tip label={COMMAND[kind].hint} align={tipAlignOf(kind, edge)} />
-            </button>
+              kind={kind}
+              align={tipAlignOf(kind, edge)}
+              busy={busy}
+              onPress={() => void admission.submit(kind)}
+            />
           ),
         )}
       </div>
       {goal.retirement && <RetirementResults retirement={goal.retirement} />}
-      <p className="outcome" role="status" aria-live="polite">
+      {/* With no control left (a goal stopping), the focus rests on what the press did. */}
+      <p className="outcome" role="status" aria-live="polite" tabIndex={-1} data-focus-fallback>
         <AdmissionOutcome state={admission.state} onRetry={() => void admission.retry()} />
       </p>
     </div>
+  )
+}
+
+/**
+ * One goal command. While a command sends it waits, keeping the focus it has (`aria-disabled`, never `disabled`, which
+ * drops the focus to the page). Hold and Resume share a slot, so the one that replaces the other takes the focus.
+ */
+function CommandButton(props: { kind: CommandKind; align: TipAlign; busy: boolean; onPress: () => void }) {
+  const { kind, busy } = props
+  return (
+    <button
+      type="button"
+      // One filled press per goal (docs/plans/goal-controls-text.md): the rest are text, with their tips.
+      className={kind === 'request_review' ? 'pill primary has-tip' : 'text-button has-tip'}
+      aria-disabled={busy || undefined}
+      data-focus-slot={kind === 'hold' || kind === 'resume' ? 'pause' : undefined}
+      onClick={() => !busy && props.onPress()}
+    >
+      {COMMAND[kind].verb}
+      <Tip label={COMMAND[kind].hint} align={props.align} />
+    </button>
   )
 }
 

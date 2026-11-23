@@ -33,11 +33,12 @@ import { showRenderOf, useStagePresent } from '../voice/StagePresent.tsx'
 import { latestSpoken } from '../voice/voice-trail.ts'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
-import { chatSignature, panelNote, toggled, type Panel } from './side-panel.ts'
+import { chatSignature, panelNote, PANELS, toggled, type Panel } from './side-panel.ts'
 import { useKnownNames } from './useKnownNames.ts'
 import { PeoplePanel } from './PeoplePanel.tsx'
 import { PanelToggles, SidePanel, useBriefUpdates, useUnread } from './SidePanel.tsx'
-import { useViewerState } from './useViewerState.ts'
+import { useAddressMoves, useViewerState } from './useViewerState.ts'
+import { paramIn, showParam } from '../../app/address-param.ts'
 import { lensesShown, type Lens } from './viewer-state.ts'
 
 /** What each lens will hold, stated plainly instead of showing fake content (the goal is noted for us). */
@@ -60,8 +61,16 @@ const COMING: Record<Exclude<Lens, 'converse'>, { title: string; body: string }>
  * Chat when they come back). `studio`: the room is on screen, so an open tab is in view.
  */
 export function useRoomPanel(snapshot: Snapshot | undefined, room: ProjectRoom, studio: boolean) {
-  const [panel, setPanel] = useState<Panel | null>(null)
-  const [opener, setOpener] = useState<Panel | null>(null)
+  // The open panel is in the address while the room is on screen (`?panel=`, as the lens): a reload or a pasted link
+  // opens it again (focus-kept.md). A shell kept out of sight for its call neither reads nor writes it.
+  const [panel, setPanel] = useState<Panel | null>(() =>
+    studio ? paramIn(window.location.search, 'panel', PANELS) : null,
+  )
+  const [opener, setOpener] = useState<Panel | null>(panel)
+  const moves = useAddressMoves()
+  useEffect(() => {
+    if (studio) showParam('panel', panel)
+  }, [studio, panel, moves])
   const unread = useUnread(chatSignature(snapshot, room.chat, room.notices), studio && panel === 'chat')
   // A message named in the address (a mention from Home, A37): the chat opens on it.
   const message = useAddressed(MESSAGE)

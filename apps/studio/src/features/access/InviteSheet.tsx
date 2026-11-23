@@ -1,14 +1,25 @@
 // Invite: the room's link and its QR for guests, emailed invitations, and the room's calendar. A sheet over
 // the Studio; nothing here changes the room itself until someone uses a link. Every action says when it is
 // working and when it failed, every link can be copied by hand, and what cuts someone off asks first.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Invitation, InvitationCreate, LobbyEntry } from '@sophia/contracts'
 import { ConfirmButton, SwapLabel, Tabs } from '@sophia/ui'
 import { createInvitation, reissueInvitation, revokeInvitation } from '../../api/access.ts'
 import { ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { Sheet } from '../../app/Sheet.tsx'
-import { admissionLabel, doorNote, firstInviteTab, invitationState, linkLimits, ROLE_NOTE } from './access-view.ts'
+import { useFocusKept } from '../../app/useFocusKept.ts'
+import { paramIn, showParam } from '../../app/address-param.ts'
+import {
+  admissionLabel,
+  doorNote,
+  firstInviteTab,
+  INVITE_TABS,
+  invitationState,
+  linkLimits,
+  ROLE_NOTE,
+  type InviteTab,
+} from './access-view.ts'
 import { AdmissionNote } from './AdmissionNote.tsx'
 import { CalendarTab } from './CalendarTab.tsx'
 import { FromYourProjects } from './FromYourProjects.tsx'
@@ -17,7 +28,7 @@ import { QrCode } from './QrCode.tsx'
 import { useInvitations, useLobbyDecision, useRefreshInvitations, type SheetContext } from './useAccess.ts'
 import { useNow } from '../../app/use-now.ts'
 
-type Tab = 'guests' | 'members' | 'calendar'
+type Tab = InviteTab
 const TABS: ReadonlyArray<[Tab, string]> = [
   ['guests', 'Guests'],
   ['members', 'Members'],
@@ -39,7 +50,15 @@ const EMAIL: Record<Invitation['emailStatus'], string> = {
 }
 
 export function InviteSheet({ context, onClose }: { context: SheetContext; onClose: () => void }) {
-  const [tab, setTab] = useState<Tab>(() => firstInviteTab(context.membership?.role, context.inCall ?? false))
+  const [tab, setTab] = useState<Tab>(
+    () =>
+      paramIn(window.location.search, 'invite', INVITE_TABS) ??
+      firstInviteTab(context.membership?.role, context.inCall ?? false),
+  )
+  // The sheet and its tab are in the address while it is open (`?invite=`): a reload or a pasted link opens the same
+  // tab; closing takes it away (focus-kept.md).
+  useEffect(() => showParam('invite', tab), [tab])
+  useEffect(() => () => showParam('invite', null), [])
   return (
     <Sheet id="invite-title" title="Invite" onClose={onClose} top={<SheetTabs tab={tab} onTab={setTab} />}>
       <TabPanel tab="guests" shown={tab}>
@@ -158,11 +177,24 @@ interface SlotProps {
   onChange: () => void
 }
 
-/** While the list loads, nothing to press: a create button there would make a second link. */
+/**
+ * While the list loads, nothing to press: a create button there would make a second link. Created, the link's Copy
+ * takes the focus Create had (focus-kept.md).
+ */
 function RoomLinkSlot({ context, loading, link, onChange }: SlotProps) {
-  if (loading) return <p className="sheet-status">Loading the room link…</p>
-  if (!link) return <CreateRoomLink context={context} onChange={onChange} />
-  return <RoomLink token={context.identity.token} link={link} onChange={onChange} />
+  const box = useRef<HTMLDivElement>(null)
+  useFocusKept(box)
+  return (
+    <div ref={box} className="room-link-slot">
+      {loading ? (
+        <p className="sheet-status">Loading the room link…</p>
+      ) : link ? (
+        <RoomLink token={context.identity.token} link={link} onChange={onChange} />
+      ) : (
+        <CreateRoomLink context={context} onChange={onChange} />
+      )}
+    </div>
+  )
 }
 
 function CreateRoomLink({ context, onChange }: { context: SheetContext; onChange: () => void }) {
@@ -405,19 +437,25 @@ function MemberForm({ context, onSent }: { context: SheetContext; onSent: () => 
   const create = useAdmission<InvitationCreate, Invitation>((key, body) =>
     createInvitation(context.identity.token, context.projectId, key, body),
   )
+  const sending = create.state.status === 'sending'
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (sending) return
     if (await create.send({ kind: 'member', role, email: email.trim() })) setEmail('')
     onSent()
   }
+  // Sent, the field empties and Send waits for the next address: the focus goes back to the field (focus-kept.md).
+  const box = useRef<HTMLFormElement>(null)
+  useFocusKept(box)
   return (
-    <form className="sheet-form" onSubmit={(e) => void submit(e)}>
+    <form ref={box} className="sheet-form" onSubmit={(e) => void submit(e)}>
       <div className="field">
         <label htmlFor="member-email" className="sr-only">
           Email
         </label>
         <input
           id="member-email"
+          data-focus-slot="next"
           type="email"
           required
           placeholder="name@company.com"
@@ -436,7 +474,14 @@ function MemberForm({ context, onSent }: { context: SheetContext; onSent: () => 
         </select>
       </div>
       <p className="role-note">{ROLE_NOTE[role]}</p>
-      <button type="submit" className="pill primary" disabled={create.state.status === 'sending' || !email.trim()}>
+      {/* Sending, it waits keeping the focus (aria-disabled); empty, there is nothing to send (disabled). */}
+      <button
+        type="submit"
+        className="pill primary"
+        data-focus-slot="next"
+        disabled={!email.trim()}
+        aria-disabled={sending || undefined}
+      >
         {admissionLabel(create.state.status, 'Send invitation', 'Sending…')}
       </button>
       <SentNote state={create.state} onRetry={() => void create.retry().then(onSent)} />

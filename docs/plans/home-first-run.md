@@ -56,7 +56,8 @@ Pure rules: `features/personal/first-run.ts` (`firstRunShows`, `firstRunHolds`, 
 - Each step is a `section` named by its title (`aria-labelledby`): a screen reader announces «region, What should
   people in your projects call you?» and reads the field by its visible label.
 - On arrival the focus stays where Home puts it (Home's own arrival rules). On each advance the focus moves to the new
-  step's title (`tabIndex=-1`), so the next region is read from its heading.
+  step's field (its first choice on step 2), read with the region's name, as Work's New project does
+  (`focus-kept.md`, 2026-11-22; until then it went to the step's title, which drew a field's ring).
 - Order inside a step: field, then its primary press, then Skip / Not now. Step 2: «On my own», «With a team», «Skip».
 - Enter submits a step's form (Continue, Start the project); on step 2 Enter presses the focused choice.
 - Escape anywhere on Home ends it as «Not now» does (not while an input method composes, not over a dialog or a

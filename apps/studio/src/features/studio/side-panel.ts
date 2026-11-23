@@ -3,6 +3,7 @@
 import type { Snapshot } from '@sophia/contracts'
 
 export type Panel = 'chat' | 'people' | 'brief'
+
 export const PANELS: readonly Panel[] = ['chat', 'people', 'brief']
 export const PANEL_TITLE: Record<Panel, string> = { chat: 'Chat', people: 'People', brief: 'Brief' }
 

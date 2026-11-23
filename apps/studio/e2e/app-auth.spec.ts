@@ -1422,7 +1422,9 @@ async function inTheRoomsChat(page: Page) {
     .getByRole('button', { name: /^Join the room/ })
     .click()
   await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
-  await page.getByRole('button', { name: /^Chat/ }).first().click()
+  // After a reload the chat is open already: it is in the address (`?panel=chat`, focus-kept.md).
+  const open = await page.evaluate(() => new URLSearchParams(window.location.search).get('panel') === 'chat')
+  if (!open) await page.getByRole('button', { name: /^Chat/ }).first().click()
   await expect(page.locator('#converse-draft')).toBeVisible()
 }
 

@@ -22,6 +22,7 @@ import { noteRole } from './call-end.ts'
 import { STALE_PART } from './part-gone.ts'
 import { StalePart } from './StalePart.tsx'
 import { useNow } from '../../app/use-now.ts'
+import { useFocusKept } from '../../app/useFocusKept.ts'
 import { PassMenu } from './PassMenu.tsx'
 import { ReactMenu } from './ReactMenu.tsx'
 import { CallPip } from './CallPip.tsx'
@@ -105,6 +106,9 @@ export function RoomDock(props: Props) {
   const live = room.status === 'live' || room.status === 'reconnecting'
   const wrap = useRef<HTMLDivElement>(null)
   useDockHeight(wrap)
+  // Join, then the microphone once in; Leave, then Join once out: the call's anchor takes a focus a key's press lost
+  // (a mouse's leaves it on the page, where Space is push-to-talk).
+  useFocusKept(wrap, '[data-call-anchor]', true)
   const micOn = !!room.participants.find((p) => p.local)?.micOn
   const talking = usePushToTalk(micOn, room, live)
   const note = room.mediaError ?? room.error

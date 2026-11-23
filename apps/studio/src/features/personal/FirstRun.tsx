@@ -1,7 +1,7 @@
 // Home's guided first run (docs/plans/home-first-run.md): under the greeting, the first time, with no projects, one
 // step at a time: the name (saved where «Your name» saves it), alone or with a team, and the first project (the
-// existing create-project action). Each step is a region named by its title, which takes the focus as the step comes;
-// Enter submits a step, Skip moves on, and Escape anywhere on Home ends it as «Not now» does. When it shows: useFirstRun.
+// existing create-project action). Each step is a region named by its title; as a step comes, its field takes the focus
+// (its first choice on the second), as Work's New project does (focus-kept.md); Enter submits a step, Skip moves on, and Escape anywhere on Home ends it as «Not now» does. When it shows: useFirstRun.
 // The rules and words: first-run.ts.
 import type { Profile, ProfileUpdate, ProjectCreated } from '@sophia/contracts'
 import { Button, Card, Field } from '@sophia/ui'
@@ -50,11 +50,14 @@ interface Props {
 
 type Heading = RefObject<HTMLHeadingElement | null>
 
-/** A step: a region named by its title, which takes the focus as the step comes (not on the first one shown). */
+/**
+ * A step: a region named by its title. As it comes (not the first one shown), its field or first choice takes the
+ * focus, and the region's name is read with it; the title is never a stop that looks like a field.
+ */
 function Step({ id, title, heading, children }: { id: string; title: string; heading: Heading; children: ReactNode }) {
   return (
     <section className="hw-first" aria-labelledby={id}>
-      <h3 id={id} className="hw-first-title" tabIndex={-1} ref={heading}>
+      <h3 id={id} className="hw-first-title" ref={heading}>
         {title}
       </h3>
       {children}
@@ -294,14 +297,18 @@ export function FirstRunHeld() {
   return <div className="hw-first-held" aria-busy="true" />
 }
 
-/** The focus goes to each new step's title as it comes; the first step shown leaves the focus where Home put it. */
-function useTitleFocus(step: FirstStep) {
+/**
+ * The focus goes to each new step's field (its first choice on the second) as it comes, read with the step's region
+ * name; the first step shown leaves the focus where Home put it.
+ */
+function useStepFocus(step: FirstStep) {
   const heading = useRef<HTMLHeadingElement>(null)
   const shown = useRef(step)
   useEffect(() => {
     if (step === shown.current) return
     shown.current = step
-    heading.current?.focus()
+    const region = heading.current?.closest('section')
+    region?.querySelector<HTMLElement>('input:not([readonly]), button:not(:disabled)')?.focus()
   }, [step])
   return heading
 }
@@ -328,7 +335,7 @@ export function FirstRun({ identity, profile, onEnd, onCreated, onAdded }: Props
   const [at, setAt] = useState<FirstStep | null>(null)
   const [team, setTeam] = useState(false)
   const step = stepAt(firstSteps(profile), at)
-  const heading = useTitleFocus(step)
+  const heading = useStepFocus(step)
   const root = useRef<HTMLDivElement>(null)
   useEscapeEnds(root, onEnd)
   const next = () => setAt(afterStep(step) ?? step)
