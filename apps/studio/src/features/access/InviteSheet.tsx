@@ -8,7 +8,15 @@ import { createInvitation, reissueInvitation, revokeInvitation } from '../../api
 import { ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { Sheet } from '../../app/Sheet.tsx'
-import { admissionLabel, doorNote, firstInviteTab, invitationState, linkLimits, ROLE_NOTE } from './access-view.ts'
+import {
+  admissionLabel,
+  doorNote,
+  firstInviteTab,
+  invitationState,
+  linkLimits,
+  ROLE_NOTE,
+  sentNoteShown,
+} from './access-view.ts'
 import { AdmissionNote } from './AdmissionNote.tsx'
 import { CalendarTab } from './CalendarTab.tsx'
 import { FromYourProjects } from './FromYourProjects.tsx'
@@ -139,7 +147,7 @@ function GuestsTab({ context }: { context: SheetContext }) {
         call only, never the project.
       </p>
       <RoomLinkSlot context={context} loading={query.isPending} link={roomLink(invitations, now)} onChange={refresh} />
-      <EmailGuest context={context} onSent={refresh} />
+      <EmailGuest context={context} invitations={emailed} onSent={refresh} />
       {emailed.length > 0 && (
         <div className="sheet-form">
           <p className="field-label">Guests invited by email</p>
@@ -318,8 +326,15 @@ function DoorList({ title, entries, note, children }: DoorListProps) {
   )
 }
 
+interface FormProps {
+  context: SheetContext
+  /** The list the form's invitations land in: what its note says follows what happens to them there. */
+  invitations: readonly Invitation[]
+  onSent: () => void
+}
+
 /** Each emailed guest gets a link of their own, so it can be turned off without turning off the room link. */
-function EmailGuest({ context, onSent }: { context: SheetContext; onSent: () => void }) {
+function EmailGuest({ context, invitations, onSent }: FormProps) {
   const [email, setEmail] = useState('')
   const create = useAdmission<InvitationCreate, Invitation>((key, body) =>
     createInvitation(context.identity.token, context.projectId, key, body),
@@ -349,13 +364,22 @@ function EmailGuest({ context, onSent }: { context: SheetContext; onSent: () => 
           {admissionLabel(create.state.status, 'Send', 'Sending…')}
         </button>
       </div>
-      <SentNote state={create.state} onRetry={() => void create.retry().then(onSent)} />
+      <SentNote state={create.state} invitations={invitations} onRetry={() => void create.retry().then(onSent)} />
     </form>
   )
 }
 
-/** After sending: done, or the link itself when the email could not carry it. */
-function SentNote({ state, onRetry }: { state: AdmissionState<InvitationCreate, Invitation>; onRetry: () => void }) {
+interface SentNoteProps {
+  state: AdmissionState<InvitationCreate, Invitation>
+  invitations: readonly Invitation[]
+  onRetry: () => void
+}
+
+/**
+ * After sending: done, or the link itself when the email could not carry it; nothing once that invitation is cancelled
+ * (`sentNoteShown`).
+ */
+function SentNote({ state, invitations, onRetry }: SentNoteProps) {
   if (state.status !== 'done') {
     return (
       <p className="sheet-status" role="status">
@@ -363,6 +387,7 @@ function SentNote({ state, onRetry }: { state: AdmissionState<InvitationCreate, 
       </p>
     )
   }
+  if (!sentNoteShown(state.result, invitations)) return <p className="sheet-status" role="status" />
   const { emailStatus, url } = state.result
   const byHand = emailStatus === 'failed' || emailStatus === 'not_configured'
   return (
@@ -392,14 +417,14 @@ function MembersTab({ context, onGuests }: { context: SheetContext; onGuests: ()
         A member works in the project with you. The invitation is bound to one email: only that person can accept it.
       </p>
       <FromYourProjects context={context} onSent={refresh} />
-      <MemberForm context={context} onSent={refresh} />
+      <MemberForm context={context} invitations={members} onSent={refresh} />
       <InvitationList invitations={members} token={context.identity.token} onChange={refresh} />
       <InProject context={context} />
     </section>
   )
 }
 
-function MemberForm({ context, onSent }: { context: SheetContext; onSent: () => void }) {
+function MemberForm({ context, invitations, onSent }: FormProps) {
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<'editor' | 'viewer'>('editor')
   const create = useAdmission<InvitationCreate, Invitation>((key, body) =>
@@ -439,7 +464,7 @@ function MemberForm({ context, onSent }: { context: SheetContext; onSent: () => 
       <button type="submit" className="pill primary" disabled={create.state.status === 'sending' || !email.trim()}>
         {admissionLabel(create.state.status, 'Send invitation', 'Sending…')}
       </button>
-      <SentNote state={create.state} onRetry={() => void create.retry().then(onSent)} />
+      <SentNote state={create.state} invitations={invitations} onRetry={() => void create.retry().then(onSent)} />
     </form>
   )
 }

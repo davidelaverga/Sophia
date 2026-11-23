@@ -4,7 +4,7 @@
 // notes, the sheets, the small menus) and wires the keys; the places render; the words come from the view modules. The
 // toast is the app's (SignedIn), so a result is said the same way in a project and here.
 import { InvitedBand } from '../access/InvitedBand.tsx'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { PersonalSpace as Space, ProjectRelease, ProjectSummary } from '@sophia/contracts'
 import { accountOf, tokenSubject } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -423,14 +423,16 @@ function useHomeSays(v: View, answers: boolean | undefined): Said[] {
 /**
  * Home's guided first run (home-first-run.md): its place held while it can't tell yet, then the run while it shows.
  * Made, the project opens, with its Invite sheet when the person works with a team; made after it ended, the projects
- * are read again and nobody is taken into it.
+ * are read again and nobody is taken into it. While it may yet come (its projects unread), `pending`: Home holds an
+ * unseen `data-guide` mark that the keys' tip waits for (KeysTip.tsx, demo-findings-1.md P2-1).
  */
-function useHomeFirstRun(v: View) {
+function useHomeFirstRun(v: View): { node: ReactNode; pending: boolean } {
   const { identity, onOpenProject } = v.props
   const first = useFirstRun(identity, v.projects.data?.projects)
-  if (first.holds) return <FirstRunHeld />
-  if (!first.shows) return undefined
-  return (
+  const { pending } = first
+  if (first.holds) return { node: <FirstRunHeld />, pending }
+  if (!first.shows) return { node: undefined, pending }
+  const node = (
     <FirstRun
       identity={identity}
       profile={first.profile}
@@ -442,6 +444,7 @@ function useHomeFirstRun(v: View) {
       onAdded={() => void v.projects.refetch()}
     />
   )
+  return { node, pending }
 }
 
 function Home({ v }: { v: View }) {
@@ -467,9 +470,10 @@ function Home({ v }: { v: View }) {
   // Whether Sophia answers here, as the API says; unknown until the space is read (home-no-companion.md).
   const answers = data ? data.companion !== 'unavailable' : undefined
   const says = useHomeSays(v, answers)
-  const firstRun = useHomeFirstRun(v)
+  const first = useHomeFirstRun(v)
   return (
     <div className="c-home" data-place-view="home" data-content hidden={!v.shown.includes('home')}>
+      {first.pending && <span hidden data-guide="held" />}
       <Welcome
         hello={greeting(now.getHours(), null, fresh)}
         name={firstName(props.identity)}
@@ -479,7 +483,7 @@ function Home({ v }: { v: View }) {
         reads={needsRead ? [personalRead(v), projectsRead(v), needsRead] : [personalRead(v), projectsRead(v)]}
         needs={needs}
         invited={<InvitedBand identity={props.identity} onOpen={(id) => props.onOpenProject(id, false)} />}
-        firstRun={firstRun}
+        firstRun={first.node}
         projects={projects}
         loadingProjects={readState(v.projects) === 'loading'}
         now={now}

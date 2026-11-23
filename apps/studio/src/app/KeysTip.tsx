@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon, Tip } from '@sophia/ui'
-import { keysTip, meets, type OnceTip } from './keys-tip.ts'
+import { keysTip, keysTipShows, meets, type OnceTip } from './keys-tip.ts'
 import { modalOnScreen, onScreen, strayNow, typingSink } from './shortcuts.ts'
 import {
   barMessagesRoom,
@@ -45,8 +45,26 @@ function coversControl(tip: HTMLElement): boolean {
 /** Whether a tip may show now, given whether its box (shown, or measured unseen) covers a control. */
 type Clear = (covers: () => boolean) => boolean
 
-/** The keys' tip: `?` opens the index now (no sheet up, no field focused, none on screen taking stray typing). */
-const keysClear: Clear = (covers) => !modalOnScreen() && !fieldFocused() && sinkNow() === null && !covers()
+/**
+ * A guide has the page: Home's first run marks itself `data-guide` (Home, while its projects are read and it may yet
+ * come, and its place, held while it is decided, `held`; its steps, `shown`). Steps once shown are kept for the page, so the tip never follows straight after them; its turn,
+ * never counted, comes on a later visit. A held place that ends with no steps holds nothing back after it.
+ */
+let guideShown = false
+const guidedNow = () => {
+  guideShown ||= document.querySelector('[data-guide="shown"]') !== null
+  return guideShown || document.querySelector('[data-guide]') !== null
+}
+
+/** The keys' tip: `?` opens the index now (no sheet up, no field focused, none taking stray typing), and no guide. */
+const keysClear: Clear = (covers) =>
+  keysTipShows({
+    modal: modalOnScreen(),
+    fieldFocused: fieldFocused(),
+    sinkOnScreen: sinkNow() !== null,
+    guided: guidedNow(),
+    coversControl: covers,
+  })
 
 /** The bar typing would go to, if a letter typed now lands in the room's bar and the bar writes to the room. */
 const roomTakesTyping = () => {
@@ -87,7 +105,7 @@ function useClear(on: boolean, tip: RefObject<HTMLDivElement | null>, clear: Cle
       subtree: true,
       childList: true,
       attributes: true,
-      attributeFilter: ['class', 'hidden', 'inert', 'aria-modal', 'data-typing-sink', 'data-target'],
+      attributeFilter: ['class', 'hidden', 'inert', 'aria-modal', 'data-typing-sink', 'data-target', 'data-guide'],
     })
     const events = ['resize', 'focusin', 'focusout'] as const
     for (const e of events) window.addEventListener(e, read)

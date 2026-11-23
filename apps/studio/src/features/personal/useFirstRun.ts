@@ -13,6 +13,7 @@ import {
   browserStore,
   endedElsewhere,
   firstRunHolds,
+  firstRunPending,
   firstRunShows,
   profileFacts,
   readFirstRunDone,
@@ -67,5 +68,5 @@ export function useFirstRun(identity: Identity, projects: readonly unknown[] | u
   const ended = useCallback(() => setDone(true), [])
   useEndedElsewhere(account, enabled, ended)
   useEndedByArrival(shows, projects, end)
-  return { shows, holds: firstRunHolds(facts), profile: facts.profile, end }
+  return { shows, holds: firstRunHolds(facts), pending: firstRunPending(facts), profile: facts.profile, end }
 }
