@@ -34,7 +34,7 @@ included.
 - The order of layouts is a pure function, `firstFit`. Folded is never read: it is the last resort.
 - On a phone, `.dock .dock-more > .dock-more-open` outweighs the phone's `.dock :is(.round, .pill:has(.dock-icon))`,
   which otherwise showed ⋯ unfolded and pushed a row of seven to eight.
-- «More controls» and the ⋯ glyph are pending Luis (alternatives in the note).
+- «More controls» and the ⋯ glyph: approved by Luis 2026-11-23 («Sí, déjalos»).
 
 ## Remaining obligations
 
@@ -43,7 +43,7 @@ included.
 
 ## Next bounded action
 
-Luis reviews the words and the glyph. After that, the PR merges after #548.
+The PR merges after #548.
 
 Source IDs consulted: `visual-fit.md`, `phone-dock.md`, `raise-hand.md`, `RoomDock.tsx`, `useDockFit.ts`,
 `dock-fit.ts`, `ReactMenu.tsx`, `usePopover.ts`, `app/theme.css` (`.dock`, `.menu`, `.toggle-dot`),

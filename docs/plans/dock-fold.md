@@ -48,7 +48,9 @@ The dock's height contract (`--dock-h`) is unchanged: one row is 47–48 px.
 
 The results are the same in dark and light. The tray uses the menu's plane and line in both.
 
-## New words, pending Luis
+## New words, approved
+
+> 2026-11-23 · Luis: «Sí, déjalos» (the words and the glyph as below).
 
 - «More controls», the square's name and tip and the tray's label. The alternative is «More options».
 - The glyph is ⋯, the kit's «more» as on a person's row and a tile. The alternative is an up chevron, as Luis put it
