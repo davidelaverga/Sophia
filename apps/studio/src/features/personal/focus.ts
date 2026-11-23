@@ -6,10 +6,14 @@ import { onScreen } from '../../app/shortcuts.ts'
  * The message bar where a keyboard is at hand; on touch the conversation itself, so no phone keyboard pops up
  * uninvited and a letter typed next on a keyboard is still text for the bar (it is inside the typing scope, shortcuts.ts).
  */
-export function focusConversation(): void {
+export function conversationLanding(): HTMLElement | null {
   const touch = matchMedia('(hover: none)').matches
   const field = touch ? null : document.querySelector<HTMLElement>('#c-input:not(:disabled)')
-  ;(field ?? document.getElementById('c-log'))?.focus({ preventScroll: true })
+  return field ?? document.getElementById('c-log')
+}
+
+export function focusConversation(): void {
+  conversationLanding()?.focus({ preventScroll: true })
 }
 
 /**

@@ -47,6 +47,27 @@ export function keepShown(store: Store | null, key = KEYS_TIP_KEY): void {
   keep(store, key, shown + 1 >= SHOWINGS ? 'seen' : String(shown + 1))
 }
 
+/** What the page is like now, as the keys' tip reads it. */
+export interface KeysTipMoment {
+  /** A sheet is up: `?` is the sheet's, not the view's. */
+  modal: boolean
+  /** A field has the caret: `?` is a letter there. */
+  fieldFocused: boolean
+  /** A field on screen takes stray typing: `?` would go there. */
+  sinkOnScreen: boolean
+  /**
+   * A guide (Home's first run, `data-guide`) is on screen, or was on this page: one guide at a time, and the tip's turn
+   * waits for a later visit (demo-findings-1.md #17).
+   */
+  guided: boolean
+  /** Whether the tip's box meets a control's: a scan of the page, so asked last. */
+  coversControl: () => boolean
+}
+
+/** Whether the keys' tip may show now: `?` opens the index, no guide has the page, and it covers no control. */
+export const keysTipShows = (m: KeysTipMoment): boolean =>
+  !m.modal && !m.fieldFocused && !m.sinkOnScreen && !m.guided && !m.coversControl()
+
 interface Box {
   left: number
   top: number

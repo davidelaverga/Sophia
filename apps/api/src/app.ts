@@ -29,8 +29,12 @@ import { searchRoutes } from './routes/search.ts'
 import { humanTaskRoutes, TASK_WRITES } from './routes/human-tasks.ts'
 import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
 import { missionRoutes } from './routes/mission.ts'
+import type { ManagedExploreAccountConfig } from './managed-explore-account.ts'
+import { MANAGED_EXPLORE_SCHEMA, managedExploreRoutes } from './routes/managed-explore.ts'
+import { FOUNDER_BUILD_SCHEMA, founderBuildRoutes } from './routes/founder-build-handoff.ts'
 import { personalRoutes } from './routes/personal.ts'
 import { personalInputRoutes } from './routes/personal-inputs.ts'
+import { personalAnswerControlRoutes } from './routes/personal-answer-controls.ts'
 import { PERSONAL_ANSWERS_SCHEMA, personalAnswerRoutes } from './routes/personal-answers.ts'
 import { needsRoutes } from './routes/needs.ts'
 import { CONVERSATION_SCHEMA, projectConversationRoutes } from './routes/project-conversations.ts'
@@ -132,6 +136,15 @@ export interface AppDeps {
    * requires 0101's writers and 0102's guard. The guard and the resumption of waiting turns do not depend on it.
    */
   personalAnswers?: boolean
+  /**
+   * Paid admission of a Personal answer replacement (INC03-CC-003 A3, amendment A54, migration 0103): off unless set;
+   * server.ts does not set it. A replacement the owner asks for is admitted at once, or later by their own explicit
+   * admit, only with this AND personalAnswers on and the live companion's current profile; otherwise it is kept, held
+   * with its reason. It gates nothing else: the control routes (cancel, the held replacement, the reads, the export,
+   * replay) are served whenever 0103 is installed, whatever this or personalAnswers say. On without personalAnswers is a
+   * configuration error, refused when the app is built.
+   */
+  personalAnswerReplacementAdmission?: boolean
   /** The deployed commit (RENDER_GIT_COMMIT, 40 hex), served by /health so a probe can name what it reached; else null. */
   commit?: string | null
   /**
@@ -161,6 +174,14 @@ export interface AppDeps {
    * (or a later, separately approved activation) mounts the boundary.
    */
   apiContributions?: boolean
+  /** Managed Explore admissions are off unless explicitly enabled by the operator. */
+  managedExplore?: boolean
+  /** Optional display-only API account observation, scoped to one project, founder and route. */
+  managedExploreAccountSnapshot?: ManagedExploreAccountConfig | undefined
+  /** Manual Build handoff with an independently installed destination grant. Off by default. */
+  founderBuildHandoff?: boolean
+  /** Distinct HTTPS origin hosting the exact-file preview handler. Prototype permits require it. */
+  managedExplorePreviewOrigin?: string | undefined
 }
 
 /**
@@ -395,7 +416,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   activityRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   commandRoutes(app, { pool: deps.pool })
   conversationRoutes(app, { pool: deps.pool, voice })
-  missionRoutes(app, { pool: deps.pool })
+  registerMissionRoutes(app, deps, store)
   runtimeRoutes(app, { pool: deps.pool, hub: runtimeHub })
   researchRoutes(app, deps.pool)
   // The reply runtime's routes call 0064's functions: served, and checked by /ready, only with conversations on.
@@ -419,6 +440,19 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // Member API contributions (A48, 0094): the whole boundary only when the API is built with it; off by default.
   if (deps.apiContributions === true) apiContributionRoutes(app, { pool: deps.pool })
   return app
+}
+
+function registerMissionRoutes(app: FastifyInstance, deps: AppDeps, store: ByteStore | null): void {
+  missionRoutes(app, { pool: deps.pool })
+  if (deps.founderBuildHandoff === true) founderBuildRoutes(app, { pool: deps.pool, store })
+  managedExploreRoutes(app, {
+    pool: deps.pool,
+    store,
+    admissions: deps.managedExplore === true,
+    accountSnapshot: deps.managedExploreAccountSnapshot,
+    ...(deps.managedExplorePreviewOrigin ? { previewOrigin: deps.managedExplorePreviewOrigin } : {}),
+    ...(deps.corsOrigins ? { studioOrigins: deps.corsOrigins } : {}),
+  })
 }
 
 /**
@@ -453,12 +487,30 @@ function registerPersonal(app: FastifyInstance, deps: AppDeps): void {
   personalRoutes(app, { pool: deps.pool, companion })
   if (deps.personalInputs === true) personalInputRoutes(app, { pool: deps.pool })
   if (companion && answersOn(deps)) personalAnswerRoutes(app, { pool: deps.pool, companion })
+  // Installation, not a switch, is the boundary (A54): served always, answering 503 where 0103 is not installed.
+  personalAnswerControlRoutes(app, {
+    pool: deps.pool,
+    companion,
+    replacementAdmission: replacementAdmissionOn(deps),
+  })
 }
 
 /** The switches' configuration errors, thrown before the app has anything of its own. */
 function refuseMisconfiguration(deps: AppDeps): void {
   inputsOn(deps)
   answersOn(deps)
+  replacementAdmissionOn(deps)
+}
+
+/**
+ * Whether a Personal answer replacement may be admitted with payment: personalAnswerReplacementAdmission AND
+ * personalAnswers (which itself requires a live companion with a supported profile). On without personalAnswers is a
+ * configuration error, refused when the app is built.
+ */
+function replacementAdmissionOn(deps: AppDeps): boolean {
+  if (deps.personalAnswerReplacementAdmission !== true) return false
+  if (!answersOn(deps)) throw new Error('personalAnswerReplacementAdmission requires personalAnswers')
+  return true
 }
 
 /**
@@ -633,6 +685,8 @@ interface Health {
   voice: boolean
   ownerRunners: boolean
   apiContributions: boolean
+  managedExplore: boolean
+  founderBuildHandoff: boolean
   commit: string | null
 }
 
@@ -646,6 +700,8 @@ const healthOf = (deps: AppDeps): Health => ({
   voice: deps.voiceQualification === true,
   ownerRunners: deps.ownerRunnerAdmissions === 'admit',
   apiContributions: deps.apiContributions === true,
+  managedExplore: deps.managedExplore === true,
+  founderBuildHandoff: deps.founderBuildHandoff === true,
   commit: deps.commit ?? null,
 })
 
@@ -661,6 +717,8 @@ async function schemaReady(
     voice,
     ownerRunners,
     apiContributions,
+    managedExplore,
+    founderBuildHandoff,
   }: Health,
 ): Promise<boolean> {
   const part = async (on: boolean, sql: string) => !on || (await pool.query<{ ok: boolean }>(sql)).rows[0]?.ok === true
@@ -673,7 +731,9 @@ async function schemaReady(
     (await part(personalAnswers, PERSONAL_ANSWERS_SCHEMA)) &&
     (await part(voice, VOICE_SCHEMA)) &&
     (await part(ownerRunners, OWNER_RUNNER_SCHEMA)) &&
-    (await part(apiContributions, CONTRIBUTION_FUNDING_SCHEMA))
+    (await part(apiContributions, CONTRIBUTION_FUNDING_SCHEMA)) &&
+    (await part(managedExplore, MANAGED_EXPLORE_SCHEMA)) &&
+    (await part(founderBuildHandoff, FOUNDER_BUILD_SCHEMA))
   )
 }
 

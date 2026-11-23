@@ -1,14 +1,25 @@
 // work.stop / goal controls (frontend bindings: WorkControls → admitGoalCommand).
-// A receipt means "sent", never "done": the goal's status changes when Sophia confirms. An unknown outcome
-// offers a retry with the same key, so it can never be sent twice.
+// A receipt means "sent", never "done": the goal's status changes when Sophia confirms, and once it shows where the
+// command led, or a later command took the goal elsewhere, the line under the controls says no more, for good
+// (`nextLine`, demo-findings-1.md #3). An unknown outcome offers a retry with
+// the same key, so it can never be sent twice.
 import { useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import type { Goal, Receipt } from '@sophia/contracts'
 import { ConfirmButton, Tag, Tip } from '@sophia/ui'
 import { admitGoalCommand, type ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { VISION } from '../../app/vision.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
-import { COMMAND, goalCommands, retirementView, type CommandKind } from './labels.ts'
+import {
+  COMMAND,
+  goalCommands,
+  nextLine,
+  retirementView,
+  SETTLED_WORDS,
+  type CommandKind,
+  type CommandLine,
+} from './labels.ts'
 
 interface Props {
   goal: Goal
@@ -34,7 +45,16 @@ function tipAlignOf(kind: CommandKind, edge: Edge): TipAlign {
   return kind === 'request_review' ? 'center' : 'end'
 }
 
-export function WorkControls({ goal, projectId, identity, token, admin = false, edge = 'start' }: Props) {
+/**
+ * A goal's command, sent: its admission (refreshing the goal either way), and its line as the goal moves
+ * (`useCommandLine`), from the authority it was sent at: its own admission moves it one step, a later command past it.
+ */
+function useGoalCommand({
+  goal,
+  projectId,
+  identity,
+  token,
+}: Pick<Props, 'goal' | 'projectId' | 'identity' | 'token'>) {
   const queryClient = useQueryClient()
   const admission = useAdmission<CommandKind, Receipt>(async (key, kind) => {
     try {
@@ -50,9 +70,19 @@ export function WorkControls({ goal, projectId, identity, token, admin = false, 
       void queryClient.invalidateQueries({ queryKey: snapshotKey(projectId, identity) })
     }
   })
+  const [sentEpoch, setSentEpoch] = useState(goal.authorityEpoch)
+  const send = (kind: CommandKind) => {
+    setSentEpoch(goal.authorityEpoch)
+    void admission.submit(kind)
+  }
+  return { admission, send, line: useCommandLine(admission.state, sentEpoch, goal) }
+}
+
+export function WorkControls({ goal, projectId, identity, token, admin = false, edge = 'start' }: Props) {
+  const { admission, send, line } = useGoalCommand({ goal, projectId, identity, token })
   const busy = admission.state.status === 'sending'
   const available = goalCommands(goal.status, VISION, admin)
-  const retire = () => void admission.submit('retire_sessions')
+  const retire = () => send('retire_sessions')
 
   return (
     <div className="controls">
@@ -73,7 +103,7 @@ export function WorkControls({ goal, projectId, identity, token, admin = false, 
               tip={COMMAND.stop.hint}
               tipAlign={tipAlignOf(kind, edge)}
               disabled={busy}
-              onConfirm={() => void admission.submit('stop')}
+              onConfirm={() => send('stop')}
             />
           ) : (
             <button
@@ -82,7 +112,7 @@ export function WorkControls({ goal, projectId, identity, token, admin = false, 
               // One filled press per goal (docs/plans/goal-controls-text.md): the rest are text, with their tips.
               className={kind === 'request_review' ? 'pill primary has-tip' : 'text-button has-tip'}
               disabled={busy}
-              onClick={() => void admission.submit(kind)}
+              onClick={() => send(kind)}
             >
               {COMMAND[kind].verb}
               <Tip label={COMMAND[kind].hint} align={tipAlignOf(kind, edge)} />
@@ -92,10 +122,28 @@ export function WorkControls({ goal, projectId, identity, token, admin = false, 
       </div>
       {goal.retirement && <RetirementResults retirement={goal.retirement} />}
       <p className="outcome" role="status" aria-live="polite">
-        <AdmissionOutcome state={admission.state} onRetry={() => void admission.retry()} />
+        <AdmissionOutcome state={admission.state} line={line} onRetry={() => void admission.retry()} />
       </p>
     </div>
   )
+}
+
+/**
+ * The sent command's line, kept per receipt: settled or moved, it stays so as the goal moves on, until another command
+ * is sent (review P2-2).
+ */
+function useCommandLine(
+  state: AdmissionState<CommandKind, Receipt>,
+  sentEpoch: number,
+  goal: Pick<Goal, 'status' | 'authorityEpoch'>,
+): CommandLine {
+  const [kept, setKept] = useState<{ id: string; line: CommandLine } | null>(null)
+  if (state.status !== 'done') return 'on_its_way'
+  const id = state.result.commandId
+  const was = kept?.id === id ? kept.line : 'on_its_way'
+  const line = nextLine(was, state.args, sentEpoch, goal)
+  if (line !== was) setKept({ id, line })
+  return line
 }
 
 /** An owner's explicit fence for a completed goal's sessions (A41): it asks, says what stays, and waits. */
@@ -145,12 +193,23 @@ function rejectionMessage(error: ApiError): string {
   return error.message
 }
 
-function AdmissionOutcome({ state, onRetry }: { state: AdmissionState<CommandKind, Receipt>; onRetry: () => void }) {
+interface OutcomeProps {
+  state: AdmissionState<CommandKind, Receipt>
+  /** Where the sent command stands as the goal moves (`nextLine`). */
+  line: CommandLine
+  onRetry: () => void
+}
+
+function AdmissionOutcome({ state, line, onRetry }: OutcomeProps) {
   if (state.status === 'idle') return null
   if (state.status === 'sending') {
     return <span className="muted">Sending {COMMAND[state.args].noun.toLowerCase()}…</span>
   }
   if (state.status === 'done' && state.args === 'retire_sessions') return <RetirementSent receipt={state.result} />
+  // Settled: the status beside it is the confirmation; said in the past for a screen reader, in this live region.
+  if (state.status === 'done' && line === 'settled') return <span className="sr-only">{SETTLED_WORDS[state.args]}</span>
+  // Moved elsewhere by a later command: not this command's outcome, so nothing to say.
+  if (state.status === 'done' && line === 'moved') return null
   if (state.status === 'done') {
     return (
       <>

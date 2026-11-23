@@ -22,11 +22,13 @@
     "playwright.attention.config.ts",
     "playwright.search.config.ts",
     "playwright.reliability.config.ts",
+    "playwright.managed-explore.config.ts",
     "fixtures/**/*.ts",
     "fixtures/**/*.tsx",
     "e2e/**/*.ts",
     "e2e-served/**/*.ts",
     "e2e-attention/**/*.ts",
-    "e2e-search/**/*.ts"
+    "e2e-search/**/*.ts",
+    "e2e-managed-explore/**/*.ts"
   ]
 }

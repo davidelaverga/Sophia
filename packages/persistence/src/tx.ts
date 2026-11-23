@@ -116,8 +116,11 @@ async function transaction<T>(
 ): Promise<T> {
   checkServiceControl(control)
   const { deadline } = opts
+  const acquisitionDeadline = deadline ?? control?.deadline
   const client = acquiredClient(
-    await (deadline === undefined ? pool.connect() : connectWithin(pool, deadline)).catch((err: unknown) => {
+    await (
+      acquisitionDeadline === undefined ? pool.connect() : connectWithin(pool, acquisitionDeadline, control?.signal)
+    ).catch((err: unknown) => {
       throw err instanceof DomainError ? err : new DomainError('unavailable', 'Database unavailable', { cause: err })
     }),
     control,
@@ -194,19 +197,22 @@ export function boundedAcquisitions(pool: pg.Pool): number {
  * are already waiting (POOL_BUSY, without enqueuing): no transaction begins. A connection the pool hands over after the
  * deadline is given straight back, unused: nothing of the abandoned work runs on it.
  */
-async function connectWithin(pool: pg.Pool, deadline: number): Promise<pg.PoolClient> {
+async function connectWithin(pool: pg.Pool, deadline: number, signal?: AbortSignal): Promise<pg.PoolClient> {
   const left = deadline - performance.now()
-  if (left < 1) throw new DomainError('unavailable', NOT_IN_TIME)
+  if (left < 1 || signal?.aborted) throw new DomainError('unavailable', NOT_IN_TIME)
   const waiting = boundedAcquisitions(pool)
   if (waiting >= BOUNDED_ACQUISITIONS_MAX) throw new DomainError('unavailable', POOL_BUSY)
   acquiring.set(pool, waiting + 1)
   const pending = pool.connect().finally(() => acquiring.set(pool, boundedAcquisitions(pool) - 1))
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const late = new Promise<null>((resolve) => {
-    timer = setTimeout(() => resolve(null), left)
+  const { promise: late, resolve } = Promise.withResolvers<null>()
+  const stop = () => resolve(null)
+  const timer = setTimeout(stop, left)
+  signal?.addEventListener('abort', stop, { once: true })
+  const client = await Promise.race([pending, late]).finally(() => {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', stop)
   })
-  const client = await Promise.race([pending, late]).finally(() => clearTimeout(timer))
-  if (client !== null && performance.now() < deadline) return client
+  if (client !== null && !signal?.aborted && performance.now() < deadline) return client
   if (client === null)
     pending.then(
       (c) => c.release(),

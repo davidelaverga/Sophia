@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  buildReviewPath,
   HOME,
   joinStands,
   opensJoinPage,
@@ -30,6 +31,15 @@ describe('route', () => {
     assert.deepEqual(parseRoute(`/projects/${P}`), project('studio'))
     assert.deepEqual(parseRoute(`/p/${P.toUpperCase()}/work/`), project('work'))
     assert.deepEqual(parseRoute('/work/'), { ...HOME, place: 'work' })
+  })
+
+  it('round-trips exact review links outside the project shell and closes malformed review links', () => {
+    const address = { projectId: P, sessionId: P, approvalId: P, returnId: P }
+    const link = buildReviewPath(address)
+    assert.deepEqual(parseRoute(link.toUpperCase() + '/'), { ...HOME, buildReview: address })
+    assert.equal(routePath(parseRoute(link)), link)
+    assert.equal(pathIsFor(link, P), false)
+    assert.deepEqual(parseRoute('/build-review/missing-return'), { ...HOME, buildReview: null })
   })
 
   it('falls back instead of showing a blank page', () => {
