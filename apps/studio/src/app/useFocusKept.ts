@@ -17,7 +17,15 @@ const candidate = (el: HTMLElement): Candidate => ({
   fallback: el.hasAttribute('data-focus-fallback'),
 })
 
-const pageHasFocus = () => document.activeElement === null || document.activeElement === document.body
+/**
+ * Whether the focus was lost in `box`: it fell to the page, or it still sits on a control of the box that can't hold it
+ * (Chromium keeps a focused button that turns disabled as the active element until its next focus fix-up).
+ */
+const focusLost = (box: HTMLElement) => {
+  const at = document.activeElement
+  if (at === null || at === document.body) return true
+  return at instanceof HTMLElement && box.contains(at) && unusable(at)
+}
 
 /** What a box remembers between its events. */
 interface Kept {
@@ -35,7 +43,7 @@ interface Kept {
 }
 
 /** The box changed: a late replacement takes the focus from its stand-in, or a lost focus goes where nextFocus says. */
-function onChange(kept: Kept, items: HTMLElement[], keys: boolean) {
+function onChange(kept: Kept, box: HTMLElement, items: HTMLElement[], keys: boolean) {
   if (Date.now() - kept.pressed > KEPT_MS || (keys && !kept.byKey)) return
   const { handed } = kept
   if (handed && document.activeElement === handed.to) {
@@ -46,7 +54,7 @@ function onChange(kept: Kept, items: HTMLElement[], keys: boolean) {
       return
     }
   }
-  if (!kept.held || !pageHasFocus()) return
+  if (!kept.held || !focusLost(box)) return
   const lost = kept.held.slot
   const to = items[nextFocus(items.map(candidate), kept.held)]
   if (!to) return
@@ -100,7 +108,7 @@ function keepFocus(el: HTMLElement, controls: string, keys: boolean): () => void
   const list = () => [...el.querySelectorAll<HTMLElement>(controls)]
   const kept: Kept = { held: null, handed: null, pressed: 0, byKey: false }
   const on = listeners(el, kept, list, controls)
-  const watch = new MutationObserver(() => onChange(kept, list(), keys))
+  const watch = new MutationObserver(() => onChange(kept, el, list(), keys))
   for (const [type, listener, capture] of on) el.addEventListener(type, listener, capture)
   watch.observe(el, { subtree: true, childList: true, attributes: true, attributeFilter: ['disabled', 'hidden'] })
   return () => {

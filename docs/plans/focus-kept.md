@@ -83,6 +83,16 @@ own «Saved».
 - One independent review of the whole diff before the push: one P1 (the dock's handoff and push-to-talk) and P2s (a
   press outside a control, `?invite=` for anyone, three specs a reload or the address bar now changes), fixed.
 
+## After CI on #545
+
+- **A focused press that turns disabled stays the active element in Chromium** (until its focus fix-up), so «the page
+  has the focus» missed it: Send invitation kept the focus on its own disabled press. The hook now counts a focus
+  still on a box's control that can't hold it as lost (`focusLost`).
+- **Leaving a call with a meeting opens its recap**, which takes the focus on purpose and gives it back to Join when
+  put away (`MeetingRecap`'s `returnTo`): the spec walks that, Leave → the recap → Escape → Join.
+- Run locally after the fix: `focus-kept` 4 passed; `member-roles`, `invite-members`, `goal-controls`,
+  `goals-overview`, `home-first-run`, `type-tip` 66 passed.
+
 ## Left
 
 - **Back** (above).

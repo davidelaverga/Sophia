@@ -16,9 +16,10 @@ insertions, 84 deletions, under `apps/studio` and `docs/plans`; this record is t
 - An open goal (`#goal-<id>`), the room's panel (`?panel=`) and Invite's tab (`?invite=`) are in the address; a reload
   or a pasted link reopens them. Back doesn't close them: that is Luis's decision (the note's «For Luis: Back»).
 - The first run focuses each step's field; a role change says «Saved» and clears an earlier refusal.
-- Not verified locally: the Playwright specs (the guard refused twice for RAM, 7.5 and 6 GB free; not insisted).
-  CI's browser job is the run on record for `focus-kept`, `goals-overview`, `home-first-run`, `member-roles`,
-  `type-tip`, `room-discussion` and `app-auth`.
+- CI on the first push failed two `focus-kept` checks (a disabled focused press counted as kept; the meeting recap
+  after Leave). Fixed in the next commit and run locally once the RAM allowed it: `focus-kept` 4 passed, and
+  `member-roles`, `invite-members`, `goal-controls`, `goals-overview`, `home-first-run`, `type-tip` 66 passed.
+  `room-discussion` and `app-auth` rest on CI.
 
 ## Evidence
 

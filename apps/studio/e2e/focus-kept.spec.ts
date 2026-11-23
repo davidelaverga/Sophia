@@ -3,7 +3,8 @@ import { DRAWN, drawn } from './drawn.ts'
 
 // The focus never falls to the page when a press takes its control away (docs/plans/focus-kept.md): the control that
 // takes its place gets it. Hold → Resume, Resume → Hold, Stop for good → the goal's line, Create the room link → Copy
-// link, Send invitation → the address field, Join → the microphone, Leave → Join. Every press is a keyboard's.
+// link, Send invitation → the address field, Join → the microphone, Leave → the recap, then Join. Every press is a
+// keyboard's.
 
 const onPage = (page: Page) => page.evaluate(() => document.activeElement === document.body)
 const dock = (page: Page) => page.getByRole('navigation', { name: 'Room controls' })
@@ -68,6 +69,12 @@ test('focus · Join hands it to the microphone; Leave, back to Join', async ({ p
   await dock(page).getByRole('button', { name: 'Join the room' }).press('Enter')
   await expect(dock(page).getByRole('button', { name: 'Microphone' })).toBeFocused()
   await dock(page).getByRole('button', { name: 'Leave the room' }).press('Enter')
+  // Leaving opens what the meeting left (its recap takes the focus, on purpose); put away, the focus is on Join.
+  const recap = page.getByRole('dialog', { name: 'This meeting' })
+  await expect(recap).toBeVisible()
+  expect(await onPage(page)).toBe(false)
+  await page.keyboard.press('Escape')
+  await expect(recap).toHaveCount(0)
   await expect(dock(page).getByRole('button', { name: 'Join the room' })).toBeFocused()
   expect(await onPage(page)).toBe(false)
 })
