@@ -35,6 +35,7 @@ async function routeReview(page: Page, dropNextReply = false) {
   const posts: { key: string; body: unknown }[] = []
   const receipts = new Map<string, object>()
   let revision = 4
+  let rejectNext: { status: 403 | 409; revision: number } | null = null
   await page.route(
     (url) => url.pathname.startsWith('/api/'),
     async (route) => {
@@ -54,9 +55,15 @@ async function routeReview(page: Page, dropNextReply = false) {
       const saved = receipts.get(key)
       if (saved) return route.fulfill({ json: saved })
       expect(body).toMatchObject({ returnId, kind, expectedRevision: revision })
+      if (rejectNext) {
+        const refusal = rejectNext
+        rejectNext = null
+        revision = refusal.revision
+        return route.fulfill({ status: refusal.status })
+      }
       const receipt = {
         ...body,
-        id: '00000000-0000-4000-8000-000000000950',
+        id: `00000000-0000-4000-8000-${String(revision).padStart(12, '0')}`,
         target: exactTarget,
         recordedAt: '2026-11-22T20:00:00Z',
       }
@@ -69,7 +76,17 @@ async function routeReview(page: Page, dropNextReply = false) {
       return route.fulfill({ json: receipt })
     },
   )
-  return { traffic, posts, receipts }
+  return {
+    traffic,
+    posts,
+    receipts,
+    loseNextReply: () => {
+      dropNextReply = true
+    },
+    rejectNextPost: (status: 403 | 409, nextRevision = revision) => {
+      rejectNext = { status, revision: nextRevision }
+    },
+  }
 }
 
 async function signInAs(page: Page, identity: string) {
@@ -113,6 +130,21 @@ test('requires sign-in, scopes source review to the exact return and retries an 
     expectedRevision: 4,
   })
   expect(fixture.receipts.size).toBe(1)
+  fixture.loseNextReply()
+  await fillObservation(page, 'passed')
+  const retestObservation = 'The recovered check output confirms the role restriction.'
+  await page.getByLabel('Observed behavior').fill(retestObservation)
+  await page.getByRole('button', { name: 'Save verification' }).click()
+  await expect(page.getByText('Sophia hasn’t confirmed the save.')).toBeVisible()
+  await expect(page.getByText('Verification saved · unknown')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save verification' })).toBeDisabled()
+  await page.getByRole('button', { name: 'Retry same request' }).click()
+  await expect(page.getByText('Verification saved · passed')).toBeVisible()
+  expect(fixture.posts).toHaveLength(4)
+  expect(fixture.posts[2]).toEqual(fixture.posts[3])
+  expect(fixture.posts[2]?.key).not.toBe(fixture.posts[0]?.key)
+  expect(fixture.posts[2]?.body).toMatchObject({ expectedRevision: 5, outcome: 'passed', observed: retestObservation })
+  expect(fixture.receipts.size).toBe(2)
   expect(new Set(fixture.traffic)).toEqual(new Set([apiPath]))
 })
 
@@ -190,6 +222,69 @@ test('a failed deployment check can record the different deployed commit without
     outcome: 'failed',
     observedDeployedSha: actualCommit,
   })
+})
+
+test('keeps the previous receipt through a stale withdrawal and saves with the latest revision', async ({ page }) => {
+  const fixture = await routeReview(page)
+  await signInAs(page, 'Deployment verifier')
+  await page.goto(path)
+  const save = page.getByRole('button', { name: 'Save verification' })
+  const outcome = page.getByLabel('Outcome')
+  const observed = page.getByLabel('Observed behavior')
+  const mapping = page.getByLabel('Mapped source commit')
+  const deployed = page.getByLabel('Observed deployed commit')
+  const reference = page.getByLabel('Observed deployment URL')
+  const evidence = page.getByLabel('Evidence URL (optional)')
+  await fillObservation(page, 'passed')
+  await mapping.fill(exactTarget.mergeSha)
+  await deployed.fill(exactTarget.deployedSha)
+  await reference.fill(exactTarget.deploymentReference)
+  await evidence.fill('https://fictional.example.test/checks/first')
+  await save.click()
+  const passed = page.getByText('Verification saved · passed')
+  await expect(passed).toBeVisible()
+  await expect(outcome).toBeFocused()
+  await expect(outcome).toBeInViewport()
+  await expect(save).toBeDisabled()
+  for (const field of [outcome, observed, mapping, deployed, reference, evidence]) await expect(field).toHaveValue('')
+
+  fixture.rejectNextPost(409, 8)
+  await fillObservation(page, 'failed')
+  const loss = 'The deployment now fails the role check.'
+  await observed.fill(loss)
+  await page.route(
+    (url) => url.pathname === apiPath && url.searchParams.has('returnId'),
+    (route) => route.fulfill({ status: 503 }),
+    { times: 1 },
+  )
+  await save.click()
+  await expect(
+    page.getByText('The Build return changed or this evidence already exists.', { exact: false }),
+  ).toBeVisible()
+  const checkAgain = page.getByRole('button', { name: 'Check again' })
+  await expect(passed).toBeVisible()
+  await expect(observed).toHaveValue(loss)
+  await expect(save).toBeDisabled()
+  await checkAgain.click()
+  await save.click()
+  await expect(page.getByText('Verification saved · failed')).toBeVisible()
+  await expect(passed).toHaveCount(0)
+  expect(fixture.posts.map(({ body }) => body)).toMatchObject([
+    { expectedRevision: 4, outcome: 'passed' },
+    { expectedRevision: 5, outcome: 'failed', observed: loss },
+    { expectedRevision: 8, outcome: 'failed', observed: loss },
+  ])
+  expect(new Set(fixture.posts.map(({ key }) => key)).size).toBe(3)
+  expect(fixture.receipts.size).toBe(2)
+
+  fixture.rejectNextPost(403)
+  await fillObservation(page, 'unknown')
+  await save.click()
+  await expect(page.getByText('This Build return is unavailable to this account.')).toBeVisible()
+  await expect(page.getByText('Verification saved · failed')).toHaveCount(0)
+  await expect(save).toHaveCount(0)
+  await expect(page.getByText(target.repository)).toHaveCount(0)
+  expect(fixture.receipts.size).toBe(2)
 })
 
 test('malformed and promotion-off reviewer links make no project requests', async ({ page }) => {

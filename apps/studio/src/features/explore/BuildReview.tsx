@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState, type Ref } from 'react'
 import { ApiError } from '../../api/client.ts'
 import {
   getBuildReview,
@@ -14,6 +14,7 @@ import {
 } from '../../api/explore-build-handoff.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { HomeLink } from '../../app/SignIn.tsx'
+import { focusIfDropped } from '../personal/focus.ts'
 import { VerificationTarget, verificationKindLabel } from './BuildVerificationEvidence.tsx'
 import { useExploreAdmission } from './useExploreAdmission.ts'
 import './build-review.css'
@@ -99,6 +100,7 @@ function reviewFields(data: FormData, review: VerificationReview): VerificationI
 }
 
 function useBuildReview({ scope, account }: Pick<Props, 'scope' | 'account'>) {
+  const [saved, setSaved] = useState<VerificationReceipt | null>(null)
   const read = useQuery({
     queryKey: [
       'explore-build-verification',
@@ -125,14 +127,16 @@ function useBuildReview({ scope, account }: Pick<Props, 'scope' | 'account'>) {
       const pending = new AbortController()
       controller.current = pending
       try {
-        return await sendBuildVerification(scope, input, key, pending.signal)
+        const receipt = await sendBuildVerification(scope, input, key, pending.signal)
+        setSaved(receipt)
+        return receipt
       } finally {
         if (controller.current === pending) controller.current = null
         if (!pending.signal.aborted) void read.refetch()
       }
     },
   )
-  return { read, write, cancel: () => controller.current?.abort() }
+  return { read, write, saved, cancel: () => controller.current?.abort() }
 }
 type ReviewState = ReturnType<typeof useBuildReview>
 
@@ -168,32 +172,35 @@ export function BuildReview({ scope, account, onSignOut }: Props) {
   )
 }
 
-function ReviewContent({ read, write, cancel }: ReviewState) {
+function ReviewContent({ read, write, saved, cancel }: ReviewState) {
   if (accessRefused(read.error) || (write.state.status === 'rejected' && accessRefused(write.state.error))) {
     return <p role="status">This Build return is unavailable to this account.</p>
   }
   if (read.isPending) return <p role="status">Checking review access…</p>
-  if (read.isError) {
-    return (
-      <p role="status">
-        The Build review could not be loaded.{' '}
-        <button type="button" className="text-button" onClick={() => void read.refetch()}>
-          Check again
-        </button>
-      </p>
-    )
-  }
+  const readFailure = read.isError && (
+    <p role="status">
+      The Build review could not be loaded.{' '}
+      <button type="button" className="text-button" onClick={() => void read.refetch()}>
+        Check again
+      </button>
+    </p>
+  )
+  if (!read.data) return readFailure
+  const waitingForReview = read.isFetching || read.isError
   return (
     <section className="build-review-content" aria-label={verificationKindLabel[read.data.kind]}>
       <h2>{verificationKindLabel[read.data.kind]}</h2>
       <VerificationTarget target={read.data.target} />
+      {saved && <p role="status">Verification saved · {saved.outcome}</p>}
+      {readFailure}
       <VerificationForm
+        key={saved?.id}
         review={read.data}
-        disabled={read.isFetching || write.state.status === 'sending' || write.state.status === 'unknown'}
-        saved={write.state.status === 'done' ? write.state.result : null}
+        disabled={waitingForReview || write.state.status === 'sending' || write.state.status === 'unknown'}
+        refocus={saved !== null}
         onSave={(input) => void write.submit(input)}
       />
-      <ReviewNotice write={write} cancel={cancel} disabled={read.isFetching} />
+      <ReviewNotice write={write} cancel={cancel} disabled={waitingForReview} />
     </section>
   )
 }
@@ -234,17 +241,20 @@ function ReviewNotice({ write, cancel, disabled }: Pick<ReviewState, 'write' | '
 function VerificationForm({
   review,
   disabled,
-  saved,
+  refocus,
   onSave,
 }: {
   review: VerificationReview
   disabled: boolean
-  saved: VerificationReceipt | null
+  refocus: boolean
   onSave: (input: VerificationInput) => void
 }) {
   const [invalid, setInvalid] = useState(false)
   const [ready, setReady] = useState(false)
-  if (saved) return <p role="status">Verification saved · {saved.outcome}</p>
+  const outcome = useRef<HTMLSelectElement>(null)
+  useLayoutEffect(() => {
+    if (refocus) focusIfDropped(outcome.current)
+  }, [refocus])
   return (
     <form
       className="build-review-form"
@@ -258,7 +268,7 @@ function VerificationForm({
       }}
     >
       <h3>Record verification</h3>
-      <OutcomeField />
+      <OutcomeField selectRef={outcome} />
       <ObservationFields />
       {review.kind === 'deployed_app' && <DeploymentFields />}
       <label>
@@ -308,12 +318,12 @@ function DeploymentFields() {
   )
 }
 
-function OutcomeField() {
+function OutcomeField({ selectRef }: { selectRef: Ref<HTMLSelectElement> }) {
   return (
     <label>
       Outcome
       <span className="field">
-        <select name="outcome" defaultValue="" required>
+        <select ref={selectRef} name="outcome" defaultValue="" required>
           <option value="" disabled>
             Choose an outcome
           </option>
