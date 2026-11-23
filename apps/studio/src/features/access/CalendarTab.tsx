@@ -102,7 +102,8 @@ function SessionForm({ context, onScheduled }: { context: SheetContext; onSchedu
         readOnly={frozen}
         onChange={(e) => set({ title: e.target.value })}
       />
-      <WhenFields form={form} set={set} frozen={frozen} />
+      <WhenFields form={form} set={set} frozen={frozen} said={planned !== null} />
+      {planned && <WhenSaid planned={planned} />}
       <button type="submit" className="pill primary" disabled={schedule.state.status === 'sending'}>
         {admissionLabel(schedule.state.status, 'Schedule the session', 'Scheduling…')}
       </button>
@@ -118,13 +119,33 @@ interface WhenProps {
   form: SessionFields
   set: (patch: Partial<SessionFields>) => void
   frozen: boolean
+  /** Whether the fields are read back under them (`WhenSaid`), which then describes them. */
+  said: boolean
 }
 
-function WhenFields({ form, set, frozen }: WhenProps) {
+const WHEN_SAID = 'calendar-when-said'
+
+/**
+ * The date and time as the Studio says them (docs/plans/words-whole.md): the fields are the browser's own and follow
+ * the system («06:30 PM», «12/15/2026»); under them, the same moment on the Studio's 24-hour clock, as the calendar
+ * will list it.
+ */
+function WhenSaid({ planned }: { planned: Pick<RoomSession, 'startsAt' | 'endsAt'> }) {
+  const now = useNow()
+  return (
+    <p id={WHEN_SAID} className="when-said">
+      {sessionLabel(planned, now)}
+    </p>
+  )
+}
+
+function WhenFields({ form, set, frozen, said }: WhenProps) {
+  const describedBy = said ? WHEN_SAID : undefined
   return (
     <div className="calendar-when">
       <input
         aria-label="Date"
+        aria-describedby={describedBy}
         type="date"
         required
         value={form.date}
@@ -133,6 +154,7 @@ function WhenFields({ form, set, frozen }: WhenProps) {
       />
       <input
         aria-label="Start time"
+        aria-describedby={describedBy}
         type="time"
         required
         value={form.time}

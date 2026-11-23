@@ -42,7 +42,7 @@ import {
   READ_FAILED,
   readState,
   sophiaSays,
-  workCount,
+  allProjects,
   youDoor,
   type Said,
 } from './places-view.ts'
@@ -488,7 +488,7 @@ function Home({ v }: { v: View }) {
         loadingProjects={readState(v.projects) === 'loading'}
         now={now}
         inCallProject={props.call?.projectId ?? null}
-        count={workCount(projects)}
+        all={allProjects(projects)}
         locked={props.lock.locked}
         answers={answers}
         hidden={!v.shown.includes('home')}

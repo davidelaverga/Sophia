@@ -340,11 +340,24 @@ export function orderProjects(projects: readonly ProjectSummary[], order: Projec
   return projects.toSorted((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
 }
 
-/** All projects' count, under Home's rows: how many, and the notes carried from you. Nothing while they load. */
-export function workCount(projects: readonly ProjectSummary[] | undefined): string {
-  if (!projects || projects.length === 0) return ''
+/** Home's last row, to all projects: its words, and the notes carried from you on a line of their own. */
+export interface AllProjects {
+  title: string
+  meta: string | null
+}
+
+/**
+ * All projects, under Home's rows (docs/plans/words-whole.md): «All 3 projects», with «2 notes from you» under it,
+ * each a sentence of its own rather than joined by a dot. Null while they load, and with fewer than two, where the row
+ * isn't offered (`showsAllProjects`).
+ */
+export function allProjects(projects: readonly ProjectSummary[] | undefined): AllProjects | null {
+  if (!projects || !showsAllProjects(projects)) return null
   const carried = projects.reduce((n, p) => n + p.releases.filter((r) => r.mine).length, 0)
-  return `${String(projects.length)} project${projects.length === 1 ? '' : 's'}${carried ? ` · ${String(carried)} from you` : ''}`
+  return {
+    title: `All ${String(projects.length)} projects`,
+    meta: carried > 0 ? `${String(carried)} ${carried === 1 ? 'note' : 'notes'} from you` : null,
+  }
 }
 
 /**
@@ -488,7 +501,8 @@ export function sophiaSays(
   news: ReadonlyMap<string, Since> = NO_NEWS,
 ): Said[] {
   if (!projects) return []
-  if (call) return [{ text: 'You’re in ' }, { text: call.title, strong: true }, { text: '’s room.' }]
+  // The room for the project, not «Title’s room»: a title is a name of its own, often ending in a bracket.
+  if (call) return [{ text: 'You’re in the room for ' }, { text: call.title, strong: true }, { text: '.' }]
   // Where she can't answer, she doesn't offer to talk (home-no-companion.md).
   if (projects.length === 0)
     return [

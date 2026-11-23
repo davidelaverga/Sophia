@@ -169,8 +169,15 @@ function TargetForm(props: {
         min="2000-01-01"
         max="2100-12-31"
         value={date}
+        aria-describedby={date ? 'goal-date-said' : undefined}
         onChange={(e) => setDate(e.target.value)}
       />
+      {/* The browser's field follows the system («12/15/2026»); under it, the day as the Studio says it. */}
+      {date && (
+        <p id="goal-date-said" className="when-said">
+          {dayOf(date)}
+        </p>
+      )}
       <Button kind="pill" type="submit" disabled={props.saving}>
         {props.saving ? 'Saving…' : 'Save'}
       </Button>
