@@ -4,6 +4,9 @@
 > meet a written decision or are design calls, so they get a proposal and no code («Decisiones ya tomadas no se revierten
 > por tu cuenta»). Each has two options, what each costs, and a recommendation. Nothing is built until Luis says yes.
 > Measured on the fixture pages at `d1e6b1410` (`main`), 1280 × 800 and 390 × 844, unless said otherwise.
+>
+> **Decided** 2026-11-23 · Luis: «Yes, all five». 11 and 19 close with no change; 12 is built in a batch of its own;
+> 22 waits on Luis picking the glyph, 23 on the mock-up.
 
 ## Summary
 
