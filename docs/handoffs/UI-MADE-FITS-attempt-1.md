@@ -21,7 +21,7 @@ row always stands. On a very short phone stage the earlier caption gives way to 
 - **Unit tests:** `made-view.test.ts` passes 15 of 15.
 - **Through `pw-gentle.ps1`:**
   - the spec without the fix failed 3 of 4;
-  - with the fix, `room-made`, `room-captions`, `show-everyone` and `light-shadows` passed 47 of 47;
+  - with the fix, `room-made`, `room-captions` and `light-shadows` passed 47 of 47;
   - merged with #554, `room-made`, `room-dock`, `room-captions` and `light-shadows` passed 67 of 67.
 - `pnpm format:check`, `lint` and `typecheck` all return 0.
 
