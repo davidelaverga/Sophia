@@ -32,7 +32,7 @@ test('invite · an address without an @ is said under its field, and the field k
   // Not the browser's bubble: the form checks nothing on its own.
   expect(await field.evaluate((f: HTMLInputElement) => f.form?.noValidate)).toBe(true)
   // Nothing was sent, and the words go once the address changes.
-  await expect(members.locator('.invitation-list')).not.toContainText('ana')
+  await expect(members.locator('.invitation-list li', { hasText: 'ana' })).toHaveCount(0)
   await field.fill('ana@example.test')
   await expect(said).toHaveCount(0)
   await expect(field).not.toHaveAttribute('aria-invalid', 'true')
