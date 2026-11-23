@@ -312,7 +312,9 @@ export function GoalList({
       <BoardFailed failed={boardFailed} snapshot={snapshot} onRetry={onRetryBoard} />
       <NoAnswer found={!anyPlan || tabbed.length + listed.length > 0} query={query} />
       {!snapshot && <Skeleton label="Reading the goals…" />}
-      {snapshot?.goals.length === 0 && <NoGoals canAct={canAct} onOpenStudio={onOpenStudio} onInvite={onInvite} />}
+      {snapshot?.goals.length === 0 && (
+        <NoGoals tasks={controls} canAct={canAct} onOpenStudio={onOpenStudio} onInvite={onInvite} />
+      )}
       {controls && !canAct && <ViewerNote snapshot={snapshot} />}
       {shown && <Rail goals={tabbed} shown={shown.id} plans={plans} onChoose={choose} />}
       <Listed
@@ -411,12 +413,17 @@ function NativeTasks({
   )
 }
 
-/** Goals come from the conversation with Sophia: until then, the way forward is the room and the team. */
+/**
+ * Goals come from the conversation with Sophia: until then, the way forward is the room and the team. Under Tasks it
+ * speaks of tasks, which start with a goal's plan (demo-findings-1.md #17).
+ */
 function NoGoals({
+  tasks,
   canAct,
   onOpenStudio,
   onInvite,
 }: {
+  tasks: boolean
   canAct: boolean
   onOpenStudio: () => void
   onInvite: () => void
@@ -436,7 +443,9 @@ function NoGoals({
         </>
       }
     >
-      No goals yet. They’ll come from your conversations with Sophia in the room.
+      {tasks
+        ? 'No tasks yet. They start from a goal’s plan, and goals come from your conversations with Sophia.'
+        : 'No goals yet. They’ll come from your conversations with Sophia in the room.'}
     </EmptyState>
   )
 }
