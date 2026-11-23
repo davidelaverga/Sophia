@@ -17,19 +17,23 @@ const borderOf = (page: Page) =>
     .first()
     .evaluate((el) => getComputedStyle(el).borderTopColor)
 
-/** The field's border once its 140 ms transition has settled: read until two reads a frame apart agree. */
-const settledBorder = async (page: Page) => {
-  let last = ''
-  await expect
-    .poll(async () => {
-      const now = await borderOf(page)
-      const same = now === last
-      last = now
-      return same
+/**
+ * The field's border at rest: once the field's own transitions (140 ms on its border) have finished, never by
+ * waiting a set time. Two equal reads are not enough: they can agree before a focus or a refusal has reached the
+ * field. Fails if a transition is still running after 2 s.
+ */
+const borderAtRest = (page: Page) =>
+  page
+    .locator('.screen-body .field')
+    .first()
+    .evaluate(async (el) => {
+      const finished = Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished))
+      const late = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('the field is still in transition after 2 s')), 2000),
+      )
+      await Promise.race([finished, late])
+      return getComputedStyle(el).borderTopColor
     })
-    .toBe(true)
-  return last
-}
 
 async function sent(page: Page) {
   await page.getByPlaceholder('you@company.com').fill('luis@example.com')
@@ -54,11 +58,15 @@ for (const theme of ['dark', 'light']) {
     await page.getByPlaceholder('you@company.com').fill('luis')
     await page.getByRole('button', { name: 'Email me a link' }).click()
     await expect(page.getByPlaceholder('you@company.com')).toHaveAttribute('aria-invalid', 'true')
-    const rose = await settledBorder(page)
+    const rose = await borderAtRest(page)
     await page.getByPlaceholder('you@company.com').fill('')
     await sent(page)
     const code = page.getByRole('textbox', { name: 'Code from the email' })
-    const calm = await settledBorder(page)
+    // The code takes the focus on arrival with a pointer, and keeps it through a refusal and the next digits: the calm
+    // border to return to is the focused one, read once the code has the focus and its transition has finished.
+    await expect(code).toBeFocused()
+    await expect(code).not.toHaveAttribute('aria-invalid', 'true')
+    const calm = await borderAtRest(page)
     await code.fill('123456')
     await page.getByRole('button', { name: 'Sign in with code' }).click()
     await expect(page.getByRole('alert')).toHaveText('That code didn’t work.')
@@ -71,6 +79,7 @@ for (const theme of ['dark', 'light']) {
     await page.keyboard.type('6')
     await expect(code).toHaveValue('6')
     await expect(code).not.toHaveAttribute('aria-invalid', 'true')
+    await expect(code).toBeFocused()
     await expect.poll(() => borderOf(page)).toBe(calm)
   })
 }
