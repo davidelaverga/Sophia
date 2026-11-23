@@ -62,7 +62,6 @@ interface Props {
   loadingProjects: boolean
   now: Date
   inCallProject: string | null
-  /** "4 projects", ending the index; empty while they load. */
   /** The row to all projects, or null where it isn't offered (`allProjects`). */
   all: AllProjects | null
   /** The personal space is locked: your row unlocks it, and there is no line. */

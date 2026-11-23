@@ -36,6 +36,8 @@ test('goals · a target date is read back as the Studio says it, under the brows
   await drawn(page, DRAWN.goals)
   await page.locator('.goal-press').first().click()
   const date = page.locator('#goal-date')
+  await expect(date).toBeVisible()
+  await expect(date).toHaveValue('')
   await expect(page.locator('#goal-date-said')).toHaveCount(0)
   await date.fill('2026-12-15')
   await expect(page.locator('#goal-date-said')).toHaveText('15 Dec 2026')

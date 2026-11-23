@@ -161,13 +161,16 @@ function NewProject({
         void submit()
       }}
     >
-      <div className="c3-newproj-row">
-        <TitleField title={title} status={status} limit={limit.input} onClose={onClose} />
-        <button className="ghost" type="button" onClick={onClose}>
-          Cancel
-        </button>
+      {/* One place in the form's grid for the row and its limit: no gap is added while nothing is said. */}
+      <div className="field-with-limit">
+        <div className="c3-newproj-row">
+          <TitleField title={title} status={status} limit={limit.input} onClose={onClose} />
+          <button className="ghost" type="button" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+        {limit.note}
       </div>
-      {limit.note}
       <div className="outcome" role="status">
         {slow ? SLOW_NOTE : <AdmissionNote state={admission.state} onRetry={() => void submit()} />}
       </div>

@@ -12,6 +12,7 @@ import { browserTabs } from '../voice/call-tabs.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import { membershipKey } from '../access/useAccess.ts'
+import { lengthOf } from '../personal/characters.ts'
 import { useNameLimit } from '../personal/NameLimit.tsx'
 import { ActivitySheet } from './ActivitySheet.tsx'
 import { ArchiveSheet, useArchiveStatus } from './Archive.tsx'
@@ -45,7 +46,8 @@ function RenameSheet({ title, projectId, identity, onClose }: SheetProps) {
   const field = useRef<HTMLInputElement>(null)
   const client = useQueryClient()
   useEffect(() => field.current?.select(), [])
-  const offered = name.trim() !== '' && name !== title && !state.sending
+  // A title already past the most (from before it was held) is offered once it fits: the API would refuse it.
+  const offered = name.trim() !== '' && name !== title && lengthOf(name) <= TITLE_MOST && !state.sending
   const save = async () => {
     if (!offered) return
     setState({ sending: true, failed: null })

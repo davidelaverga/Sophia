@@ -169,11 +169,11 @@ function TargetForm(props: {
         min="2000-01-01"
         max="2100-12-31"
         value={date}
-        aria-describedby={date ? 'goal-date-said' : undefined}
+        aria-describedby={saidDay(date) ? 'goal-date-said' : undefined}
         onChange={(e) => setDate(e.target.value)}
       />
       {/* The browser's field follows the system («12/15/2026»); under it, the day as the Studio says it. */}
-      {date && (
+      {saidDay(date) && (
         <p id="goal-date-said" className="when-said">
           {dayOf(date)}
         </p>
@@ -184,6 +184,9 @@ function TargetForm(props: {
     </form>
   )
 }
+
+/** Whether a field's date reads as a day: a year of five digits, which the field allows, never says «Invalid Date». */
+const saidDay = (date: string) => date !== '' && Number.isFinite(Date.parse(`${date}T00:00:00Z`))
 
 /** The targets or the members unread, with nothing kept: said in place of the owner and date, never as «none». */
 function TargetUnread({ onRetry }: { onRetry: () => void }) {
