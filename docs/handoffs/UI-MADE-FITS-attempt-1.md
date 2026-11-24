@@ -7,12 +7,17 @@ Native session: this Claude Code session; its id is not recorded in the reposito
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-ui-mejoras`, branch `ui/made-fits` from `origin/main`
 `516cb8547`.
 Ending commit/tree and changed files: content commit `f6c3a3351` (`StageMade.tsx`, `made-view.ts`,
-`made-view.test.ts`, `app/theme.css`, `e2e/room-made.spec.ts`), then the note and this record.
+`made-view.test.ts`, `app/theme.css`, `e2e/room-made.spec.ts`), then the note and this record. On 2026-11-24, after
+Luis chose option B for the phone row, content commit `ce514caae` (`packages/ui/src/Icon.tsx`, `ShowEveryone.tsx`,
+`StagePresent.tsx`, `StageMade.tsx`, `app/theme.css`, `e2e/room-made.spec.ts`).
 
 ## Outcome
 
 The object under Sophia's line no longer runs its words over the captions. It keeps what its room holds, and its one
 row always stands. On a very short phone stage the earlier caption gives way to it.
+
+On a phone stage (≤ 560 px) the whole object opens the report: the title is whole beside a chevron, Show everyone is a
+glyph, and who asked joins the kind's line (`made-fits.md`, «On a phone, the object says less»).
 
 ## Evidence
 
@@ -24,6 +29,9 @@ row always stands. On a very short phone stage the earlier caption gives way to 
   - with the fix, `room-made`, `room-captions` and `light-shadows` passed 47 of 47;
   - merged with #554, `room-made`, `room-dock`, `room-captions` and `light-shadows` passed 67 of 67.
 - `pnpm format:check`, `lint` and `typecheck` all return 0.
+- 2026-11-24, option B: headless captures at 390 × 844, 375 × 667 and 1280 × 800, dark and light; the new @phone
+  test failed without its rule (title cut by 34 px); through the guard, `room-made`, `made-refusal`,
+  `present-refused-exit`, `room-present` and `room-captions` passed 62 of 62.
 
 ## Decisions and changes
 
@@ -38,8 +46,9 @@ row always stands. On a very short phone stage the earlier caption gives way to 
 
 - The PR is not merged. It is independent of #554, and both merge in either order; together they were checked in a
   scratch merge.
-- On a phone the title still has about 40 px beside Open and Show everyone, so it shows a few letters. That is a
-  layout question for the object's row, left as it was.
+- The `show` glyph is new and waits for Luis's word.
+- On a computer the 380 px object still cuts its title at about 69 px («Fixture re…») beside Open and Show everyone.
+  Left as it was: Luis's choice was for the phone.
 
 ## Next bounded action
 
