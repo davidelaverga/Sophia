@@ -175,8 +175,13 @@ test('@phone · one line on a phone: its name whole, Show everyone a glyph, each
   const row = await box(page, '.made-row')
   const title = made(page).locator('.made-title')
   expect(await title.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0)
-  for (const part of ['.made-open', '.made-meta', '.made-close'])
-    expect((await box(page, part)).y).toBeLessThan(row.y + 4)
+  // One line: as tall as a finger's control, with each part's middle on it.
+  expect(row.height).toBeLessThanOrEqual(44)
+  for (const part of ['.made-open', '.made-meta', '.made-acts .pill', '.made-close']) {
+    const b = await box(page, part)
+    expect(b.y + b.height / 2).toBeGreaterThan(row.y)
+    expect(b.y + b.height / 2).toBeLessThan(row.y + row.height)
+  }
   const show = made(page).getByRole('button', { name: 'Show everyone' })
   await expect(show).toBeVisible()
   expect((await show.boundingBox())?.width).toBeLessThanOrEqual(40)
