@@ -69,6 +69,15 @@ function conversationsOn(): boolean {
   if (mode !== 'on') throw new Error('SOPHIA_CONVERSATIONS is on, off or unset')
   return true
 }
+function conversationInputSwitch(
+  name: 'SOPHIA_CONVERSATION_INPUT_ADDRESSING' | 'SOPHIA_CONVERSATION_INPUT_OBSERVATION',
+): boolean {
+  const mode = optional(name)
+  if (!mode || mode === 'off') return false
+  if (mode !== 'on') throw new Error(name + ' is on, off or unset')
+  return true
+}
+
 function voiceQualificationFromEnv(): boolean {
   const value = optional('SOPHIA_VOICE_QUALIFICATION')
   if (value === undefined || value === 'off') return false
@@ -100,6 +109,7 @@ function founderBuildHandoffFromEnv(): boolean {
   return true
 }
 
+const addressedInputs = conversationInputSwitch('SOPHIA_CONVERSATION_INPUT_ADDRESSING')
 const app = buildApp({
   pool,
   logger: true,
@@ -111,6 +121,9 @@ const app = buildApp({
   byteStore: byteStoreFromEnv(process.env),
   companion: personal.companion,
   conversations: conversationsOn(),
+  conversationInputs: addressedInputs,
+  conversationInputAddressing: addressedInputs,
+  conversationInputObservation: conversationInputSwitch('SOPHIA_CONVERSATION_INPUT_OBSERVATION'),
   // Render sets RENDER_GIT_COMMIT; anything but 40 hex is no identity at all (null), never guessed.
   commit: /^[0-9a-f]{40}$/.test(process.env.RENDER_GIT_COMMIT ?? '') ? (process.env.RENDER_GIT_COMMIT ?? null) : null,
   // Voice qualification evidence (A45, 0085): on only by the operator's batch, with 0085 applied.

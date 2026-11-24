@@ -90,6 +90,22 @@ describe('input validation', () => {
     ])
     assert.deepEqual(errorCodes(null), ['invalid_input'])
   })
+
+  it('counts Unicode code points at the retained conversation text limit', () => {
+    assert.equal(INTAKE_OBSERVATION_POLICY_VERSION, 'sophia.intake-observation.policy.v26')
+    assert.match(INTAKE_OBSERVATION_POLICY.text.lengthUnit, /Unicode code points/)
+    const supplementary = '😀'
+    const atLimit = 'a'.repeat(1500) + supplementary.repeat(2500)
+    const valid = observeIntake({ interaction: AUTO, text: atLimit, context: project })
+    assert.equal(valid.ok, true)
+    assert.deepEqual(errorCodes({ interaction: AUTO, text: atLimit + supplementary, context: project }), [
+      'text_too_long',
+    ])
+    assert.equal(observeIntake({ interaction: AUTO, text: supplementary.repeat(4000), context: project }).ok, true)
+    assert.deepEqual(errorCodes({ interaction: AUTO, text: supplementary.repeat(4001), context: project }), [
+      'text_too_long',
+    ])
+  })
 })
 
 describe('legacy explicit Ask', () => {
@@ -3417,8 +3433,7 @@ describe('v25: a leading filler or "also" ends where an acknowledgement does, an
     assert.equal(kindOf(observe('Please\u2014stop.', live, unasked)), kindOf(observe('Please stop.', live, unasked)))
   })
 
-  it('names v25 in the version, and the descriptor states the prefix rule', () => {
-    assert.equal(INTAKE_OBSERVATION_POLICY_VERSION, 'sophia.intake-observation.policy.v25')
+  it('documents the retained prefix rule in the policy descriptor', () => {
     assert.match(INTAKE_OBSERVATION_POLICY.text.prefixes, /hyphen, an en dash or an em dash/)
     assert.match(INTAKE_OBSERVATION_POLICY.text.prefixes, /compounds are never commands/)
   })

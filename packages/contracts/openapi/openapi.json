@@ -20491,6 +20491,86 @@
         }
       }
     },
+    "/api/v1/projects/{projectId}/conversation-artifact-versions/{versionId}": {
+      "get": {
+        "operationId": "getConversationArtifactVersion",
+        "summary": "Check a published artifact version for a shared conversation",
+        "tags": [
+          "conversations"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "INC03-S05",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "versionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Currently eligible version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationArtifactVersion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Artifact version unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Projection unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{projectId}/explore/preflight": {
       "get": {
         "operationId": "readManagedExplorePreflight",
@@ -47504,6 +47584,12 @@
               "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
             },
             "description": "Structured choices of member IDs. Member authority is resolved by the server; textual names are not address IDs."
+          },
+          "artifactVersionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "description": "Optional exact published version from the same project. Stored with the key and rechecked before a fresh write."
           }
         },
         "required": [
@@ -47560,6 +47646,12 @@
               }
             ],
             "description": "A visible, nonwithdrawn message from this conversation, or null. The server derives its author."
+          },
+          "artifactVersionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "description": "Optional exact published version from the same project. Stored with the key and rechecked before a fresh write."
           }
         },
         "required": [
@@ -47570,6 +47662,42 @@
           "replyToMessageId"
         ],
         "description": "Record one automatic input and its structured address for later observation. The server resolves membership, target visibility and author."
+      },
+      "ConversationArtifactVersion": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "artifactId",
+          "versionId",
+          "title",
+          "versionNumber"
+        ],
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "versionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "versionNumber": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "description": "One currently readable published project artifact version and its display label."
       },
       "ManagedExploreSeed": {
         "type": "object",

@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type pg from 'pg'
 import type {
   AddressedConversationInputSend,
@@ -8,9 +8,11 @@ import type {
 } from '@sophia/contracts'
 import {
   nameActor,
+  readConversationArtifactVersion,
   readConversationMessage,
   readConversationSummary,
   readFeedPosition,
+  recordAddressedInputObservation,
   sendAddressedConversationInput,
   startAddressedConversationInput,
   withActor,
@@ -23,6 +25,21 @@ export const CONVERSATION_INPUT_ADDRESSING_SCHEMA = `SELECT
   to_regprocedure('sophia.start_conversation_addressed_input(uuid,text,text,text,text,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.send_conversation_addressed_input(uuid,text,text,text,text,jsonb,uuid)') IS NOT NULL AS ok`
 
+export const CONVERSATION_INPUT_OBSERVATION_SCHEMA = `SELECT
+  to_regprocedure('sophia.read_saved_conversation_input_context(uuid,uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.record_saved_conversation_input_observation(uuid,uuid,uuid,jsonb)') IS NOT NULL AS ok`
+
+const CONVERSATION_ARTIFACT_VERSION_SCHEMA = `SELECT
+  to_regprocedure('sophia.conversation_artifact_version(uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.start_conversation_addressed_input(uuid,text,text,text,text,text,jsonb,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.send_conversation_addressed_input(uuid,text,text,text,text,jsonb,uuid,uuid)') IS NOT NULL AS ok`
+
+const OBSERVATION_BUDGET_MS = 1000
+type ObserveSavedInput = (
+  request: FastifyRequest,
+  input: { inputId: string; conversationId: string; projectId?: string },
+) => Promise<void>
+
 const conversationParams = {
   type: 'object',
   additionalProperties: false,
@@ -30,18 +47,72 @@ const conversationParams = {
   required: ['conversationId'],
 } as const
 
+const artifactVersionParams = {
+  type: 'object',
+  additionalProperties: false,
+  properties: { ...projectParams.properties, versionId: { type: 'string', pattern: UUID_PATTERN } },
+  required: ['projectId', 'versionId'],
+} as const
+
 /** A63 adds addressed writes beside A49 and returns the existing record-only receipt. */
-export function conversationInputAddressingRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool }): void {
-  const installed = conversationInputsInstallation(
+export function conversationInputAddressingRoutes(
+  app: FastifyInstance,
+  { pool, observeInputs }: { pool: pg.Pool; observeInputs: boolean },
+): void {
+  const addressingInstalled = conversationInputsInstallation(
     pool,
     CONVERSATION_INPUT_ADDRESSING_SCHEMA,
     'Addressed conversation inputs are not installed on this database',
   )
-  registerAddressedStart(app, pool, installed)
-  registerAddressedSend(app, pool, installed)
+  const artifactVersionInstalled = conversationInputsInstallation(
+    pool,
+    CONVERSATION_ARTIFACT_VERSION_SCHEMA,
+    'Artifact context is not installed on this database',
+  )
+  const installed = async (versionId?: string) => {
+    await addressingInstalled()
+    if (versionId !== undefined) await artifactVersionInstalled()
+  }
+  registerArtifactVersionRead(app, pool, artifactVersionInstalled)
+  const observe = observeInputs ? savedInputObserver(pool) : undefined
+  registerAddressedStart(app, pool, installed, observe)
+  registerAddressedSend(app, pool, installed, observe)
 }
 
-function registerAddressedStart(app: FastifyInstance, pool: pg.Pool, installed: () => Promise<void>): void {
+function registerArtifactVersionRead(app: FastifyInstance, pool: pg.Pool, installed: () => Promise<void>): void {
+  app.get<{ Params: { projectId: string; versionId: string } }>(
+    '/api/v1/projects/:projectId/conversation-artifact-versions/:versionId',
+    { schema: { params: artifactVersionParams, response: { 200: { $ref: 'ConversationArtifactVersion#' } } } },
+    async (request) => {
+      await installed()
+      const { projectId, versionId } = request.params
+      return withActor(pool, request.actorId, 'read', (client) =>
+        readConversationArtifactVersion(client, projectId, versionId),
+      )
+    },
+  )
+}
+
+/** Called after the input commits. The same HTTP idempotency key can retry a missed observation. */
+function savedInputObserver(pool: pg.Pool): ObserveSavedInput {
+  return async (request, input) => {
+    try {
+      await recordAddressedInputObservation(pool, request.actorId, input, {
+        deadline: performance.now() + OBSERVATION_BUDGET_MS,
+        signal: AbortSignal.timeout(OBSERVATION_BUDGET_MS),
+      })
+    } catch {
+      request.log.warn('Saved input observation unavailable')
+    }
+  }
+}
+
+function registerAddressedStart(
+  app: FastifyInstance,
+  pool: pg.Pool,
+  installed: (versionId?: string) => Promise<void>,
+  observe?: ObserveSavedInput,
+): void {
   app.post<{
     Params: { projectId: string }
     Headers: { 'idempotency-key': string }
@@ -57,7 +128,8 @@ function registerAddressedStart(app: FastifyInstance, pool: pg.Pool, installed: 
       },
     },
     async (request, reply) => {
-      await installed()
+      const { artifactVersionId } = request.body
+      await installed(artifactVersionId)
       const { projectId } = request.params
       const started = await withActor(
         pool,
@@ -81,12 +153,19 @@ function registerAddressedStart(app: FastifyInstance, pool: pg.Pool, installed: 
           }
         },
       )
+      if (artifactVersionId === undefined)
+        await observe?.(request, { projectId, inputId: started.input.id, conversationId: started.conversation.id })
       return reply.status(202).send(started)
     },
   )
 }
 
-function registerAddressedSend(app: FastifyInstance, pool: pg.Pool, installed: () => Promise<void>): void {
+function registerAddressedSend(
+  app: FastifyInstance,
+  pool: pg.Pool,
+  installed: (versionId?: string) => Promise<void>,
+  observe?: ObserveSavedInput,
+): void {
   app.post<{
     Params: { conversationId: string }
     Headers: { 'idempotency-key': string }
@@ -102,7 +181,8 @@ function registerAddressedSend(app: FastifyInstance, pool: pg.Pool, installed: (
       },
     },
     async (request, reply) => {
-      await installed()
+      const { artifactVersionId } = request.body
+      await installed(artifactVersionId)
       const recorded = await withActor(
         pool,
         request.actorId,
@@ -119,6 +199,8 @@ function registerAddressedSend(app: FastifyInstance, pool: pg.Pool, installed: (
           return { message, input: conversationInputRef(result) }
         },
       )
+      if (artifactVersionId === undefined)
+        await observe?.(request, { inputId: recorded.input.id, conversationId: request.params.conversationId })
       return reply.status(202).send(recorded)
     },
   )

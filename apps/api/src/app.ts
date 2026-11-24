@@ -41,6 +41,7 @@ import { CONVERSATION_SCHEMA, projectConversationRoutes } from './routes/project
 import { CONVERSATION_INPUTS_SCHEMA, conversationInputRoutes } from './routes/conversation-inputs.ts'
 import {
   CONVERSATION_INPUT_ADDRESSING_SCHEMA,
+  CONVERSATION_INPUT_OBSERVATION_SCHEMA,
   conversationInputAddressingRoutes,
 } from './routes/conversation-input-addressing.ts'
 import { updatesRoutes } from './routes/updates.ts'
@@ -117,12 +118,13 @@ export interface AppDeps {
   conversations?: boolean
   /**
    * Saved-conversation automatic inputs (INC03-CC-002 S01b, amendment A49, migration 0095): off unless set, and only with
-   * `conversations` (set alone, buildApp refuses the configuration). server.ts does not set it. Off, no A49 route exists
+   * `conversations` (set alone, buildApp refuses the configuration). Off, no A49 route exists
    * and /ready requires nothing of 0095; on, /ready requires 0095's two writers.
    */
   conversationInputs?: boolean
   /** Addressed conversation input writes (A63, 0123): a separate opt-in for a composed app with A49 enabled. */
   conversationInputAddressing?: boolean
+  conversationInputObservation?: boolean
   /**
    * Personal automatic inputs (INC03-CC-002 P2, amendment A52, migrations 0098 and 0099): off unless set; server.ts
    * does not set it. Off, POST /api/v1/personal/inputs does not exist (404) and nothing is written; turned off again
@@ -655,7 +657,9 @@ const companionReady = async (companion: Companion | null): Promise<boolean> =>
 function registerConversationWrites(app: FastifyInstance, deps: AppDeps): void {
   if (deps.conversations) projectConversationRoutes(app, { pool: deps.pool })
   if (inputsOn(deps)) conversationInputRoutes(app, { pool: deps.pool })
-  if (addressingOn(deps)) conversationInputAddressingRoutes(app, { pool: deps.pool })
+  if (addressingOn(deps)) {
+    conversationInputAddressingRoutes(app, { pool: deps.pool, observeInputs: observationOn(deps) })
+  }
 }
 
 /**
@@ -674,12 +678,19 @@ function addressingOn(deps: AppDeps): boolean {
   return true
 }
 
+function observationOn(deps: AppDeps): boolean {
+  if (deps.conversationInputObservation !== true) return false
+  if (!addressingOn(deps)) throw new Error('conversationInputObservation requires conversationInputAddressing')
+  return true
+}
+
 /** What /health and /ready answer for: the schema parts this API's switches require, its companion and its commit. */
 interface Health {
   stores: boolean
   conversations: boolean
   conversationInputs: boolean
   conversationInputAddressing: boolean
+  conversationInputObservation: boolean
   personalAnswers: boolean
   companion: Companion | null
   voice: boolean
@@ -695,6 +706,7 @@ const healthOf = (deps: AppDeps): Health => ({
   conversations: Boolean(deps.conversations),
   conversationInputs: inputsOn(deps),
   conversationInputAddressing: addressingOn(deps),
+  conversationInputObservation: observationOn(deps),
   personalAnswers: answersOn(deps),
   companion: deps.companion ?? null,
   voice: deps.voiceQualification === true,
@@ -713,6 +725,7 @@ async function schemaReady(
     conversations,
     conversationInputs,
     conversationInputAddressing,
+    conversationInputObservation,
     personalAnswers,
     voice,
     ownerRunners,
@@ -728,6 +741,7 @@ async function schemaReady(
     (await part(conversations, CONVERSATION_SCHEMA)) &&
     (await part(conversationInputs, CONVERSATION_INPUTS_SCHEMA)) &&
     (await part(conversationInputAddressing, CONVERSATION_INPUT_ADDRESSING_SCHEMA)) &&
+    (await part(conversationInputObservation, CONVERSATION_INPUT_OBSERVATION_SCHEMA)) &&
     (await part(personalAnswers, PERSONAL_ANSWERS_SCHEMA)) &&
     (await part(voice, VOICE_SCHEMA)) &&
     (await part(ownerRunners, OWNER_RUNNER_SCHEMA)) &&

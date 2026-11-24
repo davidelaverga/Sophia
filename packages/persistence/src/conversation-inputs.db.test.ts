@@ -533,9 +533,9 @@ describe('who reads input metadata, and who may write it', () => {
         WHERE n.nspname='sophia' AND p.prosrc ~ 'conversation_input_record\\(' ORDER BY 1`,
     )
     const WRITERS = [
-      'sophia.send_conversation_addressed_input(uuid,text,text,text,text,jsonb,uuid)',
+      'sophia.send_conversation_addressed_input(uuid,text,text,text,text,jsonb,uuid,uuid)',
       'sophia.send_conversation_input(uuid,text,text,text,text)',
-      'sophia.start_conversation_addressed_input(uuid,text,text,text,text,text,jsonb)',
+      'sophia.start_conversation_addressed_input(uuid,text,text,text,text,text,jsonb,uuid)',
       'sophia.start_conversation_input(uuid,text,text,text,text,text)',
     ]
     assert.deepEqual(

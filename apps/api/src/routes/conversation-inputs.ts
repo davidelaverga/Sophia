@@ -8,8 +8,8 @@
 // reach SQL as typed uuids. The same Idempotency-Key and request replays the first receipt under the caller's current
 // authority; another request under the key is idempotency_conflict (0063's conversation_prior).
 //
-// Mounted only when the API is built with conversations and conversationInputs (both off by default; server.ts wires
-// conversations from SOPHIA_CONVERSATIONS and never sets conversationInputs). A database without 0095 answers
+// Mounted only when the API is built with conversations and conversationInputs. The stock server enables this
+// recorder alongside addressed inputs through SOPHIA_CONVERSATION_INPUT_ADDRESSING. A database without 0095 answers
 // projection_unavailable (503), never a database message.
 // The legacy A33 routes (project-conversations.ts) are untouched.
 import type { FastifyInstance } from 'fastify'
