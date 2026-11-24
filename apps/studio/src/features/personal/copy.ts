@@ -178,10 +178,12 @@ const emptied = (clip: Clip) => clip.writeText('').catch(() => undefined)
 
 const writeText = (text: string) => navigator.clipboard.writeText(text)
 
-const writeLater = (text: Promise<string>) =>
-  navigator.clipboard.write([
-    new ClipboardItem({ 'text/plain': text.then((t) => new Blob([t], { type: 'text/plain' })) }),
-  ])
+const writeLater = (text: Promise<string>) => {
+  const payload = text.then((t) => new Blob([t], { type: 'text/plain' }))
+  // A denied clipboard may never consume its payload; copyFetched still reports the load's own failure.
+  void payload.catch(() => undefined)
+  return navigator.clipboard.write([new ClipboardItem({ 'text/plain': payload })])
+}
 
 /** This browser's clipboard: the promise form where ClipboardItem is offered. */
 export const browserClip = (): Clip => ('ClipboardItem' in window ? { writeText, writeLater } : { writeText })

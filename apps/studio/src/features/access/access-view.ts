@@ -139,6 +139,48 @@ export function invitationState(
 }
 
 /**
+ * Whether the note under a send form («Sent.», or the link to copy by hand) still holds: not once the list's copy of the
+ * invitation it sent is cancelled, where it would sit beside «1 closed». Not in the list yet (a refresh on its way): as
+ * the send said (demo-findings-1.md #11).
+ */
+export const sentNoteShown = (
+  sent: Pick<Invitation, 'id'>,
+  list: readonly Pick<Invitation, 'id' | 'revokedAt'>[],
+): boolean => !list.find((i) => i.id === sent.id)?.revokedAt
+
+/**
+ * Whether Accept failed because the invitation is bound to another address than the one signed in: the API's refusal
+ * (0010's words, kept by persistence's errors.ts as a 403). Signing out is the way on then, not Accept again
+ * (demo-findings-1.md #10).
+ */
+export function wrongAddress(err: { message: string; status?: number | undefined }): boolean {
+  return err.status === 403 && err.message.startsWith('This invitation is for')
+}
+
+/**
+ * What a failed Accept says, and whether it was the address: then in the words the sign-in check already uses before
+ * Accept (JoinFlow's `otherAccount`), not the API's own (review P3-5); else the API's words, or a plain line.
+ */
+export function acceptFailure(
+  err: unknown,
+  email: string | null,
+  signedInAs: string,
+): { words: string; otherAddress: boolean } {
+  if (!(typeof err === 'object' && err !== null && 'message' in err && typeof err.message === 'string')) {
+    return { words: 'Could not accept the invitation.', otherAddress: false }
+  }
+  const refusal = {
+    message: err.message,
+    status: 'status' in err && typeof err.status === 'number' ? err.status : undefined,
+  }
+  if (!wrongAddress(refusal)) return { words: err.message, otherAddress: false }
+  return {
+    words: `This invitation is for ${email ?? 'another address'}; you’re signed in as ${signedInAs}.`,
+    otherAddress: true,
+  }
+}
+
+/**
  * A guest in the Invite sheet's door record (let in, declined or blocked): what still matters about them (a removal
  * under way, asking again), then when it was decided. The list's title already says what was decided.
  */

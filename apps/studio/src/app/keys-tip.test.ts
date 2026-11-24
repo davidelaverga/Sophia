@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { keepSeen, keepShown, KEYS_TIP_KEY, meets, readSeen, SHOWINGS } from './keys-tip.ts'
+import { keepSeen, keepShown, KEYS_TIP_KEY, keysTipShows, meets, readSeen, SHOWINGS } from './keys-tip.ts'
 
 /** A store as the browser's: what was set is read back. */
 const memory = () => {
@@ -61,5 +61,33 @@ describe('the tip’s box against a control’s', () => {
     assert.equal(meets(tip, { left: 384, top: 600, right: 420, bottom: 646 }), false)
     assert.equal(meets(tip, { left: 24, top: 646, right: 384, bottom: 700 }), false)
     assert.equal(meets(tip, { left: 24, top: 600, right: 24, bottom: 646 }), false)
+  })
+})
+
+describe('the keys’ tip waits for a guide (demo-findings-1.md #17)', () => {
+  const clear = { modal: false, fieldFocused: false, sinkOnScreen: false, guided: false, coversControl: () => false }
+  it('shows where nothing is in its way', () => {
+    assert.equal(keysTipShows(clear), true)
+  })
+  it('shows not while a guide (Home’s first run) is or was on this page: one guide at a time', () => {
+    assert.equal(keysTipShows({ ...clear, guided: true }), false)
+  })
+  it('shows not over a sheet, a caret, a field taking stray typing or a control, as before', () => {
+    assert.equal(keysTipShows({ ...clear, modal: true }), false)
+    assert.equal(keysTipShows({ ...clear, fieldFocused: true }), false)
+    assert.equal(keysTipShows({ ...clear, sinkOnScreen: true }), false)
+    assert.equal(keysTipShows({ ...clear, coversControl: () => true }), false)
+  })
+  it('measures the controls last: not at all while a guide holds it back', () => {
+    let measured = false
+    keysTipShows({
+      ...clear,
+      guided: true,
+      coversControl: () => {
+        measured = true
+        return false
+      },
+    })
+    assert.equal(measured, false)
   })
 })

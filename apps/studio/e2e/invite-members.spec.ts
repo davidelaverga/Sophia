@@ -40,3 +40,21 @@ test('invite · an editor, who adds no members, opens on Guests', async ({ page 
   const tabs = await openInvite(page)
   await expect(tabs.getByRole('tab', { name: 'Guests' })).toHaveAttribute('aria-selected', 'true')
 })
+
+test('invite · a cancelled invitation takes «Sent.» with it: never beside «1 closed» (demo-findings-1 #11)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1')
+  await drawn(page, DRAWN.room)
+  await openInvite(page)
+  const members = page.getByRole('tabpanel', { name: 'Members' })
+  await members.getByRole('textbox', { name: 'Email' }).fill('ana@example.test')
+  await members.getByRole('button', { name: 'Send invitation' }).click()
+  const sent = members.locator('.sheet-form .sheet-status').filter({ hasText: 'Sent.' })
+  await expect(sent).toBeVisible()
+  const row = members.locator('.invitation-list li', { hasText: 'ana@example.test' })
+  await row.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await row.getByRole('button', { name: 'Cancel invitation' }).click()
+  await expect(members.getByText('1 closed')).toBeVisible()
+  await expect(sent).toHaveCount(0)
+})

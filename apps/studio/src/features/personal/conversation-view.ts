@@ -1,7 +1,12 @@
 // The personal conversation as the screen lays it out (direction C): one continuous conversation divided by day, turns
 // from the same side grouped, Sophia's turn opening with her dot, her suggested note after the reply it belongs to,
 // and the wait for her reply at the end. Pure: the component renders these rows and owns nothing but the scroll.
-import type { PersonalSuggestion, PersonalTurn } from '@sophia/contracts'
+//
+// A controlled space's turns (A54, INC03-DES-001) are shown as they are read: a message of yours whose answer was held,
+// withdrawn or cancelled says so under it, in words taken only from its control and its view, and offers what was kept
+// aside of an answer to read (its owner's only). Nothing says when an answer came, or that a withdrawn one never did.
+import type { PersonalAnswerControlView, PersonalControlledTurn, PersonalSuggestion } from '@sophia/contracts'
+import type { ShownTurn } from '../../api/personal.ts'
 import { ARRIVALS, arriving, type Way } from './arrive.ts'
 import { clip, lengthOf } from './characters.ts'
 import { clock, dayLabel as dayLabelWords } from '../../app/time-words.ts'
@@ -36,7 +41,7 @@ export type Row =
   | {
       kind: 'turn'
       key: string
-      turn: PersonalTurn | null
+      turn: ShownTurn | null
       author: 'person' | 'sophia'
       text: string
       at: string
@@ -46,6 +51,13 @@ export type Row =
   | { kind: 'failed'; key: string; turnId: string }
   /** Under a message of yours kept without asking her (A52's `recorded`): said quietly, nothing to press, no wait. */
   | { kind: 'recorded'; key: string; turnId: string }
+  /**
+   * Under a message of yours in a controlled space: how its answer stands (held, withdrawn, cancelled), when its control
+   * says so, and what was kept aside of an answer to it, to read (A54's withheld results, its owner's only).
+   */
+  | { kind: 'control'; key: string; turnId: string; line: string | null; kept: readonly KeptAnswer[] }
+  /** A controlled space whose latest read failed: what is shown is as of its last whole read, said so, to read again. */
+  | { kind: 'stale'; key: string; asOf: string }
   | {
       kind: 'suggestion'
       key: string
@@ -54,13 +66,79 @@ export type Row =
       askedTurnId: string | null
     }
 
+/**
+ * An answer kept aside, not part of the conversation: the call it came from, its words, the note it suggested, and when
+ * it was kept aside (A54's withheld `at`: when it was retained, never when it was written).
+ */
+export interface KeptAnswer {
+  callId: string
+  text: string
+  suggestion: string | null
+  at: string
+}
+
 const DAY_MS = 86_400_000
 
 /** What a message kept without asking Sophia says under it: kept, and that she was not asked (nor is she writing). */
 export const RECORDED = 'Kept — not asked yet'
 
+/** A turn of a controlled space (A54's, with its input), told apart by its shape, never cast from A10's. */
+const controlledTurn = (turn: ShownTurn): turn is PersonalControlledTurn => 'input' in turn
+
 /** A message of yours kept without asking her (A52): it waits for nothing, and nothing is written from it. */
-export const held = (turn: PersonalTurn): boolean => turn.author === 'person' && turn.reply === 'recorded'
+export const held = (turn: ShownTurn): boolean => turn.author === 'person' && turn.reply === 'recorded'
+
+/** Why a held message waits, as its control says (A54's heldReason). */
+const HELD_BECAUSE: Record<NonNullable<PersonalAnswerControlView['control']['heldReason']>, string> = {
+  prior_in_progress: 'waits for the earlier answer',
+  prior_cost_unresolved: 'waits until the earlier cost is settled',
+  admission_off: 'answers are off',
+  profile_unavailable: 'Sophia can’t answer here now',
+  payer_unavailable: 'no one can pay for it now',
+}
+
+/**
+ * When a message's answer was withdrawn, as its control says (A54's withdrawnPhase); never whether one came, or when.
+ * after_launch is recorded once a launch was begun, before anything was prepared or asked (0103's begin_launch): work
+ * may have started, not that Sophia was asked. after_publication: her answer to it was already published.
+ */
+const WITHDRAWN_WHEN: Record<NonNullable<PersonalAnswerControlView['control']['withdrawnPhase']>, string> = {
+  before_admission: 'Cancelled before it was sent to Sophia',
+  before_reservation: 'Withdrawn before Sophia was asked',
+  before_launch: 'Withdrawn before Sophia was asked',
+  after_launch: 'Withdrawn; work may already have started',
+  after_publication: 'Withdrawn after her answer was published',
+}
+
+/**
+ * What is said under a held message (its control's state is held: only then): held, to replace an earlier one if it
+ * does, and why it waits. A replacement that became active keeps its link, and says nothing of being held.
+ */
+function heldLine(view: PersonalAnswerControlView | undefined): string {
+  const head = view?.control.replaces ? 'Held to replace an earlier message — not asked yet' : 'Held — not asked yet'
+  const reason = view?.control.heldReason
+  return reason ? `${head} · ${HELD_BECAUSE[reason]}` : head
+}
+
+/**
+ * What a controlled message of yours says under it: null while its control is active (the conversation shows how it
+ * stands, as for any message); held or withdrawn in its control's own terms, and a cost not settled yet, said so.
+ */
+export function controlLine(turn: PersonalControlledTurn, view: PersonalAnswerControlView | undefined): string | null {
+  const state = view?.control.state ?? turn.input?.control
+  if (!turn.input || state === undefined || state === 'active') return null
+  const phase = view?.control.withdrawnPhase
+  const line = state === 'held' ? heldLine(view) : phase ? WITHDRAWN_WHEN[phase] : 'Withdrawn'
+  return view?.prior.financial === 'unresolved' ? `${line} · cost not settled yet` : line
+}
+
+/** What was kept aside of answers to an input (A54's withheld), in the order kept. */
+export const keptOf = (view: PersonalAnswerControlView | undefined): readonly KeptAnswer[] =>
+  (view?.withheld ?? []).map((w) => ({ callId: w.callId, text: w.text, suggestion: w.suggestion, at: w.at }))
+
+/** A turn with its input's control not active: it can't be asked again the old way (only a failed one can). */
+const controlledAway = (turn: ShownTurn): boolean =>
+  controlledTurn(turn) && turn.input !== null && turn.input.control !== 'active'
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
 
@@ -170,7 +248,7 @@ function addDay(layout: Layout, date: Date, now: Date): void {
   layout.lastSide = null
 }
 
-function addTurn(layout: Layout, turn: PersonalTurn, now: Date): void {
+function addTurn(layout: Layout, turn: ShownTurn, now: Date): void {
   const at = new Date(turn.createdAt)
   addDay(layout, at, now)
   const first = layout.lastSide !== turn.author
@@ -187,7 +265,7 @@ function suggestionShown(state: PersonalSuggestion['state'], movedOn: boolean): 
   return movedOn ? 'folded' : 'open'
 }
 
-function addSuggestion(layout: Layout, turn: PersonalTurn, movedOn: boolean): void {
+function addSuggestion(layout: Layout, turn: ShownTurn, movedOn: boolean): void {
   if (!turn.suggestion) return
   const shown = suggestionShown(turn.suggestion.state, movedOn)
   layout.rows.push({
@@ -201,7 +279,7 @@ function addSuggestion(layout: Layout, turn: PersonalTurn, movedOn: boolean): vo
 }
 
 export interface ConversationInput {
-  turns: readonly PersonalTurn[]
+  turns: readonly ShownTurn[]
   sending: Sending | null
   /** Sophia is writing her welcome back. */
   welcoming?: boolean
@@ -215,6 +293,36 @@ export interface ConversationInput {
   ready?: Way | null
   /** The conversation is read from its very first turn (no earlier days left to read): its first day is known. */
   whole?: boolean
+  /** A controlled space's input views (A54), by input id: what its messages' status lines are taken from. */
+  views?: ReadonlyMap<string, PersonalAnswerControlView> | undefined
+  /** When the controlled read shown was made, if the latest one failed (its rows are as of then); else null. */
+  stale?: string | null
+}
+
+/**
+ * What is said under a turn after it: a failed reply to ask again (only where its control allows it, A3-R3 seam §7),
+ * a message kept without asking her, or, in a controlled space, how its answer stands and what was kept aside.
+ */
+function addStatus(layout: Layout, turn: ShownTurn, views: ConversationInput['views']): void {
+  if (turn.author !== 'person') return
+  if (turn.reply === 'failed' && !controlledAway(turn)) {
+    layout.rows.push({ kind: 'failed', key: `failed-${turn.id}`, turnId: turn.id })
+    layout.lastSide = null
+  }
+  if (controlledTurn(turn) && turn.input) {
+    const view = views?.get(turn.input.inputId)
+    const line = controlLine(turn, view)
+    const kept = keptOf(view)
+    if (line !== null || kept.length > 0) {
+      layout.rows.push({ kind: 'control', key: `control-${turn.id}`, turnId: turn.id, line, kept })
+      layout.lastSide = null
+      return
+    }
+  }
+  if (held(turn)) {
+    layout.rows.push({ kind: 'recorded', key: `recorded-${turn.id}`, turnId: turn.id })
+    layout.lastSide = null
+  }
 }
 
 /**
@@ -264,6 +372,13 @@ function addSending(layout: Layout, sending: Sending, now: Date): void {
   layout.lastSide = 'person'
 }
 
+/** After the turns of a controlled space whose latest read failed: it is as of its last whole read, said so. */
+function addStale(layout: Layout, { stale }: ConversationInput): void {
+  if (!stale) return
+  layout.rows.push({ kind: 'stale', key: 'stale', asOf: stale })
+  layout.lastSide = null
+}
+
 /** The rows of the conversation, in order. */
 export function conversationRows(input: ConversationInput): Row[] {
   const { turns, sending, welcoming, now, fromTheStart } = input
@@ -273,17 +388,11 @@ export function conversationRows(input: ConversationInput): Row[] {
   const lastAsked = turns.findLastIndex((t) => t.author === 'person')
   turns.forEach((turn, i) => {
     addTurn(layout, turn, now)
-    if (turn.author === 'person' && turn.reply === 'failed') {
-      layout.rows.push({ kind: 'failed', key: `failed-${turn.id}`, turnId: turn.id })
-      layout.lastSide = null
-    }
-    if (held(turn)) {
-      layout.rows.push({ kind: 'recorded', key: `recorded-${turn.id}`, turnId: turn.id })
-      layout.lastSide = null
-    }
+    addStatus(layout, turn, input.views)
     const movedOn = !!sending || i < lastAsked
     addSuggestion(layout, turn, movedOn)
   })
+  addStale(layout, input)
   addTodaysMoment(layout)
   if ((input.answers ?? true) && arriving(turns, now, !!sending)) {
     const { ready } = input
@@ -307,25 +416,32 @@ export function conversationRows(input: ConversationInput): Row[] {
  */
 export const opensHere = (rows: readonly Row[]): boolean => rows.some((r) => r.kind === 'starters')
 
-export function opensWithIntro(turns: readonly PersonalTurn[], earlier: boolean, now: Date): boolean {
+export function opensWithIntro(turns: readonly ShownTurn[], earlier: boolean, now: Date): boolean {
   const first = turns[0]
   if (!first) return !earlier
   return !earlier && startOfDay(new Date(first.createdAt)) === startOfDay(now)
 }
 
 /**
- * A welcome back is due: the last turn, messages kept without asking her aside (as the server, 0099), is more than an
- * hour old and is not already one (the server decides too).
+ * A turn that counts as being together (the welcome's activity): in a controlled space, as its read says (A54's
+ * `activity`: a cancelled, never sent message doesn't; a withdrawn one that was sent does); else not one kept without
+ * asking her (0099).
  */
-export function welcomeDue(turns: readonly PersonalTurn[], now: Date): boolean {
-  const last = turns.findLast((t) => !held(t))
+const isActivity = (turn: ShownTurn): boolean => (controlledTurn(turn) ? turn.activity : !held(turn))
+
+/**
+ * A welcome back is due: the last turn, messages kept without asking her aside (as the server, 0099; a controlled
+ * space's own activity), is more than an hour old and is not already one (the server decides too).
+ */
+export function welcomeDue(turns: readonly ShownTurn[], now: Date): boolean {
+  const last = turns.findLast(isActivity)
   if (!last) return false
   const greeting = last.author === 'sophia' && last.replyTo === null
   return !greeting && now.getTime() - new Date(last.createdAt).getTime() > 3_600_000
 }
 
 /** The conversation shown: what was read back (only what comes before the window the space lists), then the window. */
-export function withReadBack(older: readonly PersonalTurn[], listed: readonly PersonalTurn[]): readonly PersonalTurn[] {
+export function withReadBack(older: readonly ShownTurn[], listed: readonly ShownTurn[]): readonly ShownTurn[] {
   const first = listed[0]?.seq ?? Number.POSITIVE_INFINITY
   const before = older.filter((t) => t.seq < first)
   return before.length === 0 ? listed : [...before, ...listed]
@@ -336,10 +452,10 @@ export function withReadBack(older: readonly PersonalTurn[], listed: readonly Pe
  * once, so nothing read goes missing between the two. The same array when none left.
  */
 export function keptOnReadBack(
-  read: readonly PersonalTurn[],
-  before: readonly PersonalTurn[],
-  after: readonly PersonalTurn[],
-): readonly PersonalTurn[] {
+  read: readonly ShownTurn[],
+  before: readonly ShownTurn[],
+  after: readonly ShownTurn[],
+): readonly ShownTurn[] {
   const first = after[0]?.seq ?? Number.POSITIVE_INFINITY
   const have = new Set(read.map((t) => t.seq))
   const left = before.filter((t) => t.seq < first && !have.has(t.seq))
@@ -349,7 +465,7 @@ export function keptOnReadBack(
 /** What was read back of a long conversation: in which epoch of the space, its turns (oldest first), and if more exist. */
 export interface ReadBackState {
   epoch: number
-  turns: readonly PersonalTurn[]
+  turns: readonly ShownTurn[]
   more: boolean
 }
 
@@ -359,8 +475,8 @@ export interface ReadBackState {
  */
 export function backOnSpaceRead(
   now: ReadBackState | null,
-  before: readonly PersonalTurn[],
-  space: { epoch: number; turns: readonly PersonalTurn[] },
+  before: readonly ShownTurn[],
+  space: { epoch: number; turns: readonly ShownTurn[] },
 ): ReadBackState | null {
   if (now?.epoch !== space.epoch) return null
   const turns = keptOnReadBack(now.turns, before, space.turns)
@@ -374,7 +490,7 @@ export function backOnSpaceRead(
 export function withEarlierPage(
   now: ReadBackState | null,
   epoch: number,
-  page: { turns: readonly PersonalTurn[]; earlier: boolean },
+  page: { turns: readonly ShownTurn[]; earlier: boolean },
 ): ReadBackState {
   const kept = now?.epoch === epoch ? now.turns : []
   const have = new Set(kept.map((t) => t.seq))
@@ -404,7 +520,7 @@ export function notePrefill(text: string, suggestion: PersonalSuggestion | null)
 }
 
 /** The suggestion Sophia made in her reply to `turnId`, if any. */
-export function suggestionFor(turns: readonly PersonalTurn[], turnId: string): PersonalSuggestion | null {
+export function suggestionFor(turns: readonly ShownTurn[], turnId: string): PersonalSuggestion | null {
   return turns.find((t) => t.replyTo === turnId)?.suggestion ?? null
 }
 
@@ -414,8 +530,8 @@ export function suggestionFor(turns: readonly PersonalTurn[], turnId: string): P
  * at a load (the first read after opening or unlocking), so nothing already there is read out. Null: nothing to say.
  */
 export function heard(
-  previous: readonly PersonalTurn[] | null,
-  next: readonly PersonalTurn[],
+  previous: readonly ShownTurn[] | null,
+  next: readonly ShownTurn[],
   writing: boolean,
   wasWriting: boolean,
 ): string | null {

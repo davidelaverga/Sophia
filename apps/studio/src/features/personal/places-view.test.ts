@@ -33,6 +33,7 @@ import {
   sessionWhen,
   UNLOCK,
   workCount,
+  showsAllProjects,
   youDoor,
 } from './places-view.ts'
 
@@ -127,6 +128,12 @@ describe('home words', () => {
       releases: [{ id: 'r', text: 'x', ownerName: 'a', mine: true, createdAt: NOW.toISOString() }],
     })
     assert.equal(workCount([mine]), '1 project · 1 from you')
+  })
+
+  it('ends the index with All projects only when there are two or more: one project is its own row (#16)', () => {
+    assert.equal(showsAllProjects([]), false)
+    assert.equal(showsAllProjects([project()]), false)
+    assert.equal(showsAllProjects([project(), project({ title: 'Pitch deck, Q4' })]), true)
   })
 
   it('names who is in a room, Sophia last', () => {

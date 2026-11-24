@@ -1,7 +1,8 @@
 // The words of the three places (direction C): the greeting, what each door says it opens, how a project card in Work
 // reads, who can see a place, how privacy works, and what a read that is slow or failed says. Pure, so the copy is
 // tested and components only render it.
-import type { PersonalTurn, ProjectSummary } from '@sophia/contracts'
+import type { ProjectSummary } from '@sophia/contracts'
+import type { ShownTurn } from '../../api/personal.ts'
 import type { Place } from '../../app/route.ts'
 import { shortName } from '../voice/room-view.ts'
 import type { Way } from './arrive.ts'
@@ -186,7 +187,7 @@ export interface YouDoor {
 export function youDoor(input: {
   locked: LockedBy | null
   /** Undefined until the space has loaded. */
-  turns: readonly PersonalTurn[] | undefined
+  turns: readonly ShownTurn[] | undefined
   notes: number
   now: Date
 }): YouDoor | null {
@@ -346,6 +347,12 @@ export function workCount(projects: readonly ProjectSummary[] | undefined): stri
   const carried = projects.reduce((n, p) => n + p.releases.filter((r) => r.mine).length, 0)
   return `${String(projects.length)} project${projects.length === 1 ? '' : 's'}${carried ? ` · ${String(carried)} from you` : ''}`
 }
+
+/**
+ * Whether Home's index ends with the link to all projects: with two or more. One project is its own row, and «All 1
+ * project» would only open the same (demo-findings-1.md #16); with none, the index offers «Start a project».
+ */
+export const showsAllProjects = (projects: readonly ProjectSummary[]): boolean => projects.length > 1
 
 /** Who is in a project's room and where: "Davide and Sophia are in Pitch deck" (Home's attention line). */
 export function roomCaption(project: ProjectSummary | null): string {

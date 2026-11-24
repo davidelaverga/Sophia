@@ -81,6 +81,12 @@ import {
   validateProjectNativeResourcePage,
   validatePersonalAnswerReceipt,
   validatePersonalAnswerDecisionList,
+  validatePersonalAnswerControlReceipt,
+  validatePersonalAnswerControlView,
+  validatePersonalAnswerControlLog,
+  validatePersonalControlledTurnPage,
+  validatePersonalControlledExport,
+  validatePersonalControlledSpace,
 } from './generated/validators.js'
 import type { CursorAdvance, Error as ErrorBody, Event } from './generated-types.ts'
 
@@ -195,6 +201,27 @@ export const parseProjectNativeResourcePage = parser('ProjectNativeResourcePage'
 export const parsePersonalAnswerReceipt = parser('PersonalAnswerReceipt', validatePersonalAnswerReceipt)
 /** One input's decisions (A53), in seq order and without the answer profile; tolerant like the rest. */
 export const parsePersonalAnswerDecisionList = parser('PersonalAnswerDecisionList', validatePersonalAnswerDecisionList)
+/**
+ * A Personal answer control's receipt (A54): its own outcome and snapshot when it was made, a refused admission
+ * included. Tolerant like the rest; the pairing of the operation with its action is left to the consumer.
+ */
+export const parsePersonalAnswerControlReceipt = parser(
+  'PersonalAnswerControlReceipt',
+  validatePersonalAnswerControlReceipt,
+)
+/** One automatic input as it stands now (A54): history, control, calls, withheld answers; tolerant like the rest. */
+export const parsePersonalAnswerControlView = parser('PersonalAnswerControlView', validatePersonalAnswerControlView)
+/** A page of the owner's control operations (A54), oldest first; tolerant like the rest. */
+export const parsePersonalAnswerControlLog = parser('PersonalAnswerControlLog', validatePersonalAnswerControlLog)
+/** A page of a conversation with controlled inputs (A54); tolerant like the rest. */
+export const parsePersonalControlledTurnPage = parser('PersonalControlledTurnPage', validatePersonalControlledTurnPage)
+/** One page of the versioned export (A54); tolerant like the rest. */
+export const parsePersonalControlledExport = parser('PersonalControlledExport', validatePersonalControlledExport)
+/**
+ * The whole initial read of a space with controlled inputs (A55, personal_controlled_space_v1): companion, revision,
+ * epoch, days, the newest controlled page with its inputs' views, notes and carried notes. Tolerant like the rest.
+ */
+export const parsePersonalControlledSpace = parser('PersonalControlledSpace', validatePersonalControlledSpace)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {

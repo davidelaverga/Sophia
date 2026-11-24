@@ -18,11 +18,12 @@
 // or chosen; absent, it never shows (Home as it is today). Its API and the rest of its switches: first-run-api.ts. What
 // follows a creation is recorded as "open <id>" and, with a team, "invite <id>"; one made after the first run ended, as
 // "added <id>" (the projects read again).
+// `keys=1`: the keys' tip is mounted, as the Studio's commands host mounts it (e2e/keys-tip.spec.ts).
 import { requestAddress } from '../src/features/resources/link.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { ProjectSummary, ProjectUpdates } from '@sophia/contracts'
-import { StrictMode, useEffect, useState, type ComponentProps } from 'react'
+import { StrictMode, useEffect, useState, type ComponentProps, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { PersonalTurn } from '@sophia/contracts'
 import {
@@ -52,6 +53,7 @@ import { turnShown } from '../src/features/personal/turn-shown.ts'
 import { needsAnswer } from './fixture-api.ts'
 import { InvitedBand } from '../src/features/access/InvitedBand.tsx'
 import { FirstRun, FirstRunHeld, useFirstRun } from '../src/features/personal/FirstRun.tsx'
+import { KeysTip } from '../src/app/KeysTip.tsx'
 import { installFirstRunApi } from './first-run-api.ts'
 
 declare global {
@@ -614,11 +616,12 @@ function useSays(projects: readonly ProjectSummary[] | undefined, away: boolean,
 }
 
 /** `first=…`: Home's first run, the Studio's own; what it opens is recorded ("open <id>", "invite <id>"). */
-function useFixtureFirstRun(projects: readonly ProjectSummary[] | undefined) {
+function useFixtureFirstRun(projects: readonly ProjectSummary[] | undefined): { node: ReactNode; pending: boolean } {
   const first = useFirstRun(FIRST_IDENTITY, projects, FIRST !== null)
-  if (first.holds) return <FirstRunHeld />
-  if (!first.shows) return undefined
-  return (
+  const { pending } = first
+  if (first.holds) return { node: <FirstRunHeld />, pending }
+  if (!first.shows) return { node: undefined, pending }
+  const node = (
     <FirstRun
       identity={FIRST_IDENTITY}
       profile={first.profile}
@@ -630,6 +633,7 @@ function useFixtureFirstRun(projects: readonly ProjectSummary[] | undefined) {
       onAdded={(projectId) => pressed.push(`added ${projectId}`)}
     />
   )
+  return { node, pending }
 }
 
 /** Home, with a way to step away from it (as going to another place does), for the checks of what stops out of sight. */
@@ -639,7 +643,8 @@ function Home() {
   const projects = SETS[shown]
   const inCall = useCall()
   const says = useSays(projects, away, inCall)
-  const firstRun = useFixtureFirstRun(projects)
+  const first = useFixtureFirstRun(projects)
+  const firstRun = first.node
   const fromApi = useNeeds(
     'fixture-token',
     {
@@ -661,6 +666,7 @@ function Home() {
       )}
       {TURNS && <FixtureLog hidden={TURNS === 'hidden'} />}
       <div className="c-home" data-place-view="home" hidden={away}>
+        {first.pending && <span hidden data-guide="held" />}
         <Welcome
           hello={greeting(NOW.getHours(), null, false)}
           name="Luis"
@@ -702,6 +708,7 @@ createRoot(root).render(
     </p>
     <QueryClientProvider client={client}>
       <Home />
+      {query.has('keys') && <KeysTip />}
     </QueryClientProvider>
   </StrictMode>,
 )

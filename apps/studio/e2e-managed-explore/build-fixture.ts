@@ -11,10 +11,13 @@ export const target = {
   seedCommit: 'a'.repeat(40),
   privateConfirmed: true,
 } as const
+export const legacyDeploymentReference = 'fixture-release-7'
+export const verificationDeploymentReference = 'https://fictional.example.test/releases/7'
 export const source = Buffer.from(prototype(v2.number), 'utf8')
 const bindingId = '00000000-0000-4000-8000-000000000941'
-const exportId = '00000000-0000-4000-8000-000000000942'
+export const exportId = '00000000-0000-4000-8000-000000000942'
 const fileId = '00000000-0000-4000-8000-000000000943'
+export const returnId = '00000000-0000-4000-8000-000000000945'
 const sourceId = '00000000-0000-4000-8000-000000000944'
 
 function exportFor(binding: RepositoryBinding, revision: number): BuildExport {
@@ -54,6 +57,7 @@ interface Fixture {
   holdFile: Promise<void> | null
   unavailable: boolean
   dropBindReply: boolean
+  deploymentReference: string
 }
 const reply = (route: Route, body: unknown) => route.fulfill({ json: body })
 const absent = (route: Route) => route.fulfill({ status: 404 })
@@ -89,12 +93,12 @@ function writeEvidence(body: unknown, fixture: Fixture) {
     candidateSha: 'b'.repeat(40),
     pullRequestNumber: 7,
     mergeSha: 'c'.repeat(40),
-    deploymentReference: 'fixture-release-7',
+    deploymentReference: fixture.deploymentReference,
     deployedSha: 'c'.repeat(40),
   }
   expect(body).toMatchObject(fields)
   const item = {
-    id: '00000000-0000-4000-8000-000000000945',
+    id: returnId,
     exportId: record.id,
     exportSha256: record.sha256,
     repositoryId: target.repositoryId,
@@ -138,10 +142,10 @@ function write(route: Route, path: string, fixture: Fixture) {
   return reply(route, receipt)
 }
 
-export async function mockBuild(page: Page, unavailable = false) {
+export async function mockBuild(page: Page, unavailable = false, deploymentReference = legacyDeploymentReference) {
   await mockApi(page, { existingVersions: true, approvedVersion: true })
   const fixture: Fixture = {
-    state: { revision: 1, binding: null, export: null, returns: [] },
+    state: { revision: 1, binding: null, export: null, returns: [], verification: undefined },
     calls: [],
     receipts: new Map(),
     corrupt: false,
@@ -149,6 +153,7 @@ export async function mockBuild(page: Page, unavailable = false) {
     holdFile: null,
     unavailable,
     dropBindReply: true,
+    deploymentReference,
   }
   await page.route(
     (url) => url.pathname.includes(`/handoff/${approval.id}/`),
