@@ -1807,6 +1807,75 @@ img.avatar {
     filter: var(--glow-threshold-still);
   }
 }
+/* Her light under the formed mark, on paper (docs/plans/paper-light-rays.md): where the room's canvas pours past the
+   halves, paper draws a beam on the line between you, a wash and slow rays, in her halo's own violet. It stands where
+   the canvas's light does (BEHIND, 31.5 × 22 on the 48 grid: 7.5 right of the mark's centre, 2 above) and leans with it
+   towards the pointer (--bx, --by, from the engine). In the room it is not drawn: the canvas is. */
+.threshold-light {
+  display: none;
+}
+:root[data-theme='light'] .threshold-light {
+  display: block;
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  translate: calc(var(--ms) * 7.5 / 48 + var(--bx, 0px)) calc(var(--ms) * -2 / 48 + var(--by, 0px));
+}
+:root[data-theme='light'] .threshold-light::before,
+:root[data-theme='light'] .threshold-light::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+}
+/* The rays: faint spokes fading outward, turning once in 90 s. */
+:root[data-theme='light'] .threshold-light::before {
+  width: calc(var(--ms) * 4.4);
+  height: calc(var(--ms) * 4.4);
+  margin: calc(var(--ms) * -2.2);
+  background: repeating-conic-gradient(rgb(var(--halo-rgb) / 0.1) 0 4deg, transparent 8deg 31deg);
+  mask: radial-gradient(closest-side, #000 8%, rgb(0 0 0 / 0.5) 34%, transparent 70%);
+  filter: blur(calc(var(--ms) / 14));
+  animation: threshold-rays 90s linear infinite;
+}
+/* The beam on the line and the wash around it, breathing with her halo. */
+:root[data-theme='light'] .threshold-light::after {
+  width: calc(var(--ms) * 3.1);
+  height: calc(var(--ms) * 3.1);
+  margin: calc(var(--ms) * -1.55);
+  background-image:
+    radial-gradient(
+      calc(var(--ms) * 0.1) calc(var(--ms) * 1.3) at 50% 50%,
+      rgb(var(--halo-rgb) / 0.75),
+      rgb(var(--halo-rgb) / 0.4) 40%,
+      transparent
+    ),
+    radial-gradient(closest-side, rgb(var(--halo-rgb) / 0.2), rgb(var(--halo-rgb) / 0.08) 45%, transparent 74%);
+  filter: blur(calc(var(--ms) / 16));
+  animation: threshold-glow 4.8s var(--ease-in-out) 1.2s infinite alternate;
+}
+@keyframes threshold-rays {
+  to {
+    rotate: 1turn;
+  }
+}
+@keyframes threshold-glow {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme='light'] .threshold-light::before,
+  :root[data-theme='light'] .threshold-light::after {
+    animation: none;
+  }
+  :root[data-theme='light'] .threshold-light::after {
+    opacity: 0.8;
+  }
+}
 .light[data-fallback] .light-gl {
   display: none;
 }

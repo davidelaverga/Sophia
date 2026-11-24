@@ -57,6 +57,20 @@ export const UMBRAL: Readonly<Record<'you' | 'her', UmbralHalf>> = {
 /** Whom the light behind the mark turns to: whom she attends to (Home's line while you write to her), else the pointer. */
 export const aimOf = (attention: Point | null, pointer: Point | null): Point | null => attention ?? pointer
 
+/**
+ * On paper the light behind the mark is CSS (paper-light-rays.md): how far it leans from the line between you, in the
+ * mark's pixels, from the same numbers the canvas draws it with. With no mark it leans nowhere.
+ */
+export function paperBehind(f: {
+  markSize: number
+  sourceX: number
+  sourceY: number
+}): Record<'--bx' | '--by', string> {
+  const unit = f.markSize / 48
+  const px = (grid: number) => `${String(Math.round(grid * unit * 10) / 10 || 0)}px`
+  return { '--bx': px(f.sourceX - BEHIND.x), '--by': px(f.sourceY - BEHIND.y) }
+}
+
 /** Behind the formed mark the light stands on the line between you, between your half and hers (48 grid). */
 export const BEHIND: Point = { x: 31.5, y: 22 }
 /** Towards a pointer it moves at most this far on the grid, all of it once the pointer is this many pixels away. */

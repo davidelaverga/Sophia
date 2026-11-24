@@ -6,6 +6,7 @@ import {
   condensedRadius,
   lightBehind,
   markSize,
+  paperBehind,
   roomForMark,
   shapedTarget,
   UMBRAL,
@@ -97,5 +98,28 @@ describe('Umbral’s halves, drawn and blocked alike', () => {
 
   it('your half lies left of the line between you, hers right of it', () => {
     assert.ok(UMBRAL.you.x < UMBRAL.you.cut && UMBRAL.her.x > UMBRAL.her.cut)
+  })
+})
+
+describe('the light behind the mark, on paper (paper-light-rays.md)', () => {
+  const mark = { markSize: 96, sourceX: BEHIND.x, sourceY: BEHIND.y }
+  it('stands on the line between the halves at rest: no lean', () => {
+    assert.deepEqual(paperBehind(mark), { '--bx': '0px', '--by': '0px' })
+  })
+  it('leans in the mark’s pixels: 3.5 on the grid of a 96 px mark is 7 px', () => {
+    assert.deepEqual(paperBehind({ ...mark, sourceX: BEHIND.x + 3.5, sourceY: BEHIND.y - 1 }), {
+      '--bx': '7px',
+      '--by': '-2px',
+    })
+    assert.deepEqual(paperBehind({ ...mark, markSize: 48, sourceX: BEHIND.x + 3.5 }), {
+      '--bx': '3.5px',
+      '--by': '0px',
+    })
+  })
+  it('with no mark, no lean', () => {
+    assert.deepEqual(paperBehind({ markSize: 0, sourceX: BEHIND.x + 3, sourceY: BEHIND.y }), {
+      '--bx': '0px',
+      '--by': '0px',
+    })
   })
 })
