@@ -17,6 +17,7 @@ import {
   startAddressedConversationInput,
   withActor,
 } from '@sophia/persistence'
+import { DomainError } from '@sophia/domain'
 import { conversationInputRef, conversationInputsInstallation } from './conversation-inputs.ts'
 import { namesOf } from './profile.ts'
 import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
@@ -24,6 +25,9 @@ import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
 export const CONVERSATION_INPUT_ADDRESSING_SCHEMA = `SELECT
   to_regprocedure('sophia.start_conversation_addressed_input(uuid,text,text,text,text,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.send_conversation_addressed_input(uuid,text,text,text,text,jsonb,uuid)') IS NOT NULL AS ok`
+
+export const CONVERSATION_INPUT_REPLAY_SCHEMA = `SELECT
+  to_regprocedure('sophia.addressed_input_replay_installed()') IS NOT NULL AS ok`
 
 export const CONVERSATION_INPUT_OBSERVATION_SCHEMA = `SELECT
   to_regprocedure('sophia.read_saved_conversation_input_context(uuid,uuid,uuid)') IS NOT NULL
@@ -57,7 +61,7 @@ const artifactVersionParams = {
 /** A63 adds addressed writes beside A49 and returns the existing record-only receipt. */
 export function conversationInputAddressingRoutes(
   app: FastifyInstance,
-  { pool, observeInputs }: { pool: pg.Pool; observeInputs: boolean },
+  { pool, observeInputs, replayOnly = false }: { pool: pg.Pool; observeInputs: boolean; replayOnly?: boolean },
 ): void {
   const addressingInstalled = conversationInputsInstallation(
     pool,
@@ -69,14 +73,20 @@ export function conversationInputAddressingRoutes(
     CONVERSATION_ARTIFACT_VERSION_SCHEMA,
     'Artifact context is not installed on this database',
   )
+  const replayInstalled = conversationInputsInstallation(
+    pool,
+    CONVERSATION_INPUT_REPLAY_SCHEMA,
+    'Addressed input replay is not installed on this database',
+  )
   const installed = async (versionId?: string) => {
+    if (replayOnly) await replayInstalled()
     await addressingInstalled()
     if (versionId !== undefined) await artifactVersionInstalled()
   }
   registerArtifactVersionRead(app, pool, artifactVersionInstalled)
-  const observe = observeInputs ? savedInputObserver(pool) : undefined
-  registerAddressedStart(app, pool, installed, observe)
-  registerAddressedSend(app, pool, installed, observe)
+  const observe = observeInputs && !replayOnly ? savedInputObserver(pool) : undefined
+  registerAddressedStart(app, pool, installed, { observe, replayOnly })
+  registerAddressedSend(app, pool, installed, { observe, replayOnly })
 }
 
 function registerArtifactVersionRead(app: FastifyInstance, pool: pg.Pool, installed: () => Promise<void>): void {
@@ -107,11 +117,20 @@ function savedInputObserver(pool: pg.Pool): ObserveSavedInput {
   }
 }
 
+/** Require 0133 again in this transaction before any guarded writer; replay never updates the actor profile. */
+async function inputName(client: pg.PoolClient, request: FastifyRequest, replayOnly: boolean): Promise<string | null> {
+  if (!replayOnly) return nameActor(client, namesOf(request))
+  const { rows } = await client.query<{ ok: boolean }>('SELECT sophia.addressed_input_replay_installed() AS ok')
+  if (rows[0]?.ok !== true) throw new DomainError('projection_unavailable', 'Addressed input replay unavailable')
+  await client.query("SELECT set_config('sophia.addressed_input_replay', 'on', true)")
+  return null
+}
+
 function registerAddressedStart(
   app: FastifyInstance,
   pool: pg.Pool,
   installed: (versionId?: string) => Promise<void>,
-  observe?: ObserveSavedInput,
+  { observe, replayOnly }: { observe: ObserveSavedInput | undefined; replayOnly: boolean },
 ): void {
   app.post<{
     Params: { projectId: string }
@@ -141,7 +160,7 @@ function registerAddressedStart(
             projectId,
             request.headers['idempotency-key'],
             request.body,
-            await nameActor(client, namesOf(request)),
+            await inputName(client, request, replayOnly),
           )
           const conversation = await readConversationSummary(client, result.conversationId)
           const message = await readConversationMessage(client, result.messageId)
@@ -164,7 +183,7 @@ function registerAddressedSend(
   app: FastifyInstance,
   pool: pg.Pool,
   installed: (versionId?: string) => Promise<void>,
-  observe?: ObserveSavedInput,
+  { observe, replayOnly }: { observe: ObserveSavedInput | undefined; replayOnly: boolean },
 ): void {
   app.post<{
     Params: { conversationId: string }
@@ -193,7 +212,7 @@ function registerAddressedSend(
             request.params.conversationId,
             request.headers['idempotency-key'],
             request.body,
-            await nameActor(client, namesOf(request)),
+            await inputName(client, request, replayOnly),
           )
           const message = await readConversationMessage(client, result.messageId)
           return { message, input: conversationInputRef(result) }

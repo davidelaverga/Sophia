@@ -222,3 +222,16 @@ The ordinary integration run passes 140 tests with 2 counted skips (and conditio
 log); a separate legacy conversation-service crossing passes both selected real pinned runtime/Fastify/PostgreSQL
 leaves using a loopback provider double. These are separate completed results, not a replacement for the earlier
 ordinary unit failures. The ordinary-before-merge gate remains open. Exact receipt paths are in the handoff below.
+
+## DEP-R07/R09 addressed rollback replay (0133, source-only candidate)
+
+`SOPHIA_CONVERSATION_INPUT_ADDRESSING` also accepts `replay`. Leaving it unset or setting it to `off` keeps
+addressed paths off. The `on` setting retains ordinary recording. Replay serves addressed Start and Send
+receipts and the A64 artifact read. While replay is set, the A49 unaddressed recorder is unmounted and the
+addressed routes skip actor-profile and observation writes. Legacy A33 retains its existing behavior.
+
+The addressed writers check current authority, erasure and exact request identity under their existing locks.
+A matching prior receipt returns before the replay guard. A fresh key returns 503 `outcome_unknown` with
+`same_admission_key` and leaves the database unchanged. Migration 0133 installs both guards and the sentinel
+atomically. Readiness and addressed replay require the sentinel, and the replay transaction checks it again before
+setting its local guard.

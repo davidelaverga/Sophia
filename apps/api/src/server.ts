@@ -109,7 +109,10 @@ function founderBuildHandoffFromEnv(): boolean {
   return true
 }
 
-const addressedInputs = conversationInputSwitch('SOPHIA_CONVERSATION_INPUT_ADDRESSING')
+const addressedInputs =
+  optional('SOPHIA_CONVERSATION_INPUT_ADDRESSING') === 'replay'
+    ? 'replay'
+    : conversationInputSwitch('SOPHIA_CONVERSATION_INPUT_ADDRESSING')
 const app = buildApp({
   pool,
   logger: true,
@@ -121,7 +124,7 @@ const app = buildApp({
   byteStore: byteStoreFromEnv(process.env),
   companion: personal.companion,
   conversations: conversationsOn(),
-  conversationInputs: addressedInputs,
+  conversationInputs: Boolean(addressedInputs),
   conversationInputAddressing: addressedInputs,
   conversationInputObservation: conversationInputSwitch('SOPHIA_CONVERSATION_INPUT_OBSERVATION'),
   // Render sets RENDER_GIT_COMMIT; anything but 40 hex is no identity at all (null), never guessed.
