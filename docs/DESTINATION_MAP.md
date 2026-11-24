@@ -130,3 +130,13 @@ and [session handoff](handoffs/INC03-S01C-A63-0123.md).
 | `apps/api/src/conversation-artifact-version-compat.db.test.ts` | built | S1-12 | INC03-S05 — Pre-0128 attached-scope refusal and ordinary addressed input compatibility |
 | `packages/contracts/amendments/A64-saved-input-artifact-context.json` | built | S1-12 | INC03-S05 — Optional artifact identity on addressed writes and the exact-version metadata response |
 | `docs/handoffs/INC03-S02-DURABLE-OBSERVATION.md` | built | S1-12 | INC03-S02 — Reviewed 0124 observation boundary and verification evidence |
+
+## DEP-R07/R09 addressed rollback replay (source candidate)
+
+| Destination | Status | Goal | Boundary |
+|---|---|---|---|
+| `db/migrations/0133_saved_input_addressed_replay.sql` | built | S1-12, DEP-R07, DEP-R09 | Atomic replay sentinel and guards on the two 0128 addressed writers |
+| `apps/api/src/conversation-input-replay.db.test.ts` | built | S1-12, DEP-R07, DEP-R09 | Disposable PostgreSQL receipt recovery across the migration, fresh-key refusal, authority, erasure and no-effect checks |
+| `docs/handoffs/DEP-R07-R09-ADDRESSED-REPLAY.md` | built | S1-12, DEP-R07, DEP-R09 | Source boundary and replay qualification |
+
+See [the replay handoff](handoffs/DEP-R07-R09-ADDRESSED-REPLAY.md).
