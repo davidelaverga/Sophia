@@ -1,87 +1,57 @@
-# What Sophia made keeps what its room holds
+# What Sophia made: one line under hers
 
-> 2026-11-23 · Luis: «Sí, arréglala», on a finding from fixing CI on #554. Follows `room-made-object.md`. Studio only;
-> no API change, no new text.
-> 2026-11-24 · Luis on the phone row, «se ve muy cargado y poco estético», then «B · la tarjeta abre»: see «On a phone,
-> the object says less». One new glyph, pending Luis.
+> 2026-11-23 · Luis: «Sí, arréglala», on a finding from fixing CI on #554 (the object's words ran over the captions).
+> 2026-11-24 · Luis on the phone row: «se ve muy cargado y poco estético»; on B and a lit card: «se ve cheap y como que
+> no harmoniza»; then, of three directions drawn over the real room, «2 · Una línea». Follows `room-made-object.md`.
+> Studio only; no API change, no new words. One new glyph (`show`), pending Luis.
 
 ## Measured
 
-The fixture room, a report just made and two captions from Sophia. The object sits under her line, and its room is the
-lens body down to the captions.
+The fixture room, a report just made and two captions from Sophia:
 
-- Squeezed, its box shrank to that room, and its words ran on over the captions:
-  - at 375 × 667, 98 px of words in a 31 px box;
-  - at 1366 × 657, 14 px past its box.
-- Nothing saw it. The box never grew, so nothing that watched it was told. The spec measured the box, so it passed.
-- On a phone, Open and Show everyone leave the title about 40 px. Its kind and version («Report · v1») broke onto two
-  lines there.
-- With #554 (the corner above the dock on a phone), the same happens at 390 × 844.
+- The object was a glass card: an icon, its title, Open, Show everyone, Close, her description, its facts and who
+  asked. Squeezed, its words ran on over the captions: 98 px of words in a 31 px box at 375 × 667, 14 px past its
+  box at 1366 × 657. The spec measured the box, so it passed.
+- On a phone its row held five things: the title was cut to «Fixture…» in 49 px, the kind to «REPORT…».
+- Everything else on the stage is words over her light, with no box: her line, the captions, people's names. The card
+  was the one app-like box there, and every fix that dressed it (a lit edge, a paper cover, a glow) made it stand out
+  more.
 
 ## What changes
 
-The object never shrinks under its words. `StageMade` measures its room and keeps the first of these that fits
-(`madeFit` in `made-view.ts`):
+What she made is one line under hers, words on the stage as hers and the captions are:
 
-1. the whole object;
-2. without its facts and who asked;
-3. its one row: what it is, Open, Show everyone and Close. This row always stands and is never measured.
+- **Its name opens it.** The report's name, underlined in her violet, with a chevron. It is named «Open» and the
+  name, and keeps its key O and its tip. Until the task's record is read, it shows the Studio's words, quieter, and
+  waits.
+- **Its kind and version** follow in mono: «Report · v1».
+- **Show everyone and Close** are quiet glyphs, their words their names and tips. Show everyone's glyph is new: a page
+  between two pairs of waves, never Share your screen's.
+- **A failed read or a refusal** sits on its own line beneath, with its Try again.
+- **Her description, its facts and who asked** are the chat card's and the viewer's, not the stage's.
+- It is born as before, from her light, soft to sharp.
 
-It measures again as the room changes (captions coming and going) or as it does (the record read).
-
-- **Kind and version:** they stay on one line, ending in «…» where the title has no room.
-- **On a very short phone stage** (≤ 560 px wide and ≤ 640 px tall, such as 375 × 667): her line, the object's one row
-  and two captions don't fit together. While the object is there, the earlier, quieter caption gives way. The newest
-  stays.
-
-| Two captions                            | Before                     | After                       |
-| --------------------------------------- | -------------------------- | --------------------------- |
-| 1280 × 800                              | whole                      | same                        |
-| 390 × 844                               | whole, 27 px over captions | same                        |
-| 390 × 844 with #554                     | words 23 px past its box   | one row, 22 px over         |
-| 360 × 740                               | words past its box         | one row, 23 px over         |
-| 375 × 667                               | 98 px of words in 31 px    | one row, one caption, 22 px |
-| 1366 × 657                              | 14 px past its box         | one row, 11 px over         |
-
-The results are the same in dark and light.
-
-## Checks
-
-- **`made-view.test.ts`:** `madeFit` keeps the whole object when it fits and tries nothing else; it drops the facts
-  before her words; and it keeps the one row without measuring it.
-- **`e2e/room-made.spec.ts`:** the short-stage test now measures where the object's words end, not its box, at
-  1366 × 657, 390 × 844, 360 × 740 and 375 × 667. Its title and Open are still shown, and the number of captions on
-  screen is 2, or 1 at 375 × 667.
-- **Seen failing without the fix:** 1366 × 657 at −30 px, 360 × 740 at −10 px, and 375 × 667 with both captions.
-
-## On a phone, the object says less
-
-Measured at 390 × 844 with the fit above in place: five things in one row (its icon, a title cut to «Fixture…» in
-49 px, a kind cut to «REPORT…», Open filled, Show everyone outlined, Close), then her words, then «Asked by you» alone
-on a line at the right.
-
-On a stage ≤ 560 px wide (the same unnamed container query as the room's other phone rules):
-
-- **The whole object opens the report.** Open covers the object, under its other controls; its words stay its name
-  («Open»), its key O and its ring the object's edge. A chevron follows the title. Show everyone and Close stand over it.
-- **Show everyone is a glyph,** `show` in the kit: a page between two pairs of waves. Its words stay its name and its
-  tip. It is new, and pending Luis; Share your screen keeps its own.
-- **Who asked joins the kind's line:** «Report · v1 · asked by you». The line of its own goes.
-- From 560 px up, and on a computer, nothing changes.
+One line fits every stage, so nothing has to give way. The fit levels, the phone overlay and the earlier caption
+giving way on a short phone (all earlier in this PR) are gone.
 
 | Two captions | Before | After |
 | --- | --- | --- |
-| 390 × 844, title | 49 px, «Fixture…» | 201 px of room; «Fixture report» whole (81 px) |
-| 390 × 844, object | about 136 px tall | 102 px, 63 px over the captions |
-| 375 × 667, object | about 106 px, «Fixt…» | 94 px, title whole, 15 px over the caption |
-| 1280 × 800 | Open, Show everyone | same |
+| 1280 × 800 | glass card, 122 px; title cut at 69 px | one line, 28 px; name whole (93 px) |
+| 390 × 844 | card, title «Fixture…» in 49 px | one line, 40 px (finger-sized glyphs); name whole |
+| 375 × 667 | 98 px of words in a 31 px box | one line, 23 px over both captions |
+| 360 × 740 | words past its box | one line, 68 px over |
+| 1366 × 657 | 14 px past its box | one line, 46 px over |
 
-The results are the same in dark and light (headless captures, software Chromium through `safe-browser.cjs`; the
-browser pane stopped delivering frames).
+The results are the same in dark and light (headless captures, software Chromium through `safe-browser.cjs`).
 
-- **`e2e/room-made.spec.ts` (@phone):** the title is whole; who asked is on the kind's line and not on its own; Show
-  everyone is ≤ 36 px wide and named; the centre of her words and of the title is Open's, while Close and Show everyone
-  answer for their own points; a press on her words opens the report.
-- **Seen failing without it** (the phone rule's width set to 1 px): the title was cut by 34 px.
-- **Through `pw-gentle.ps1`:** `room-made`, `made-refusal`, `present-refused-exit`, `room-present` and `room-captions`,
-  62 of 62.
+## Checks
+
+- **`e2e/room-made.spec.ts`:**
+  - the notice brings one line: «Open Fixture report», «Report · v1», no background, no description on the stage;
+  - @phone: the name whole, every part on one row, Show everyone ≤ 40 px wide, each control the target of its own point;
+  - at 1366 × 657, 390 × 844, 360 × 740 and 375 × 667, with both captions shown, its words end above them and it stays
+    under her line.
+- **Fences:** it no longer casts a shadow (`elevation.test.ts`) or wears the stage's glass (`material.test.ts`).
+- **Seen failing:** with the row stacked, the @phone test read a row 141 px tall.
+- **Through `pw-gentle.ps1`:** `room-made`, `made-refusal`, `present-refused-exit`, `room-present`, `room-captions` and
+  `light-shadows`, 66 of 66.

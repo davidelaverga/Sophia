@@ -7,48 +7,38 @@ Native session: this Claude Code session; its id is not recorded in the reposito
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-ui-mejoras`, branch `ui/made-fits` from `origin/main`
 `516cb8547`.
 Ending commit/tree and changed files: content commit `f6c3a3351` (`StageMade.tsx`, `made-view.ts`,
-`made-view.test.ts`, `app/theme.css`, `e2e/room-made.spec.ts`), then the note and this record. On 2026-11-24, after
-Luis chose option B for the phone row, content commit `ce514caae` (`packages/ui/src/Icon.tsx`, `ShowEveryone.tsx`,
-`StagePresent.tsx`, `StageMade.tsx`, `app/theme.css`, `e2e/room-made.spec.ts`).
+`made-view.test.ts`, `app/theme.css`, `e2e/room-made.spec.ts`), then the note and this record. On 2026-11-24, option B
+for the phone row (`ce514caae`, which added the kit's `show` glyph), then, after Luis chose «2 · Una línea», content
+commit `6a6bee3a9` (`StageMade.tsx`, `made-view.ts`, `made-view.test.ts`, `StudioShell.tsx`, `app/theme.css`,
+`elevation.test.ts`, `material.test.ts`, `e2e/room-made.spec.ts`, `e2e/room-present.spec.ts`).
 
 ## Outcome
 
-The object under Sophia's line no longer runs its words over the captions. It keeps what its room holds, and its one
-row always stands. On a very short phone stage the earlier caption gives way to it.
-
-On a phone stage (≤ 560 px) the whole object opens the report: the title is whole beside a chevron, Show everyone is a
-glyph, and who asked joins the kind's line (`made-fits.md`, «On a phone, the object says less»).
+What Sophia made is one line under her line, words on the stage with no box: the report's name, which opens it, its
+kind and version, and Show everyone and Close as glyphs. It never runs over the captions, at any size measured.
 
 ## Evidence
 
-- **Browser pane, fixtures (:5181):** 1280 × 800, 390 × 844, 360 × 740, 375 × 667 and 1366 × 657, with two captions.
-  390 × 844 was also measured with #554 merged in a scratch branch. Dark and light.
-- **Unit tests:** `made-view.test.ts` passes 15 of 15.
-- **Through `pw-gentle.ps1`:**
-  - the spec without the fix failed 3 of 4;
-  - with the fix, `room-made`, `room-captions` and `light-shadows` passed 47 of 47;
-  - merged with #554, `room-made`, `room-dock`, `room-captions` and `light-shadows` passed 67 of 67.
+- **Headless captures** (software Chromium, `safe-browser.cjs`, fixtures on :5181): 1280 × 800, 1366 × 657, 390 × 844,
+  375 × 667 and 360 × 740, dark and light, with two captions.
+- **Three directions** were drawn over the real room with injected CSS only, for Luis to choose from
+  (`evaluacion-2026-11-22/made-direcciones.png`, outside the repository).
+- **Unit tests:** `made-view.test.ts` 7 of 7; `glow`, `elevation`, `motion`, `material` and `css-motion` fences pass.
 - `pnpm format:check`, `lint` and `typecheck` all return 0.
-- 2026-11-24, option B: headless captures at 390 × 844, 375 × 667 and 1280 × 800, dark and light; the new @phone
-  test failed without its rule (title cut by 34 px); through the guard, `room-made`, `made-refusal`,
-  `present-refused-exit`, `room-present` and `room-captions` passed 62 of 62.
+- **Through `pw-gentle.ps1`:** `room-made`, `made-refusal`, `present-refused-exit`, `room-present`, `room-captions` and
+  `light-shadows`, 66 of 66. The @phone one-line test failed with the row broken on purpose (141 px tall).
 
 ## Decisions and changes
 
-- The object's room is measured in script, not in a CSS container query. A size container on the lens body would
-  answer the unnamed `@container` queries of everything inside it, such as the 760 px summary rule.
-- The object never shrinks (`flex-shrink: 0`). Squeezed, its box stayed the room's size, so a ResizeObserver never
-  heard its words grow.
-- The earlier caption gives way only on a very short phone stage (≤ 560 × 640). This is a fixed CSS condition, not a
-  measurement: a measured one would bring the caption back as soon as the room grew, and hide it again.
+- The object is named «Open» and the report's name, so the name a person sees is in the name a voice or a reader uses.
+- Her description and the facts left the stage: they are the chat card's and the viewer's.
+- The lit-card prototype (a lit edge, a paper cover, a glide into the viewer) stays on the local branch
+  `ui/made-aaa`, unpushed: Luis rejected it.
 
 ## Remaining obligations
 
-- The PR is not merged. It is independent of #554, and both merge in either order; together they were checked in a
-  scratch merge.
+- The PR is not merged. It is independent of #554.
 - The `show` glyph is new and waits for Luis's word.
-- On a computer the 380 px object still cuts its title at about 69 px («Fixture re…») beside Open and Show everyone.
-  Left as it was: Luis's choice was for the phone.
 
 ## Next bounded action
 
