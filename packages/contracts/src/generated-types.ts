@@ -388,8 +388,9 @@ export type PersonalControlledTurn = { "id": string; "seq": number; "author": "p
 export type PersonalControlledTurnPage = { "revision": number; "epoch": number; "turns": ReadonlyArray<PersonalControlledTurn>; "earlier": boolean; "pending": boolean; };
 export type PersonalControlledExport = { "exportedAt": string; "epoch": number; "turns": ReadonlyArray<PersonalControlledTurn>; "next": number | null; "inputs": ReadonlyArray<PersonalAnswerControlView>; "notes": ReadonlyArray<PersonalNote>; "releases": ReadonlyArray<PersonalRelease>; };
 export type PersonalControlledSpace = { "spaceContract": "personal_controlled_space_v1"; "companion": "rehearsal" | "live" | "unavailable"; "revision": number; "epoch": number; "days": number; "turns": ReadonlyArray<PersonalControlledTurn>; "earlier": boolean; "pending": boolean; "inputs": ReadonlyArray<PersonalAnswerControlView>; "notes": ReadonlyArray<PersonalNote>; "releases": ReadonlyArray<PersonalRelease>; };
-export type AddressedConversationInputStart = { "interactionContract": "automatic_v1"; "title": string; "text": string; "addressingVersion": 1; "mentions": ReadonlyArray<string>; };
-export type AddressedConversationInputSend = { "interactionContract": "automatic_v1"; "text": string; "addressingVersion": 1; "mentions": ReadonlyArray<string>; "replyToMessageId": string | null; };
+export type AddressedConversationInputStart = { "interactionContract": "automatic_v1"; "title": string; "text": string; "addressingVersion": 1; "mentions": ReadonlyArray<string>; "artifactVersionId"?: string; };
+export type AddressedConversationInputSend = { "interactionContract": "automatic_v1"; "text": string; "addressingVersion": 1; "mentions": ReadonlyArray<string>; "replyToMessageId": string | null; "artifactVersionId"?: string; };
+export type ConversationArtifactVersion = { "artifactId": string; "versionId": string; "title": string; "versionNumber": number | null; };
 export type ManagedExploreSeed = { "entryId": string; "revision": number; "text": string; "sha256": string; };
 export type ManagedExploreAccountSnapshot = { "balanceCents": number | null; "currency": "USD"; "autoRechargeEnabled": boolean | null; "observedAt": string; };
 export type ManagedExploreFunding = { "routeId": string; "label": "OpenAI API credits"; "accountSnapshot"?: ManagedExploreAccountSnapshot; };
@@ -657,6 +658,7 @@ export interface Operations {
   "getPersonalControlledSpace": { method: "GET"; path: "/api/v1/personal/answer-controls/space"; request: undefined; response: PersonalControlledSpace; };
   "startAddressedConversationInput": { method: "POST"; path: "/api/v1/projects/{projectId}/conversation-inputs/addressed"; request: AddressedConversationInputStart; response: ConversationInputStarted; };
   "sendAddressedConversationInput": { method: "POST"; path: "/api/v1/conversations/{conversationId}/inputs/addressed"; request: AddressedConversationInputSend; response: ConversationInputRecorded; };
+  "getConversationArtifactVersion": { method: "GET"; path: "/api/v1/projects/{projectId}/conversation-artifact-versions/{versionId}"; request: undefined; response: ConversationArtifactVersion; };
   "readManagedExplorePreflight": { method: "GET"; path: "/api/v1/projects/{projectId}/explore/preflight"; request: undefined; response: ManagedExplorePreflight; };
   "startManagedExplore": { method: "POST"; path: "/api/v1/projects/{projectId}/explore/sessions"; request: ManagedExploreStartRequest; response: ManagedExploreStartReceipt; };
   "readManagedExploreSession": { method: "GET"; path: "/api/v1/projects/{projectId}/explore/sessions/{sessionId}"; request: undefined; response: ManagedExploreSession; };

@@ -446,7 +446,19 @@ export {
   type ConversationInputSend,
   type ConversationInputStart,
 } from './conversation-inputs.ts'
-export { sendAddressedConversationInput, startAddressedConversationInput } from './conversation-input-addressing.ts'
+export {
+  sendAddressedConversationInput,
+  startAddressedConversationInput,
+  readAddressedConversationInput,
+  readConversationArtifactVersion,
+  type AddressedConversationInputRead,
+} from './conversation-input-addressing.ts'
+export {
+  observeAddressedConversationInput,
+  type AddressedInputObservation,
+  type AddressedInputScope,
+} from './addressed-input-observation.ts'
+export { recordAddressedInputObservation, type SavedInputObservation } from './saved-input-observations.ts'
 
 export {
   runtimeConversationClaim,

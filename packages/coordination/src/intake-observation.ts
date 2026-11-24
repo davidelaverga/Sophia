@@ -12,15 +12,15 @@
  *
  * It does not admit anything: the outcome is never `admitted`. Supplied facts can make an input wait or be denied;
  * none grants authority. It calls no model, reads no clock, environment, file or network, and holds no transport,
- * database, notification, control or dispatch handle. It is not exported from the package and not installed in any
- * request path: the offline consumer is scripts/intake-observe.ts, and the later admitted intake consumer must reuse
- * it behind an additive durable contract (docs/plans/intake-observation.md).
+ * database, notification, control or dispatch handle. Its package export serves the internal authenticated retained-input
+ * adapter only; it is not mounted in a request path. The offline consumer is scripts/intake-observe.ts; later durable
+ * intake/admission still needs an additive contract (docs/plans/intake-observation.md).
  * @module @sophia/coordination/intake-observation
  */
 import { createHash } from 'node:crypto'
 import { canonicalJson } from './canonical.ts'
 
-export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v25'
+export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v26'
 
 export const INTAKE_LIMITS = { textChars: 4000, contextKeys: 64, stringChars: 200, listItems: 16 } as const
 
@@ -295,8 +295,11 @@ function parseContext(raw: unknown, errors: InputError[]): Map<ContextField, Fac
 }
 
 function parseText(raw: unknown, errors: InputError[]): string {
+  const limit = INTAKE_LIMITS.textChars
   if (typeof raw !== 'string' || raw.trim().length === 0) errors.push({ code: 'invalid_text', path: 'text' })
-  else if (raw.length > INTAKE_LIMITS.textChars) errors.push({ code: 'text_too_long', path: 'text' })
+  // Each code point takes at most two UTF-16 units, so conversion stays bounded.
+  else if (raw.length > limit && (raw.length > limit * 2 || Array.from(raw).length > limit))
+    errors.push({ code: 'text_too_long', path: 'text' })
   return typeof raw === 'string' ? raw : ''
 }
 
@@ -2113,6 +2116,7 @@ export const INTAKE_OBSERVATION_POLICY = {
   ],
   lexicon: LEXICON,
   text: {
+    lengthUnit: 'Unicode code points, matching the saved-conversation API and storage bound',
     unread: 'a message with no clause in the lexicon abstains (outside_lexicon, semantic assessment required)',
     acknowledgement:
       'leading acknowledgements are a prefix; a message is an acknowledgement only if every authored clause is one, and beside unread words it abstains like those words alone',

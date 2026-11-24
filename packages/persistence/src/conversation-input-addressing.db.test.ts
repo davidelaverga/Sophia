@@ -166,7 +166,7 @@ async function noEffects(project: string) {
 before(async () => {
   baseMigrations = mkdtempSync(join(tmpdir(), 'sophia-0123-baseline-'))
   for (const file of readdirSync('db/migrations'))
-    if (file.endsWith('.sql') && file !== '0123_saved_conversation_input_addressing.sql')
+    if (file.endsWith('.sql') && file < '0123_saved_conversation_input_addressing.sql')
       cpSync(join('db/migrations', file), join(baseMigrations, file))
   db = await createTestDatabase(baseMigrations, { assembler: true })
   api = new pg.Pool({ connectionString: db.apiUrl, max: 4, statement_timeout: 5000, connectionTimeoutMillis: 5000 })
@@ -180,6 +180,9 @@ before(async () => {
   ).map((row) => row.signature)
   const migration = 'db/migrations/0123_saved_conversation_input_addressing.sql'
   if (existsSync(migration)) await owner.query(readFileSync(migration, 'utf8'))
+  const observationMigration = 'db/migrations/0124_saved_conversation_input_observations.sql'
+  if (existsSync(migration) && existsSync(observationMigration))
+    await owner.query(readFileSync(observationMigration, 'utf8'))
 })
 after(async () => {
   await api?.end()

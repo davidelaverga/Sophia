@@ -35,3 +35,6 @@ export {
   type WorkFact,
 } from './projection.ts'
 export * from './plugin-wire.ts'
+
+// Internal retained-input adapter only; exporting the pure policy does not mount or admit a request path.
+export { observeIntake, type IntakeObservation } from './intake-observation.ts'

@@ -85,6 +85,7 @@ const EXPORTS = [
   'ConversationMessagePage',
   'ConversationStarted',
   'ConversationMessageSent',
+  'ConversationArtifactVersion',
   'ConversationWithdrawal',
   'ConversationErasure',
   'DesignEditReceipt',
