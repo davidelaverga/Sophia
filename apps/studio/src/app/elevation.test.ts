@@ -94,6 +94,7 @@ const paperOnly = (where: string) => where.includes(":root[data-theme='light']")
 const ROOM: Record<string, string[]> = {
   'src/app/theme.css .tip': ['0 8px 24px rgb(0 0 0 / 0.5)'],
   'src/app/theme.css .menu': ['0 18px 50px rgb(0 0 0 / 0.55)'],
+  'src/app/theme.css .stage-made': ['0 16px 48px rgb(0 0 0 / 0.5)'],
   'src/app/theme.css .dock': ['0 16px 48px rgb(0 0 0 / 0.5)'],
   'src/app/theme.css .mini-dock': ['0 12px 40px rgb(0 0 0 / 0.45)'],
   'src/app/theme.css .welcome-band': ['0 12px 32px rgb(0 0 0 / 0.32)'],

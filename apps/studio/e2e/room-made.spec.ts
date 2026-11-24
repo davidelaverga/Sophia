@@ -9,8 +9,7 @@ const DESCRIBED = 'A labelled fixture report, as Sophia described it.'
 
 const leave = (page: Page) => page.getByRole('button', { name: 'Leave the room' })
 const made = (page: Page) => page.getByRole('group', { name: 'Made by Sophia' })
-/** Its name is its Open (made-fits.md): said as «Open» and the report's name. */
-const openIt = (page: Page) => made(page).getByRole('button', { name: /^Open / })
+const openIt = (page: Page) => made(page).getByRole('button', { name: 'Open', exact: true })
 const chatToggle = (page: Page) => page.getByRole('button', { name: /^Chat/ }).first()
 const pane = (page: Page) => page.getByRole('complementary', { name: 'Fixture report' })
 const notice = (page: Page) => page.evaluate(() => window.fixture?.notice())
@@ -37,17 +36,26 @@ test.afterEach(async ({ page }) => {
   expect(await page.evaluate(() => [...(window.fixture?.unexpected ?? [])])).toEqual([])
 })
 
-test('made · a notice brings one line into the room: the report’s name, which opens it, its kind and version', async ({
+test('made · a notice brings one row in the dock’s material: what it is, its kind and version, Open', async ({
   page,
 }) => {
   await enter(page)
   await expect(made(page)).toHaveCount(0)
   await notice(page)
   await expect(made(page)).toBeVisible()
-  await expect(openIt(page)).toHaveAccessibleName('Open Fixture report')
+  await expect(made(page).locator('.made-title')).toHaveText('Fixture report')
   await expect(made(page).locator('.made-meta')).toHaveText('Report · v1')
-  // Words on the stage, as her line and the captions: no box. Her description and the facts are the chat card's.
-  expect(await made(page).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
+  await expect(openIt(page)).toBeVisible()
+  // The dock's own glass, edge and radius; her description and the facts are the chat card's.
+  const look = (selector: string) =>
+    page
+      .locator(selector)
+      .first()
+      .evaluate((el) => {
+        const s = getComputedStyle(el)
+        return [s.backgroundColor, s.borderTopColor, s.borderTopLeftRadius, s.backdropFilter]
+      })
+  expect(await look('.stage-made')).toEqual(await look('.dock'))
   await expect(made(page).getByText(DESCRIBED)).toHaveCount(0)
 })
 
@@ -167,17 +175,19 @@ test('@phone · the object sits above the dock and fits a phone', async ({ page 
   expect(sideways).toBe(0)
 })
 
-// On a phone it stays one line (made-fits.md): its name whole, Show everyone and Close as glyphs, each its own target.
-test('@phone · one line on a phone: its name whole, Show everyone a glyph, each control its own', async ({ page }) => {
+// On a phone it stays one row (made-fits.md): its title whole beside Open, Show everyone and Close as glyphs.
+test('@phone · one row on a phone: its title whole, Open, Show everyone a glyph, each control its own', async ({
+  page,
+}) => {
   await enter(page)
   await notice(page)
   await made(page).evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
   const row = await box(page, '.made-row')
   const title = made(page).locator('.made-title')
   expect(await title.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0)
-  // One line: as tall as a finger's control, with each part's middle on it.
+  // One row: as tall as a finger's control, with each part's middle on it.
   expect(row.height).toBeLessThanOrEqual(44)
-  for (const part of ['.made-open', '.made-meta', '.made-acts .pill', '.made-close']) {
+  for (const part of ['.made-head', '.made-row > .pill', '.made-acts .pill', '.made-close']) {
     const b = await box(page, part)
     expect(b.y + b.height / 2).toBeGreaterThan(row.y)
     expect(b.y + b.height / 2).toBeLessThan(row.y + row.height)
@@ -192,7 +202,7 @@ test('@phone · one line on a phone: its name whole, Show everyone a glyph, each
       const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest('button')
       return hit?.getAttribute('aria-label') ?? hit?.textContent ?? null
     }, selector)
-  expect(await at('.made-title')).toMatch(/^Open Fixture report/)
+  expect(await at('.made-row > .pill')).toMatch(/^Open/)
   expect(await at('.made-close')).toBe('Close')
   expect(await at('.made-acts .focus-glyph')).toMatch(/^Show everyone/)
   await openIt(page).click()
@@ -276,7 +286,7 @@ test('made · born once: back in sight after Chat, it is simply there', async ({
 /** Where the object's words end, not its box: squeezed, its box once ended above the captions while its words ran on. */
 const madeEnds = (page: Page) => made(page).evaluate((el) => el.getBoundingClientRect().top + el.scrollHeight)
 
-// One line fits every stage (made-fits.md): above both captions, under her line, a short phone's too.
+// One row fits every stage (made-fits.md): above both captions, under her line, a short phone's too.
 for (const [width, height] of [
   [1366, 657],
   [390, 844],
@@ -297,7 +307,7 @@ for (const [width, height] of [
     await expect
       .poll(async () => (await box(page, '.stage-captions')).y - (await madeEnds(page)))
       .toBeGreaterThanOrEqual(0)
-    // Its name, which opens it, stands whole.
+    // What it is, and Open.
     await expect(made(page).locator('.made-title')).toBeVisible()
     await expect(openIt(page)).toBeVisible()
     // Nor over Sophia's line: her state stays readable.

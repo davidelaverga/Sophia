@@ -2480,19 +2480,25 @@ img.avatar {
   text-wrap: balance;
 }
 /*
- * What Sophia made, born in the room (docs/plans/room-made-object.md, made-fits.md): one line under hers, words on the
- * stage as hers and the captions are, with no box of its own. The report's name opens it, underlined in her violet; its
- * kind and version beside it in mono; Show everyone and Close as quiet glyphs. The first time, it comes down from where
- * the light is, from soft to sharp; back in sight, or under reduced motion, it is simply there.
+ * What Sophia made, born in the room (docs/plans/room-made-object.md, made-fits.md): one row under her line, in the
+ * dock's own material (its glass, edge, radius and level), nothing of its own: what it is, its kind and version, Open,
+ * and Show everyone and Close as the stage's quiet glyphs. The first time, it comes down from where the light is, from
+ * soft to sharp; back in sight, or under reduced motion, it is simply there.
  */
 .stage-made {
   position: relative;
   align-self: center;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  max-width: 100%;
+  gap: 4px;
+  width: min(420px, 100%);
+  padding: 5px 5px 5px 12px;
+  border-radius: var(--r-4);
+  border: 1px solid var(--line-2);
+  background: var(--glass-stage);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: var(--lift), var(--elev-dock);
 }
 .stage-made.born {
   animation: made-born var(--motion-flourish) var(--ease) both;
@@ -2512,62 +2518,40 @@ img.avatar {
   display: flex;
   align-items: center;
   gap: 10px;
-  max-width: 100%;
   min-width: 0;
 }
-.made-open {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  padding: 2px 0 4px;
-  border: 0;
-  border-bottom: 1px solid rgb(var(--halo-rgb) / 0.55);
-  border-radius: 0;
-  background: none;
-  color: var(--text);
-  font: inherit;
-  cursor: pointer;
-  transition: border-color var(--motion-fast) var(--ease);
+.made-icon {
+  display: inline-grid;
+  flex: none;
+  color: var(--text-3);
 }
-.made-title {
+.made-head {
+  display: grid;
+  flex: 1;
+  gap: 1px;
+  min-width: 0;
+}
+.made-title,
+.made-meta {
   overflow: hidden;
-  font-size: 15px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.made-go {
-  display: inline-grid;
-  flex: none;
-  color: var(--halo-text);
-  transition: translate var(--motion-fast) var(--ease);
-}
-.made-open:hover:not([aria-disabled='true']) {
-  border-bottom-color: rgb(var(--halo-rgb));
-}
-.made-open:hover:not([aria-disabled='true']) .made-go {
-  translate: 2px 0;
-}
-/* Until its record is read there is nothing to open yet: its name waits, quieter. */
-.made-open[aria-disabled='true'] {
-  border-bottom-color: var(--line-2);
-  color: var(--text-2);
-  cursor: default;
-}
-.made-open[aria-disabled='true'] .made-go {
-  color: var(--text-3);
+.made-title {
+  font-size: var(--type-body);
+  font-weight: 500;
+  letter-spacing: -0.01em;
 }
 .made-meta {
-  flex: none;
   color: var(--text-3);
   font-family: var(--mono);
   font-size: 10.5px;
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  white-space: nowrap;
+}
+.made-row > .pill {
+  flex: none;
 }
 /* Show everyone is its glyph (its words its name and its tip); Close its cross: quiet squares, as the stage's own. */
 .made-acts {
@@ -2586,8 +2570,8 @@ img.avatar {
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: 0;
   border-radius: var(--r-2);
@@ -2610,13 +2594,14 @@ img.avatar {
   color: var(--text-3);
   font-size: 12px;
 }
-/* A read that failed, or a refusal: on its own line under the object's, in the stage's quiet words. */
+/* A read that failed, or a refusal: on its own line under the object's row, in the stage's quiet words. */
 .made-retry,
 .stage-made > p {
   display: flex;
   align-items: baseline;
   gap: 8px;
   margin: 0;
+  padding: 0 4px 4px 26px;
   color: var(--text-3);
   font-size: 12px;
 }

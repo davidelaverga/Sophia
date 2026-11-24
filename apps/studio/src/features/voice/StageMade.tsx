@@ -1,6 +1,6 @@
-// What Sophia made, born in the room (docs/plans/room-made-object.md, made-fits.md): a result's notice brings one line
-// under hers, words on the stage as hers and the captions are: the report's name, which opens it, its kind and
-// version, Show everyone and Close. Its description and facts are the chat card's and the viewer's. The chat keeps its
+// What Sophia made, born in the room (docs/plans/room-made-object.md, made-fits.md): a result's notice brings one row
+// under her line, in the dock's own material: what it is (its title, its kind and version), Open, Show everyone and
+// Close. Its description and facts are the chat card's and the viewer's. The chat keeps its
 // own card; this one is put away for this person once opened (here or anywhere) or closed. Until the task's record is
 // read it says what the chat's card says, and Open waits.
 import { useQuery } from '@tanstack/react-query'
@@ -236,25 +236,18 @@ function useUnderHerLine(self: RefObject<HTMLDivElement | null>) {
   }, [self])
 }
 
-/**
- * Its name is its Open (made-fits.md): the report's name and a chevron, said as «Open» and the name; its key in the
- * Studio's tip while the key works. Once a read failed, its name stands alone, with Try again.
- */
-function OpenTitle(p: { title: string; ready: boolean; keyOn: boolean; onOpen: () => void }) {
+/** Open, its key in the Studio's tip while the key works; once a read failed, its line below says so instead. */
+function OpenButton({ ready, keyOn, onOpen }: { ready: boolean; keyOn: boolean; onOpen: () => void }) {
   return (
     <button
       type="button"
-      className="made-open has-tip"
-      onClick={p.onOpen}
-      aria-disabled={!p.ready || undefined}
-      aria-keyshortcuts={p.keyOn ? 'o' : undefined}
+      className="pill primary has-tip"
+      onClick={onOpen}
+      aria-disabled={!ready || undefined}
+      aria-keyshortcuts={keyOn ? 'o' : undefined}
     >
-      <span className="sr-only">Open </span>
-      <span className="made-title">{p.title}</span>
-      <span className="made-go" aria-hidden="true">
-        <Icon name="forward" size={12} />
-      </span>
-      {p.keyOn && <Tip label="Open the report" keys="O" />}
+      Open
+      {keyOn && <Tip label="Open the report" keys="O" />}
     </button>
   )
 }
@@ -292,12 +285,14 @@ export function StageMade(props: Props) {
       onKeyDown={onKeyDown}
     >
       <span className="made-row">
-        {record.failed ? (
+        <span className="made-icon" aria-hidden="true">
+          <Icon name="brief" />
+        </span>
+        <span className="made-head">
           <span className="made-title">{heading.title}</span>
-        ) : (
-          <OpenTitle title={heading.title} ready={ready} keyOn={key} onOpen={open} />
-        )}
-        <span className="made-meta">{heading.meta}</span>
+          <span className="made-meta">{heading.meta}</span>
+        </span>
+        {!record.failed && <OpenButton ready={ready} keyOn={key} onOpen={open} />}
         <span className="made-acts">
           {props.show && version && record.current && props.show(version.id, () => props.onPutAway(notice), 'show')}
         </span>
