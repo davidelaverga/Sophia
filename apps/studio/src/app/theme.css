@@ -2480,25 +2480,19 @@ img.avatar {
   text-wrap: balance;
 }
 /*
- * What Sophia made, born in the room (docs/plans/room-made-object.md): under her line, at the foot of the Converse lens
- * body, on the stage's axis. The report as Knowledge shows it, a few facts, Open and Close. The first time, it comes
- * down from where the light is, from soft to sharp; back in sight, or under reduced motion, it is simply there.
+ * What Sophia made, born in the room (docs/plans/room-made-object.md, made-fits.md): one line under hers, words on the
+ * stage as hers and the captions are, with no box of its own. The report's name opens it, underlined in her violet; its
+ * kind and version beside it in mono; Show everyone and Close as quiet glyphs. The first time, it comes down from where
+ * the light is, from soft to sharp; back in sight, or under reduced motion, it is simply there.
  */
 .stage-made {
   position: relative;
   align-self: center;
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) auto 28px;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px 12px;
-  width: min(380px, 100%);
-  padding: 12px;
-  border-radius: var(--r-4);
-  border: 1px solid var(--line-2);
-  background: var(--glass-stage);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
-  backdrop-filter: blur(20px) saturate(140%);
-  box-shadow: var(--lift), var(--elev-dock);
+  gap: 6px;
+  max-width: 100%;
 }
 .stage-made.born {
   animation: made-born var(--motion-flourish) var(--ease) both;
@@ -2514,249 +2508,123 @@ img.avatar {
     filter: blur(0);
   }
 }
-.made-icon {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--r-2);
-  border: 1px solid rgb(var(--halo-rgb) / 0.32);
-  background: rgb(var(--halo-rgb) / 0.08);
-  color: var(--halo-text);
-}
-.made-head {
-  display: grid;
-  gap: 2px;
-  align-content: center;
+.made-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
   min-width: 0;
+}
+.made-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px 0 4px;
+  border: 0;
+  border-bottom: 1px solid rgb(var(--halo-rgb) / 0.55);
+  border-radius: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color var(--motion-fast) var(--ease);
 }
 .made-title {
   overflow: hidden;
-  font-size: var(--type-body);
+  font-size: 15px;
   font-weight: 500;
   letter-spacing: -0.01em;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.made-meta,
-.made-asked {
+.made-go {
+  display: inline-grid;
+  flex: none;
+  color: var(--halo-text);
+  transition: translate var(--motion-fast) var(--ease);
+}
+.made-open:hover:not([aria-disabled='true']) {
+  border-bottom-color: rgb(var(--halo-rgb));
+}
+.made-open:hover:not([aria-disabled='true']) .made-go {
+  translate: 2px 0;
+}
+/* Until its record is read there is nothing to open yet: its name waits, quieter. */
+.made-open[aria-disabled='true'] {
+  border-bottom-color: var(--line-2);
+  color: var(--text-2);
+  cursor: default;
+}
+.made-open[aria-disabled='true'] .made-go {
+  color: var(--text-3);
+}
+.made-meta {
+  flex: none;
   color: var(--text-3);
   font-family: var(--mono);
   font-size: 10.5px;
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
-.made-asked {
-  margin-left: auto;
-  font-family: var(--sans);
-  font-size: 12px;
-  letter-spacing: 0;
-  text-transform: none;
-}
-.made-summary {
-  grid-column: 1 / -1;
-  display: -webkit-box;
-  overflow: hidden;
-  margin: 0;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  color: var(--text-2);
-  font-size: 13px;
-  text-wrap: pretty;
-}
-.made-facts {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-.made-fact {
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 7px;
-  border-radius: var(--r-1);
-  border: 1px solid var(--line);
-  color: var(--text-3);
-  font-family: var(--mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  font-variant-numeric: tabular-nums;
-}
-.made-fact[data-limit] {
-  border-color: rgb(var(--amber-rgb) / 0.28);
-  color: var(--amber);
-}
+/* Show everyone is its glyph (its words its name and its tip); Close its cross: quiet squares, as the stage's own. */
 .made-acts {
-  grid-column: 3;
-  grid-row: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: contents;
 }
-.made-failed {
-  color: var(--text-3);
-  font-size: 12px;
+.made-acts .focus-words {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
+.made-acts .pill,
 .made-close {
-  grid-column: 4;
-  grid-row: 1;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
   width: 28px;
   height: 28px;
-  border-color: transparent;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-2);
   background: transparent;
+  box-shadow: none;
+  color: var(--text-3);
+  transition:
+    background var(--motion-fast) var(--ease),
+    color var(--motion-fast) var(--ease);
 }
-/* A short stage (a laptop, a phone): Sophia's description in one line, so the object stays between her line and the
-   captions. */
-@container (max-height: 760px) {
-  .made-summary {
-    -webkit-line-clamp: 1;
-  }
+.made-acts .pill:hover:not(:disabled),
+.made-close:hover {
+  background: rgb(var(--ink-rgb) / 0.08);
+  color: var(--text);
+}
+.made-acts .focus-said:empty {
+  display: none;
+}
+.made-acts .focus-said {
+  color: var(--text-3);
+  font-size: 12px;
+}
+/* A read that failed, or a refusal: on its own line under the object's, in the stage's quiet words. */
+.made-retry,
+.stage-made > p {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12px;
 }
 /* It sits right under her line, where it was born, not down by the dock: below the line however tall it is now (a
    note, a session, words wrapping), as StageMade measures it (--line-h). */
 .stage-body:has(.stage-made) {
   top: calc(var(--ly) + var(--lr) * 0.46 + max(56px, var(--line-h, 0px) + 12px));
   justify-content: flex-start;
-}
-.made-by {
-  color: var(--text-3);
-}
-/* As much of it as its room holds (made-fits.md; StageMade measures it): first its facts and who asked go, then her
-   words. Its one row (its title, Open, Close) always stands. It never shrinks under its words: squeezed, its box
-   stayed the room's size while its words ran past it, and nothing saw them grow. */
-.stage-body .stage-made {
-  flex-shrink: 0;
-}
-.stage-made:is([data-fit='brief'], [data-fit='row']) .made-facts,
-.stage-made[data-fit='row'] .made-summary {
-  display: none;
-}
-/* Its title and its kind each on one line beside narrow actions, never two. */
-.made-line,
-.made-sub {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-.made-sub {
-  overflow: hidden;
-  white-space: nowrap;
-}
-.made-meta {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.made-go,
-.made-sub-asked,
-.made-acts .focus-glyph,
-.made-acts .focus-glyph ~ .tip {
-  display: none;
-}
-/*
- * On a phone stage (made-fits.md) the object says less: the whole of it opens the report, so Open's words go and a
- * chevron follows the title; Show everyone is its glyph, its words its name and tip; who asked joins the kind's line.
- * Its title keeps the room Open and Show everyone's words took.
- */
-@container (max-width: 560px) {
-  .made-go {
-    display: inline-grid;
-    flex: none;
-    color: var(--text-3);
-  }
-  .stage-made:has(.made-open[aria-disabled]) .made-go {
-    color: var(--text-4);
-  }
-  .made-sub-asked {
-    display: block;
-    overflow: hidden;
-    min-width: 0;
-    color: var(--text-3);
-    font-family: var(--mono);
-    font-size: 10.5px;
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    text-overflow: ellipsis;
-    text-transform: uppercase;
-  }
-  .made-meta {
-    flex: none;
-    max-width: 100%;
-  }
-  .made-facts .made-asked {
-    display: none;
-  }
-  /* Over the whole object, under its other controls: its words its name, its ring the object's edge. */
-  .stage-made .pill.made-open {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    width: auto;
-    height: auto;
-    padding: 0;
-    border: 0;
-    border-radius: inherit;
-    background: transparent;
-    box-shadow: none;
-    color: transparent;
-    font-size: 0;
-  }
-  .made-open > .tip {
-    display: none;
-  }
-  .stage-made .pill.made-open:hover:not([aria-disabled='true']) {
-    border-color: transparent;
-    background: rgb(var(--halo-rgb) / 0.06);
-  }
-  .stage-made .pill.made-open:active {
-    transform: none;
-  }
-  .stage-made .pill.made-open[aria-disabled='true'] {
-    cursor: default;
-  }
-  .stage-made :is(button, a):not(.made-open) {
-    position: relative;
-    z-index: 1;
-  }
-  .made-acts .pill:has(.focus-glyph) {
-    width: 32px;
-    padding: 0;
-    border-color: transparent;
-    background: transparent;
-    box-shadow: none;
-    color: var(--text-2);
-  }
-  .made-acts .focus-glyph {
-    display: inline-grid;
-  }
-  .made-acts .focus-glyph ~ .tip {
-    display: inline-flex;
-  }
-  .made-acts .focus-words {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
-}
-/* A very short phone stage (375 × 667 gives 575 px): her line, the object's one row and two captions don't fit
-   together. While it is there, the earlier caption, the quieter one, gives way to it. */
-@container (max-width: 560px) and (max-height: 640px) {
-  .room-stage:has(.stage-made) .stage-caption:not(:last-child) {
-    display: none;
-  }
-}
-@media (max-width: 560px) {
-  .made-facts .made-fact {
-    display: none;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .stage-made.born {
@@ -6448,18 +6316,6 @@ button.contribution-quote:hover {
 }
 .stage-over-video .stage-showing {
   margin: 0;
-}
-/* A show's line under its button in the made object's card, so the card's own words keep their width. */
-.made-acts {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.made-acts .focus-said:empty {
-  display: none;
-}
-.made-acts .focus-said {
-  flex-basis: 100%;
-  justify-content: flex-end;
 }
 @media (prefers-reduced-motion: reduce) {
   .report-main,

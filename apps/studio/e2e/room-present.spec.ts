@@ -208,7 +208,9 @@ test('present · shown from the pane, the report takes the focus as it arrives, 
 }) => {
   await enter(page)
   await page.evaluate(() => window.fixture?.notice())
-  await made(page).getByRole('button', { name: 'Open', exact: true }).click()
+  await made(page)
+    .getByRole('button', { name: /^Open / })
+    .click()
   const pane = page.getByRole('complementary', { name: 'Fixture report' })
   await expect(pane.getByText('The fixture holds.')).toBeVisible()
   await pane.getByRole('button', { name: 'Show everyone' }).click()

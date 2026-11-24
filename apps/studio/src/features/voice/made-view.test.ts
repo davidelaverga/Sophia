@@ -1,52 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ChatNoticeItem } from '../conversation/chat-view.ts'
-import { factWords, madeFacts, madeFit, madeHeading, madeKey, madeOnStage, type MadeFit } from './made-view.ts'
-
-const words = (n: number) => Array.from({ length: n }, () => 'word').join(' ')
-
-describe('a report’s facts', () => {
-  it('reads minutes, sections and sources from its record', () => {
-    const markdown = `# Title\n\n${words(460)}\n\n## One\n\ntext\n\n## Two\n\ntext\n\n### Not a section\n`
-    const facts = madeFacts(markdown, [], {
-      versionNumber: 1,
-      limitations: [],
-      changeFacts: { cited: 6, added: [], dropped: [] },
-    })
-    assert.deepEqual(facts, { minutes: 2, sections: 2, sources: 6, limits: 0 })
-  })
-
-  it('says no sources for a later version: its count also holds the earlier versions it cites (Knowledge’s way)', () => {
-    const later = madeFacts('x', [], { versionNumber: 2, changeFacts: { cited: 7, added: [], dropped: [] } })
-    assert.equal(later.sources, null)
-  })
-
-  it('takes at least a minute, and no sources when the version doesn’t say', () => {
-    assert.deepEqual(madeFacts('A few words', [], undefined), { minutes: 1, sections: 0, sources: null, limits: 0 })
-  })
-
-  it('counts each limit once, from the files and the version', () => {
-    const facts = madeFacts('x', [{ limitations: ['short', 'late'] }, { limitations: ['short'] }], {
-      limitations: ['late', 'paywalled'],
-    })
-    assert.equal(facts.limits, 3)
-  })
-})
-
-describe('the facts as the object says them', () => {
-  it('leaves out what is none or unknown, and puts the limits last, marked', () => {
-    assert.deepEqual(factWords({ minutes: 6, sections: 4, sources: 6, limits: 2 }), [
-      { text: '6 min read', limit: false },
-      { text: '4 sections', limit: false },
-      { text: '6 sources', limit: false },
-      { text: '2 limits', limit: true },
-    ])
-    assert.deepEqual(factWords({ minutes: 1, sections: 1, sources: null, limits: 0 }), [
-      { text: '1 min read', limit: false },
-      { text: '1 section', limit: false },
-    ])
-  })
-})
+import { madeHeading, madeKey, madeOnStage } from './made-view.ts'
 
 const notice = (taskId: string, resultRevision: number, at: number): ChatNoticeItem => ({
   key: `${taskId}-${String(resultRevision)}`,
@@ -97,29 +52,5 @@ describe('the object’s heading', () => {
       title: 'Research report ready',
       meta: 'Report',
     })
-  })
-})
-
-/** What madeFit chose in a room where only `room` fits, and what it measured on the way. */
-const tried = (room: readonly MadeFit[]) => {
-  const asked: MadeFit[] = []
-  const fit = madeFit((f) => {
-    asked.push(f)
-    return room.includes(f)
-  })
-  return { fit, asked }
-}
-
-describe('as much of the object as its room holds', () => {
-  it('stands whole where it fits, and tries nothing else', () => {
-    assert.deepEqual(tried(['whole', 'brief']), { fit: 'whole', asked: ['whole'] })
-  })
-
-  it('leaves out its facts and who asked before her words', () => {
-    assert.deepEqual(tried(['brief']), { fit: 'brief', asked: ['whole', 'brief'] })
-  })
-
-  it('keeps its one row when nothing more fits, without measuring it', () => {
-    assert.deepEqual(tried([]), { fit: 'row', asked: ['whole', 'brief'] })
   })
 })

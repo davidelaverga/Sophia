@@ -78,14 +78,13 @@ function declared(selector: string, property: string): string[] {
     .map((m) => (m[1] ?? '').trim())
 }
 
-/** What floats over the stage, over her orb and the tiles' video: the dock and its notes, the panel toggles, what she
- * made and who shows what, a reconnect over the tiles, the reactions. */
+/** What floats over the stage, over her orb and the tiles' video: the dock and its notes, the panel toggles, who
+ * shows what, a reconnect over the tiles, the reactions. What she made is words on the stage (made-fits.md), no glass. */
 const OVER_STAGE = [
   '.dock',
   '.dock-note',
   '.sophia-looking',
   '.panel-toggles',
-  '.stage-made',
   '.stage-showing',
   '.stage-reconnecting',
   '.reaction',

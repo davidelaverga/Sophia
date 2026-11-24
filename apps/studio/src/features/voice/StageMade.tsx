@@ -1,8 +1,8 @@
-// What Sophia made, born in the room (docs/plans/room-made-object.md): a result's notice brings an object under her
-// line, the report as Knowledge shows it (its title, its version, its description and whose words those are, who
-// asked) with a few facts from its record, and Open and Close. The chat keeps its own card; this one is put away for
-// this person once opened (here or anywhere) or closed. Until the task's record is read it says what the chat's card
-// says, and Open waits.
+// What Sophia made, born in the room (docs/plans/room-made-object.md, made-fits.md): a result's notice brings one line
+// under hers, words on the stage as hers and the captions are: the report's name, which opens it, its kind and
+// version, Show everyone and Close. Its description and facts are the chat card's and the viewer's. The chat keeps its
+// own card; this one is put away for this person once opened (here or anywhere) or closed. Until the task's record is
+// read it says what the chat's card says, and Open waits.
 import { useQuery } from '@tanstack/react-query'
 import { TaskRefused } from '../artifacts/TaskRefused.tsx'
 import { useOwnedTaskDetail } from '../artifacts/task-detail.ts'
@@ -27,13 +27,9 @@ import { useCommands } from '../../app/useCommands.ts'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
 import { escapeStepsDown } from '../artifacts/report-view.ts'
 import { noticeActions, noticeOpenRequest, noticeTitle, type ChatNoticeItem } from '../conversation/chat-view.ts'
-import { factWords, madeFacts, madeFit, madeHeading, madeKey, madeOnStage } from './made-view.ts'
-import { memberLabel, withMe, type RoomNames } from './StageCaptions.tsx'
+import { madeHeading, madeKey, madeOnStage } from './made-view.ts'
 import type { ShowRender } from './ShowEveryone.tsx'
 import type { ProjectRoom } from './useProjectRoom.ts'
-
-/** A name inside a sentence: "Asked by you", "Asked by a member". */
-const inSentence = (name: string) => (name === 'You' || name === 'A member' ? name.toLowerCase() : name)
 
 /** One key per notice in a set, kept as it grows; `add` stays the same function. */
 function useKeys() {
@@ -67,19 +63,17 @@ export function madeOnTheStage(
   made: StageMadeState,
   room: Pick<ProjectRoom, 'status' | 'participants'>,
   panel: { chatOpen: boolean; anyOpen: boolean },
-  context: { projectId: string; identity: Identity; who: RoomNames; show?: ShowRender | undefined },
+  context: { projectId: string; identity: Identity; show?: ShowRender | undefined },
 ): ReactNode {
   const { notice } = made
   const inCall = room.status === 'live' || room.status === 'reconnecting'
   if (!notice || !inCall || panel.chatOpen) return null
-  const named = withMe(context.who, room.participants)
   return (
     <StageMade
       key={madeKey(notice)}
       notice={notice}
       projectId={context.projectId}
       identity={context.identity}
-      nameOf={(actorId) => inSentence(memberLabel(actorId, named))}
       fresh={made.fresh}
       keys={!panel.anyOpen}
       onBorn={made.wasBorn}
@@ -93,8 +87,6 @@ interface Props {
   notice: ChatNoticeItem
   projectId: string
   identity: Identity
-  /** A member named as a sentence names them ("you", "a member", or theirs). */
-  nameOf: (actorId: string) => string
   /** First time in the room: it is born; back in sight, it is simply there. */
   fresh: boolean
   /** Its key may be offered: no side panel is open. */
@@ -244,91 +236,50 @@ function useUnderHerLine(self: RefObject<HTMLDivElement | null>) {
   }, [self])
 }
 
-/** The facts read from the record, then who asked; the limits marked. */
-function MadeFacts({ facts, asked }: { facts: ReturnType<typeof factWords>; asked: string }) {
-  return (
-    <span className="made-facts">
-      {facts.map((f) => (
-        <span key={f.text} className="made-fact" data-limit={f.limit || undefined}>
-          {f.text}
-        </span>
-      ))}
-      <span className="made-asked">Asked by {asked}</span>
-    </span>
-  )
-}
-
-/** Its description, Sophia's unless a member edited it: then whose words they are comes first, as Knowledge says. */
-function MadeSummary({ summary, by }: { summary: string; by: string | null }) {
-  return (
-    <p className="made-summary">
-      {by && <span className="made-by">Edited by {by} · </span>}
-      {summary}
-    </p>
-  )
-}
-
-/** Open, its key in the Studio's tip while the key works; once a read failed, Try again instead. */
-function OpenButton({ ready, keyOn, onOpen }: { ready: boolean; keyOn: boolean; onOpen: () => void }) {
+/**
+ * Its name is its Open (made-fits.md): the report's name and a chevron, said as «Open» and the name; its key in the
+ * Studio's tip while the key works. Once a read failed, its name stands alone, with Try again.
+ */
+function OpenTitle(p: { title: string; ready: boolean; keyOn: boolean; onOpen: () => void }) {
   return (
     <button
       type="button"
-      className="pill primary has-tip made-open"
-      onClick={onOpen}
-      aria-disabled={!ready || undefined}
-      aria-keyshortcuts={keyOn ? 'o' : undefined}
+      className="made-open has-tip"
+      onClick={p.onOpen}
+      aria-disabled={!p.ready || undefined}
+      aria-keyshortcuts={p.keyOn ? 'o' : undefined}
     >
-      Open
-      {keyOn && <Tip label="Open the report" keys="O" />}
+      <span className="sr-only">Open </span>
+      <span className="made-title">{p.title}</span>
+      <span className="made-go" aria-hidden="true">
+        <Icon name="forward" size={12} />
+      </span>
+      {p.keyOn && <Tip label="Open the report" keys="O" />}
     </button>
   )
 }
 
+/** A read that failed, on its own line under the object's: what happened, and Try again. */
 function RetryRead({ onRetry }: { onRetry: () => void }) {
   return (
-    <>
+    <span className="made-retry">
       <span className="made-failed" role="status">
         It couldn’t be read just now.
       </span>
-      <button type="button" className="pill" onClick={onRetry}>
+      <button type="button" className="text-button" onClick={onRetry}>
         Try again
       </button>
-    </>
+    </span>
   )
 }
 
-/**
- * As much of it as its room under her line holds (made-fits.md): the room is the lens body, between her line and the
- * captions or the dock. Its facts and who asked go first, then her words; its one row stays. Measured before the
- * first paint, and again as the room or the object changes (captions coming, the record read).
- */
-function useMadeFit(self: RefObject<HTMLDivElement | null>) {
-  useLayoutEffect(() => {
-    const made = self.current
-    const room = made?.closest<HTMLElement>('.stage-body')
-    if (!made || !room) return undefined
-    const fit = () => {
-      made.dataset.fit = madeFit((f) => {
-        made.dataset.fit = f
-        return made.scrollHeight <= room.clientHeight
-      })
-    }
-    fit()
-    const sized = new ResizeObserver(fit)
-    sized.observe(room)
-    sized.observe(made)
-    return () => sized.disconnect()
-  }, [self])
-}
-
 export function StageMade(props: Props) {
-  const { notice, nameOf, fresh, onBorn } = props
+  const { notice, fresh, onBorn } = props
   const self = useRef<HTMLDivElement>(null)
   const record = useMadeRecord(props)
   const { version, card } = record
   const { ready, key, open, close, onKeyDown } = useMadeActions(props, self, record)
   useUnderHerLine(self)
-  useMadeFit(self)
   const [born] = useState(fresh)
   useEffect(() => onBorn(notice), [onBorn, notice])
   const heading = madeHeading(version, card?.title, noticeTitle(notice.taskKind))
@@ -340,10 +291,22 @@ export function StageMade(props: Props) {
       aria-label="Made by Sophia"
       onKeyDown={onKeyDown}
     >
-      <span className="made-icon" aria-hidden="true">
-        <Icon name="brief" />
+      <span className="made-row">
+        {record.failed ? (
+          <span className="made-title">{heading.title}</span>
+        ) : (
+          <OpenTitle title={heading.title} ready={ready} keyOn={key} onOpen={open} />
+        )}
+        <span className="made-meta">{heading.meta}</span>
+        <span className="made-acts">
+          {props.show && version && record.current && props.show(version.id, () => props.onPutAway(notice), 'show')}
+        </span>
+        <button type="button" className="made-close has-tip" aria-label="Close" onClick={close}>
+          <Icon name="close" />
+          <Tip label="Close" keys={props.keys ? 'Esc' : undefined} align="end" />
+        </button>
       </span>
-      <MadeHead title={heading.title} meta={heading.meta} asked={madeAsked(record, nameOf)} />
+      {record.failed && <RetryRead onRetry={record.retry} />}
       <MadeRefused artifactId={record.refused ? record.artifactId : undefined} identity={props.identity} />
       <MadeTaskRefused
         refused={record.taskRefused}
@@ -351,17 +314,6 @@ export function StageMade(props: Props) {
         taskId={notice.taskId}
         identity={props.identity}
       />
-      {card?.summary && (
-        <MadeSummary summary={card.summary} by={card.summaryAuthorId ? nameOf(card.summaryAuthorId) : null} />
-      )}
-      <MadeFactsOf record={record} nameOf={nameOf} />
-      <span className="made-acts">
-        {record.failed ? <RetryRead onRetry={record.retry} /> : <OpenButton ready={ready} keyOn={key} onOpen={open} />}
-        {props.show && version && record.current && props.show(version.id, () => props.onPutAway(notice), 'show')}
-      </span>
-      <button type="button" className="round made-close" aria-label="Close" onClick={close}>
-        <Icon name="close" />
-      </button>
     </div>
   )
 }
@@ -369,40 +321,6 @@ export function StageMade(props: Props) {
 /** A refused report on the stage: only that it isn't available, with its Try again (ReportRefused). */
 function MadeRefused({ artifactId, identity }: { artifactId: string | undefined; identity: Identity }) {
   return artifactId ? <ReportRefused artifactId={artifactId} identity={identity} /> : null
-}
-
-/** Who asked, once the result is read: none while the report is refused. */
-function madeAsked(record: ReturnType<typeof useMadeRecord>, nameOf: (id: string) => string) {
-  return record.detail?.result && !record.refused ? nameOf(record.detail.task.actorId) : null
-}
-
-/** What the result says, from the report's own text: none while the report is refused. */
-function MadeFactsOf({ record, nameOf }: { record: ReturnType<typeof useMadeRecord>; nameOf: (id: string) => string }) {
-  const { detail, outputs, version } = record
-  const asked = madeAsked(record, nameOf)
-  if (!detail?.result || asked === null) return null
-  return <MadeFacts facts={factWords(madeFacts(detail.result.markdown, outputs, version))} asked={asked} />
-}
-
-/**
- * Its title and its kind and version. On a phone (made-fits.md) the whole object opens it, so a chevron follows the
- * title, and who asked joins the kind's line instead of a line of its own.
- */
-function MadeHead({ title, meta, asked }: { title: string; meta: string; asked: string | null }) {
-  return (
-    <span className="made-head">
-      <span className="made-line">
-        <span className="made-title">{title}</span>
-        <span className="made-go" aria-hidden="true">
-          <Icon name="forward" size={12} />
-        </span>
-      </span>
-      <span className="made-sub">
-        <span className="made-meta">{meta}</span>
-        {asked && <span className="made-sub-asked">· asked by {asked}</span>}
-      </span>
-    </span>
-  )
 }
 
 /** The task refused to this person: only that, with its Try again (TaskRefused). */
