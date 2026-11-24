@@ -5,7 +5,7 @@
 > no harmoniza»; then, of three directions drawn over the real room, the third, «el material del dock», with a screenshot
 > of it («Pensé que era ese»). A one-line version was built first, from a misread of his choice, and replaced. Follows
 > `room-made-object.md`.
-> Studio only; no API change, no new words. One new glyph (`show`), pending Luis.
+> Studio only; no API change, no new words. One new glyph (`show`), approved by Luis on 2026-11-24 («Sí, déjalo»).
 
 ## Measured
 

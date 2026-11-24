@@ -38,7 +38,7 @@ Show everyone and Close as glyphs. It never runs over the captions, at any size 
 ## Remaining obligations
 
 - The PR is not merged. It is independent of #554.
-- The `show` glyph is new and waits for Luis's word.
+- The `show` glyph was approved by Luis on 2026-11-24 («Sí, déjalo»).
 
 ## Next bounded action
 
