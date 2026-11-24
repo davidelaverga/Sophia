@@ -4,8 +4,9 @@
 // notes, the sheets, the small menus) and wires the keys; the places render; the words come from the view modules. The
 // toast is the app's (SignedIn), so a result is said the same way in a project and here.
 import { InvitedBand } from '../access/InvitedBand.tsx'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { PersonalSpace as Space, ProjectRelease, ProjectSummary } from '@sophia/contracts'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import type { ProjectRelease, ProjectSummary } from '@sophia/contracts'
+import { isControlled, type SpaceRead as Space } from '../../api/personal.ts'
 import { accountOf, tokenSubject } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useShownIdentity } from '../../app/useMyProfile.ts'
@@ -17,7 +18,7 @@ import type { ShowToast } from '../../app/Toast.tsx'
 import { DataSheet } from './DataSheet.tsx'
 import { epochNow } from './epoch.ts'
 import {
-  focusConversation,
+  conversationLanding,
   focusLater,
   focusNotesToggle,
   focusPersonalSwitch,
@@ -186,14 +187,11 @@ function useCarried(place: Place) {
 
 type Carried = ReturnType<typeof useCarried>
 
-/** Where to land after arriving: Home's row for the side left, the conversation (focusConversation), Work's heading. */
-function focusOnArrival(place: Place, left: Place) {
-  if (place === 'personal') {
-    focusConversation()
-    return
-  }
+/** Where to land after arriving: Home's row for the side left, the conversation, or Work's heading. */
+function arrivalLanding(place: Place, left: Place): HTMLElement | null {
+  if (place === 'personal') return conversationLanding()
   const door = place === 'home' ? homeRowFor(left) : null
-  ;(door ?? document.getElementById(place === 'work' ? 'c-w-h' : 'c-p-h'))?.focus({ preventScroll: true })
+  return door ?? document.getElementById(place === 'work' ? 'c-w-h' : 'c-p-h')
 }
 
 function useArrival(place: Place) {
@@ -203,7 +201,8 @@ function useArrival(place: Place) {
     last.current = place
     if (left === null || left === place) return undefined
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
-    const timer = setTimeout(() => focusOnArrival(place, left), reduced ? 0 : 420)
+    const land = focusLater()
+    const timer = setTimeout(() => land(arrivalLanding(place, left)), reduced ? 0 : 420)
     return () => clearTimeout(timer)
   }, [place])
 }
@@ -398,6 +397,16 @@ const personalRead = (v: View): Read => ({
   retry: () => void v.space.refetch(),
 })
 
+/**
+ * A controlled space shown while its latest read failed (the read before stays, react-query's): said as of then, with
+ * Try again. The old way's reads say nothing here, as before.
+ */
+function staleOf(v: View): { asOf: string; retry: () => void } | null {
+  const data = v.personal
+  if (!data || !isControlled(data) || !v.space.isError) return null
+  return { asOf: data.asOf, retry: () => void v.space.refetch() }
+}
+
 const projectsRead = (v: View): Read => ({
   state: readState(v.projects),
   failed: READ_FAILED.projects,
@@ -426,14 +435,16 @@ function useHomeSays(v: View, answers: boolean | undefined): Said[] {
 /**
  * Home's guided first run (home-first-run.md): its place held while it can't tell yet, then the run while it shows.
  * Made, the project opens, with its Invite sheet when the person works with a team; made after it ended, the projects
- * are read again and nobody is taken into it.
+ * are read again and nobody is taken into it. While it may yet come (its projects unread), `pending`: Home holds an
+ * unseen `data-guide` mark that the keys' tip waits for (KeysTip.tsx, demo-findings-1.md P2-1).
  */
-function useHomeFirstRun(v: View) {
+function useHomeFirstRun(v: View): { node: ReactNode; pending: boolean } {
   const { identity, onOpenProject } = v.props
   const first = useFirstRun(identity, v.projects.data?.projects)
-  if (first.holds) return <FirstRunHeld />
-  if (!first.shows) return undefined
-  return (
+  const { pending } = first
+  if (first.holds) return { node: <FirstRunHeld />, pending }
+  if (!first.shows) return { node: undefined, pending }
+  const node = (
     <FirstRun
       identity={identity}
       profile={first.profile}
@@ -445,6 +456,7 @@ function useHomeFirstRun(v: View) {
       onAdded={() => void v.projects.refetch()}
     />
   )
+  return { node, pending }
 }
 
 function Home({ v }: { v: View }) {
@@ -470,9 +482,10 @@ function Home({ v }: { v: View }) {
   // Whether Sophia answers here, as the API says; unknown until the space is read (home-no-companion.md).
   const answers = data ? data.companion !== 'unavailable' : undefined
   const says = useHomeSays(v, answers)
-  const firstRun = useHomeFirstRun(v)
+  const first = useHomeFirstRun(v)
   return (
     <div className="c-home" data-place-view="home" data-content hidden={!v.shown.includes('home')}>
+      {first.pending && <span hidden data-guide="held" />}
       <Welcome
         hello={greeting(now.getHours(), null, fresh)}
         name={firstName(v.you)}
@@ -482,7 +495,7 @@ function Home({ v }: { v: View }) {
         reads={needsRead ? [personalRead(v), projectsRead(v), needsRead] : [personalRead(v), projectsRead(v)]}
         needs={needs}
         invited={<InvitedBand identity={props.identity} onOpen={(id) => props.onOpenProject(id, false)} />}
-        firstRun={firstRun}
+        firstRun={first.node}
         projects={projects}
         loadingProjects={readState(v.projects) === 'loading'}
         now={now}
@@ -528,6 +541,7 @@ function Personal({ v }: { v: View }) {
       epoch={v.personal?.epoch ?? v.projects.data?.personalEpoch}
       readBack={v.readBack}
       read={personalRead(v)}
+      stale={staleOf(v)}
       projects={v.projects.data?.projects}
       projectsRead={projectsRead(v)}
       writes={v.writes}
@@ -608,6 +622,7 @@ function Sheets({ v }: { v: View }) {
       <PlaceDialogs layers={layers} me={tokenSubject(identity.token)} inCall={!!props.call} onUnlocked={nav.unlocked} />
       {layers.data && (
         <DataSheet
+          name={identity.name}
           token={identity.token}
           who={v.you.displayName ?? firstName(v.you) ?? identity.name}
           space={v.personal}

@@ -44,6 +44,17 @@ export {
 } from './package.ts'
 export { FULL_SCOPE, scopeFindings, type Edit, type EditScope } from './patch.ts'
 export { HTML_BYTES, SECTION_ID } from './policy.ts'
+export { hasOnlyLocalPrototypeResources, prototypeBootstrapOffset } from './prototype-entry-policy.ts'
+export {
+  isPrototypeSha256,
+  prototypeEntrySha256,
+  prototypeFileIdentity,
+  prototypeManifestSha256,
+  PROTOTYPE_ENTRY_MAX_BYTES,
+  PROTOTYPE_ENTRY_NAME,
+  type PrototypeFileIdentity,
+  type PrototypeManifestValue,
+} from './prototype-manifest.ts'
 
 export interface SourceCheck {
   readonly sha256: string

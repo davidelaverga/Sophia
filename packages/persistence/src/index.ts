@@ -281,6 +281,17 @@ export {
   takeBackPersonalRelease,
   type CompanionContext,
 } from './personal.ts'
+// INC03-CC-003 A3 (0103, A54): the versioned owner reads of a conversation with controlled inputs.
+export {
+  PERSONAL_CONTROLLED_PAGE,
+  readPersonalControlledExport,
+  readPersonalControlledSpace,
+  readPersonalControlledTurns,
+  type PersonalControlledExportPage,
+  type PersonalControlledSpaceRead,
+  type PersonalControlledTurn,
+  type PersonalControlledTurnPage,
+} from './personal.ts'
 export {
   holdPersonalCompanion,
   personalCompanionAdmitted,
@@ -320,6 +331,29 @@ export {
   type PersonalAnswerRefusalReason,
   type PersonalAnswerSpend,
 } from './personal-answer-effects.ts'
+// INC03-CC-003 A3 (0103): the owner's control of an automatic answer, and the launch fence of a live call.
+export {
+  admitPersonalAnswerInput,
+  beginPersonalAnswerLaunch,
+  controlPersonalAnswerInput,
+  PERSONAL_ANSWER_CONTROL_PAGE,
+  personalAnswerControlled,
+  personalAnswerControlsInstalled,
+  readPersonalAnswerControl,
+  readPersonalAnswerControlLog,
+  readPersonalWithheldAnswer,
+  reserveControlledPersonalAnswer,
+  retainPersonalWithheldAnswer,
+  type PersonalAnswerRetention,
+  type PersonalAnswerAuthority,
+  type PersonalAnswerControlAction,
+  type PersonalAnswerControlReceipt,
+  type PersonalAnswerControlResult,
+  type PersonalAnswerExecution,
+  type PersonalAnswerLaunch,
+  type PersonalControlledEffect,
+  type PersonalControlledReservation,
+} from './personal-answer-controls.ts'
 export {
   PERSONAL_AUTOMATIC_V1,
   PERSONAL_INPUT_PAGE_LIMIT,
@@ -412,6 +446,7 @@ export {
   type ConversationInputSend,
   type ConversationInputStart,
 } from './conversation-inputs.ts'
+export { sendAddressedConversationInput, startAddressedConversationInput } from './conversation-input-addressing.ts'
 
 export {
   runtimeConversationClaim,
@@ -485,3 +520,49 @@ export {
   type OwnerHostView,
   type RedeemResult,
 } from './owner-host-enrollment.ts'
+export {
+  admitManagedExploreTurn,
+  approveManagedExploreVersion,
+  issueManagedExplorePreview,
+  markManagedExplorePreviewServed,
+  readManagedExploreEntry,
+  readManagedExploreHandoff,
+  resolveManagedExplorePreviewEntry,
+  type ManagedExplorePreviewEntry,
+  type ManagedExploreRetainedEntry,
+  readManagedExplorePreflight,
+  readManagedExploreSession,
+  selectManagedExploreDirection,
+  startManagedExplore,
+} from './managed-explore.ts'
+export {
+  claimManagedExploreDispatch,
+  readManagedExploreDispatch,
+  prepareManagedExploreDispatch,
+  recordManagedExploreDispatch,
+  type ManagedExploreDispatchAction,
+  type ManagedExploreDispatchIdentity,
+  type ManagedExploreDispatchLease,
+  type ManagedExploreDispatchObservation,
+  type ManagedExploreDispatchScope,
+  type ManagedExplorePreparedDispatch,
+} from './managed-explore-dispatch.ts'
+export {
+  bindFounderBuildRepository,
+  prepareFounderBuildExport,
+  readFounderBuildBindingEntry,
+  readFounderBuildDestination,
+  readFounderBuildExport,
+  readFounderBuildExportFile,
+  recordFounderBuildReturn,
+  readFounderBuildVerification,
+  recordFounderBuildVerification,
+  type FounderBuildScope,
+} from './founder-build-handoff.ts'
+
+export {
+  retainManagedExploreOutput,
+  type ManagedExploreRetentionOutput,
+  type ManagedExploreRetentionResult,
+} from './managed-explore-retention.ts'
+export { recordManagedExploreWorkerReadiness } from './managed-explore-worker-readiness.ts'

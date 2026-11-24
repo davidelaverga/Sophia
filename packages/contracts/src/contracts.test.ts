@@ -37,6 +37,13 @@ describe('@sophia/contracts', () => {
     )
   })
 
+  it('declares the Build attachment as bytes', () => {
+    assert.match(
+      readFileSync('packages/contracts/src/generated-types.ts', 'utf8'),
+      /"downloadFounderBuildExportFile": \{ method: "GET"; path: "[^"]+"; request: undefined; response: Uint8Array; \};/,
+    )
+  })
+
   it('exposes every component schema with resolvable $refs', () => {
     const schemas = componentSchemas()
     const ids = new Set(schemas.map((s) => s.$id))

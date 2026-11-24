@@ -578,6 +578,8 @@ interface Fixture {
   /** Someone else's tab corrects, or withdraws, the n-th message (its id given); the feed names it (4309253137). */
   changeElsewhere: (n: number, id: string, text: string | null) => void
   eraseShared: (n: number, id: string, text: string | null) => void
+  /** A teammate's Hold, Stop or Resume on the goal of that title, admitted as the API admits it (demo-findings-1 #3). */
+  commandByOther: (title: string, kind: 'hold' | 'stop' | 'resume') => void
 }
 
 declare global {
@@ -1092,6 +1094,18 @@ if (query.get('seen') === 'earlier') {
 
 window.fixture = {
   setPadlock: (locked) => padlock.set(locked),
+  commandByOther: (title, kind) => {
+    const goal = project.goals.find((g) => g.title === title)
+    if (!goal) return
+    project.goals = goalsAdmitted(project.goals, {
+      kind,
+      goalId: goal.id,
+      expectedGoalRevision: goal.revision,
+      expectedAuthorityEpoch: goal.authorityEpoch,
+      bodySourceId: null,
+    })
+    publish(project)
+  },
   cachedMentionNeeds: () =>
     queryClient
       .getQueriesData({ queryKey: ['mentions', 'needs'] })

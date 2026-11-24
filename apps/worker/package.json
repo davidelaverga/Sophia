@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@sophia/coordination": "workspace:*",
+    "@sophia/design": "workspace:*",
     "@sophia/persistence": "workspace:*",
     "livekit-server-sdk": "2.19.1",
     "pg": "8.23.0"

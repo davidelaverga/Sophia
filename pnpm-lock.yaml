@@ -204,6 +204,9 @@ importers:
       '@sophia/coordination':
         specifier: workspace:*
         version: link:../../packages/coordination
+      '@sophia/design':
+        specifier: workspace:*
+        version: link:../../packages/design
       '@sophia/persistence':
         specifier: workspace:*
         version: link:../../packages/persistence

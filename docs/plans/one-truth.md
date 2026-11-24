@@ -45,10 +45,9 @@ On the rehearse dev stack (`df4b4a518`, Studio on :5173), with Davide in the roo
   - anyone the Studio has no name for is one word, «A member» (`UNNAMED`): `shortName` and `spokenName` say it for a
     blank name, `toView` and the reactions keep LiveKit's empty name instead of an id, `mergeNames` never lets a blank
     name stand for a known one, and every written-out «A member» now reads `memberName` / `UNNAMED`.
-- **The receipt says it waits only while it does** (`awaitsConfirmation` in `labels.ts`): «The status changes when
-  Sophia confirms.» shows until the goal reaches the command's state (a Hold until held, a Stop until stopped, a Resume
-  until it runs). Once settled, it stays so for that receipt: someone else resuming later doesn't bring it back. The
-  receipt stays «Sent»: a receipt means sent, never done.
+- **The receipt says it waits only while it does:** taken over by `main` (`nextLine` in `labels.ts`,
+  demo-findings-1.md #3), merged after this PR was opened, which does the same and more. This PR's own
+  `awaitsConfirmation` was dropped when `main` was merged in (2026-11-24).
 - **A stopped goal is not paused** (`goals-glance.ts`): a health of its own, «Stopped», counted apart («1 paused · 1
   stopped»), its row and sheet led by its state («Stopped», «Stopping · finished work is kept»), never «Paused ·
   Stopped».
@@ -77,7 +76,7 @@ or read differently, for Luis to approve:
 - `own-name.test.ts`: this person's participant renamed, the call's list untouched, nothing changed when not needed.
 - `room-presence.test.ts`: Home's short names and sentence; nobody (Sophia alone included); nothing before the read;
   three faces at most; no id for a nameless person; `room: null` is unknown, never nobody.
-- `labels.test.ts`: `pulseTone` for asked, halted and done; `awaitsConfirmation` for Hold, Stop, Resume and a review.
+- `labels.test.ts`: `pulseTone` for asked, halted and done (the receipt's checks are `main`'s, for `nextLine`).
 - `pulse.test.ts`: each row carries its tone. `goals-glance.test.ts`: «stopped» counted apart, its sheet line.
 - `e2e/room-presence.spec.ts` (room fixture, `inroom=Davide,Sophia`): People lists Davide and Join is described by
   Home's sentence, its name still «Join the room»; nobody in (`inroom=`); `room: null` and a failed read say the

@@ -8,6 +8,7 @@ import {
   endsOnEscape,
   FIRST_RUN,
   firstRunHolds,
+  firstRunPending,
   firstRunKey,
   firstRunShows,
   firstSteps,
@@ -69,6 +70,20 @@ describe('while it can’t tell yet', () => {
     assert.equal(firstRunHolds(facts({ archived: 'reading', done: true })), false)
     assert.equal(firstRunHolds(facts({ archived: 'reading', projects: ONE })), false)
     assert.equal(firstRunHolds(facts({ archived: 'reading', projects: undefined })), false)
+  })
+})
+
+describe('while the projects are read (demo-findings-1.md P2-1)', () => {
+  it('may yet come while the projects are unread and it has not ended here: a guide is pending, not held', () => {
+    assert.equal(firstRunPending(facts({ projects: undefined })), true)
+    // The place under the greeting is not held for it: Home's skeleton stays as before.
+    assert.equal(firstRunHolds(facts({ projects: undefined })), false)
+  })
+
+  it('is pending no longer once it ended here, or once the projects are read, with or without any', () => {
+    assert.equal(firstRunPending(facts({ projects: undefined, done: true })), false)
+    assert.equal(firstRunPending(facts({ projects: ONE })), false)
+    assert.equal(firstRunPending(facts()), false)
   })
 })
 

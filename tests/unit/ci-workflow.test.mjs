@@ -1,4 +1,4 @@
-// INC-COORD-1119-SUPABASE-ISOLATION-MAIN-001: only the existing 8e323 auth isolation on exact c9c main.
+// INC-COORD-1119-SUPABASE-ISOLATION-MAIN-001: only the existing 8e323 auth isolation on exact b81e61c8, retaining its Personal CI invocation.
 // The lifecycle assertions below are reused from 8e323. No PR519 runner or runtime/bootstrap import.
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
@@ -9,7 +9,7 @@ import { parse } from 'yaml'
 const source = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8')
 const BASE_AUTH_BLOCK =
   '  supabase-live:\n    name: Live auth on local Supabase\n    runs-on: ubuntu-24.04\n    timeout-minutes: 20\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0 (reads packageManager)\n      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0\n        with:\n          node-version-file: .node-version\n      - run: pnpm install --frozen-lockfile\n      # Supabase in Docker: ES256 signing key, db/migrations through the ledger runner, the API login.\n      - run: pnpm supabase:local\n      # Real GoTrue tokens verified through JWKS; tampered, legacy HS256 and publishable-key tokens rejected.\n      - run: pnpm test:supabase\n\n'
-const BASE_WORKFLOW_SHA256 = 'da3dc3207a1e1bfe8140864efc9fe8cebfaf2cc16b395da01428c7fce648cec7'
+const BASE_WORKFLOW_SHA256 = '563dee616e8a31875fd359aee16ed50c9e060f7cd5f5b4c43339749d8d902468'
 const baseJob = parse(BASE_AUTH_BLOCK)['supabase-live']
 
 const ISOLATION_ENV = { SOPHIA_SUPABASE_ISOLATION: '${{ github.run_id }}-${{ github.run_attempt }}' }
@@ -40,7 +40,7 @@ function isolationAt(steps) {
   return { start: starts[0], stop: stops[0] }
 }
 
-/** supabase-live as d3e5ba9c had it: only the verified start's id and the verified stop are taken out. */
+/** supabase-live as b81e61c8 had it: only the verified start's id and the verified stop are taken out. */
 function withoutSupabaseIsolation(job) {
   const { env, ...rest } = job
   if (!isDeepStrictEqualTo(env, ISOLATION_ENV)) return job
@@ -72,12 +72,12 @@ function assertSource(text) {
   assert.equal(
     createHash('sha256').update(restored).digest('hex'),
     BASE_WORKFLOW_SHA256,
-    'every unrelated main workflow byte stays unchanged',
+    'every unrelated b81 workflow byte stays unchanged',
   )
 }
 
-describe('main Supabase attempt isolation: existing lifecycle and exact main scope', () => {
-  it('keeps the reviewed isolation and every unrelated c9c workflow byte', () => assertSource(source))
+describe('main Supabase attempt isolation: existing lifecycle and exact b81 baseline scope', () => {
+  it('keeps the reviewed isolation and every unrelated b81 workflow byte', () => assertSource(source))
   it('rejects the original main job before isolation', () => assert.throws(() => assertIsolationJob(baseJob)))
   const cases = [
     [

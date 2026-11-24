@@ -5,6 +5,7 @@ import { createActorVerifier } from './auth.ts'
 import { personalCompanionFrom } from './companion-config.ts'
 import { parseOrigins } from './cors.ts'
 import type { InviteConfig } from './invite-token.ts'
+import { managedExploreAccountFromEnv } from './managed-explore-account.ts'
 import { byteStoreFromEnv } from './byte-store.ts'
 import { RENDER_BODY_MS } from './renderer-upload-admission.ts'
 import { folderMailer, resendMailer, type Mailer } from './mail.ts'
@@ -85,6 +86,20 @@ function ownerRunnerAdmissionsFromEnv(): 'off' | 'admit' {
   if (value !== 'admit') throw new Error('SOPHIA_OWNER_RUNNERS is off, admit or unset')
   return value
 }
+function managedExploreAdmissionsFromEnv(): boolean {
+  const value = optional('SOPHIA_MANAGED_EXPLORE')
+  if (value === undefined || value === 'off') return false
+  if (value !== 'on') throw new Error('SOPHIA_MANAGED_EXPLORE is on, off or unset')
+  return true
+}
+
+function founderBuildHandoffFromEnv(): boolean {
+  const value = optional('SOPHIA_FOUNDER_BUILD_HANDOFF')
+  if (value === undefined || value === 'off') return false
+  if (value !== 'on') throw new Error('SOPHIA_FOUNDER_BUILD_HANDOFF is on, off or unset')
+  return true
+}
+
 const app = buildApp({
   pool,
   logger: true,
@@ -101,6 +116,10 @@ const app = buildApp({
   // Voice qualification evidence (A45, 0085): on only by the operator's batch, with 0085 applied.
   voiceQualification: voiceQualificationFromEnv(),
   ownerRunnerAdmissions: ownerRunnerAdmissionsFromEnv(),
+  managedExplore: managedExploreAdmissionsFromEnv(),
+  managedExploreAccountSnapshot: managedExploreAccountFromEnv(optional('SOPHIA_MANAGED_EXPLORE_ACCOUNT_SNAPSHOT')),
+  founderBuildHandoff: founderBuildHandoffFromEnv(),
+  managedExplorePreviewOrigin: optional('SOPHIA_MANAGED_EXPLORE_PREVIEW_ORIGIN'),
   ...(mediaBridgeTokenSha256 ? { mediaBridgeTokenSha256 } : {}),
   ...(livekitUrl
     ? { livekit: { url: livekitUrl, apiKey: required('LIVEKIT_API_KEY'), apiSecret: required('LIVEKIT_API_SECRET') } }

@@ -38,6 +38,7 @@ interface Props {
   me: string
   names: ReadonlyMap<string, string>
   onEditing?: (id: string, on: boolean) => void
+  exploreNote?: ((entry: MissionEntry) => ReactNode) | undefined
 }
 
 /** The newest notes, shown at rest. */
@@ -94,7 +95,7 @@ export function MoreNotes({ decisions, children, ...props }: MoreProps) {
   )
 }
 
-function Note({ entry, ctx, projectId, identity, me, names, onEditing }: Props & { entry: MissionEntry }) {
+function Note({ entry, ctx, projectId, identity, me, names, onEditing, exploreNote }: Props & { entry: MissionEntry }) {
   const [editing, setEditing] = useState(false)
   const actions = noteActions(ctx, entry, me)
   return (
@@ -134,6 +135,7 @@ function Note({ entry, ctx, projectId, identity, me, names, onEditing }: Props &
         )}
         {actions.withdraw && <Forget entry={entry} projectId={projectId} identity={identity} />}
       </span>
+      {!editing && entry.state === 'current' && entry.text && exploreNote?.(entry)}
     </li>
   )
 }

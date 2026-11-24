@@ -518,7 +518,7 @@ describe('who reads input metadata, and who may write it', () => {
     }
   })
 
-  it('only an internal helper inserts input rows, no login may call it, and only the two writers reach it', async () => {
+  it('only an internal helper inserts input rows, no login may call it, and only the four input writers reach it', async () => {
     const inserting = await owner<{ sig: string }>(
       `SELECT p.oid::regprocedure::text AS sig FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
         WHERE n.nspname='sophia' AND p.prosrc ~ 'INSERT INTO sophia\\.saved_conversation_inputs' ORDER BY 1`,
@@ -533,7 +533,9 @@ describe('who reads input metadata, and who may write it', () => {
         WHERE n.nspname='sophia' AND p.prosrc ~ 'conversation_input_record\\(' ORDER BY 1`,
     )
     const WRITERS = [
+      'sophia.send_conversation_addressed_input(uuid,text,text,text,text,jsonb,uuid)',
       'sophia.send_conversation_input(uuid,text,text,text,text)',
+      'sophia.start_conversation_addressed_input(uuid,text,text,text,text,text,jsonb)',
       'sophia.start_conversation_input(uuid,text,text,text,text,text)',
     ]
     assert.deepEqual(
@@ -557,11 +559,7 @@ describe('who reads input metadata, and who may write it', () => {
     )
     assert.deepEqual(
       acl.map((f) => [f.sig, f.api, f.worker, f.pub, f.definer, f.config]),
-      [
-        [RECORD, ...definer(false)],
-        [WRITERS[0], ...definer(true)],
-        [WRITERS[1], ...definer(true)],
-      ],
+      [[RECORD, ...definer(false)], ...WRITERS.map((writer) => [writer, ...definer(true)])],
     )
   })
 })

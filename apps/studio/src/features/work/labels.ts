@@ -80,6 +80,51 @@ export const goalCommands = (status: Goal['status'], vision: boolean, admin = fa
   commandsFor(status, admin).filter((kind) => vision || kind !== 'request_review')
 
 /**
+ * Where each command leads the goal, once the runtime confirms it: Hold to held, Stop to stopped, Resume back to work.
+ * A review leaves the goal as it is, and a retirement its sessions, so neither is ever shown by the goal's status.
+ */
+const LEADS_TO: Partial<Record<CommandKind, ReadonlyArray<Goal['status']>>> = {
+  hold: ['held'],
+  stop: ['stopped'],
+  resume: ['running', 'checking'],
+}
+
+/** Where a command passes on its way: the goal moved at admission, until the runtime confirms (Hold, Stop). */
+const ON_THE_WAY: Partial<Record<CommandKind, Goal['status']>> = { hold: 'holding', stop: 'stopping' }
+
+/**
+ * A sent command's line under the controls: on its way (said, with «The status changes when Sophia confirms»);
+ * settled, the goal where the command leads (the status says it; a screen reader hears it in the past); or moved, the
+ * goal taken elsewhere by a later command, anyone's (nothing more to say). demo-findings-1.md #3.
+ */
+export type CommandLine = 'on_its_way' | 'settled' | 'moved'
+
+/**
+ * The line once the goal reads as `goal`, for a command sent at authority `sentEpoch`. Its own admission moves the
+ * authority one step; one past that is a later command. Settled or moved, it stays so until another command is sent
+ * (review P2-2): a goal running again after a Hold never brings the Hold's words back.
+ */
+export function nextLine(
+  line: CommandLine,
+  kind: CommandKind,
+  sentEpoch: number,
+  goal: Pick<Goal, 'status' | 'authorityEpoch'>,
+): CommandLine {
+  if (line !== 'on_its_way') return line
+  if (goal.authorityEpoch > sentEpoch + 1) return 'moved'
+  if (LEADS_TO[kind]?.includes(goal.status)) return 'settled'
+  if (COMMAND[kind].allowed.includes(goal.status) || ON_THE_WAY[kind] === goal.status) return 'on_its_way'
+  return 'moved'
+}
+
+/** A settled command, said in the past where only a screen reader hears it: the status beside it shows it already. */
+export const SETTLED_WORDS: Partial<Record<CommandKind, string>> = {
+  hold: 'Held.',
+  stop: 'Stopped.',
+  resume: 'Resumed.',
+}
+
+/**
  * Command summaries describe what was *requested* (admission is not completion); room and membership
  * summaries describe what happened.
  */
@@ -192,20 +237,6 @@ export function pulseTone(summaryCode: string, type: string): PulseTone {
   if (summaryCode.startsWith('command.')) return COMMAND_LATER[type] ? 'done' : 'asked'
   return ASKED.has(summaryCode) ? 'asked' : 'done'
 }
-
-/** The goal states that settle each command: until the goal reaches one, Sophia hasn't confirmed it (one-truth.md). */
-const SETTLES: Readonly<Partial<Record<CommandKind, ReadonlyArray<Goal['status']>>>> = {
-  hold: ['held', 'stopping', 'stopped', 'completed'],
-  resume: ['running', 'checking', 'stopping', 'stopped', 'completed'],
-  stop: ['stopped', 'completed'],
-}
-
-/**
- * Whether a sent command still waits on Sophia's confirmation, by the goal's status now: a Hold until the goal is
- * held, a Stop until it is stopped. A review settles nothing the goal shows, so it always waits.
- */
-export const awaitsConfirmation = (kind: CommandKind, status: Goal['status']): boolean =>
-  !(SETTLES[kind]?.includes(status) ?? false)
 
 type Retirement = NonNullable<Goal['retirement']>
 type RetirementResult = Retirement['targets'][number]['result']
