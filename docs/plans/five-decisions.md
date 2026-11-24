@@ -115,4 +115,22 @@ The guide's «Reconnecting» works. On the room fixture, with the whole API cut 
 stream dropped), the bar said «Reconnecting» in 61 ms; the project, its title and its dock stayed on screen; with the
 API back it said «Up to date» about 3 s later (the stream's wait). No request went unanswered. `feed-recovery.spec.ts`
 already checks the same path. A write that fails says so in its own place, as the evaluation saw; the bar speaks of
-the feed. Not checked on the real stack: Docker was not answering on 2026-11-23.
+the feed.
+
+On the real rehearse stack (2026-11-24, `main` ffc32c4fd, Luis in the founder project, 1280 × 800), three cuts:
+
+| Cut                                                          | «Reconnecting»                    | «Up to date» again       |
+| ------------------------------------------------------------ | --------------------------------- | ------------------------ |
+| API process killed (dev-stack restarts it in 2 s)            | 25.0 s after the cut              | 0.8 s after              |
+| API killed again each time it came back, 40 s                | 21.9 s after the cut              | as soon as it stayed up  |
+| The browser offline for 20 s (`setOffline`), the API is fine | 11.5 s after (25 s from last byte) | 54 ms after it came back |
+
+The word is its own `role="status"`, so each change is announced. The 61 ms on the fixture holds only when the stream is
+closed. When it is cut silently, the bar keeps «Up to date» until the stream has been quiet for
+`STREAM_IDLE_TIMEOUT_MS` (25 s, `api/stream.ts`; the API's heartbeat is 10 s). A silent cut happens when the dev proxy
+holds the browser's side open after the API dies, and when the person's own network drops, which can happen in
+production too. Not checked: how Render's proxy closes a stream when the API process dies.
+
+That is by design (2.5 heartbeats of silence), so nothing changes here. A possible follow-up without the API, for Luis:
+when the browser reports `offline`, end the stream at once, so the third row reads «Reconnecting» in milliseconds
+instead of up to 25 s.

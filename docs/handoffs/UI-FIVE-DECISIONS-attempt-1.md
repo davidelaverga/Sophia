@@ -15,6 +15,8 @@ Ending commit/tree and changed files: two files under `docs/` (the note and this
   changes), 19 keep the room empty, 22 a glyph of its own for «Take the floor», 23 the phone's panel toggles above the
   dock after a mock-up.
 - 7 checked and closed with no change: the bar says «Reconnecting» when the API is cut and «Up to date» once it answers.
+  On the real stack (2026-11-24) a silent cut takes up to 25 s to show (the stream's idle wait); the note has the
+  three cuts and a follow-up for Luis (end the stream on `offline`).
 
 ## Evidence
 
@@ -29,7 +31,10 @@ Ending commit/tree and changed files: two files under `docs/` (the note and this
   - 22, 23: `room.html?call=on` at 1280, 390 × 844 and, on `ui/mejoras-e-visual` (#548), 640: two hand icons in the
     compact dock.
 - `prettier --check docs/plans/five-decisions.md` passes.
-- Not checked on the real stack: Docker did not answer (`docker info`), and was not restarted, as the prompt says.
+- Real rehearse stack, 2026-11-24, `main` ffc32c4fd (Docker up again; the two containers started, not recreated):
+  API killed → «Reconnecting» at 25.0 s, back 0.8 s after; API down 40 s → 21.9 s; browser offline 20 s → 11.5 s
+  (25 s from the last byte), back 54 ms after. Headless full Chromium (`channel: 'chromium'`): the headless shell
+  crashes on the signed-in Studio.
 
 ## Decisions and changes
 
@@ -39,7 +44,7 @@ Ending commit/tree and changed files: two files under `docs/` (the note and this
 ## Remaining obligations
 
 - The PR is not merged.
-- Ask Luis whether Docker should be up to repeat 7 on the rehearse stack.
+- Ask Luis whether to end the stream when the browser goes `offline` (7's follow-up).
 
 ## Next bounded action
 
