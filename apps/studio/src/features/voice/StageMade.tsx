@@ -273,7 +273,7 @@ function OpenButton({ ready, keyOn, onOpen }: { ready: boolean; keyOn: boolean; 
   return (
     <button
       type="button"
-      className="pill primary has-tip"
+      className="pill primary has-tip made-open"
       onClick={onOpen}
       aria-disabled={!ready || undefined}
       aria-keyshortcuts={keyOn ? 'o' : undefined}
@@ -343,10 +343,7 @@ export function StageMade(props: Props) {
       <span className="made-icon" aria-hidden="true">
         <Icon name="brief" />
       </span>
-      <span className="made-head">
-        <span className="made-title">{heading.title}</span>
-        <span className="made-meta">{heading.meta}</span>
-      </span>
+      <MadeHead title={heading.title} meta={heading.meta} asked={madeAsked(record, nameOf)} />
       <MadeRefused artifactId={record.refused ? record.artifactId : undefined} identity={props.identity} />
       <MadeTaskRefused
         refused={record.taskRefused}
@@ -360,7 +357,7 @@ export function StageMade(props: Props) {
       <MadeFactsOf record={record} nameOf={nameOf} />
       <span className="made-acts">
         {record.failed ? <RetryRead onRetry={record.retry} /> : <OpenButton ready={ready} keyOn={key} onOpen={open} />}
-        {props.show && version && record.current && props.show(version.id, () => props.onPutAway(notice))}
+        {props.show && version && record.current && props.show(version.id, () => props.onPutAway(notice), 'show')}
       </span>
       <button type="button" className="round made-close" aria-label="Close" onClick={close}>
         <Icon name="close" />
@@ -374,15 +371,37 @@ function MadeRefused({ artifactId, identity }: { artifactId: string | undefined;
   return artifactId ? <ReportRefused artifactId={artifactId} identity={identity} /> : null
 }
 
+/** Who asked, once the result is read: none while the report is refused. */
+function madeAsked(record: ReturnType<typeof useMadeRecord>, nameOf: (id: string) => string) {
+  return record.detail?.result && !record.refused ? nameOf(record.detail.task.actorId) : null
+}
+
 /** What the result says, from the report's own text: none while the report is refused. */
 function MadeFactsOf({ record, nameOf }: { record: ReturnType<typeof useMadeRecord>; nameOf: (id: string) => string }) {
   const { detail, outputs, version } = record
-  if (!detail?.result || record.refused) return null
+  const asked = madeAsked(record, nameOf)
+  if (!detail?.result || asked === null) return null
+  return <MadeFacts facts={factWords(madeFacts(detail.result.markdown, outputs, version))} asked={asked} />
+}
+
+/**
+ * Its title and its kind and version. On a phone (made-fits.md) the whole object opens it, so a chevron follows the
+ * title, and who asked joins the kind's line instead of a line of its own.
+ */
+function MadeHead({ title, meta, asked }: { title: string; meta: string; asked: string | null }) {
   return (
-    <MadeFacts
-      facts={factWords(madeFacts(detail.result.markdown, outputs, version))}
-      asked={nameOf(detail.task.actorId)}
-    />
+    <span className="made-head">
+      <span className="made-line">
+        <span className="made-title">{title}</span>
+        <span className="made-go" aria-hidden="true">
+          <Icon name="forward" size={12} />
+        </span>
+      </span>
+      <span className="made-sub">
+        <span className="made-meta">{meta}</span>
+        {asked && <span className="made-sub-asked">· asked by {asked}</span>}
+      </span>
+    </span>
   )
 }
 

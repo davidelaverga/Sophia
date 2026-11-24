@@ -166,6 +166,40 @@ test('@phone · the object sits above the dock and fits a phone', async ({ page 
   expect(sideways).toBe(0)
 })
 
+// On a phone the object says less (made-fits.md): the whole of it opens the report, its title whole beside a chevron;
+// Show everyone is its glyph, its words its name; who asked joins the kind's line.
+test('@phone · on a phone the whole object opens the report, its title whole, Show everyone a glyph', async ({
+  page,
+}) => {
+  await enter(page)
+  await notice(page)
+  await made(page).evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  const title = made(page).locator('.made-title')
+  expect(await title.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0)
+  await expect(made(page).locator('.made-sub')).toContainText(/asked by you/i)
+  await expect(made(page).locator('.made-asked')).toBeHidden()
+  const show = made(page).getByRole('button', { name: 'Show everyone' })
+  await expect(show).toBeVisible()
+  expect((await show.boundingBox())?.width).toBeLessThanOrEqual(36)
+  // Show everyone and Close stand over the object's Open, which takes every other point of it.
+  const hit = (selector: string) =>
+    made(page).evaluate((el, s) => {
+      const r = (s ? el.querySelector(s) : el)?.getBoundingClientRect()
+      if (!r) return null
+      const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+      return at?.closest('button')?.getAttribute('aria-label') ?? at?.closest('button')?.textContent ?? null
+    }, selector)
+  expect(await hit('.made-summary')).toMatch(/^Open/)
+  expect(await hit('.made-title')).toMatch(/^Open/)
+  expect(await hit('.made-close')).toBe('Close')
+  expect(await hit('.made-acts .focus-glyph')).toMatch(/^Show everyone/)
+  // A finger on her words: the point is Open's, as elementFromPoint said above.
+  const words = await box(page, '.made-summary')
+  await page.mouse.click(words.x + words.width / 2, words.y + words.height / 2)
+  await expect(pane(page)).toBeVisible()
+  await expect(made(page)).toHaveCount(0)
+})
+
 const say = (page: Page, n: number, text: string) =>
   page.evaluate(
     ([id, words]) =>

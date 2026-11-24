@@ -2635,11 +2635,116 @@ img.avatar {
 .stage-made[data-fit='row'] .made-summary {
   display: none;
 }
-/* Its kind and version on one line beside a narrow title, not two. */
+/* Its title and its kind each on one line beside narrow actions, never two. */
+.made-line,
+.made-sub {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.made-sub {
+  overflow: hidden;
+  white-space: nowrap;
+}
 .made-meta {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+.made-go,
+.made-sub-asked,
+.made-acts .focus-glyph,
+.made-acts .focus-glyph ~ .tip {
+  display: none;
+}
+/*
+ * On a phone stage (made-fits.md) the object says less: the whole of it opens the report, so Open's words go and a
+ * chevron follows the title; Show everyone is its glyph, its words its name and tip; who asked joins the kind's line.
+ * Its title keeps the room Open and Show everyone's words took.
+ */
+@container (max-width: 560px) {
+  .made-go {
+    display: inline-grid;
+    flex: none;
+    color: var(--text-3);
+  }
+  .stage-made:has(.made-open[aria-disabled]) .made-go {
+    color: var(--text-4);
+  }
+  .made-sub-asked {
+    display: block;
+    overflow: hidden;
+    min-width: 0;
+    color: var(--text-3);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+  }
+  .made-meta {
+    flex: none;
+    max-width: 100%;
+  }
+  .made-facts .made-asked {
+    display: none;
+  }
+  /* Over the whole object, under its other controls: its words its name, its ring the object's edge. */
+  .stage-made .pill.made-open {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    width: auto;
+    height: auto;
+    padding: 0;
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+    box-shadow: none;
+    color: transparent;
+    font-size: 0;
+  }
+  .made-open > .tip {
+    display: none;
+  }
+  .stage-made .pill.made-open:hover:not([aria-disabled='true']) {
+    border-color: transparent;
+    background: rgb(var(--halo-rgb) / 0.06);
+  }
+  .stage-made .pill.made-open:active {
+    transform: none;
+  }
+  .stage-made .pill.made-open[aria-disabled='true'] {
+    cursor: default;
+  }
+  .stage-made :is(button, a):not(.made-open) {
+    position: relative;
+    z-index: 1;
+  }
+  .made-acts .pill:has(.focus-glyph) {
+    width: 32px;
+    padding: 0;
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    color: var(--text-2);
+  }
+  .made-acts .focus-glyph {
+    display: inline-grid;
+  }
+  .made-acts .focus-glyph ~ .tip {
+    display: inline-flex;
+  }
+  .made-acts .focus-words {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
 }
 /* A very short phone stage (375 × 667 gives 575 px): her line, the object's one row and two captions don't fit
    together. While it is there, the earlier caption, the quieter one, gives way to it. */

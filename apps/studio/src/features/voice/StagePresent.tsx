@@ -55,10 +55,11 @@ export function showRenderOf(
   const inCall = room.status === 'live' || room.status === 'reconnecting'
   const guest = room.participants.some((p) => p.local && p.standing === 'guest')
   if (!target || !showOffered({ vision: VISION, inCall, guest })) return undefined
-  return (versionId, onShown) => (
+  return (versionId, onShown, glyph) => (
     <FocusButton
       {...target}
       versionId={versionId}
+      glyph={glyph}
       label="Show everyone"
       onPress={() => markShownHere(versionId)}
       onShown={onShown}
