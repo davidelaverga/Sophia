@@ -198,3 +198,45 @@ test('keys tip · Tab reaches it last: its Dismiss follows every other control o
   })
   expect(before).toEqual([])
 })
+
+test('keys tip · Home’s first run is one guide at a time: the tip waits, uncounted, for a later visit (demo-findings-1 #17)', async ({
+  page,
+}) => {
+  const kept = () => page.evaluate(() => localStorage.getItem('sophia.keys-tip'))
+  // Without a first run the same page shows it: what follows is the guide holding it back, nothing else.
+  await page.goto('/home.html?projects=none&keys=1')
+  await expect(tip(page)).toBeVisible()
+  await page.evaluate(() => localStorage.clear())
+  await page.goto('/home.html?projects=none&first=named&keys=1')
+  await expect(page.getByRole('region', { name: 'Will you work on your own or with a team?' })).toBeVisible()
+  await settled(page)
+  await settled(page)
+  await expect(said(page)).toHaveCount(0)
+  // Ended on this page, the tip still waits: never straight after the guide, and its turn is not spent.
+  await page.getByRole('button', { name: 'Skip' }).click()
+  await page.getByRole('button', { name: 'Not now, just talk to Sophia' }).click()
+  await settled(page)
+  await settled(page)
+  await expect(said(page)).toHaveCount(0)
+  expect(await kept()).toBeNull()
+  // The next visit, with no guide, is its turn.
+  await page.reload()
+  await expect(tip(page)).toBeVisible()
+})
+
+test('keys tip · while Home’s projects are still read, a first run may yet come: the tip waits, uncounted (demo-findings-1 P2-1)', async ({
+  page,
+}) => {
+  const kept = () => page.evaluate(() => localStorage.getItem('sophia.keys-tip'))
+  // The projects' read is slow (as on the real stack): Home waits on it, then answers none, and the first run comes.
+  await page.goto('/home.html?projects=loading&first=named&keys=1')
+  await settled(page)
+  await settled(page)
+  await expect(said(page)).toHaveCount(0)
+  expect(await kept()).toBeNull()
+  await page.evaluate(() => window.homeFixture?.reread('none'))
+  await expect(page.getByRole('region', { name: 'Will you work on your own or with a team?' })).toBeVisible()
+  await settled(page)
+  await expect(said(page)).toHaveCount(0)
+  expect(await kept()).toBeNull()
+})

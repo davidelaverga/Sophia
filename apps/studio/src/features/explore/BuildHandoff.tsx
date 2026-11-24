@@ -13,9 +13,12 @@ import {
   type BuildEvidence,
   type BuildScope,
   type RepositoryBinding,
+  type VerificationReceipt,
 } from '../../api/explore-build-handoff.ts'
+import { buildReviewPath } from '../../app/route.ts'
 import type { getExploreHandoff } from '../../api/managed-explore.ts'
 import { saveBlob } from '../artifacts/download.ts'
+import { CurrentVerificationChecks, verificationKindLabel } from './BuildVerificationEvidence.tsx'
 import { useExploreAdmission } from './useExploreAdmission.ts'
 
 interface Props {
@@ -314,19 +317,21 @@ function BuildPackage(props: BoundProps & { verified: VerifiedExport }) {
         <code>{verified.sha256}</code>
       </details>
       <p className="muted">For {verified.manifest.recipient} · manual transfer to the signed-in Codex checkout</p>
-      <CopyBrief brief={buildBrief(props, verified)} />
+      <CopyBuildText name="Build brief" text={buildBrief(props, verified)} />
       <DownloadSource scope={scope} exportRecord={verified} />
       <ReturnForm revision={destination.revision} exportRecord={verified} disabled={disabled} onAction={onAction} />
-      {records.length > 0 && <ReportedEvidence records={records} />}
+      {records.length > 0 && (
+        <BuildEvidenceHistory scope={scope} records={records} verification={destination.verification} />
+      )}
     </>
   )
 }
 
-function CopyBrief({ brief }: { brief: string }) {
+function CopyBuildText({ name, text }: { name: string; text: string }) {
   const [copied, copyState] = useState<'idle' | 'copied' | 'manual'>('idle')
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(brief)
+      await navigator.clipboard.writeText(text)
       copyState('copied')
     } catch {
       copyState('manual')
@@ -335,13 +340,13 @@ function CopyBrief({ brief }: { brief: string }) {
   return (
     <>
       <button type="button" className="pill" onClick={() => void copy()}>
-        Copy build brief
+        Copy {name.toLowerCase()}
       </button>
-      {copied === 'copied' && <p role="status">Build brief copied.</p>}
+      {copied === 'copied' && <p role="status">{name} copied.</p>}
       {copied === 'manual' && (
         <label>
-          Build brief
-          <textarea readOnly rows={5} value={brief} onFocus={(event) => event.currentTarget.select()} />
+          {name}
+          <textarea readOnly rows={5} value={text} onFocus={(event) => event.currentTarget.select()} />
         </label>
       )}
     </>
@@ -462,20 +467,92 @@ function ReturnForm({
   )
 }
 
-function ReportedEvidence({ records }: { records: BuildDestination['returns'] }) {
+function founderVerificationStatus(verification: BuildDestination['verification'], currentId: string | undefined) {
+  if (!verification) return 'Independent verification status unavailable'
+  if (verification.status === 'reported') return 'An exact PR, merge and deployment are needed for verification'
+  const checks = verification.checks
+  const checksPassed = !checks || (checks.sourceReview === 'passed' && checks.deployedApp === 'passed')
+  if (verification.status === 'verified_in_app' && currentId && checksPassed) return 'Verified in app'
+  return 'Awaiting independent verification'
+}
+
+function BuildEvidenceHistory({
+  scope,
+  records,
+  verification,
+}: {
+  scope: BuildScope
+  records: BuildDestination['returns']
+  verification: BuildDestination['verification']
+}) {
+  const current = records.find((record) => record.id === verification?.currentReturnId)
+  const reviewable = current && verification?.status !== 'reported'
+  const receipts = verification?.receipts ?? []
+  return (
+    <div className="build-evidence-history">
+      <section aria-label="Current independent verification">
+        <h4>Current independent verification</h4>
+        <p role="status">{founderVerificationStatus(verification, current?.id)}</p>
+        {reviewable && verification?.checks && <CurrentVerificationChecks checks={verification.checks} />}
+        {reviewable && (
+          <CopyBuildText
+            name="Reviewer link"
+            text={new URL(buildReviewPath({ ...scope, returnId: current.id }), window.location.origin).href}
+          />
+        )}
+      </section>
+      <ReportedEvidence records={records} currentId={current?.id} receipts={receipts} />
+    </div>
+  )
+}
+
+function ReportedEvidence({
+  records,
+  currentId,
+  receipts,
+}: {
+  records: BuildDestination['returns']
+  currentId: string | undefined
+  receipts: NonNullable<BuildDestination['verification']>['receipts']
+}) {
   return (
     <section aria-label="Saved build evidence">
-      <h4>Reported · independent verification pending</h4>
+      <h4>Reported evidence</h4>
       <ul>
         {records.map((record) => (
           <li key={record.id}>
+            {currentId && <p>{record.id === currentId ? 'Current return' : 'Earlier return'}</p>}
             {evidenceFields.map(({ name, label }) => (
               <EvidenceFact key={name} label={label} detail={record[name]} />
             ))}
+            <RecordedObservations receipts={receipts.filter(({ target }) => target.returnId === record.id)} />
           </li>
         ))}
       </ul>
     </section>
+  )
+}
+function RecordedObservations({ receipts }: { receipts: VerificationReceipt[] }) {
+  if (receipts.length === 0) return null
+  return (
+    <div className="build-recorded-observations">
+      <p className="muted">Recorded observations</p>
+      {receipts.map((receipt) => (
+        <details key={receipt.id}>
+          <summary>
+            {verificationKindLabel[receipt.kind]} · {receipt.outcome}
+          </summary>
+          <EvidenceFact label="Scenario" detail={receipt.scenario} />
+          <EvidenceFact label="Expected" detail={receipt.expected} />
+          <EvidenceFact label="Observed" detail={receipt.observed} />
+          <EvidenceFact label="Evidence reference" detail={receipt.evidenceReference} />
+          <EvidenceFact label="Mapped source commit" detail={receipt.mappingSourceSha} />
+          <EvidenceFact label="Observed deployed commit" detail={receipt.observedDeployedSha} />
+          <EvidenceFact label="Observed deployment URL" detail={receipt.observedDeploymentReference} />
+          <EvidenceFact label="Recorded" detail={receipt.recordedAt} />
+        </details>
+      ))}
+    </div>
   )
 }
 function EvidenceFact({ label, detail }: { label: string; detail: ReactNode }) {
