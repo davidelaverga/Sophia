@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
+import { createInterface } from 'node:readline'
 import { after, before, it } from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
 import type { FastifyInstance } from 'fastify'
@@ -259,6 +260,42 @@ it('retains the explicit null reply target accepted by the generated request typ
   assert.deepEqual(rows, [{ reply_target: null, reply_target_actor_id: null }])
 })
 
+const stockStartupMs = 15_000
+const stockShutdownMs = 5000
+type StockExit = { code: number | null; signal: NodeJS.Signals | null }
+
+function stockServerStartup(child: ChildProcess, mode: string) {
+  const closed = new Promise<StockExit>((resolve) => child.once('close', (code, signal) => resolve({ code, signal })))
+  const listening = Promise.withResolvers<string>()
+  assert.ok(child.stdout)
+  createInterface({ input: child.stdout }).on('line', (line) => {
+    const url = /Server listening at (http:\/\/127\.0\.0\.1:\d+)/.exec(line)?.[1]
+    if (url) listening.resolve(url)
+  })
+  child.on('error', (error: NodeJS.ErrnoException) => {
+    listening.reject(new Error(`Stock API process error (${mode}, ${error.code ?? 'unknown'})`))
+  })
+  const ready = Promise.race([
+    listening.promise,
+    closed.then(({ code, signal }) => {
+      throw new Error(`Stock API exited before listening (${mode}, code=${String(code)}, signal=${String(signal)})`)
+    }),
+    delay(stockStartupMs, undefined, { ref: false }).then(() => {
+      throw new Error(`Stock API did not start within ${String(stockStartupMs)} ms (${mode})`)
+    }),
+  ])
+  return { closed, ready }
+}
+
+async function stopStockServer(child: ChildProcess, closed: Promise<StockExit>, mode: string) {
+  const running = () => child.pid !== undefined && child.exitCode === null && child.signalCode === null
+  const grace = () => delay(stockShutdownMs, 'timeout', { ref: false })
+  if (running()) child.kill('SIGTERM')
+  if ((await Promise.race([closed, grace()])) !== 'timeout') return
+  if (running()) child.kill('SIGKILL')
+  assert.notEqual(await Promise.race([closed, grace()]), 'timeout', `Stock API did not close after SIGKILL (${mode})`)
+}
+
 it('the stock server observes only when explicitly configured for observation', async () => {
   const jwt = await editorToken()
   const payload: AddressedConversationInputStart = {
@@ -278,6 +315,7 @@ it('the stock server observes only when explicitly configured for observation', 
     [true, false],
     [true, true],
   ]) {
+    const mode = `addressing=${String(enabled)}, observation=${String(observe)}`
     const child = spawn(process.execPath, ['apps/api/src/server.ts'], {
       env: {
         PATH: process.env.PATH ?? '',
@@ -292,25 +330,9 @@ it('the stock server observes only when explicitly configured for observation', 
       },
       stdio: ['ignore', 'pipe', 'ignore'],
     })
-    const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()))
-    let stdout = ''
-    child.stdout.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString()
-    })
+    const { ready, closed } = stockServerStartup(child, mode)
     try {
-      const liveUrl = await Promise.race([
-        (async () => {
-          for (let i = 0; i < 100; i++) {
-            const url = /Server listening at (http:\/\/127\.0\.0\.1:\d+)/.exec(stdout)?.[1]
-            if (url) return url
-            await delay(30)
-          }
-          throw new Error('Stock API did not start in time')
-        })(),
-        exited.then(() => {
-          throw new Error('Stock API exited before listening')
-        }),
-      ])
+      const liveUrl = await ready
       assert.equal((await fetch(liveUrl + '/ready', { signal: AbortSignal.timeout(5000) })).status, 200)
       const route = liveUrl + '/api/v1/projects/' + project + '/conversation-inputs/addressed'
       const modeHeaders = { ...headers, 'idempotency-key': randomUUID() }
@@ -338,12 +360,7 @@ it('the stock server observes only when explicitly configured for observation', 
         assert.deepEqual(rows, [{ observed: observe, assessment_installed: false }])
       }
     } finally {
-      if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM')
-      await Promise.race([exited, delay(5000, undefined, { ref: false })])
-      if (child.exitCode === null && child.signalCode === null) {
-        child.kill('SIGKILL')
-        await exited
-      }
+      await stopStockServer(child, closed, mode)
     }
   }
 })
