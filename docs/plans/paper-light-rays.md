@@ -66,11 +66,10 @@
 - Unit: `threshold.test.ts` 16 of 16 (the edges' check red on the fan before the CSS changed); `features/light` and
   `app` 444 of 445, the one left `attention.test.ts`, which fails on this Windows host without any change and passes
   in CI. The `glow`, `motion`, `css-motion`, `elevation` and `material` fences pass.
-- Browser: `pw-gentle.ps1` would not start the last run (a heavy app open on the host), so CI is the record for this
-  version of `light-mark.spec.ts`. The same checks, run headless on Home's fixture: shown, 0 px off, under the mark, a
-  conic of shadow and a conic of white, one animation at 1280 × 800 and 390 × 844; none under reduced motion; not
-  displayed in the room. Earlier versions through the guard: the white fan 60 of 60 over three runs, the violet 42 of
-  42 over three runs plus the specs that touch the threshold or the light (137 passed).
+- Browser, through `pw-gentle.ps1`: `light-mark.spec.ts` 60 of 60 over three runs; the specs that touch the threshold,
+  the paper orb or the light (`paper-orb`, `light-room-paper`, `light-breath`, `light-shadows`, `light-webgl`,
+  `signin`, `home`, `personal`, `brand`) 201 of 201. Earlier versions: the white fan 60 of 60, the violet 42 of 42
+  plus 137 related.
 - Home in light: 0 px off `BEHIND` under a 96 px mark; with the pointer far left it moves 6.6 px towards it. At
   390 × 844, under the 48 px mark, 0 px off. The sign-in once the link has gone and Talk: 0 px off at both sizes, no
   sideways scroll. On the phone's sign-in, the darkest paper behind «Check your email» is (244, 241, 237): 15.1:1

@@ -30,8 +30,8 @@ pointer with the same springs the canvas uses; nothing turns. The room is unchan
   colours in `logo-claro-colores.png`; the white fan on Home, the sign-in and Talk in `logo-claro-sombra.png` and
   `.mp4`. The dark page's pattern drawn beside it: `logo-claro-patron.png`; as built: `logo-claro-patron-construido.png`
   and `.mp4`.
-- Unit, the fences, the browser checks and the measurements: the note's last section. The guard would not start the
-  last browser run (a heavy app open on the host); CI is the record for it, and the same checks ran headless.
+- Unit, the fences, the browser checks and the measurements: the note's last section. Through the guard,
+  `light-mark.spec.ts` 60 of 60 over three runs and the related specs 201 of 201.
 - `prettier --check` on the changed files, `pnpm lint` and the Studio's `typecheck` return 0.
 
 ## Decisions and changes
