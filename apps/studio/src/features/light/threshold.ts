@@ -71,6 +71,31 @@ export function paperBehind(f: {
   return { '--bx': px(f.sourceX - BEHIND.x), '--by': px(f.sourceY - BEHIND.y) }
 }
 
+/** The angles a half's shadow spans as seen from the light, as a CSS conic gradient reads them: 0 up, clockwise. */
+export interface ShadowArc {
+  from: number
+  to: number
+}
+
+/**
+ * Where the halves block the light behind the mark, seen from `source` on the grid (paper-light-rays.md): each half's
+ * shadow runs between the two ends of its straight edge, clockwise, yours on the left and hers on the right. What is
+ * left is where the light pours past, as on the canvas: up and down the line between you, and out on her side.
+ */
+export function shadowArcs(source: Point): Readonly<Record<'you' | 'her', ShadowArc>> {
+  const towards = (x: number, y: number) => {
+    const degrees = (Math.atan2(x - source.x, source.y - y) * 180) / Math.PI
+    return Math.round(((degrees + 360) % 360) * 10) / 10
+  }
+  const ends = (h: UmbralHalf) => {
+    const reach = Math.sqrt(h.r ** 2 - (h.cut - h.x) ** 2)
+    return { top: towards(h.cut, h.y - reach), bottom: towards(h.cut, h.y + reach) }
+  }
+  const you = ends(UMBRAL.you)
+  const her = ends(UMBRAL.her)
+  return { you: { from: you.bottom, to: you.top }, her: { from: her.top, to: her.bottom } }
+}
+
 /** Behind the formed mark the light stands on the line between you, between your half and hers (48 grid). */
 export const BEHIND: Point = { x: 31.5, y: 22 }
 /** Towards a pointer it moves at most this far on the grid, all of it once the pointer is this many pixels away. */

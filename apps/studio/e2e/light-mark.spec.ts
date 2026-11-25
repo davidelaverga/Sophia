@@ -127,8 +127,8 @@ test('light · a stored value the app does not read is the room at first paint t
   await expect(page.locator('link[rel="icon"][type="image/svg+xml"]')).toHaveAttribute('href', '/favicon-dark.svg')
 })
 
-// Her light under the formed mark, on paper (docs/plans/paper-light-rays.md): a beam on the line between you, a wash
-// and slow rays, leaning towards the pointer as the room's canvas does.
+// Her light under the formed mark, on paper (docs/plans/paper-light-rays.md): drawn as the room's canvas draws it, one
+// light the halves block, white where it pours past them and shadow behind them, moving towards the pointer.
 const paperLight = (page: Page) =>
   page.evaluate(() => {
     const light = document.querySelector<HTMLElement>('.threshold-light')
@@ -145,7 +145,8 @@ const paperLight = (page: Page) =>
       dy: l.top + l.height / 2 - (m.top + (22 * m.height) / 48),
       x: l.left + l.width / 2,
       size: Math.round(m.width),
-      rays: getComputedStyle(light, '::before').backgroundImage,
+      shadows: getComputedStyle(light, '::before').backgroundImage,
+      light: getComputedStyle(light, '::after').backgroundImage,
       running: animations.length,
       // Under the mark: drawn just before it in the same box, neither lifted (the mark takes no pointer, so no
       // elementFromPoint can say which is on top).
@@ -160,7 +161,7 @@ for (const [w, h, size] of [
   [1280, 800, 96],
   [390, 844, 48],
 ] as const) {
-  test(`light · ${String(w)} px: her light stands under the formed mark, on the line between you, rays turning`, async ({
+  test(`light · ${String(w)} px: her light stands under the formed mark, on the line between you, shaded by the halves`, async ({
     page,
   }) => {
     await page.setViewportSize({ width: w, height: h })
@@ -171,13 +172,11 @@ for (const [w, h, size] of [
     expect(seen?.size).toBe(size)
     expect(Math.abs(seen?.dx ?? 99)).toBeLessThanOrEqual(2)
     expect(Math.abs(seen?.dy ?? 99)).toBeLessThanOrEqual(2)
-    expect(seen?.rays).toMatch(/conic-gradient/)
-    // White rays with a shadow between them, not her violet (Luis 2026-11-25).
-    expect(seen?.rays).toMatch(/rgb\(255, 255, 255\)/)
-    expect(seen?.rays).toMatch(/rgba\(29, 27, 34, 0\.13\)/)
-    expect(seen?.rays).not.toMatch(/109, 91, 208/)
+    // Shadow behind the halves, white where the light gets past: the canvas's pattern, not her violet (Luis 2026-11-25).
+    expect(seen?.shadows).toMatch(/^conic-gradient\(.*rgba\(29, 27, 34, 0\.17\)/)
+    expect(seen?.light).toMatch(/conic-gradient\(rgb\(255, 255, 255\)(?!.*109, 91, 208)/)
     expect(seen?.under).toBe(true)
-    expect(seen?.running, 'the rays turn and the light breathes').toBeGreaterThanOrEqual(2)
+    expect(seen?.running, 'it breathes with her halo; no fan turns').toBe(1)
   })
 }
 
