@@ -2,7 +2,7 @@
 // forms where it rests (SophiaLight places it, with the light's own numbers). Her half grows from the light; yours
 // rises from where the address was written and meets hers across the line between you, in one gesture. Then it holds,
 // her halo breathing slowly. With less motion asked for, the mark is simply there, formed and still.
-import { useLayoutEffect, useRef, type CSSProperties } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import type { LightTarget } from './engine.ts'
 import type { Point } from './motion.ts'
 import { markSize, UMBRAL } from './threshold.ts'
@@ -57,11 +57,7 @@ export function Threshold({ at, from }: { at: LightTarget; from: Point | null })
   return (
     <>
       {/* Her light under the mark, on paper only (paper-light-rays.md): in the room the canvas draws it. */}
-      <span
-        className="threshold-light"
-        aria-hidden
-        style={{ left: at.x, top: at.y, '--ms': `${String(size)}px` } as CSSProperties}
-      />
+      <span className="threshold-light" aria-hidden style={{ left: at.x, top: at.y, '--ms': `${String(size)}px` }} />
       <svg
         ref={svg}
         className="threshold"
