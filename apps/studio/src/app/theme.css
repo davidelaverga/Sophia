@@ -1808,9 +1808,11 @@ img.avatar {
   }
 }
 /* Her light under the formed mark, on paper (docs/plans/paper-light-rays.md): where the room's canvas pours past the
-   halves, paper draws a beam on the line between you, a wash and slow rays, in her halo's own violet. It stands where
-   the canvas's light does (BEHIND, 31.5 × 22 on the 48 grid: 7.5 right of the mark's centre, 2 above) and leans with it
-   towards the pointer (--bx, --by, from the engine). In the room it is not drawn: the canvas is. */
+   halves, paper draws a beam on the line between you, a wash and slow rays. White, not her violet (Luis 2026-11-25,
+   «más sombra» of six drawn colours): on paper that is nearly white, light reads only against something darker, so a
+   shadow lies between the rays, beside the beam and at the wash's rim. It stands where the canvas's light does
+   (BEHIND, 31.5 × 22 on the 48 grid: 7.5 right of the mark's centre, 2 above) and leans with it towards the pointer
+   (--bx, --by, from the engine). In the room it is not drawn: the canvas is. */
 .threshold-light {
   display: none;
 }
@@ -1828,29 +1830,43 @@ img.avatar {
   position: absolute;
   border-radius: 50%;
 }
-/* The rays: faint spokes fading outward, turning once in 90 s. */
+/* The rays: white spokes with a shadow between them, fading outward, turning once in 90 s. */
 :root[data-theme='light'] .threshold-light::before {
   width: calc(var(--ms) * 4.4);
   height: calc(var(--ms) * 4.4);
   margin: calc(var(--ms) * -2.2);
-  background: repeating-conic-gradient(rgb(var(--halo-rgb) / 0.1) 0 4deg, transparent 8deg 31deg);
+  background: repeating-conic-gradient(
+    rgb(var(--sheen-rgb) / 1) 0 5deg,
+    rgb(var(--shadow-rgb) / 0.13) 11deg 25deg,
+    rgb(var(--sheen-rgb) / 1) 31deg
+  );
   mask: radial-gradient(closest-side, #000 8%, rgb(0 0 0 / 0.5) 34%, transparent 70%);
-  filter: blur(calc(var(--ms) / 14));
+  filter: blur(calc(var(--ms) / 22));
   animation: threshold-rays 90s linear infinite;
 }
-/* The beam on the line and the wash around it, breathing with her halo. */
+/* The beam on the line, white between two shadows, and the white wash around it with a shadow at its rim, breathing
+   with her halo. */
 :root[data-theme='light'] .threshold-light::after {
   width: calc(var(--ms) * 3.1);
   height: calc(var(--ms) * 3.1);
   margin: calc(var(--ms) * -1.55);
   background-image:
-    radial-gradient(
-      calc(var(--ms) * 0.1) calc(var(--ms) * 1.3) at 50% 50%,
-      rgb(var(--halo-rgb) / 0.75),
-      rgb(var(--halo-rgb) / 0.4) 40%,
-      transparent
+    linear-gradient(
+      90deg,
+      transparent calc(50% - var(--ms) * 0.2),
+      rgb(var(--shadow-rgb) / 0.12) calc(50% - var(--ms) * 0.1),
+      rgb(var(--sheen-rgb) / 1) 50%,
+      rgb(var(--shadow-rgb) / 0.12) calc(50% + var(--ms) * 0.1),
+      transparent calc(50% + var(--ms) * 0.2)
     ),
-    radial-gradient(closest-side, rgb(var(--halo-rgb) / 0.2), rgb(var(--halo-rgb) / 0.08) 45%, transparent 74%);
+    radial-gradient(
+      closest-side,
+      rgb(var(--sheen-rgb) / 1),
+      rgb(var(--sheen-rgb) / 0.8) 40%,
+      rgb(var(--shadow-rgb) / 0.06) 62%,
+      transparent 76%
+    );
+  mask: radial-gradient(calc(var(--ms) * 1.5) calc(var(--ms) * 1.5) at 50% 50%, #000 40%, transparent 100%);
   filter: blur(calc(var(--ms) / 16));
   animation: threshold-glow 4.8s var(--ease-in-out) 1.2s infinite alternate;
 }

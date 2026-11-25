@@ -172,6 +172,10 @@ for (const [w, h, size] of [
     expect(Math.abs(seen?.dx ?? 99)).toBeLessThanOrEqual(2)
     expect(Math.abs(seen?.dy ?? 99)).toBeLessThanOrEqual(2)
     expect(seen?.rays).toMatch(/conic-gradient/)
+    // White rays with a shadow between them, not her violet (Luis 2026-11-25).
+    expect(seen?.rays).toMatch(/rgb\(255, 255, 255\)/)
+    expect(seen?.rays).toMatch(/rgba\(29, 27, 34, 0\.13\)/)
+    expect(seen?.rays).not.toMatch(/109, 91, 208/)
     expect(seen?.under).toBe(true)
     expect(seen?.running, 'the rays turn and the light breathes').toBeGreaterThanOrEqual(2)
   })
@@ -203,3 +207,51 @@ test('light · under reduced motion her light under the mark stands still', asyn
   await expect.poll(async () => (await paperLight(page))?.shown).toBe(true)
   expect((await paperLight(page))?.running).toBe(0)
 })
+
+// The sign-in once the link has gone and Talk draw the same formed mark (Threshold.tsx), so the same light under it.
+const FORMED: readonly [string, (page: Page, theme: string) => Promise<void>][] = [
+  [
+    'the sign-in, once the link has gone',
+    async (page, theme) => {
+      await page.goto(`/signin.html?theme=${theme}`)
+      await page.getByRole('textbox', { name: 'Email' }).fill('someone@example.com')
+      await page.getByRole('button', { name: 'Email me a link' }).click()
+      await expect(page.getByRole('heading', { name: 'Check your email' })).toBeVisible()
+    },
+  ],
+  [
+    'Talk',
+    async (page, theme) => {
+      await page.goto(`/personal.html?voice=1&theme=${theme}`)
+      await page.getByRole('button', { name: 'Talk with her' }).click()
+      await expect(page.getByRole('dialog', { name: 'Talking with Sophia' })).toBeVisible()
+    },
+  ],
+]
+
+for (const [name, open] of FORMED) {
+  for (const [w, h, size] of [
+    [1280, 800, 96],
+    [390, 844, 48],
+  ] as const) {
+    test(`light · ${String(w)} px, ${name}: her light stands under the formed mark, on the line between you`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: w, height: h })
+      await open(page, 'light')
+      await expect(page.locator('svg.threshold')).toBeVisible()
+      await expect.poll(async () => (await paperLight(page))?.shown).toBe(true)
+      const seen = await paperLight(page)
+      expect(seen?.size).toBe(size)
+      expect(Math.abs(seen?.dx ?? 99)).toBeLessThanOrEqual(2)
+      expect(Math.abs(seen?.dy ?? 99)).toBeLessThanOrEqual(2)
+      expect(seen?.under).toBe(true)
+    })
+  }
+
+  test(`in the room, ${name}: no paper light`, async ({ page }) => {
+    await open(page, 'dark')
+    await expect(page.locator('svg.threshold')).toBeVisible()
+    expect((await paperLight(page))?.shown ?? false).toBe(false)
+  })
+}

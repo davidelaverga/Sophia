@@ -2,7 +2,9 @@
 
 > 2026-11-24 · Luis, on Home's formed mark in light: «En light mode no hay brillo o luz o elemento dinamico para el
 > logo». Three directions were drawn over Home's fixture (`evaluacion-2026-11-22/logo-claro-direcciones.png`, outside
-> the repository); he picked «2 · Luz con rayos». Studio only; no API, no words.
+> the repository); he picked «2 · Luz con rayos». Then, on the violet: «La luz que sea blanca no morada», and of six
+> colours drawn over Home (`evaluacion-2026-11-22/logo-claro-colores.png`), «3 · Más sombra». Studio only; no API, no
+> words.
 
 ## What was measured
 
@@ -27,8 +29,11 @@
   the pointer (`sourceX`, `sourceY`). On paper it also writes that lean in pixels (`--bx`, `--by`), from a new pure
   `paperBehind` in `threshold.ts`. The light follows it, so the rays' centre shifts the way the canvas's does. Same
   springs, same reach, no new listener.
-- **Colours from the theme's tokens only**: `rgb(var(--halo-rgb) / α)`, paper's violet. No literal colour, so
-  `glow.test.ts` holds. Gradients and a blur, no glow shadow.
+- **White, with shadow beside it**, from the theme's tokens only. Paper is nearly white (251, 248, 243), so a white
+  light shows only against something darker. The rays are white (`--sheen-rgb`) with a shadow between them
+  (`--shadow-rgb` at 13 %), the beam is white between two shadows (12 %), and the white wash has a faint shadow at its
+  rim (6 %). No literal colour, so `glow.test.ts` holds. Gradients, a mask and a blur, no glow shadow. Of the six
+  colours drawn, plain white barely showed and amber, teal and the halves' colours were set aside.
 - **Motion**: two ambient loops, the breath (the threshold's 4.8 s, after 1.2 s) and the turn (90 s linear). Each is
   recorded in `motion.test.ts`'s ambient list beside the threshold's breath.
 - **Reduced motion**: no turn, no breath, no lean (the engine gives no aim). The light stands still at its middle
@@ -43,24 +48,34 @@
   - The paper light is shown, under the mark: drawn just before it in the same box, neither lifted (the mark takes no
     pointer, so `elementFromPoint` can't say which is on top).
   - It is centred on the line between the halves (within 2 px of `BEHIND`) at 1280 × 800 and at 390 × 844.
+  - Its rays are white with the shadow between them, and carry no violet.
+  - The same on the sign-in once the link has gone and on Talk, at both sizes; in the room theme, not displayed there
+    either.
   - Its rays turn and it breathes, so both animations run.
   - With the pointer far to the left of Home's mark (inside the page; one that leaves it is no one to lean to), its
     centre moves left.
   - In the room theme it is not displayed.
   - Under reduced motion, nothing animates.
   - Red today: there is no paper light.
-- **Captures**: Home in light at 1280 × 800 and 390 × 844, and a short video, set beside the dark page for Luis.
+- **Captures**: Home, the sign-in and Talk in light at 1280 × 800 and 390 × 844, and a short video, set beside the
+  dark page for Luis.
 
 ## What was measured after
 
 - Unit: `threshold.test.ts` 14 of 14 (`paperBehind` red before); `features/light` and `app` 442 of 443, the one left
   `attention.test.ts`, which fails on this Windows host without any change and passes in CI. `glow`, `motion`,
   `css-motion`, `elevation` and `material` fences pass, with the two loops recorded in `motion.test.ts`.
-- Through `pw-gentle.ps1`: `light-mark.spec.ts` 42 of 42 over three runs (the four new checks red before), and the
+- Through `pw-gentle.ps1`, after the white: `light-mark.spec.ts` 60 of 60 over three runs (20 checks: the white ones
+  assert no violet in the rays; the sign-in's and Talk's six added). Before, with the violet: 42 of 42 over three runs (the four
+  new checks red before), and the
   specs that touch the threshold or the light (`brand`, `home`, `home-phone-needs`, `light-breath`, `light-mode`,
   `light-room-paper`, `light-shadows`, `light-webgl`, `paper-orb`, `signin`, `signin-lede`, `card-scale`): 137 passed
   in one run, the only failures the new checks before their fix.
 - Home in light, headless: at 1280 × 800 the light stands on the line (0 px off `BEHIND`) under a 96 px mark; with the
   pointer far left it leans 6.6 px towards it. At 390 × 844, under the 48 px mark, 0 px off, no sideways scroll. In
   the room the paper light is not displayed and the canvas looks as before.
-- Not checked: the sign-in's and Talk's formed mark by eye (they draw the same `Threshold`, so the same light).
+- The sign-in once the link has gone and Talk, light: 0 px off `BEHIND` at 1280 × 800 (96 px mark) and 390 × 844
+  (48 px), no sideways scroll; in the room, not displayed. On the phone's sign-in, the darkest paper behind «Check
+  your email» under the rays is (240, 238, 233): 14.7:1 against the ink. Captures in
+  `evaluacion-2026-11-22/logo-claro-sombra.png` and `.mp4`, outside the repository.
+- On the phone, Home's mark sits at the right edge, so the screen's edge cuts its rays, as with the violet.
