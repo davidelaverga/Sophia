@@ -1807,6 +1807,85 @@ img.avatar {
     filter: var(--glow-threshold-still);
   }
 }
+/* Her light under the formed mark, on paper (docs/plans/paper-light-rays.md), drawn as the room's canvas draws it: one
+   light behind the mark, which the halves block. Your half shades the left, hers the right, and the light pours past
+   them, up and down the line between you and out on her side (shadowArcs in threshold.ts: the angles below, held to
+   it by threshold.test.ts). White with shadow, not her violet (Luis 2026-11-25): on paper that is nearly white, light
+   reads only against something darker. It stands where the canvas's light does (BEHIND, 31.5 × 22 on the 48 grid:
+   7.5 right of the mark's centre, 2 above) and moves with it towards the pointer (--bx, --by, from the engine). In the
+   room it is not drawn: the canvas is. */
+.threshold-light {
+  display: none;
+}
+:root[data-theme='light'] .threshold-light {
+  display: block;
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  translate: calc(var(--ms) * 7.5 / 48 + var(--bx, 0px)) calc(var(--ms) * -2 / 48 + var(--by, 0px));
+}
+:root[data-theme='light'] .threshold-light::before,
+:root[data-theme='light'] .threshold-light::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+}
+/* The halves' shadows, close to the mark: deep behind yours, faint behind hers. */
+:root[data-theme='light'] .threshold-light::before {
+  width: calc(var(--ms) * 4.4);
+  height: calc(var(--ms) * 4.4);
+  margin: calc(var(--ms) * -2.2);
+  background: conic-gradient(
+    transparent 0deg 1deg,
+    rgb(var(--shadow-rgb) / 0.05) 11deg 121deg,
+    transparent 132deg 180deg,
+    rgb(var(--shadow-rgb) / 0.17) 191deg 343deg,
+    transparent 353deg
+  );
+  mask: radial-gradient(closest-side, #000 8%, rgb(0 0 0 / 0.6) 30%, transparent 62%);
+  filter: blur(calc(var(--ms) / 20));
+}
+/* The light that gets past, reaching further: a white line between two shadows on the gap, and white where the halves
+   leave it open, softer behind hers, none behind yours. It breathes with her halo. */
+:root[data-theme='light'] .threshold-light::after {
+  width: calc(var(--ms) * 4);
+  height: calc(var(--ms) * 4);
+  margin: calc(var(--ms) * -2);
+  background-image:
+    linear-gradient(
+      90deg,
+      transparent calc(50% - var(--ms) * 0.18),
+      rgb(var(--shadow-rgb) / 0.15) calc(50% - var(--ms) * 0.08),
+      rgb(var(--sheen-rgb) / 1) 50%,
+      rgb(var(--shadow-rgb) / 0.15) calc(50% + var(--ms) * 0.08),
+      transparent calc(50% + var(--ms) * 0.18)
+    ),
+    conic-gradient(
+      rgb(var(--sheen-rgb) / 1) 0deg 1deg,
+      rgb(var(--sheen-rgb) / 0.6) 11deg 121deg,
+      rgb(var(--sheen-rgb) / 1) 132deg 180deg,
+      transparent 191deg 343deg,
+      rgb(var(--sheen-rgb) / 1) 353deg
+    );
+  mask: radial-gradient(closest-side, #000 12%, rgb(0 0 0 / 0.55) 42%, transparent 88%);
+  filter: blur(calc(var(--ms) / 16));
+  animation: threshold-glow 4.8s var(--ease-in-out) 1.2s infinite alternate;
+}
+@keyframes threshold-glow {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme='light'] .threshold-light::after {
+    animation: none;
+    opacity: 0.8;
+  }
+}
 .light[data-fallback] .light-gl {
   display: none;
 }
