@@ -24,6 +24,8 @@ import { useMembership } from '../access/useAccess.ts'
 import { levelsHere, levelWords, volumeSettable, type Level } from '../voice/people-volume.ts'
 import { shortName, type RoomParticipant, type Standing } from '../voice/room-view.ts'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
+import type { RoomPresence } from '../voice/room-presence.ts'
+import { useRoomPresence } from '../voice/useRoomPresence.ts'
 
 interface Props {
   room: ProjectRoom
@@ -202,15 +204,36 @@ function PersonRow({ person: p, host, level, levels, pending, failed, onAct, onL
   )
 }
 
+/**
+ * Before this person joins: who the server says is in the call, by the names Home gives them (one-truth.md). Nothing
+ * to act on yet, so the rows hold names only. While the server is asked, nothing is claimed; when it can't say, the
+ * panel says where the answer is rather than guess.
+ */
+function Outside({ presence }: { presence: RoomPresence }) {
+  if (!presence.known) return presence.settled ? <EmptyState>Who’s in the call shows once you join.</EmptyState> : null
+  if (presence.people.length === 0) return <EmptyState>Nobody is in the call yet.</EmptyState>
+  return (
+    <ul className="people people-outside" aria-label="People in the call">
+      {presence.people.map((name, i) => (
+        <li key={`${name}-${String(i)}`} className="person">
+          <span className="person-name">{name}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export function PeoplePanel({ room, projectId, identity }: Props) {
   const host = useMembership(projectId, identity.name, identity.token).data?.role === 'admin'
   const [failed, setFailed] = useState<{ identity: string; text: string } | null>(null)
   const [pending, setPending] = useState<ReadonlyMap<string, Act>>(new Map())
   const list = useRef<HTMLUListElement>(null)
   const [levels] = useState(() => levelsHere(volumeSettable(document.createElement('audio'))))
+  // Out of the call, who the server says is in it: Home's presence (one-truth.md), never a guess.
+  const presence = useRoomPresence(projectId, identity, room.participants.length === 0)
   // You first, then the others as the call lists them.
   const people = room.participants.toSorted((a, b) => Number(b.local) - Number(a.local))
-  if (people.length === 0) return <EmptyState>Nobody is in the call yet.</EmptyState>
+  if (people.length === 0) return <Outside presence={presence} />
   const act = (person: RoomParticipant, name: string) => (what: Act) => {
     if (pending.has(person.identity)) return
     setFailed(null)

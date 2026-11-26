@@ -36,7 +36,7 @@ import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
 import { chatSignature, panelNote, toggled, type Panel } from './side-panel.ts'
 import { useKnownNames } from './useKnownNames.ts'
 import { PeoplePanel } from './PeoplePanel.tsx'
-import { PanelToggles, SidePanel, useBriefUpdates, useUnread } from './SidePanel.tsx'
+import { PanelToggles, SidePanel, useBriefUpdates, useChatPeek, useUnread } from './SidePanel.tsx'
 import { useViewerState } from './useViewerState.ts'
 import { lensesShown, type Lens } from './viewer-state.ts'
 
@@ -59,10 +59,16 @@ const COMING: Record<Exclude<Lens, 'converse'>, { title: string; body: string }>
  * whose toggle opened it, and what is new behind it (a reply that finished while the person read Goals still marks
  * Chat when they come back). `studio`: the room is on screen, so an open tab is in view.
  */
-export function useRoomPanel(snapshot: Snapshot | undefined, room: ProjectRoom, studio: boolean) {
+export function useRoomPanel(
+  snapshot: Snapshot | undefined,
+  room: ProjectRoom,
+  studio: boolean,
+  me: string | null = null,
+) {
   const [panel, setPanel] = useState<Panel | null>(null)
   const [opener, setOpener] = useState<Panel | null>(null)
   const unread = useUnread(chatSignature(snapshot, room.chat, room.notices), studio && panel === 'chat')
+  const peek = useChatPeek(snapshot, room, me, studio && panel === 'chat')
   // A message named in the address (a mention from Home, A37): the chat opens on it.
   const message = useAddressed(MESSAGE)
   useEffect(() => {
@@ -84,6 +90,8 @@ export function useRoomPanel(snapshot: Snapshot | undefined, room: ProjectRoom, 
     panel,
     opener,
     unread,
+    /** A new message from someone else, beside the closed chat for a moment (chat-pace.md). */
+    peek,
     /** The chat is on screen: its tab open while the room is (a mention is seen only then, A37). */
     chatInView: studio && panel === 'chat',
     brief,
@@ -303,7 +311,15 @@ function useShellKeys(setLens: (lens: Lens) => void, panel: RoomPanel) {
 }
 
 function RoomPanelToggles({ panel }: { panel: RoomPanel }) {
-  return <PanelToggles open={panel.panel} onToggle={panel.toggle} unread={panel.unread} updated={panel.brief.updated} />
+  return (
+    <PanelToggles
+      open={panel.panel}
+      onToggle={panel.toggle}
+      unread={panel.unread}
+      updated={panel.brief.updated}
+      peek={panel.peek}
+    />
+  )
 }
 
 export function StudioShell(props: Props) {

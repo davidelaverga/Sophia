@@ -66,6 +66,7 @@ import {
   validateConversationMessagePage,
   validateConversationStarted,
   validateConversationMessageSent,
+  validateConversationArtifactVersion,
   validateConversationWithdrawal,
   validateConversationErasure,
   validateDesignEditReceipt,
@@ -184,6 +185,10 @@ export const parseConversationList = parser('ConversationList', validateConversa
 export const parseConversationMessagePage = parser('ConversationMessagePage', validateConversationMessagePage)
 export const parseConversationStarted = parser('ConversationStarted', validateConversationStarted)
 export const parseConversationMessageSent = parser('ConversationMessageSent', validateConversationMessageSent)
+export const parseConversationArtifactVersion = parser(
+  'ConversationArtifactVersion',
+  validateConversationArtifactVersion,
+)
 export const parseConversationWithdrawal = parser('ConversationWithdrawal', validateConversationWithdrawal)
 export const parseConversationErasure = parser('ConversationErasure', validateConversationErasure)
 export const parseDesignEditReceipt = parser('DesignEditReceipt', validateDesignEditReceipt)

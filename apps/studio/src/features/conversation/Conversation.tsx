@@ -29,7 +29,7 @@ import type { Replying } from './ReplyingTo.tsx'
 import { RichText } from '../../app/RichText.tsx'
 import { clock } from '../../app/time-words.ts'
 import { useNow } from '../../app/use-now.ts'
-import { dayBreaks, todayAfter } from './chat-days.ts'
+import { dayBreaks, goesOn, todayAfter } from './chat-days.ts'
 import { AwayDivider, useWhileAway, type AwayMark } from './WhileAway.tsx'
 
 interface Props {
@@ -116,6 +116,8 @@ export function Conversation(props: Props) {
   const members = useMentionShown(props, history, earlier)
   useReplyGone(replying, earlier.withdrawn, setReplying)
   const away = useWhileAway({ history, following }, earlier.entries)
+  // Where the room's message on its way is drawn, after the discussion it joins (chat-pace.md).
+  const [pendingSlot, setPendingSlot] = useState<HTMLDivElement | null>(null)
   return (
     <div className="conversation">
       {away.line}
@@ -134,6 +136,7 @@ export function Conversation(props: Props) {
           onReply={VISION ? setReplying : undefined}
           away={away.divider}
         />
+        <div className="pending-slot" ref={setPendingSlot} />
         {VISION && discussion.length > 0 && <RepliesState failed={replies.failed} onRetry={replies.retry} />}
         <TodayLine lastAt={lastSaidAt(earlier.entries, earlier.withdrawn)} shown={timeline.length > 0} />
         {timeline.length > 0 && <Timeline {...{ timeline, projectId, identity, me, names }} />}
@@ -149,6 +152,8 @@ export function Conversation(props: Props) {
         replying={replying}
         onStopReplying={() => setReplying(null)}
         onSend={away.sent}
+        pendingSlot={pendingSlot}
+        me={me}
       />
     </div>
   )
@@ -412,6 +417,7 @@ function Discussion(props: DiscussionProps) {
     now,
   )
   const here = new Set(entries.map((e) => e.id))
+  const goes = goesOnBefore(items, days, { replies, gaps, away })
   // Each message's own author name for an author the call doesn't know (A17): outside a call, no «A member».
   const names = withAuthors(known, [...entries, ...withdrawn])
   return (
@@ -431,11 +437,16 @@ function Discussion(props: DiscussionProps) {
           </span>
         )
         return [
-          <li key={entry.id} className="contribution" {...entryAttrs(entry, named.waiting, !!onReply)}>
+          <li
+            key={entry.id}
+            className="contribution"
+            data-goes-on={goes[i] || undefined}
+            {...entryAttrs(entry, named.waiting, !!onReply)}
+          >
             {days[i] && <span className="chat-day">{days[i]}</span>}
             {away?.id === entry.id && <AwayDivider words={away.words} />}
             {answers && <Quote answers={answers} here={here.has(answers.id)} me={me} names={names} />}
-            <span className="contribution-author">{author}</span>
+            <span className={goes[i] ? 'contribution-author sr-only' : 'contribution-author'}>{author}</span>
             <At at={new Date(entry.createdAt)} className="contribution-at" />
             {acts && <EditedMark entry={entry} />}
             {acts ? (
@@ -447,14 +458,10 @@ function Discussion(props: DiscussionProps) {
             )}
             <MentionedLine ids={entry.mentions} me={me} byId={named.byId} known={named.known} />
             {onReply && (
-              <button
-                type="button"
-                className="text-button contribution-reply"
-                aria-label={`Reply to ${author}`}
-                onClick={() => onReply({ id: entry.id, author, quote: quoteOf(entry.text) })}
-              >
-                Reply
-              </button>
+              <ReplyPress
+                author={author}
+                onPress={() => onReply({ id: entry.id, author, quote: quoteOf(entry.text) })}
+              />
             )}
           </li>,
           gapLine,
@@ -462,6 +469,45 @@ function Discussion(props: DiscussionProps) {
       })}
     </ol>
   )
+}
+
+/** Reply to a message (A20), named for its author. */
+function ReplyPress({ author, onPress }: { author: string; onPress: () => void }) {
+  return (
+    <button
+      type="button"
+      className="text-button contribution-reply"
+      aria-label={`Reply to ${author}`}
+      onClick={onPress}
+    >
+      Reply
+    </button>
+  )
+}
+
+/**
+ * Which lines go on the one before (goesOn, chat-pace.md): a reply's quote, the line after a gap, and the first line
+ * of what came while away start again. Such a line's name is read, not shown (sr-only); its time shows under the
+ * pointer.
+ */
+function goesOnBefore(
+  items: ReturnType<typeof discussionItems>,
+  days: readonly (string | null)[],
+  apart: { replies: DiscussionProps['replies']; gaps: Earlier['gaps']; away: AwayMark | null },
+) {
+  const lines = items.map((item) => ({
+    type: item.type,
+    actorId: item.type === 'entry' ? item.entry.actorId : '',
+    createdAt: item.createdAt,
+  }))
+  return goesOn(lines, days, (i) => {
+    const item = items[i]
+    const before = items[i - 1]
+    return (
+      (item?.type === 'entry' && (apart.replies.has(item.id) || apart.away?.id === item.id)) ||
+      (before !== undefined && apart.gaps.after.includes(before.id))
+    )
+  })
 }
 
 /**

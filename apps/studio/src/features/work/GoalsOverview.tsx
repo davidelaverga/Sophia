@@ -17,6 +17,7 @@ import { targetLine, useMembers, useTargetsRead } from './GoalTargets.tsx'
 import { todayOf } from './goal-due.ts'
 import { useNow } from '../../app/use-now.ts'
 import {
+  atRest,
   briefOf,
   canOpenInTasks,
   goalsShown,
@@ -66,9 +67,9 @@ function GoalRow(props: {
           </button>
         </h3>
         <p className="goal-row-line">
-          {/* Paused: its state says which pause («Held · 2 of 6 done»); otherwise the health word leads. */}
-          <span className="goal-health">{health === 'paused' ? line : HEALTH_LABEL[health]}</span>
-          {health !== 'paused' && line && ` · ${line}`}
+          {/* At rest: its state says which rest («Held · 2 of 6 done», «Stopped»); otherwise the health word leads. */}
+          <span className="goal-health">{atRest(health) ? line : HEALTH_LABEL[health]}</span>
+          {!atRest(health) && line && ` · ${line}`}
         </p>
         {target && (
           <p className="goal-row-target" data-due={target.due ?? undefined}>

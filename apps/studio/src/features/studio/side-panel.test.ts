@@ -3,12 +3,14 @@ import { describe, it } from 'node:test'
 import type { Snapshot } from '@sophia/contracts'
 import {
   changedUnseen,
+  firstLine,
   chatSignature,
   focusOnOpen,
   focusStep,
   isNew,
   mergeNames,
   panelNote,
+  peekOf,
   seenNow,
   toggled,
 } from './side-panel.ts'
@@ -117,5 +119,45 @@ describe('the room side panel', () => {
     assert.equal(panelNote('chat', null, ended), null, 'the chat’s foot says it')
     assert.equal(panelNote('chat', 'Microphone blocked.', ended), 'Microphone blocked.')
     assert.equal(panelNote(null, null, null), null)
+  })
+})
+
+const name = (id: string) => (id === 'davide' ? 'Davide' : 'A member')
+
+describe('a new message peeked at beside a closed chat (chat-pace.md)', () => {
+  const entry = {
+    id: 'm2',
+    actorId: 'davide',
+    text: 'Can we move the review to Thursday?\nI’m out Wednesday.',
+    createdAt: '2026-11-22T10:02:00Z',
+  }
+  const m1 = { id: 'm1', at: '2026-11-22T10:01:00Z' }
+
+  it('names who wrote it and its first line', () => {
+    assert.deepEqual(peekOf(entry, m1, 'luis', name), {
+      id: 'm2',
+      author: 'Davide',
+      line: 'Can we move the review to Thursday?',
+    })
+  })
+
+  it('peeks at nothing on the first read, an entry already seen, or your own', () => {
+    assert.equal(peekOf(entry, null, 'luis', name), null)
+    assert.equal(peekOf(entry, { id: 'm2', at: entry.createdAt }, 'luis', name), null)
+    assert.equal(peekOf({ ...entry, actorId: 'luis' }, m1, 'luis', name), null)
+    assert.equal(peekOf(undefined, m1, 'luis', name), null)
+  })
+
+  it('peeks at the first message of an empty discussion', () => {
+    assert.equal(peekOf(entry, { id: '', at: '' }, 'luis', name)?.author, 'Davide')
+  })
+
+  it('peeks at nothing when the newest is withdrawn and an older one becomes the newest', () => {
+    assert.equal(peekOf({ ...entry, id: 'm0', createdAt: '2026-11-22T10:00:00Z' }, m1, 'luis', name), null)
+  })
+
+  it('cuts a long first line', () => {
+    assert.equal(firstLine('a'.repeat(100), 10), `${'a'.repeat(9)}…`)
+    assert.equal(firstLine('  \n'), '')
   })
 })

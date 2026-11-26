@@ -26,6 +26,8 @@ interface Props {
   tip?: string | undefined
   /** The tip's alignment: `end` at the content's end and `start` at its start, so the tip never runs past it. */
   tipAlign?: 'center' | 'end' | 'start'
+  /** Where the tip opens: above (the default), or below where the line above it is the content's own words. */
+  tipSide?: 'top' | 'bottom'
 }
 
 /** The button at rest. Waiting, it keeps the focus it was given back (Codex P1 on #356): said, not natively disabled. */
@@ -49,7 +51,14 @@ function AtRest({
       onClick={() => !disabled && onPress()}
     >
       {label}
-      {tipped && <Tip label={props.tip ?? label} keys={props.keys} side="top" align={props.tipAlign ?? 'center'} />}
+      {tipped && (
+        <Tip
+          label={props.tip ?? label}
+          keys={props.keys}
+          side={props.tipSide ?? 'top'}
+          align={props.tipAlign ?? 'center'}
+        />
+      )}
     </button>
   )
 }

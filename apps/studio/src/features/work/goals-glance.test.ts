@@ -10,6 +10,7 @@ import {
   canOpenInTasks,
   ordered,
   rowLine,
+  sheetHealth,
   stateLine,
   wayLine,
   withDue,
@@ -58,7 +59,7 @@ describe('a goal’s health (docs/plans/goals-overview.md)', () => {
     const states = ['ready', 'holding', 'held', 'stopping', 'stopped', 'completed'] as const
     assert.deepEqual(
       states.map((s) => healthOf(goal('a', s), undefined)),
-      ['new', 'paused', 'paused', 'paused', 'paused', 'done'],
+      ['new', 'paused', 'paused', 'stopped', 'stopped', 'done'],
     )
     assert.equal(healthOf(goal('a', 'ready'), { asks: [ask] }), 'attention')
   })
@@ -222,5 +223,23 @@ describe('a goal past its date (docs/plans/goal-overdue-health.md)', () => {
       [true, false, false, false],
     )
     assert.deepEqual(plans['a']?.glance, glance())
+  })
+})
+
+describe('a stopped goal is not paused (one-truth.md)', () => {
+  it('is counted apart: «1 paused · 1 stopped», never «2 paused»', () => {
+    assert.equal(healthLine([goal('a', 'held'), goal('b', 'stopped')], {}), '1 paused · 1 stopped')
+    assert.equal(healthLine([goal('b', 'stopping')], {}), '1 stopped')
+  })
+
+  it('heads its sheet by its state alone; a pause still names which pause', () => {
+    assert.equal(sheetHealth(goal('a', 'stopped'), 'stopped', undefined), 'Stopped')
+    assert.equal(sheetHealth(goal('a', 'stopping'), 'stopped', undefined), 'Stopping · finished work is kept')
+    assert.equal(sheetHealth(goal('a', 'held'), 'paused', undefined), 'Paused · Held')
+    assert.equal(sheetHealth(goal('a', 'ready'), 'new', undefined), 'Not started')
+  })
+
+  it('reads its row by its state, as a pause does', () => {
+    assert.equal(rowLine(goal('a', 'stopped'), undefined), 'Stopped')
   })
 })

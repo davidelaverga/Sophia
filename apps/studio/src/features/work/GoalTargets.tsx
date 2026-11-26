@@ -14,6 +14,7 @@ import type { NotesFor } from './GoalNotes.tsx'
 import { notesRead } from './goal-notes.ts'
 import { dayOf } from './goal-day.ts'
 import { dueOf, dueWords, type Due } from './goal-due.ts'
+import { memberName } from '../../app/person-name.ts'
 
 export { dayOf } from './goal-day.ts'
 
@@ -67,7 +68,7 @@ export function useMembersRead(at: At) {
 export const useMembers = (at: At): readonly ProjectMember[] => useMembersRead(at).members
 
 const ownerName = (members: readonly ProjectMember[], id: string) =>
-  members.find((m) => m.actorId === id)?.name ?? 'A member'
+  memberName(members.find((m) => m.actorId === id)?.name)
 
 /** Against what a row's target is read: the viewer (named «You»), their calendar day, and whether the goal is done. */
 export interface TargetAt {
@@ -155,7 +156,7 @@ function TargetForm(props: {
         <option value="">No owner</option>
         {props.members.map((m) => (
           <option key={m.actorId} value={m.actorId}>
-            {m.name ?? 'A member'}
+            {memberName(m.name)}
           </option>
         ))}
       </select>
@@ -169,14 +170,24 @@ function TargetForm(props: {
         min="2000-01-01"
         max="2100-12-31"
         value={date}
+        aria-describedby={saidDay(date) ? 'goal-date-said' : undefined}
         onChange={(e) => setDate(e.target.value)}
       />
+      {/* The browser's field follows the system («12/15/2026»); under it, the day as the Studio says it. */}
+      {saidDay(date) && (
+        <p id="goal-date-said" className="when-said">
+          {dayOf(date)}
+        </p>
+      )}
       <Button kind="pill" type="submit" disabled={props.saving}>
         {props.saving ? 'Saving…' : 'Save'}
       </Button>
     </form>
   )
 }
+
+/** Whether a field's date reads as a day: a year of five digits, which the field allows, never says «Invalid Date». */
+const saidDay = (date: string) => date !== '' && Number.isFinite(Date.parse(`${date}T00:00:00Z`))
 
 /** The targets or the members unread, with nothing kept: said in place of the owner and date, never as «none». */
 function TargetUnread({ onRetry }: { onRetry: () => void }) {

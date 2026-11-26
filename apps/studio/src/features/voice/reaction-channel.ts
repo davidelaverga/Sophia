@@ -15,6 +15,6 @@ export function listenToReactions(room: Pick<Room, 'on'>, onReaction: (heard: He
   room.on(RoomEvent.DataReceived, (bytes, who, _kind, topic) => {
     if (topic !== REACTION_TOPIC || !who || isSophia(who)) return
     const emoji = parseReaction(bytes)
-    if (emoji) onReaction({ identity: who.identity, name: who.name || who.identity.slice(0, 8), emoji })
+    if (emoji) onReaction({ identity: who.identity, name: who.name ?? '', emoji })
   })
 }

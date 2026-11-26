@@ -27,6 +27,8 @@ export interface FeedPorts {
   sleep(ms: number, woken: AbortSignal): Promise<void>
   /** Calls `wake` when asking now is worth it (the network is back, the page is shown); returns how to stop. */
   wakes(wake: () => void): () => void
+  /** Calls `drop` when the network is gone (the browser's `offline`, feed-offline.md); returns how to stop. */
+  drops(drop: () => void): () => void
   /** A number in [0, 1), as Math.random: spreads each wait. */
   random(): number
 }
@@ -58,11 +60,15 @@ async function wait(ports: FeedPorts, ms: number, stop: AbortSignal): Promise<vo
   }
 }
 
-/** One stream attempt. A gap aborts it so the loop can resync. */
+/**
+ * One stream attempt. A gap aborts it so the loop can resync; so does the network going, so the bar says
+ * «Reconnecting» at once instead of trusting a stream whose bytes can't arrive until its silence runs out.
+ */
 async function followOnce(ports: FeedPorts, stop: AbortSignal, onLive: () => void): Promise<'ended' | 'denied'> {
   const attempt = new AbortController()
   const abortAttempt = () => attempt.abort()
   stop.addEventListener('abort', abortAttempt)
+  const stopListening = ports.drops(abortAttempt)
   try {
     await ports.follow(ports.current().cursor, attempt.signal, onLive, (frame) => {
       const next = ports.apply(frame)
@@ -73,6 +79,7 @@ async function followOnce(ports: FeedPorts, stop: AbortSignal, onLive: () => voi
   } catch (err: unknown) {
     return isAccessError(err) ? 'denied' : 'ended'
   } finally {
+    stopListening()
     stop.removeEventListener('abort', abortAttempt)
   }
 }

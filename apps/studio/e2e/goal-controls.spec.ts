@@ -108,6 +108,49 @@ test('goal controls @phone · on a coarse pointer Hold and Stop reach 44 × 44 p
   expect(hold?.right).toBeLessThanOrEqual(stop?.left ?? Number.NEGATIVE_INFINITY)
 })
 
+test('goal controls · under a mouse Hold and Stop answer across the row’s 28 px and past their sides, still apart (five-decisions.md, 12)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1&place=work')
+  await drawn(page, DRAWN.tasks)
+  // What the mouse would press, read with elementFromPoint: 1.5 px over, under and past the sides of each drawn box,
+  // and the middle of the 6 px between the two, which presses neither.
+  const read = await page
+    .locator('.controls .control-row')
+    .first()
+    .evaluate((row) => {
+      const presses = [...row.querySelectorAll<HTMLElement>('button.text-button')]
+      const each = presses.map((press) => {
+        const box = press.getBoundingClientRect()
+        const midX = box.left + box.width / 2
+        const midY = box.top + box.height / 2
+        const points = [
+          [midX, box.top - 1.5],
+          [midX, box.bottom + 1.5],
+          [box.left - 1.5, midY],
+          [box.right + 1.5, midY],
+        ] as const
+        return {
+          words: press.childNodes[0]?.textContent?.trim() ?? '',
+          drawn: Math.round(box.height),
+          around: points.map(([x, y]) => document.elementFromPoint(x, y)?.closest('button') === press),
+        }
+      })
+      const [first, second] = presses.map((p) => p.getBoundingClientRect())
+      const between =
+        first && second
+          ? document.elementFromPoint((first.right + second.left) / 2, first.top + first.height / 2)?.closest('button')
+          : null
+      return { each, between: between ? between.textContent.trim() : null }
+    })
+  expect(read.each.map((p) => p.words)).toEqual(['Hold', 'Stop'])
+  for (const p of read.each) {
+    expect(p.drawn, p.words).toBe(24)
+    expect(p.around, p.words).toEqual([true, true, true, true])
+  }
+  expect(read.between).toBeNull()
+})
+
 test('goal controls · Stop still asks in place; Keep working puts the text button back', async ({ page }) => {
   await page.goto('/room.html?demo=1&place=work')
   await drawn(page, DRAWN.tasks)

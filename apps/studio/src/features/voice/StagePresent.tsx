@@ -233,7 +233,7 @@ export function useStagePresent(snapshot: Snapshot | undefined, room: Room, cont
   const walk = useWalked(snapshot, { shown, screen, followed }, identity)
   useSayFollowing(room, shown, following && !context.background)
   if (!shown) return { presented: null, card: null }
-  const guide = shown.mine ? 'you' : shortName(names.get(shown.guideId) ?? 'A member')
+  const guide = shown.mine ? 'you' : shortName(names.get(shown.guideId) ?? '')
   // Mine, I can always stop it: on the stage, or on my card when the stage can't present it.
   // Stopped, what holds the button leaves the stage: the focus goes to Chat, which stays.
   const stop =

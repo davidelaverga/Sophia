@@ -16,7 +16,7 @@ import {
 } from './motion.ts'
 import { createLightRenderer, type LightFrame, type LightRenderer } from './renderer.ts'
 import { paperHalo } from './shape.ts'
-import { aimOf, BEHIND, lightBehind } from './threshold.ts'
+import { aimOf, BEHIND, lightBehind, paperBehind } from './threshold.ts'
 import { drawHandoff, drawWorkLine, inksFor, perimeter } from './trace.ts'
 
 /** rest: present but not in a live room. The others are the four states of the prototype. */
@@ -441,10 +441,11 @@ export class LightEngine {
 
   /**
    * On paper the halo is CSS: it reads her place, radius, size and strength from the same springs the canvas draws
-   * (light-room-paper.md), written only when they change.
+   * (light-room-paper.md), and the light behind a formed mark its lean (paper-light-rays.md), written only when they
+   * change.
    */
   private publish(frame: LightFrame): void {
-    const halo = paperHalo(frame)
+    const halo = { ...paperHalo(frame), ...paperBehind(frame) }
     const key = Object.values(halo).join(' ')
     if (key === this.halo) return
     this.halo = key
