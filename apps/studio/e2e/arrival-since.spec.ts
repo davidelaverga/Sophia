@@ -179,6 +179,7 @@ test('arrival · a knock while the line is said: the door takes the corner and t
 test('arrival · a guest declined: while the door offers to let them in instead, the line keeps out of its way', async ({
   page,
 }) => {
+  await page.clock.install()
   await page.goto(`${PAGE}&lobby=waiting`)
   await door(page).getByRole('button', { name: 'Decline', exact: true }).click()
   const instead = door(page).getByRole('button', { name: 'Let in instead' })
@@ -187,8 +188,11 @@ test('arrival · a guest declined: while the door offers to let them in instead,
   await expect(arrival(page)).toContainText(LINE)
   await expect(card(page)).toBeHidden()
   expect(await reached(instead)).toBe(true)
-  // The offer lasts 8 s; then the line has the corner.
-  await expect(door(page)).toHaveCount(0, { timeout: 12_000 })
+  // The offer stands while the decline holds, the guest's minute (call-way-back.md); then the line has the corner.
+  await page.clock.fastForward(30_000)
+  await expect(instead).toBeVisible()
+  await page.clock.fastForward(31_000)
+  await expect(door(page)).toHaveCount(0)
   await expect(card(page)).toBeVisible()
 })
 

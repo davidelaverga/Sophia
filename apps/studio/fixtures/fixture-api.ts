@@ -82,7 +82,7 @@ import {
   conversationWritten,
   type TalkWrites,
 } from './conversation-writes.ts'
-import type { ProjectRelease, ReportList } from '@sophia/contracts'
+import type { LobbyEntry, ProjectRelease, ReportList } from '@sophia/contracts'
 import { searchHits, searchPage, servedHits } from './search-data.ts'
 import { queryRefusal } from './search-query.ts'
 import { VISION } from '../src/app/vision.ts'
@@ -231,6 +231,8 @@ interface Project {
   pilot?: boolean
   /** Someone is waiting at the door (report-data.ts). */
   waiting: boolean
+  /** A guest declined at the door: the snapshot lists them for a day, as the API does (readLobby), so Let in instead reads them. */
+  declined?: LobbyEntry | null
   /** `lobby=again` (knocked twice) or `lobby=two` (two waiting); anything else, one first knock. */
   lobbyAsked?: string | null
   /** This viewer's role in the project (`role=viewer`, `role=editor`); the fixture's own, admin, otherwise. */
@@ -512,7 +514,8 @@ function snapshotOf(project: Project, revisions = false) {
     : work
   const reported = project.goalReports ? withGoalReports(project, designed) : designed
   const titled = project.title ? { ...reported, title: project.title } : reported
-  return withFocus(project, project.waiting ? { ...titled, lobby: lobbyOf(project.lobbyAsked) } : titled)
+  const lobby = lobbyNow(project)
+  return withFocus(project, lobby ? { ...titled, lobby } : titled)
 }
 
 /** The research task in the snapshot's work and the report's current version in its artifacts (goal-reports.md). */
@@ -662,7 +665,9 @@ function doorAnswered(project: Project, entryId: string, init: RequestInit | und
   served.push(`lobby:${String(decision)}`)
   project.waiting = false
   const status = decision === 'admit' ? 'admitted' : decision === 'block' ? 'blocked' : 'denied'
-  return json({ ...waitingAtTheDoor, id: entryId, status, decidedAt: new Date().toISOString() })
+  const decided: LobbyEntry = { ...waitingAtTheDoor, id: entryId, status, decidedAt: new Date().toISOString() }
+  project.declined = status === 'denied' ? decided : null
+  return json(decided)
 }
 
 /** What the page posts about coming in: a room token, or an answer at the door; undefined for anything else. */
@@ -1496,6 +1501,12 @@ function messagesRead(talk: Conversations, conversationId: string, url: URL) {
 }
 
 /** Who waits at the door: one first knock, one knocking again (`lobby=again`), or two (`lobby=two`). */
+/** The lobby the snapshot lists: who waits, else a guest declined here (the API lists them for a day); none otherwise. */
+function lobbyNow(project: Project): LobbyEntry[] | null {
+  if (project.waiting) return lobbyOf(project.lobbyAsked)
+  return project.declined ? [project.declined] : null
+}
+
 function lobbyOf(asked: string | null | undefined) {
   if (asked === 'again') return [{ ...waitingAtTheDoor, knocks: 2 }]
   if (asked === 'two') {
