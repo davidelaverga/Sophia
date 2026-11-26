@@ -195,6 +195,12 @@ test('@phone · one row on a phone: its title whole, Open, Show everyone a glyph
   const show = made(page).getByRole('button', { name: 'Show everyone' })
   await expect(show).toBeVisible()
   expect((await show.boundingBox())?.width).toBeLessThanOrEqual(40)
+  // A finger's target on touch (CONTRIBUTING.md, Touch): Show everyone and Close as Open, 40 px at least (Codex P1).
+  for (const part of ['.made-acts .pill', '.made-close']) {
+    const b = await box(page, part)
+    // Measured at 39.99 px: the stage lays out in fractions of a pixel.
+    expect(Math.min(b.width, b.height), part).toBeGreaterThanOrEqual(39.5)
+  }
   const at = (selector: string) =>
     made(page).evaluate((el, s) => {
       const r = el.querySelector(s)?.getBoundingClientRect()

@@ -46,3 +46,9 @@ Luis reviews the PR.
 
 Source IDs consulted: `room-made-object.md`, `room-stage-captions.md`, `StageMade.tsx`, `made-view.ts`,
 `app/theme.css` (`.stage-made`, `.stage-body`, `.lens-body`, `.stage-captions`), `e2e/room-made.spec.ts`.
+
+## After the review (2026-11-26)
+
+Codex's P1 on Close's touch target was true and is fixed: on touch, Show everyone and Close are at least 40 × 40 px
+(the note's last section). The P1 on the Open tip named a rule the one-row rewrite had already removed. The P2 on
+Show everyone's failure line goes to the follow-up list.

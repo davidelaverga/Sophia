@@ -2587,6 +2587,14 @@ img.avatar {
   background: rgb(var(--ink-rgb) / 0.08);
   color: var(--text);
 }
+/* On touch the quiet squares keep a finger's target, as the round buttons they replaced (CONTRIBUTING.md, Touch). */
+@media (pointer: coarse) {
+  .made-acts .pill,
+  .made-close {
+    min-width: 40px;
+    min-height: 40px;
+  }
+}
 .made-acts .focus-said:empty {
   display: none;
 }

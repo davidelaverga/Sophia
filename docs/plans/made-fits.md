@@ -55,3 +55,13 @@ The results are the same in dark and light (headless captures, software Chromium
 - **Seen failing:** with the row stacked, the @phone test read a row 205 px tall.
 - **Fences:** it stays on the over-stage glass list (`material.test.ts`) and casts the dock's level (`elevation.test.ts`).
 - **Through `pw-gentle.ps1`:** `room-made`, `made-refusal`, `present-refused-exit`, `room-present`, `room-captions` and `light-shadows`, 66 of 66. The @phone one-row test failed with the row stacked (205 px tall).
+
+## After the review (Codex P1s on #556, 2026-11-26)
+
+- **Close's touch target:** it had left the round buttons, so the shared touch rule no longer lifted it, and it stayed
+  32 × 32 px on touch while Open was 40 px tall. On `pointer: coarse`, Show everyone and Close are now at least
+  40 × 40 px. Measured on the fixture at 390 × 844 with touch: Open 58 × 40, Show everyone 40 × 40, Close 40 × 40;
+  the row stays one line, its title whole, nothing sideways. The @phone one-row test now checks both are 40 px.
+- **The Open tip on narrow stages:** the rule it named was removed when the object became one row (`a4e47247b`). Open
+  keeps its word, and under 760 px every tip in the Studio is hidden by the shared rule on main, not by this change.
+- `pw-gentle.ps1` refused (Opera open); CI is the record for the spec.
