@@ -24,6 +24,7 @@ import { CalendarTab } from './CalendarTab.tsx'
 import { FromYourProjects } from './FromYourProjects.tsx'
 import { InProject } from './InProject.tsx'
 import { QrCode } from './QrCode.tsx'
+import { useAddressField } from './useAddressField.tsx'
 import { useInvitations, useLobbyDecision, useRefreshInvitations, type SheetContext } from './useAccess.ts'
 import { useNow } from '../../app/use-now.ts'
 
@@ -352,35 +353,36 @@ interface FormProps {
 
 /** Each emailed guest gets a link of their own, so it can be turned off without turning off the room link. */
 function EmailGuest({ context, invitations, onSent }: FormProps) {
-  const [email, setEmail] = useState('')
+  const address = useAddressField('guest-email')
+  const { email } = address
   const create = useAdmission<InvitationCreate, Invitation>((key, body) =>
     createInvitation(context.identity.token, context.projectId, key, body),
   )
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!address.check()) return
     const sent = await create.send({ kind: 'guest', email: email.trim() })
-    if (sent) setEmail('')
+    if (sent) address.setEmail('')
     onSent()
   }
   return (
-    <form className="sheet-form" onSubmit={(e) => void submit(e)}>
+    <form className="sheet-form" noValidate onSubmit={(e) => void submit(e)}>
       <label htmlFor="guest-email" className="field-label">
         Send a guest their own link
       </label>
       <div className="field">
         <input
-          id="guest-email"
+          {...address.input}
           type="email"
           required
           placeholder="name@company.com"
-          value={email}
           readOnly={create.state.status === 'unknown'}
-          onChange={(e) => setEmail(e.target.value)}
         />
         <button type="submit" className="pill" disabled={create.state.status === 'sending' || !email.trim()}>
           {admissionLabel(create.state.status, 'Send', 'Sending…')}
         </button>
       </div>
+      {address.error}
       <SentNote state={create.state} invitations={invitations} onRetry={() => void create.retry().then(onSent)} />
     </form>
   )
@@ -442,30 +444,30 @@ function MembersTab({ context, onGuests }: { context: SheetContext; onGuests: ()
 }
 
 function MemberForm({ context, invitations, onSent }: FormProps) {
-  const [email, setEmail] = useState('')
+  const address = useAddressField('member-email')
+  const { email } = address
   const [role, setRole] = useState<'editor' | 'viewer'>('editor')
   const create = useAdmission<InvitationCreate, Invitation>((key, body) =>
     createInvitation(context.identity.token, context.projectId, key, body),
   )
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (await create.send({ kind: 'member', role, email: email.trim() })) setEmail('')
+    if (!address.check()) return
+    if (await create.send({ kind: 'member', role, email: email.trim() })) address.setEmail('')
     onSent()
   }
   return (
-    <form className="sheet-form" onSubmit={(e) => void submit(e)}>
+    <form className="sheet-form" noValidate onSubmit={(e) => void submit(e)}>
       <div className="field">
         <label htmlFor="member-email" className="sr-only">
           Email
         </label>
         <input
-          id="member-email"
+          {...address.input}
           type="email"
           required
           placeholder="name@company.com"
-          value={email}
           readOnly={create.state.status === 'unknown'}
-          onChange={(e) => setEmail(e.target.value)}
         />
         <select
           aria-label="Role"
@@ -477,6 +479,7 @@ function MemberForm({ context, invitations, onSent }: FormProps) {
           <option value="viewer">Viewer</option>
         </select>
       </div>
+      {address.error}
       <p className="role-note">{ROLE_NOTE[role]}</p>
       <button type="submit" className="pill primary" disabled={create.state.status === 'sending' || !email.trim()}>
         {admissionLabel(create.state.status, 'Send invitation', 'Sending…')}

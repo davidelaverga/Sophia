@@ -2217,6 +2217,11 @@ img.avatar {
 .outcome:empty {
   display: none;
 }
+/* A goal's tips opening below its controls (visual-fit.md) wait while a line stands under them: what a command came
+   to, or a retirement's results, are never covered; the controls' own words say what they are. */
+.controls:has(> .control-row ~ :not(:empty)) > .control-row .tip[data-side='bottom'] {
+  visibility: hidden;
+}
 /* The way back in: the projects this device opened, as quiet rows. The home scrolls if they need room. */
 .home {
   overflow-y: auto;
@@ -6258,6 +6263,68 @@ button.contribution-quote:hover {
 .dock {
   flex-wrap: wrap;
   justify-content: center;
+}
+/* Before it wraps, its words give way (data-tight, set by RoomDock where they would: docs/plans/visual-fit.md): Take
+   the floor and Speak with Sophia show their icon alone, in a 36 px square, as on a phone; the words stay their names
+   and their tips say them. A phone's dock is icons already. */
+@media (min-width: 600.02px) {
+  .dock[data-tight] .pill:has(.dock-icon) {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    padding: 0;
+  }
+  .dock[data-tight] .dock-icon {
+    position: relative;
+    display: grid;
+  }
+  /* Its captions (Floor, Sophia) and separators go too, as on a phone: who holds the floor stays in sight, and the
+     captions stay read. */
+  .dock[data-tight] .dock-sep {
+    display: none;
+  }
+  .dock[data-tight] :is(.floor, .sophia-controls) {
+    gap: 4px;
+    padding-left: 0;
+  }
+  .dock[data-tight] :is(.dock-word, .floor-label) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .dock[data-tight] .dock-badge {
+    position: absolute;
+    top: -8px;
+    right: -10px;
+    display: grid;
+    place-items: center;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    border-radius: var(--r-1);
+    background: var(--warm);
+    color: var(--void);
+    font-size: 9.5px;
+    font-weight: 600;
+  }
+  /* A control with no tip of its own says its words in one, as every icon in the dock does; and every icon's tip
+     shows under a pointer, from the keyboard, or pressed and held, also where a narrow window or a touch screen hides
+     tips (up to 760 px), since an icon alone doesn't say what it does. */
+  .dock[data-tight] .dock-tip {
+    display: inline-flex;
+  }
+  .dock[data-tight] button:is(:hover, :focus-visible, :active) > .tip {
+    display: inline-flex;
+    opacity: 1;
+  }
+  .dock[data-tight] button:is(:hover, :focus-visible, :active) > .dock-tip {
+    transform: translate(-50%, 0);
+    transition-delay: 320ms;
+  }
 }
 /* Room for both on one band: the dock keeps clear of the corner, and wraps if it must. */
 @container (min-width: 800px) {
