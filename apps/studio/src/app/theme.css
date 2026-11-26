@@ -5036,6 +5036,36 @@ button.contribution-quote:hover {
   color: var(--text-3);
   font-size: var(--type-small);
 }
+/* A name's limit under its field (docs/plans/words-whole.md): the count as it comes near, at the line's end; a cut
+   said before it. In the second ink, its digits not moving as they change. Nothing takes room until there is
+   something to say. */
+.field-limit {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+/* Empty, it stays in the page (its live part must be there before it speaks) and takes no room. */
+.field-limit:not(:has(.field-limit-count)):has(> span:empty) {
+  margin: 0;
+}
+.field-with-limit {
+  width: 100%;
+}
+/* A date or time read back under the browser's own field, as the Studio says it (24-hour clock, «15 Dec 2026»):
+   docs/plans/words-whole.md. */
+.when-said {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+}
+.field-limit-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
 .sheet-status {
   min-height: 1.3em;
   color: var(--text-3);
@@ -8118,6 +8148,11 @@ button.contribution-quote:hover {
 .goal-target-form button {
   grid-column: 2;
   justify-self: start;
+}
+/* The day read back under its field, in the field's column; the space above it is the row's own. */
+.goal-target-form .when-said {
+  grid-column: 2;
+  margin-top: -4px;
 }
 .goal-target p {
   margin: 0;

@@ -12,6 +12,8 @@ import { browserTabs } from '../voice/call-tabs.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import { membershipKey } from '../access/useAccess.ts'
+import { lengthOf } from '../personal/characters.ts'
+import { useNameLimit } from '../personal/NameLimit.tsx'
 import { ActivitySheet } from './ActivitySheet.tsx'
 import { ArchiveSheet, useArchiveStatus } from './Archive.tsx'
 import { snapshotKey } from './useProjectFeed.ts'
@@ -38,12 +40,14 @@ const failure = (err: unknown, fallback: string) => (err instanceof Error ? err.
 
 function RenameSheet({ title, projectId, identity, onClose }: SheetProps) {
   const [name, setName] = useState(title)
+  const limit = useNameLimit('rename-project', TITLE_MOST, name, setName)
   const [key] = useState(() => crypto.randomUUID())
   const [state, setState] = useState<{ sending: boolean; failed: string | null }>({ sending: false, failed: null })
   const field = useRef<HTMLInputElement>(null)
   const client = useQueryClient()
   useEffect(() => field.current?.select(), [])
-  const offered = name.trim() !== '' && name !== title && !state.sending
+  // A title already past the most (from before it was held) is offered once it fits: the API would refuse it.
+  const offered = name.trim() !== '' && name !== title && lengthOf(name) <= TITLE_MOST && !state.sending
   const save = async () => {
     if (!offered) return
     setState({ sending: true, failed: null })
@@ -70,14 +74,12 @@ function RenameSheet({ title, projectId, identity, onClose }: SheetProps) {
         <label className="field-label" htmlFor="rename-project">
           Project name
         </label>
-        <div className="field">
-          <input
-            ref={field}
-            id="rename-project"
-            value={name}
-            maxLength={TITLE_MOST}
-            onChange={(e) => setName(e.target.value)}
-          />
+        {/* One place in the form for the field and its limit: nothing is added between them while nothing is said. */}
+        <div className="field-with-limit">
+          <div className="field">
+            <input ref={field} id="rename-project" value={name} {...limit.input} />
+          </div>
+          {limit.note}
         </div>
         {state.failed && <p role="alert">{state.failed}</p>}
         <div className="rename-acts">
