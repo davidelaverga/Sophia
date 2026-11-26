@@ -27,7 +27,7 @@ import { FIRST_LINE, isNew } from './first-step.ts'
 import { CallSwitches, sendingOf } from '../voice/CallSwitches.tsx'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import { LookingIndicator } from '../voice/SophiaControls.tsx'
-import { useStageCaptions, type RoomNames } from '../voice/StageCaptions.tsx'
+import { useStageCaptions } from '../voice/StageCaptions.tsx'
 import { madeOnTheStage, type StageMadeState } from '../voice/StageMade.tsx'
 import { showRenderOf, useStagePresent } from '../voice/StagePresent.tsx'
 import { latestSpoken } from '../voice/voice-trail.ts'
@@ -255,7 +255,6 @@ interface Extras {
   made: StageMadeState
   panel: RoomPanel
   common: { projectId: string; identity: Identity; me: string; names: ReadonlyMap<string, string> }
-  who: RoomNames
   spoken: string | null
   catchUp: ReactNode
   /** The project out of sight, the call still on (ProjectShell's `background`). */
@@ -267,10 +266,10 @@ interface Extras {
  * everyone: presented on the stage, or the card that says who shows what.
  */
 function useUnderTheLine(extras: Extras, chatOpen: boolean) {
-  const { snapshot, room, made, panel, common, who, spoken, catchUp, background } = extras
+  const { snapshot, room, made, panel, common, spoken, catchUp, background } = extras
   const present = useStagePresent(snapshot, room, { ...common, spoken, background })
   const show = showRenderOf(snapshot, room, common)
-  const object = madeOnTheStage(made, room, { chatOpen, anyOpen: panel.panel !== null }, { ...common, who, show })
+  const object = madeOnTheStage(made, room, { chatOpen, anyOpen: panel.panel !== null }, { ...common, show })
   // On the stage: what is shown to everyone, and, for whoever joined late, the meeting so far (A13, the flag's).
   const showing =
     present.card || catchUp ? (
@@ -349,7 +348,7 @@ export function StudioShell(props: Props) {
   const who = { me, names, guests: useKnownGuests(room) }
   const chatOpen = panel.panel === 'chat'
   const captions = useStageCaptions(held, room, chatOpen, who)
-  const stageExtras = { snapshot, room, made, panel, common, who, spoken: latestSpoken(held), catchUp, background }
+  const stageExtras = { snapshot, room, made, panel, common, spoken: latestSpoken(held), catchUp, background }
   const { present, under, showing } = useUnderTheLine(stageExtras, chatOpen)
   return (
     <div className="studio" data-content>

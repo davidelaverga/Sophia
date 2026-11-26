@@ -2586,19 +2586,19 @@ img.avatar {
   text-wrap: balance;
 }
 /*
- * What Sophia made, born in the room (docs/plans/room-made-object.md): under her line, at the foot of the Converse lens
- * body, on the stage's axis. The report as Knowledge shows it, a few facts, Open and Close. The first time, it comes
- * down from where the light is, from soft to sharp; back in sight, or under reduced motion, it is simply there.
+ * What Sophia made, born in the room (docs/plans/room-made-object.md, made-fits.md): one row under her line, in the
+ * dock's own material (its glass, edge, radius and level), nothing of its own: what it is, its kind and version, Open,
+ * and Show everyone and Close as the stage's quiet glyphs. The first time, it comes down from where the light is, from
+ * soft to sharp; back in sight, or under reduced motion, it is simply there.
  */
 .stage-made {
   position: relative;
   align-self: center;
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) auto 28px;
-  align-items: center;
-  gap: 8px 12px;
-  width: min(380px, 100%);
-  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: min(420px, 100%);
+  padding: 5px 5px 5px 12px;
   border-radius: var(--r-4);
   border: 1px solid var(--line-2);
   background: var(--glass-stage);
@@ -2620,32 +2620,35 @@ img.avatar {
     filter: blur(0);
   }
 }
+.made-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
 .made-icon {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--r-2);
-  border: 1px solid rgb(var(--halo-rgb) / 0.32);
-  background: rgb(var(--halo-rgb) / 0.08);
-  color: var(--halo-text);
+  display: inline-grid;
+  flex: none;
+  color: var(--text-3);
 }
 .made-head {
   display: grid;
-  gap: 2px;
-  align-content: center;
+  flex: 1;
+  gap: 1px;
   min-width: 0;
 }
-.made-title {
+.made-title,
+.made-meta {
   overflow: hidden;
-  font-size: var(--type-body);
-  font-weight: 500;
-  letter-spacing: -0.01em;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.made-meta,
-.made-asked {
+.made-title {
+  font-size: var(--type-body);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.made-meta {
   color: var(--text-3);
   font-family: var(--mono);
   font-size: 10.5px;
@@ -2653,88 +2656,74 @@ img.avatar {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.made-asked {
-  margin-left: auto;
-  font-family: var(--sans);
-  font-size: 12px;
-  letter-spacing: 0;
-  text-transform: none;
+.made-row > .pill {
+  flex: none;
 }
-.made-summary {
-  grid-column: 1 / -1;
-  display: -webkit-box;
-  overflow: hidden;
-  margin: 0;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  color: var(--text-2);
-  font-size: 13px;
-  text-wrap: pretty;
-}
-.made-facts {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-.made-fact {
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 7px;
-  border-radius: var(--r-1);
-  border: 1px solid var(--line);
-  color: var(--text-3);
-  font-family: var(--mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  font-variant-numeric: tabular-nums;
-}
-.made-fact[data-limit] {
-  border-color: rgb(var(--amber-rgb) / 0.28);
-  color: var(--amber);
-}
+/* Show everyone is its glyph (its words its name and its tip); Close its cross: quiet squares, as the stage's own. */
 .made-acts {
-  grid-column: 3;
-  grid-row: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: contents;
 }
-.made-failed {
+.made-acts .focus-words {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.made-acts .pill,
+.made-close {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-3);
+  transition:
+    background var(--motion-fast) var(--ease),
+    color var(--motion-fast) var(--ease);
+}
+.made-acts .pill:hover:not(:disabled),
+.made-close:hover {
+  background: rgb(var(--ink-rgb) / 0.08);
+  color: var(--text);
+}
+/* On touch the quiet squares keep a finger's target, as the round buttons they replaced (CONTRIBUTING.md, Touch). */
+@media (pointer: coarse) {
+  .made-acts .pill,
+  .made-close {
+    min-width: 40px;
+    min-height: 40px;
+  }
+}
+.made-acts .focus-said:empty {
+  display: none;
+}
+.made-acts .focus-said {
   color: var(--text-3);
   font-size: 12px;
 }
-.made-close {
-  grid-column: 4;
-  grid-row: 1;
-  width: 28px;
-  height: 28px;
-  border-color: transparent;
-  background: transparent;
-}
-/* A short stage (a laptop, a phone): Sophia's description in one line, so the object stays between her line and the
-   captions. */
-@container (max-height: 760px) {
-  .made-summary {
-    -webkit-line-clamp: 1;
-  }
+/* A read that failed, or a refusal: on its own line under the object's row, in the stage's quiet words. */
+.made-retry,
+.stage-made > p {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  padding: 0 4px 4px 26px;
+  color: var(--text-3);
+  font-size: 12px;
 }
 /* It sits right under her line, where it was born, not down by the dock: below the line however tall it is now (a
    note, a session, words wrapping), as StageMade measures it (--line-h). */
 .stage-body:has(.stage-made) {
   top: calc(var(--ly) + var(--lr) * 0.46 + max(56px, var(--line-h, 0px) + 12px));
   justify-content: flex-start;
-}
-.made-by {
-  color: var(--text-3);
-}
-@media (max-width: 560px) {
-  .made-facts .made-fact {
-    display: none;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .stage-made.born {
@@ -6750,18 +6739,6 @@ button.contribution-quote:hover {
 }
 .stage-over-video .stage-showing {
   margin: 0;
-}
-/* A show's line under its button in the made object's card, so the card's own words keep their width. */
-.made-acts {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.made-acts .focus-said:empty {
-  display: none;
-}
-.made-acts .focus-said {
-  flex-basis: 100%;
-  justify-content: flex-end;
 }
 @media (prefers-reduced-motion: reduce) {
   .report-main,

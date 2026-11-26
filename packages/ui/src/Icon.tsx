@@ -8,6 +8,7 @@ export type IconName =
   | 'camera'
   | 'cameraOff'
   | 'screen'
+  | 'show'
   | 'leave'
   | 'link'
   | 'copy'
@@ -107,6 +108,13 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <rect x="3" y="4.5" width="18" height="12" rx="2" />
       <path d="M8.5 20h7M12 16.5V20" />
+    </>
+  ),
+  // Show everyone: what Sophia made, and the room it goes out to (made-fits.md); never Share your screen's glyph.
+  show: (
+    <>
+      <rect x="9" y="5" width="6" height="14" rx="1.6" />
+      <path d="M6 8.5a5 5 0 0 0 0 7M3.2 6a8.5 8.5 0 0 0 0 12M18 8.5a5 5 0 0 1 0 7M20.8 6a8.5 8.5 0 0 1 0 12" />
     </>
   ),
   // The way out: the door behind, the arrow leaving it (room-dock-people.md).

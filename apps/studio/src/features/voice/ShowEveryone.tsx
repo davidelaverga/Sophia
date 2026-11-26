@@ -4,13 +4,17 @@
 // pages answer it. Committed, the room's feed carries the focus to every stage.
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, type ReactNode } from 'react'
+import { Icon, Tip, type IconName } from '@sophia/ui'
 import { useAdmission } from '../../api/useAdmission.ts'
 import { setRoomFocus, type FocusReceipt } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
 
-/** Where a «Show everyone» goes: the version it shows, and what to do once it is committed (the pane closes…). */
-export type ShowRender = (versionId: string, onShown: () => void) => ReactNode
+/**
+ * Where a «Show everyone» goes: the version it shows, what to do once it is committed (the pane closes…), and a glyph
+ * where its place may show only that (the made object on a phone, made-fits.md).
+ */
+export type ShowRender = (versionId: string, onShown: () => void, glyph?: IconName) => ReactNode
 
 export interface FocusTarget {
   projectId: string
@@ -30,6 +34,8 @@ interface Props extends FocusTarget {
   onShown?: () => void
   /** The request was refused: it will not be shown (no reply is not a refusal: it may have been committed). */
   onRefused?: () => void
+  /** A glyph beside its words, for a place that may show only the glyph: the words stay its name, and its tip. */
+  glyph?: IconName | undefined
 }
 
 /** One intent: what to show, against the room as it was read when it was pressed. */
@@ -62,7 +68,7 @@ function useFocusWrite({ projectId, identity, roomId }: Omit<FocusTarget, 'revis
 }
 
 export function FocusButton(props: Props) {
-  const { versionId, label, className = 'pill', onPress, onShown, onRefused, revision, ...target } = props
+  const { versionId, label, className = 'pill', onPress, onShown, onRefused, revision, glyph, ...target } = props
   const write = useFocusWrite(target)
   // Refused against a room that moved, it waits for the room's new revision: pressed again before it, it would be too.
   const state = write.state
@@ -83,20 +89,34 @@ export function FocusButton(props: Props) {
     onPress?.()
     if (await write.send({ versionId, revision })) onShown?.()
   }
+  const words = state.status === 'unknown' ? 'Try again' : label
   return (
     <>
       <button
         type="button"
-        className={className}
+        className={glyph ? `${className} has-tip` : className}
         disabled={state.status === 'sending' || waiting}
         onClick={() => void press()}
       >
-        {state.status === 'unknown' ? 'Try again' : label}
+        {glyph ? <Glyphed glyph={glyph} words={words} /> : words}
       </button>
       {/* Mounted all along, so what it says is announced. */}
       <span className="focus-said" role="status">
         {focusWords(state)}
       </span>
+    </>
+  )
+}
+
+/** Its glyph, its words (its name) and their tip: where it shows only the glyph, the tip says the words. */
+function Glyphed({ glyph, words }: { glyph: IconName; words: string }) {
+  return (
+    <>
+      <span className="focus-glyph" aria-hidden="true">
+        <Icon name={glyph} />
+      </span>
+      <span className="focus-words">{words}</span>
+      <Tip label={words} align="end" />
     </>
   )
 }

@@ -9,6 +9,7 @@ const DESCRIBED = 'A labelled fixture report, as Sophia described it.'
 
 const leave = (page: Page) => page.getByRole('button', { name: 'Leave the room' })
 const made = (page: Page) => page.getByRole('group', { name: 'Made by Sophia' })
+const openIt = (page: Page) => made(page).getByRole('button', { name: 'Open', exact: true })
 const chatToggle = (page: Page) => page.getByRole('button', { name: /^Chat/ }).first()
 const pane = (page: Page) => page.getByRole('complementary', { name: 'Fixture report' })
 const notice = (page: Page) => page.evaluate(() => window.fixture?.notice())
@@ -35,7 +36,7 @@ test.afterEach(async ({ page }) => {
   expect(await page.evaluate(() => [...(window.fixture?.unexpected ?? [])])).toEqual([])
 })
 
-test('made · a notice brings the report into the room: its title, version, Sophia’s words, who asked, its facts', async ({
+test('made · a notice brings one row in the dock’s material: what it is, its kind and version, Open', async ({
   page,
 }) => {
   await enter(page)
@@ -43,17 +44,25 @@ test('made · a notice brings the report into the room: its title, version, Soph
   await notice(page)
   await expect(made(page)).toBeVisible()
   await expect(made(page).locator('.made-title')).toHaveText('Fixture report')
-  await expect(made(page).locator('.made-meta')).toContainText('v1')
-  await expect(made(page).locator('.made-summary')).toHaveText(DESCRIBED)
-  await expect(made(page).locator('.made-asked')).toHaveText('Asked by you')
-  // The fixture report: a few words, two `##` sections, one source cited by its first version.
-  await expect(made(page).locator('.made-fact')).toHaveText(['1 min read', '2 sections', '1 source'])
+  await expect(made(page).locator('.made-meta')).toHaveText('Report · v1')
+  await expect(openIt(page)).toBeVisible()
+  // The dock's own glass, edge and radius; her description and the facts are the chat card's.
+  const look = (selector: string) =>
+    page
+      .locator(selector)
+      .first()
+      .evaluate((el) => {
+        const s = getComputedStyle(el)
+        return [s.backgroundColor, s.borderTopColor, s.borderTopLeftRadius, s.backdropFilter]
+      })
+  expect(await look('.stage-made')).toEqual(await look('.dock'))
+  await expect(made(page).getByText(DESCRIBED)).toHaveCount(0)
 })
 
 test('made · Open shows the report in the viewer and the object goes', async ({ page }) => {
   await enter(page)
   await notice(page)
-  await made(page).getByRole('button', { name: 'Open', exact: true }).click()
+  await openIt(page).click()
   await expect(pane(page)).toBeVisible()
   await expect(made(page)).toHaveCount(0)
 })
@@ -79,7 +88,7 @@ test('made · a revision’s notice takes its place, at v2', async ({ page }) =>
   await page.evaluate(() => window.fixture?.noticeRevised())
   await expect(made(page)).toHaveCount(1)
   await expect(made(page).locator('.made-meta')).toContainText('v2')
-  await made(page).getByRole('button', { name: 'Open', exact: true }).click()
+  await openIt(page).click()
   await expect(page).toHaveURL(new RegExp(`version=${V2}`))
 })
 
@@ -99,7 +108,7 @@ test('made · until the task’s record is read, the Studio’s words and an Ope
   await enter(page, 'people=2&floor=1&sophia=listening&hold=task')
   await notice(page)
   await expect(made(page).locator('.made-title')).toHaveText('Research report ready')
-  const open = made(page).getByRole('button', { name: 'Open', exact: true })
+  const open = openIt(page)
   await expect(open).toHaveAttribute('aria-disabled', 'true')
   await page.evaluate(() => window.fixture?.releaseTask())
   await expect(made(page).locator('.made-title')).toHaveText('Fixture report')
@@ -166,6 +175,47 @@ test('@phone · the object sits above the dock and fits a phone', async ({ page 
   expect(sideways).toBe(0)
 })
 
+// On a phone it stays one row (made-fits.md): its title whole beside Open, Show everyone and Close as glyphs.
+test('@phone · one row on a phone: its title whole, Open, Show everyone a glyph, each control its own', async ({
+  page,
+}) => {
+  await enter(page)
+  await notice(page)
+  await made(page).evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  const row = await box(page, '.made-row')
+  const title = made(page).locator('.made-title')
+  expect(await title.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0)
+  // One row: as tall as a finger's control, with each part's middle on it.
+  expect(row.height).toBeLessThanOrEqual(44)
+  for (const part of ['.made-head', '.made-row > .pill', '.made-acts .pill', '.made-close']) {
+    const b = await box(page, part)
+    expect(b.y + b.height / 2).toBeGreaterThan(row.y)
+    expect(b.y + b.height / 2).toBeLessThan(row.y + row.height)
+  }
+  const show = made(page).getByRole('button', { name: 'Show everyone' })
+  await expect(show).toBeVisible()
+  expect((await show.boundingBox())?.width).toBeLessThanOrEqual(40)
+  // A finger's target on touch (CONTRIBUTING.md, Touch): Show everyone and Close as Open, 40 px at least (Codex P1).
+  for (const part of ['.made-acts .pill', '.made-close']) {
+    const b = await box(page, part)
+    // Measured at 39.99 px: the stage lays out in fractions of a pixel.
+    expect(Math.min(b.width, b.height), part).toBeGreaterThanOrEqual(39.5)
+  }
+  const at = (selector: string) =>
+    made(page).evaluate((el, s) => {
+      const r = el.querySelector(s)?.getBoundingClientRect()
+      if (!r) return null
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest('button')
+      return hit?.getAttribute('aria-label') ?? hit?.textContent ?? null
+    }, selector)
+  expect(await at('.made-row > .pill')).toMatch(/^Open/)
+  expect(await at('.made-close')).toBe('Close')
+  expect(await at('.made-acts .focus-glyph')).toMatch(/^Show everyone/)
+  await openIt(page).click()
+  await expect(pane(page)).toBeVisible()
+  await expect(made(page)).toHaveCount(0)
+})
+
 const say = (page: Page, n: number, text: string) =>
   page.evaluate(
     ([id, words]) =>
@@ -185,7 +235,7 @@ const say = (page: Page, n: number, text: string) =>
 test('made · O opens it; Close and Esc put it away and leave the focus on Chat', async ({ page }) => {
   await enter(page)
   await notice(page)
-  await expect(made(page).getByRole('button', { name: 'Open', exact: true })).not.toHaveAttribute('aria-disabled')
+  await expect(openIt(page)).not.toHaveAttribute('aria-disabled')
   await page.keyboard.press('o')
   await expect(pane(page)).toBeVisible()
   await expect(made(page)).toHaveCount(0)
@@ -205,7 +255,7 @@ test('made · O does nothing while a panel is open, or while there is nothing to
   await page.keyboard.press('o')
   await expect(pane(page)).toHaveCount(0)
   await page.evaluate(() => window.fixture?.releaseTask())
-  await expect(made(page).getByRole('button', { name: 'Open', exact: true })).not.toHaveAttribute('aria-disabled')
+  await expect(openIt(page)).not.toHaveAttribute('aria-disabled')
   await page
     .getByRole('button', { name: /^Brief/ })
     .first()
@@ -229,13 +279,6 @@ test('made · opened from the chat’s card, it goes from the stage too', async 
   await expect(made(page)).toHaveCount(0)
 })
 
-test('made · a description a member edited says so, first', async ({ page }) => {
-  await enter(page)
-  await page.evaluate(() => window.fixture?.describeElsewhere('A member’s own words about it.'))
-  await notice(page)
-  await expect(made(page).locator('.made-summary')).toHaveText('Edited by a member · A member’s own words about it.')
-})
-
 test('made · born once: back in sight after Chat, it is simply there', async ({ page }) => {
   await enter(page)
   await notice(page)
@@ -246,8 +289,14 @@ test('made · born once: back in sight after Chat, it is simply there', async ({
   await expect(made(page)).not.toHaveClass(/born/)
 })
 
+/** Where the object's words end, not its box: squeezed, its box once ended above the captions while its words ran on. */
+const madeEnds = (page: Page) => made(page).evaluate((el) => el.getBoundingClientRect().top + el.scrollHeight)
+
+// One row fits every stage (made-fits.md): above both captions, under her line, a short phone's too.
 for (const [width, height] of [
   [1366, 657],
+  [390, 844],
+  [360, 740],
   [375, 667],
 ] as const) {
   test(`made · a short stage (${String(width)}×${String(height)}) with two captions: it stays above them`, async ({
@@ -259,14 +308,14 @@ for (const [width, height] of [
     await say(page, 1, 'Here is the report on the pilot you asked for this morning')
     await say(page, 2, 'It covers fourteen teams over six weeks, with two limits')
     await expect(page.locator('.stage-caption')).toHaveCount(2)
+    await expect(page.locator('.stage-caption:visible')).toHaveCount(2)
     await made(page).evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
     await expect
-      .poll(async () => {
-        const object = await box(page, '.stage-made')
-        const words = await box(page, '.stage-captions')
-        return words.y - (object.y + object.height)
-      })
+      .poll(async () => (await box(page, '.stage-captions')).y - (await madeEnds(page)))
       .toBeGreaterThanOrEqual(0)
+    // What it is, and Open.
+    await expect(made(page).locator('.made-title')).toBeVisible()
+    await expect(openIt(page)).toBeVisible()
     // Nor over Sophia's line: her state stays readable.
     const object = await box(page, '.stage-made')
     const herLine = await box(page, '.sophia-line')
@@ -283,7 +332,7 @@ test('made · after a revision whose versions can’t be read, it never shows th
   await page.evaluate(() => window.fixture?.failVersions())
   await page.evaluate(() => window.fixture?.noticeRevised())
   // The revision's record read (Open works): its version unknown here, it says only "Report", never v1.
-  await expect(made(page).getByRole('button', { name: 'Open', exact: true })).not.toHaveAttribute('aria-disabled')
+  await expect(openIt(page)).not.toHaveAttribute('aria-disabled')
   await expect(made(page).locator('.made-meta')).toHaveText('Report')
 })
 
@@ -320,7 +369,7 @@ test('made · a session’s «starts in» counts down while the room is open (on
 test('made · O’s hint shows only while O works', async ({ page }) => {
   await enter(page)
   await notice(page)
-  const open = made(page).getByRole('button', { name: 'Open', exact: true })
+  const open = openIt(page)
   // In the Studio's tip, as every control's key.
   await expect(open.locator('.tip kbd')).toHaveText('O')
   await expect(open).toHaveAttribute('aria-keyshortcuts', 'o')
@@ -340,7 +389,7 @@ test('made · a read that failed is said, with Try again, never an Open that wai
   await page.evaluate(() => window.fixture?.failTask(false))
   await made(page).getByRole('button', { name: 'Try again', exact: true }).click()
   await expect(made(page).locator('.made-title')).toHaveText('Fixture report')
-  await expect(made(page).getByRole('button', { name: 'Open', exact: true })).not.toHaveAttribute('aria-disabled')
+  await expect(openIt(page)).not.toHaveAttribute('aria-disabled')
 })
 
 test('made · a drafted brief stays in the chat: no object with an Open that can’t act', async ({ page }) => {
