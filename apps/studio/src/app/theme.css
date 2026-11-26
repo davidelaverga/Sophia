@@ -5304,6 +5304,19 @@ button.contribution-quote:hover {
     min-height: 44px;
   }
 }
+/* Under a mouse the same presses answer across the row's height, 28 px like the filled press beside them, and 2 px
+   past each side: a third of the row's 6 px gap, so two targets keep 2 px between them, clear of the hit test's pixel
+   rounding (five-decisions.md, 12). Nothing drawn changes. */
+@media (pointer: fine) {
+  .controls .control-row .text-button {
+    position: relative;
+  }
+  .controls .control-row .text-button::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+  }
+}
 /* Asking first, in place: what will happen, the safe answer, then the one that acts. */
 .confirm {
   display: inline-flex;
