@@ -70,13 +70,14 @@ export function useRefreshInvitations(projectId: string, viewer: string) {
 
 /**
  * Answers at the lobby, for one person or several at once (Let in all): one decision at a time, since each
- * locks the project, then everyone's lobby refreshes. A refusal is said in the API's words.
+ * locks the project, then everyone's lobby refreshes. A refusal is said in the API's words. Says whether every answer
+ * went through (a Decline that didn't is not held as declined: call-way-back.md).
  */
 export function useLobbyDecision(projectId: string, identity: Identity) {
   const queryClient = useQueryClient()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const decide = async (entries: readonly LobbyEntry[], decision: LobbyDecision['decision']) => {
+  const decide = async (entries: readonly LobbyEntry[], decision: LobbyDecision['decision']): Promise<boolean> => {
     setBusy(true)
     setError(null)
     try {
@@ -84,9 +85,11 @@ export function useLobbyDecision(projectId: string, identity: Identity) {
         (previous, e) => previous.then(() => decideLobbyEntry(identity.token, e.id, decision)),
         Promise.resolve(),
       )
+      return true
     } catch (err: unknown) {
       const refused = err instanceof ApiError && err.status > 0 && err.status < 500
       setError(refused ? err.message : 'Couldn’t answer the door. Try again.')
+      return false
     } finally {
       setBusy(false)
       void queryClient.invalidateQueries({ queryKey: snapshotKey(projectId, identity.name) })

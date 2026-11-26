@@ -18,7 +18,7 @@ import { micOnJoin, useMicOnJoin } from './mic-preference.ts'
 import { usePushToTalk } from './usePushToTalk.ts'
 import { useMirror } from './mirror-preference.ts'
 import { callClock, callClockWords } from './call-clock.ts'
-import { noteRole } from './call-end.ts'
+import { noteRole, RELOADED_IN_CALL } from './call-end.ts'
 import { STALE_PART } from './part-gone.ts'
 import { StalePart } from './StalePart.tsx'
 import { useNow } from '../../app/use-now.ts'
@@ -33,6 +33,7 @@ import type { SophiaView } from './sophia-view.ts'
 import { SOUND_BLOCKED, soundView } from './sound-view.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
 import { DockMore } from './DockMore.tsx'
+import { useReloadOffer } from './useReloadOffer.ts'
 import { facesOf, type RoomPresence } from './room-presence.ts'
 import { useRoomPresence } from './useRoomPresence.ts'
 import { DockWord } from './DockWord.tsx'
@@ -114,6 +115,7 @@ export function RoomDock(props: Props) {
   const talking = usePushToTalk(micOn, room, live)
   const note = room.mediaError ?? room.error
   const sound = soundView(room, props.sophia)
+  const { back, said } = useWayBack(props, note, live)
   // Who is in before this person joins (one-truth.md): Join shows them, as Home and Work's card do.
   const presence = useRoomPresence(props.projectId, props.identity, !live)
   return (
@@ -123,7 +125,7 @@ export function RoomDock(props: Props) {
       <div ref={wrap} className="dock-wrap">
         <LookingIndicator text={props.sophia.looking} />
         {/* What stopped a device, or why this person is out of the call: a failed join, or a call that ended. */}
-        <DockNote note={note} className="dock-note" />
+        <DockNote note={said} className="dock-note" />
         <SoundBlocked shown={sound.notice} room={room} />
         {/* Speech on a muted microphone (muted-speech.md): said while it is still off. */}
         {live && room.mutedHint && !micOn && (
@@ -142,7 +144,7 @@ export function RoomDock(props: Props) {
             <LiveControls {...props} sophiaAllow={sound.sophiaAllow} />
           ) : (
             <>
-              {!partGone(room) && <JoinButton room={room} presence={presence} />}
+              {!partGone(room) && <JoinButton room={room} presence={presence} onJoin={back.join} />}
               <CheckOpener room={room} />
               <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
               <RejoinLeave room={room} />
@@ -286,7 +288,28 @@ function CheckOpener({ room }: { room: ProjectRoom }) {
   )
 }
 
-function JoinButton({ room, presence }: { room: ProjectRoom; presence: RoomPresence }) {
+/**
+ * A reload in the call: the way back, offered once (call-way-back.md), and what the dock's one polite line says: its
+ * note, else the reload, once that line is in the page (a live region born full is often not read).
+ */
+function useWayBack(props: Props, note: string | null, live: boolean) {
+  const back = useReloadOffer(props.projectId, props.identity, props.room)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const offered = back.offer !== null && !live && mounted
+  return { back, said: note ?? (offered ? RELOADED_IN_CALL : null) }
+}
+
+/** Join, with who is in; after a reload in the call, as the call was (`onJoin`, useReloadOffer). */
+function JoinButton({
+  room,
+  presence,
+  onJoin,
+}: {
+  room: ProjectRoom
+  presence: RoomPresence
+  onJoin: (() => void) | null
+}) {
   // Its tip says the microphone's default (joinTip): drawn again as Settings changes it (Codex P2 on #398).
   useMicOnJoin()
   const label = room.status === 'joining' ? 'joining' : room.status === 'failed' ? 'retry' : 'join'
@@ -303,7 +326,7 @@ function JoinButton({ room, presence }: { room: ProjectRoom; presence: RoomPrese
         data-call-anchor
         disabled={room.status === 'joining' || !room.ready}
         aria-describedby={words ? who : undefined}
-        onClick={() => void room.join()}
+        onClick={() => (onJoin ? onJoin() : void room.join())}
       >
         {faces.length > 0 ? (
           <span className="join-faces" aria-hidden>

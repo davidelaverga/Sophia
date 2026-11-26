@@ -56,7 +56,7 @@
 - **The door goes first.** The lobby floats in the same corner under the bar, at the same depth. While someone waits
   at the door, the visit holds: it reads nothing, and reads once the door is answered. A line said is over when the
   project stops being drawn: a closed door (refused, or the session expired) or a knock. While the lobby is on the
-  page for another reason (a Decline's «Let in instead», 8 s), the card is hidden (`.shell:has(.lobby)`) and comes
+  page for another reason (a Decline's «Let in instead», while the decline holds: the guest's minute, `call-way-back.md`), the card is hidden (`.shell:has(.lobby)`) and comes
   back when it goes.
 - **Gone** with Open Updates (it opens Updates, which keeps what it shows; Mark as seen is there), a move to Updates by
   any way, Dismiss, a call, a closed door or a knock. Each ends the visit's line for good.
@@ -155,5 +155,5 @@ Five P2s on the built branch, each checked against the code first.
 - **The room page reads as a named reader only with `seen=`**, so the fixture's other pages keep their accounts.
 - **A knock ends the line for good**, as a call does: it was on screen and kept as said. Updates lists it.
 - **After a Decline, a line drawn while «Let in instead» stands is put in its status hidden**, so a screen reader may
-  not hear it as it is drawn; it is seen when the offer goes, 8 s at most.
+  not hear it as it is drawn; it is seen when the offer goes, a minute at most (`call-way-back.md`).
 - **Arrival plus Open Updates is two `/since` reads**: the arrival's and Updates' own (see «After review»).
