@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { LobbyEntry } from '@sophia/contracts'
-import { ASK_AGAIN_MS, nextExpiry, undoable } from './lobby-undo.ts'
+import { ASK_AGAIN_MS, keptAfter, nextExpiry, undoable } from './lobby-undo.ts'
 
 const entry = (status: LobbyEntry['status'], knocks = 1): LobbyEntry => ({
   id: 'g1',
@@ -38,5 +38,20 @@ describe('«Let in instead» stands while the decline holds (call-way-back.md)',
     assert.equal(nextExpiry(declined, 1_000 + ASK_AGAIN_MS), null)
     const two = [...declined, { entry: entry('waiting'), at: 30_000 }]
     assert.equal(nextExpiry(two, 1_000 + ASK_AGAIN_MS), 30_000 + ASK_AGAIN_MS)
+  })
+
+  it('keeps the undo of those a Decline all got through before one failed (Codex P2 on #555)', () => {
+    const carla = entry('waiting')
+    const dario = { ...entry('waiting'), id: 'g2', displayName: 'Darío' }
+    const both = [carla, dario].map((e) => ({ entry: e, at: 1_000 }))
+    assert.deepEqual(
+      keptAfter(both, [carla, dario], ['g1']).map((d) => d.entry.id),
+      ['g1'],
+    )
+    assert.deepEqual(keptAfter(both, [carla, dario], []), [])
+    assert.deepEqual(
+      keptAfter(both, [dario], []).map((d) => d.entry.id),
+      ['g1'],
+    )
   })
 })

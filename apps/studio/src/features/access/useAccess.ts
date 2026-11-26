@@ -77,23 +77,28 @@ export function useLobbyDecision(projectId: string, identity: Identity) {
   const queryClient = useQueryClient()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const decide = async (entries: readonly LobbyEntry[], decision: LobbyDecision['decision']): Promise<boolean> => {
+  /** Answers each in turn; says which went through, all of them or those before one that didn't. */
+  const decide = async (
+    entries: readonly LobbyEntry[],
+    decision: LobbyDecision['decision'],
+  ): Promise<readonly string[]> => {
     setBusy(true)
     setError(null)
+    const went: string[] = []
     try {
       await entries.reduce<Promise<unknown>>(
-        (previous, e) => previous.then(() => decideLobbyEntry(identity.token, e.id, decision)),
+        (previous, e) =>
+          previous.then(() => decideLobbyEntry(identity.token, e.id, decision)).then(() => went.push(e.id)),
         Promise.resolve(),
       )
-      return true
     } catch (err: unknown) {
       const refused = err instanceof ApiError && err.status > 0 && err.status < 500
       setError(refused ? err.message : 'Couldn’t answer the door. Try again.')
-      return false
     } finally {
       setBusy(false)
       void queryClient.invalidateQueries({ queryKey: snapshotKey(projectId, identity.name) })
     }
+    return went
   }
   return { busy, error, decide }
 }
