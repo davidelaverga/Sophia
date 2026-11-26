@@ -210,7 +210,9 @@ test.describe('with an empty store', () => {
     await expect(tip(page)).toHaveCount(0)
     await page.reload()
     await drawn(page, DRAWN.room)
-    await openChatAndLeaveBar(page)
+    // The open chat is in the address (`?panel=chat`, focus-kept.md): the reload opens it again.
+    await expect(bar(page)).toBeVisible()
+    await bar(page).blur()
     await expect(tip(page)).toBeVisible()
   })
 })

@@ -10,6 +10,10 @@ import { ago, dayOf, inTime } from '../../app/time-words.ts'
  * Where the Invite sheet opens (docs/plans/invite-members.md): an admin out of a call adds a teammate; in a call the
  * guests are the call's, and anyone but an admin may invite guests only.
  */
+/** Invite's tabs, as the address names them (`?invite=`, focus-kept.md). */
+export const INVITE_TABS = ['guests', 'members', 'calendar'] as const
+export type InviteTab = (typeof INVITE_TABS)[number]
+
 export const firstInviteTab = (role: Membership['role'] | undefined, inCall: boolean): 'members' | 'guests' =>
   role === 'admin' && !inCall ? 'members' : 'guests'
 

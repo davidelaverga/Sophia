@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { ArtifactVersion, Goal, GoalTarget } from '@sophia/contracts'
 import { Button, EmptyState, Search } from '@sophia/ui'
 import { useCommands } from '../../app/useCommands.ts'
-import { DECISION, GOAL, showInAddress, TASK } from '../resources/link.ts'
+import { DECISION, GOAL, linkedId, showInAddress, TASK } from '../resources/link.ts'
 import { useAddressed } from '../resources/useAddressed.ts'
 import type { GoalPlan } from './GoalList.tsx'
 import { useLedger, type NotesFor } from './GoalNotes.tsx'
@@ -182,8 +182,11 @@ function useOpenGoal(goals: readonly Goal[]): [string | null, (id: string | null
   useEffect(() => {
     if (known) setOpen(known)
   }, [known, named.seq])
+  // An open goal is in the address (`#goal-<id>`, the one its Copy link copies): a reload or a pasted link opens it
+  // again; closing takes it away (focus-kept.md). Written as the room's other sheets are, with no history entry.
   const set = (id: string | null) => {
-    if (id === null && known) showInAddress(null, GOAL)
+    if (id !== null) showInAddress(id, GOAL)
+    else if (linkedId(window.location.hash, GOAL) !== null) showInAddress(null, GOAL)
     setOpen(id)
   }
   return [open, set]

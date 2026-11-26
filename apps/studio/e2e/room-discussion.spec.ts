@@ -107,7 +107,7 @@ const heldInTab = (page: Page) =>
 async function reenter(page: Page) {
   await page.reload()
   await expect(leave(page)).toBeVisible()
-  await chatToggle(page).click()
+  // The open chat is in the address (`?panel=chat`, focus-kept.md): the reload opens it again.
   await expect(bar(page)).toBeVisible()
 }
 

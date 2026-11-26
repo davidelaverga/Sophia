@@ -19,6 +19,8 @@ import { hintBefore } from '../conversation/message-before.ts'
 import { ProjectGoProvider, useArrival } from './project-go.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
+import { INVITE_TABS } from '../access/access-view.ts'
+import { paramIn } from '../../app/address-param.ts'
 import { ArchivedLine } from './Archive.tsx'
 import { canInvite, useProjectMembership, type SheetContext } from '../access/useAccess.ts'
 import { DocumentViewerProvider } from '../artifacts/DocumentViewer.tsx'
@@ -433,8 +435,15 @@ function useProject({ projectId, identity, ownName = null }: Pick<Props, 'projec
 }
 
 /** The two sheets the shell opens itself: inviting (at once when the project was opened to invite), and search. */
-function useShellSheets({ inviteOnOpen = false, onInviteHandled }: Pick<Props, 'inviteOnOpen' | 'onInviteHandled'>) {
-  const [inviting, setInviting] = useState(inviteOnOpen)
+function useShellSheets(props: Pick<Props, 'inviteOnOpen' | 'onInviteHandled' | 'routed' | 'background'>) {
+  const { inviteOnOpen = false, onInviteHandled } = props
+  // An address that names Invite's tab (`?invite=`, focus-kept.md) opens the sheet, unless this shell isn't the
+  // address's (kept for its call while another shows).
+  const [inviting, setInviting] = useState(
+    () =>
+      inviteOnOpen ||
+      (props.routed !== false && !props.background && paramIn(window.location.search, 'invite', INVITE_TABS) !== null),
+  )
   const [searching, setSearching] = useState(false)
   useEffect(() => {
     if (!inviteOnOpen) return
@@ -586,6 +595,21 @@ function ShellTitle(p: {
   return <ProjectName title={title} role={role} projectId={p.projectId} identity={p.identity} onLeft={onLeft} />
 }
 
+/**
+ * Where the shell stands, for its keys and its sheets. Invite shows only to whoever may invite, behind an open door: a
+ * pasted `?invite=` opens nothing for anyone else (focus-kept.md).
+ */
+function shellAt(s: {
+  view: View
+  inviting: boolean
+  shown: boolean
+  blocked: boolean
+  membership: Membership | undefined
+}) {
+  const mayInvite = s.shown && canInvite(s.membership)
+  return { view: s.view, inviting: s.inviting && mayInvite, mayInvite, shown: s.shown, blocked: s.blocked }
+}
+
 export function ProjectShell(props: Props) {
   const { projectId, view, identity, account, onShow, onLeave, onWork, onSignOut } = props
   const { snapshot, feed, connection, checkedAt, room, membership } = useProject(props)
@@ -595,7 +619,7 @@ export function ProjectShell(props: Props) {
   const work = useTasksWork(props, feed, membership, blocked, searching)
   const viewer = { me: membership?.actorId ?? null, plans: work.plans, reads: snapshot }
   const { whileAway, callEnded, waiting } = useBeyondTheView(props, snapshot.data, room, blocked, viewer)
-  const at = { view, inviting, mayInvite: !!shown && canInvite(membership), shown: !!shown, blocked: !!blocked }
+  const at = shellAt({ view, inviting, shown: !!shown, blocked: !!blocked, membership })
   useProjectKeys({ onLeave, onWork, invite, search, show: onShow }, at)
   return (
     <CallKeptInReach room={room} background={!!props.background}>
@@ -612,7 +636,7 @@ export function ProjectShell(props: Props) {
         />
         <UnderTheBar shell={props} {...{ loaded, blocked, room, snapshot: snapshot.data }} />
         <CommandsHost onSearch={SEARCHABLE && shown ? search : undefined} />
-        {inviting && shown && (
+        {at.inviting && shown && (
           <LazyInvite from={{ projectId, identity, membership, shown, room }} onClose={() => setInviting(false)} />
         )}
         {blocked ? (
@@ -787,6 +811,10 @@ function ProjectDoor({
   )
 }
 
+/** The side panel, its tab in view while the room is on screen and this shell is the routed one. */
+const useBodyPanel = (p: BodyProps) =>
+  useRoomPanel(p.snapshot, p.room, p.view === 'studio' && !p.background && p.routed, p.membership?.actorId ?? null)
+
 /**
  * Studio is the room itself; every other view is a page, with the room one click away in the mini dock.
  * The lobby shows on every view: someone waiting at the door should never depend on which page you read.
@@ -796,7 +824,7 @@ function ProjectBody(props: BodyProps) {
   const { view, projectId, identity, room, membership, snapshot, pulse, onShow, background } = props
   // The side panel's state lives here, past a visit to another view (useRoomPanel). Out of sight for its call, its open
   // tab isn't in view: what arrives there meanwhile is new when the person comes back.
-  const panel = useRoomPanel(snapshot, room, view === 'studio' && !background, membership?.actorId ?? null)
+  const panel = useBodyPanel(props)
   // So is the stage captions' hold: back from another view, what was said meanwhile has gone, as in the room.
   const captions = useHeldCaptions(room.captions)
   // And what Sophia made, once put away: it stays away past a visit to another view.
