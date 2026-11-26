@@ -78,3 +78,52 @@ test('focus · Join hands it to the microphone; Leave, back to Join', async ({ p
   await expect(dock(page).getByRole('button', { name: 'Join the room' })).toBeFocused()
   expect(await onPage(page)).toBe(false)
 })
+
+const toggle = (page: Page, panel: string) => page.locator(`.panel-toggles [data-panel="${panel}"]`)
+const param = (page: Page, key: string) => new URL(page.url()).searchParams.get(key)
+
+/** A new history entry at the same address, as the router pushes one (the fixture's views keep a single entry). */
+const pushEntry = (page: Page) =>
+  page.evaluate(() => {
+    window.history.pushState(window.history.state, '', window.location.href)
+    window.dispatchEvent(new Event('sophia:address-moved'))
+  })
+
+test('address · Back to an earlier Studio entry opens the panel its address names, never the one held since (Codex P2 on #545)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1')
+  await drawn(page, DRAWN.room)
+  await toggle(page, 'chat').click()
+  await expect.poll(() => param(page, 'panel')).toBe('chat')
+  await pushEntry(page)
+  await toggle(page, 'people').click()
+  await expect.poll(() => param(page, 'panel')).toBe('people')
+  await page.goBack()
+  await expect(toggle(page, 'chat')).toHaveAttribute('aria-pressed', 'true')
+  expect(param(page, 'panel')).toBe('chat')
+  await page.goForward()
+  await expect(toggle(page, 'people')).toHaveAttribute('aria-pressed', 'true')
+  expect(param(page, 'panel')).toBe('people')
+})
+
+test('address · Back and Forward show the Invite sheet as each entry’s address says (Codex P2 on #545)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1')
+  await drawn(page, DRAWN.room)
+  await pushEntry(page)
+  await page.getByRole('button', { name: 'Invite' }).first().click()
+  await page.getByRole('tab', { name: 'Members' }).click()
+  await expect.poll(() => param(page, 'invite')).toBe('members')
+  const sheet = page.getByRole('dialog', { name: 'Invite' })
+  // Back to the entry that named no sheet: it closes.
+  await page.goBack()
+  await expect(sheet).toBeHidden()
+  expect(param(page, 'invite')).toBeNull()
+  // Forward to the one that names Members: it opens there again.
+  await page.goForward()
+  await expect(sheet).toBeVisible()
+  await expect(sheet.getByRole('tab', { name: 'Members' })).toHaveAttribute('aria-selected', 'true')
+  expect(param(page, 'invite')).toBe('members')
+})

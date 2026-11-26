@@ -39,6 +39,7 @@ import { PeoplePanel } from './PeoplePanel.tsx'
 import { PanelToggles, SidePanel, useBriefUpdates, useChatPeek, useUnread } from './SidePanel.tsx'
 import { useAddressMoves, useViewerState } from './useViewerState.ts'
 import { paramIn, showParam } from '../../app/address-param.ts'
+import { useOnBackForward } from '../../app/useOnBackForward.ts'
 import { lensesShown, type Lens } from './viewer-state.ts'
 
 /** What each lens will hold, stated plainly instead of showing fake content (the goal is noted for us). */
@@ -72,6 +73,13 @@ export function useRoomPanel(
     studio ? paramIn(window.location.search, 'panel', PANELS) : null,
   )
   const [opener, setOpener] = useState<Panel | null>(panel)
+  // Back or Forward to a Studio entry: the panel its address names, before this one is written over it.
+  useOnBackForward(() => {
+    if (!studio) return
+    const named = paramIn(window.location.search, 'panel', PANELS)
+    setPanel(named)
+    setOpener(named)
+  })
   const moves = useAddressMoves()
   useEffect(() => {
     if (studio) showParam('panel', panel)
