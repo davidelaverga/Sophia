@@ -31,7 +31,7 @@ test.afterEach(async ({ page }) => {
 /** Only `selector`'s own boxes painted over the bare page, their contents hidden too: what darkens the paper around
  *  them is their shadow alone. */
 async function alone(page: Page, selector: string) {
-  await page.addStyleTag({
+  return page.addStyleTag({
     content: `body * { visibility: hidden !important } ${selector} { visibility: visible !important }`,
   })
 }
@@ -105,15 +105,20 @@ test('@phone · light · in a call the dock and the panel toggles float with no 
   const toggles = page.locator('.room-stage .panel-toggles')
   await expect(dock.getByRole('button', { name: 'Leave the room' })).toBeVisible()
   await expect(toggles).toBeVisible()
-  await alone(page, '.dock, .room-stage .panel-toggles')
-  for (const [name, part] of [
-    ['the dock', dock],
-    ['the panel toggles', toggles],
+  // One at a time: on a phone the toggles sit 8 px above the dock (corner-reach.md), so either one's edge would read
+  // as the other's shadow.
+  for (const [name, part, selector] of [
+    ['the dock', dock, '.dock'],
+    ['the panel toggles', toggles, '.room-stage .panel-toggles'],
   ] as const) {
+    const only = await alone(page, selector)
     // A third of the room's shadow left about 1.26:1 here, four pixels under them (the evaluation saw ~1.4 on the
     // stage: docs/plans/light-shadows.md).
     expect(await shadowOf(page, part, 'blotch'), `${name}: four pixels out`).toBeLessThanOrEqual(1.15)
     expect(await shadowOf(page, part, 'contact'), `${name}: their contact`).toBeGreaterThanOrEqual(1.06)
+    await only.evaluate((tag) => {
+      tag.parentNode?.removeChild(tag)
+    })
   }
 })
 
