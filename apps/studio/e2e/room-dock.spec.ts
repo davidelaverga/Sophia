@@ -71,6 +71,26 @@ test('dock · on a phone: one row of 42 px squares, icons only, still named for 
   expect(new Set(buttons.map((b) => b.top)).size).toBe(1)
 })
 
+test('dock · Take the floor draws a person on a lit spot, not a hand: the hand is Raise hand’s alone (five-decisions.md, 22)', async ({
+  page,
+}) => {
+  await enter(page, 'people=2', 1280)
+  // Both glyphs sit in the dock's markup at every width (on a computer Take the floor shows its words instead).
+  const take = await dock(page)
+    .getByRole('button', { name: 'Take the floor', exact: true })
+    .locator('svg')
+    .evaluate((svg) => svg.innerHTML)
+  const raise = await dock(page)
+    .getByRole('button', { name: 'Raise hand', exact: true })
+    .locator('svg')
+    .evaluate((svg) => svg.innerHTML)
+  // A finger is the hand's round-topped stroke (a 1.5 radius arc); the spot is an ellipse.
+  const finger = /a1\.5 1\.5 0 0 1 3 0/
+  expect(raise).toMatch(finger)
+  expect(take).not.toMatch(finger)
+  expect(take).toContain('<ellipse')
+})
+
 test('dock · at 390 px, from the keyboard or under a hovering pointer, an icon says what it does', async ({ page }) => {
   await enter(page, 'people=2', 390)
   const take = dock(page).getByRole('button', { name: 'Take the floor', exact: true })
@@ -160,6 +180,85 @@ test('dock · on a phone, its box hugs the row: no empty sides', async ({ page }
   })
   // Its padding and border, both sides: nothing more.
   expect(gap).toBeLessThanOrEqual(16)
+})
+
+/** Where the corner (Chat, People, Brief) stands against the dock and the lens body above it. */
+const cornerRead = (page: Page) =>
+  page.evaluate(() => {
+    // oxlint-disable-next-line unicorn/consistent-function-scoping -- page.evaluate sends only this function to the page
+    const box = (selector: string) => document.querySelector(selector)?.getBoundingClientRect() ?? null
+    const corner = box('.stage-corner')
+    const dockBox = box('.dock')
+    const body = box('.stage-body')
+    return corner && dockBox && body ? { corner, dock: dockBox, body, width: innerWidth, height: innerHeight } : null
+  })
+
+// Chat, People and Brief within the thumb's reach (five-decisions.md, 23): on a phone the corner sits just above the
+// dock on the right, and what ends above the dock ends above the corner. Under a mouse (a narrow window) and a finger.
+for (const [who, tag] of [
+  ['a narrow window', ''],
+  ['a phone', ' @phone'],
+] as const) {
+  test(`dock · on ${who}, Chat, People and Brief sit just above the dock, on the right${tag}`, async ({ page }) => {
+    await enter(page, 'people=2', 390)
+    // Once the dock has published its settled height (--dock-h, rounded up): read once, the corner may still stand
+    // on an earlier one.
+    await expect
+      .poll(async () => {
+        const settled = await cornerRead(page)
+        return settled ? settled.dock.top - settled.corner.bottom : 0
+      })
+      .toBeLessThanOrEqual(10)
+    const read = await cornerRead(page)
+    expect(read).not.toBeNull()
+    if (!read) return
+    const { corner, dock: under, body } = read
+    // Above the dock, 8 px over it (9 with the dock's height rounded up), at the stage's right gutter, low on the
+    // screen.
+    expect(under.top - corner.bottom).toBeGreaterThanOrEqual(8)
+    expect(under.top - corner.bottom).toBeLessThanOrEqual(10)
+    expect(Math.round(read.width - corner.right)).toBe(16)
+    expect(corner.top).toBeGreaterThan(read.height * 0.75)
+    // The lens body ends above the corner: nothing it says runs under the toggles.
+    expect(body.bottom).toBeLessThanOrEqual(corner.top)
+  })
+}
+
+// A short phone (375 × 667, a 575 px stage): a band above the dock would leave no height for her line, what she made
+// and two captions (room-made.spec.ts), so the corner keeps to the lenses' line there, as before.
+test('dock · on a short phone the corner stays under the lenses, high on the stage @phone', async ({ page }) => {
+  await enter(page, 'people=2', 375)
+  await page.setViewportSize({ width: 375, height: 667 })
+  await expect.poll(async () => (await cornerRead(page))?.corner.top ?? 0).toBeLessThan(667 / 2)
+  const read = await cornerRead(page)
+  if (!read) return
+  expect(read.corner.top).toBeGreaterThanOrEqual(
+    await page.locator('.lens-bar').evaluate((el) => el.getBoundingClientRect().bottom),
+  )
+})
+
+test('dock · on a phone, a menu opened from the dock rises over the corner where they meet (five-decisions.md, 23)', async ({
+  page,
+}) => {
+  await enter(page, 'people=2&video=screen', 390)
+  await dock(page).getByRole('button', { name: 'React', exact: true }).click()
+  const menu = page.locator('.react-list')
+  await expect(menu).toBeVisible()
+  // Every point the menu and the corner share belongs to the menu (none at all would prove nothing).
+  const shared = await menu.evaluate((list) => {
+    const m = list.getBoundingClientRect()
+    const c = document.querySelector('.stage-corner')?.getBoundingClientRect()
+    if (!c) return []
+    const points: boolean[] = []
+    for (let x = Math.max(m.left, c.left) + 3; x < Math.min(m.right, c.right) - 2; x += 8) {
+      for (let y = Math.max(m.top, c.top) + 3; y < Math.min(m.bottom, c.bottom) - 2; y += 8) {
+        points.push(list.contains(document.elementFromPoint(x, y)))
+      }
+    }
+    return points
+  })
+  expect(shared.length).toBeGreaterThan(0)
+  expect(shared.every(Boolean)).toBe(true)
 })
 
 test('dock · on a phone with Sophia in the conversation: her controls are icons too, and no «Sophia» label', async ({

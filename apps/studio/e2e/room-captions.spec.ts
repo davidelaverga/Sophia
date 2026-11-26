@@ -151,6 +151,9 @@ test('@phone · captions fit a phone, above the dock, nothing off the side', asy
   const words = await box(page, '.stage-captions')
   const dock = await box(page, '.dock')
   expect(words.y + words.height).toBeLessThanOrEqual(dock.y)
+  // Chat, People and Brief sit above the dock on a phone (five-decisions.md, 23): the captions end above them too.
+  const corner = await box(page, '.stage-corner')
+  expect(words.y + words.height).toBeLessThanOrEqual(corner.y)
   const sideways = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   )

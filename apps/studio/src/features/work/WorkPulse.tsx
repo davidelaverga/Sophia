@@ -40,7 +40,7 @@ export function WorkPulse({ feed, connection }: { feed: Feed | null; connection:
         <ol className="events">
           {pulseRows(events).map((row) => (
             <li key={row.key} className="event">
-              <span className="dot" aria-hidden />
+              <span className="dot" data-tone={row.tone} aria-hidden />
               <span>
                 {row.label}
                 {row.count > 1 && <span className="event-count"> ×{row.count}</span>}

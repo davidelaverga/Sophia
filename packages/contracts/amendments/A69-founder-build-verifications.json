@@ -1,0 +1,600 @@
+{
+  "id": "A69",
+  "goal": "FOUNDER-EXPLORE-TO-BUILD-001",
+  "title": "Independent source and deployed Build verification",
+  "why": [
+    "Authorize each independent reviewer for an exact saved return.",
+    "Keep receipts and derive verification of the current reported deployment without contacting external systems."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/FounderBuildVerificationRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["expectedRevision", "returnId", "kind", "outcome", "scenario", "expected", "observed"],
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "returnId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["source_review", "deployed_app"]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["passed", "failed", "blocked", "unknown"]
+          },
+          "scenario": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "pattern": "\\S"
+          },
+          "expected": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "pattern": "\\S"
+          },
+          "observed": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "pattern": "\\S"
+          },
+          "evidenceReference": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://[^?#]+$",
+            "maxLength": 500
+          },
+          "mappingSourceSha": {
+            "type": "string",
+            "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$"
+          },
+          "observedDeployedSha": {
+            "type": "string",
+            "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$"
+          },
+          "observedDeploymentReference": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://[^?#]+$",
+            "maxLength": 500
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "type": "object",
+              "required": ["kind"],
+              "properties": {
+                "kind": {
+                  "const": "source_review"
+                }
+              }
+            },
+            "then": {
+              "type": "object",
+              "not": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "required": ["mappingSourceSha"],
+                    "properties": {
+                      "mappingSourceSha": {}
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": ["observedDeployedSha"],
+                    "properties": {
+                      "observedDeployedSha": {}
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": ["observedDeploymentReference"],
+                    "properties": {
+                      "observedDeploymentReference": {}
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "if": {
+              "type": "object",
+              "required": ["kind", "outcome"],
+              "properties": {
+                "kind": {
+                  "const": "deployed_app"
+                },
+                "outcome": {
+                  "const": "passed"
+                }
+              }
+            },
+            "then": {
+              "type": "object",
+              "required": ["mappingSourceSha", "observedDeployedSha", "observedDeploymentReference"],
+              "properties": {
+                "mappingSourceSha": {},
+                "observedDeployedSha": {},
+                "observedDeploymentReference": {}
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/FounderBuildVerificationTarget",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "returnId",
+          "exportId",
+          "exportSha256",
+          "repositoryId",
+          "candidateSha",
+          "pullRequestNumber",
+          "mergeSha",
+          "deploymentReference",
+          "deployedSha",
+          "repository"
+        ],
+        "properties": {
+          "returnId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "exportId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "exportSha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "repositoryId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$"
+          },
+          "candidateSha": {
+            "type": "string",
+            "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$"
+          },
+          "pullRequestNumber": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "mergeSha": {
+            "type": "string",
+            "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$"
+          },
+          "deploymentReference": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://[^?#]+$",
+            "maxLength": 500
+          },
+          "deployedSha": {
+            "type": "string",
+            "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$"
+          },
+          "repository": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}$"
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/FounderBuildVerification",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "recordedAt", "target", "kind", "outcome", "scenario", "expected", "observed"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "target": {
+            "$ref": "#/components/schemas/FounderBuildVerificationTarget"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["source_review", "deployed_app"]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["passed", "failed", "blocked", "unknown"]
+          },
+          "scenario": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "pattern": "\\S"
+          },
+          "expected": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "pattern": "\\S"
+          },
+          "observed": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "pattern": "\\S"
+          },
+          "evidenceReference": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://[^?#]+$",
+            "maxLength": 500
+          },
+          "mappingSourceSha": {
+            "type": "string",
+            "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$"
+          },
+          "observedDeployedSha": {
+            "type": "string",
+            "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$"
+          },
+          "observedDeploymentReference": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://[^?#]+$",
+            "maxLength": 500
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/FounderBuildVerificationAccess",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["revision", "kind", "target"],
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["source_review", "deployed_app"]
+          },
+          "target": {
+            "$ref": "#/components/schemas/FounderBuildVerificationTarget"
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/FounderBuildVerificationProjection",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "currentReturnId", "receipts"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["reported", "awaiting_verification", "verified_in_app"]
+          },
+          "currentReturnId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "receipts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FounderBuildVerification"
+            }
+          },
+          "checks": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sourceReview", "deployedApp"],
+            "properties": {
+              "sourceReview": {
+                "type": "string",
+                "enum": ["pending", "passed", "failed", "blocked", "unknown", "authority_withdrawn"]
+              },
+              "deployedApp": {
+                "type": "string",
+                "enum": ["pending", "passed", "failed", "blocked", "unknown", "authority_withdrawn"]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/FounderBuildDestination/properties/verification",
+      "value": {
+        "$ref": "#/components/schemas/FounderBuildVerificationProjection"
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1explore~1sessions~1{sessionId}~1handoff~1{approvalId}~1verifications",
+      "value": {
+        "get": {
+          "operationId": "readFounderBuildVerification",
+          "tags": ["Founder Build"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "name": "sessionId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "name": "approvalId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "in": "query",
+              "name": "returnId",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Authorized founder Build handoff record",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/FounderBuildVerificationAccess"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Authentication required",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Target unavailable in current scope",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision, changed admission key, or invalid retained state",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Invalid request",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Build handoff unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "summary": "Read an exact reviewer-scoped Build verification target"
+        },
+        "post": {
+          "operationId": "recordFounderBuildVerification",
+          "tags": ["Founder Build"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "name": "sessionId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "name": "approvalId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Authorized founder Build handoff record",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/FounderBuildVerification"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Authentication required",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Target unavailable in current scope",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision, changed admission key, or invalid retained state",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Invalid request",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Build handoff unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FounderBuildVerificationRequest"
+                }
+              }
+            }
+          },
+          "summary": "Record an independently authorized Build verification"
+        }
+      }
+    }
+  ]
+}

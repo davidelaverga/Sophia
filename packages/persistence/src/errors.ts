@@ -37,6 +37,13 @@ const LIMITS: readonly string[] = [
 
 /** SQLSTATEs raised by the sophia.* functions (db/migrations), most specific rule first. */
 const RULES: readonly Rule[] = [
+  // 0133: replay never turns an unrecognized key into a fresh write. Retain the original key, without disclosing state.
+  {
+    sqlstate: '55000',
+    when: (m) => m === 'Addressed input replay has no prior receipt',
+    code: 'outcome_unknown',
+    publicMessage: 'Input not confirmed; retry the same request when admissions resume',
+  },
   // Runtime capability checks (0012): the capability is unknown, or it is used against another unit or project.
   // Render runner capability checks (0030): an unknown or revoked runner is refused like an unknown runtime.
   {

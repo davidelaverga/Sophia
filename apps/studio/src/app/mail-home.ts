@@ -27,3 +27,7 @@ export function mailHome(email: string): MailHome | null {
 
 /** Whether an address can be one: a name, an @, and a domain with a dot. The Auth service decides the rest. */
 export const plausibleEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+
+/** What is wrong with an address, in the page's words (sign-in and Invite alike); null when it can be one. */
+export const NOT_AN_ADDRESS = 'Check the address: it needs a name, an @ and a domain.'
+export const addressProblem = (email: string) => (plausibleEmail(email) ? null : NOT_AN_ADDRESS)

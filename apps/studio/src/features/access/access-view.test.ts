@@ -176,16 +176,27 @@ describe('room access, as the Studio shows it', () => {
     const now = at('2026-10-01T12:00:00Z')
     assert.equal(
       sessionLabel(session('a', '2026-10-01T15:00:00Z', '2026-10-01T16:00:00Z'), now, 'UTC'),
-      'Today · 15:00 – 16:00',
+      'Today · 15:00\u00a0–\u2060\u00a016:00',
     )
     assert.equal(
       sessionLabel(session('b', '2026-10-02T09:30:00Z', '2026-10-02T10:30:00Z'), now, 'UTC'),
-      'Tomorrow · 09:30 – 10:30',
+      'Tomorrow · 09:30\u00a0–\u2060\u00a010:30',
     )
     assert.equal(
       sessionLabel(session('c', '2026-10-05T09:00:00Z', '2026-10-05T10:00:00Z'), now, 'UTC'),
-      'Mon, Oct 5 · 09:00 – 10:00',
+      'Mon, Oct 5 · 09:00\u00a0–\u2060\u00a010:00',
     )
+  })
+
+  it('holds its range together: no line breaks inside «15:00 – 16:00»', () => {
+    const label = sessionLabel(
+      session('a', '2026-10-01T15:00:00Z', '2026-10-01T16:00:00Z'),
+      at('2026-10-01T12:00:00Z'),
+      'UTC',
+    )
+    const range = label.slice(label.indexOf('15:00'))
+    assert.equal(range, '15:00\u00a0–\u2060\u00a016:00')
+    assert.doesNotMatch(range, / /)
   })
 
   it('turns the form into a session that lasts the chosen minutes', () => {
@@ -217,11 +228,13 @@ describe('room access, as the Studio shows it', () => {
     const made = session('made', '2026-10-01T09:00:00Z', '2026-10-01T10:00:00Z')
     const weekly = session('Weekly', '2026-10-01T09:30:00Z', '2026-10-01T10:30:00Z')
     assert.deepEqual(scheduleLines(made, weekly, now, 'UTC'), [
-      'Scheduled: Today · 09:00 – 10:00.',
-      'Next: overlaps “Weekly” · Today · 09:30 – 10:30.',
+      'Scheduled: Today · 09:00\u00a0–\u2060\u00a010:00.',
+      'Next: overlaps “Weekly” · Today · 09:30\u00a0–\u2060\u00a010:30.',
     ])
-    assert.deepEqual(scheduleLines(null, weekly, now, 'UTC'), ['Overlaps “Weekly” · Today · 09:30 – 10:30.'])
-    assert.deepEqual(scheduleLines(made, null, now, 'UTC'), ['Scheduled: Today · 09:00 – 10:00.'])
+    assert.deepEqual(scheduleLines(null, weekly, now, 'UTC'), [
+      'Overlaps “Weekly” · Today · 09:30\u00a0–\u2060\u00a010:30.',
+    ])
+    assert.deepEqual(scheduleLines(made, null, now, 'UTC'), ['Scheduled: Today · 09:00\u00a0–\u2060\u00a010:00.'])
     assert.deepEqual(scheduleLines(null, null, now, 'UTC'), [])
   })
 

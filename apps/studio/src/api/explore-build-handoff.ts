@@ -119,11 +119,60 @@ const reported = (value: unknown) => ({
   id: property(value, 'id', uuidPattern),
   status: literal(field(value, 'status'), 'reported'),
 })
+function choice<const T extends string>(value: unknown, options: readonly T[]): T {
+  const match = options.find((option) => option === value)
+  if (!match) throw invalid()
+  return match
+}
+
+export const verificationOutcomes = ['passed', 'failed', 'blocked', 'unknown'] as const
+const verificationKind = (value: unknown) => choice(value, ['source_review', 'deployed_app'])
+const verificationOutcome = (value: unknown) => choice(value, verificationOutcomes)
+const verificationTarget = (value: unknown) => ({
+  ...returnIdentity(value),
+  returnId: property(value, 'returnId', uuidPattern),
+  repository: property(value, 'repository', repositoryPattern),
+  candidateSha: property(value, 'candidateSha', gitShaPattern),
+  pullRequestNumber: positive(field(value, 'pullRequestNumber')),
+  mergeSha: property(value, 'mergeSha', gitShaPattern),
+  deploymentReference: property(value, 'deploymentReference'),
+  deployedSha: property(value, 'deployedSha', gitShaPattern),
+})
+const verificationObservations = (value: unknown) => ({
+  kind: verificationKind(field(value, 'kind')),
+  outcome: verificationOutcome(field(value, 'outcome')),
+  scenario: property(value, 'scenario'),
+  expected: property(value, 'expected'),
+  observed: property(value, 'observed'),
+  evidenceReference: optional(field(value, 'evidenceReference'), string),
+  mappingSourceSha: optional(field(value, 'mappingSourceSha'), gitSha),
+  observedDeployedSha: optional(field(value, 'observedDeployedSha'), gitSha),
+  observedDeploymentReference: optional(field(value, 'observedDeploymentReference'), string),
+})
+const verificationReceipt = (value: unknown) => ({
+  ...verificationObservations(value),
+  id: property(value, 'id', uuidPattern),
+  recordedAt: property(value, 'recordedAt'),
+  target: verificationTarget(field(value, 'target')),
+})
+const verificationCheck = (value: unknown) => choice(value, [...verificationOutcomes, 'pending', 'authority_withdrawn'])
+const verificationChecks = (value: unknown) => ({
+  sourceReview: verificationCheck(field(value, 'sourceReview')),
+  deployedApp: verificationCheck(field(value, 'deployedApp')),
+})
+export type VerificationChecks = ReturnType<typeof verificationChecks>
+const verification = (value: unknown) => ({
+  status: choice(field(value, 'status'), ['reported', 'awaiting_verification', 'verified_in_app']),
+  currentReturnId: nullable(field(value, 'currentReturnId'), (input) => string(input, uuidPattern)),
+  receipts: list(field(value, 'receipts'), verificationReceipt),
+  checks: optional(field(value, 'checks'), verificationChecks),
+})
 const destination = (value: unknown) => ({
   revision: positive(field(value, 'revision')),
   binding: nullable(field(value, 'binding'), parseBinding),
   export: nullable(field(value, 'export'), prepared),
   returns: list(field(value, 'returns'), reported),
+  verification: optional(field(value, 'verification'), verification),
 })
 const prepareInput = (value: unknown) => ({
   expectedRevision: positive(field(value, 'expectedRevision')),
@@ -139,6 +188,20 @@ export type RepositoryBinding = ReturnType<typeof parseBinding>
 export type BuildExport = ReturnType<typeof prepared>
 export type BuildDestination = ReturnType<typeof destination>
 export type BuildEvidence = ReturnType<typeof evidence>
+export type VerificationReceipt = ReturnType<typeof verificationReceipt>
+export type VerificationKind = VerificationReceipt['kind']
+const verificationReview = (value: unknown) => ({
+  revision: positive(field(value, 'revision')),
+  kind: verificationKind(field(value, 'kind')),
+  target: verificationTarget(field(value, 'target')),
+})
+export type VerificationReview = ReturnType<typeof verificationReview>
+export const parseVerificationInput = (value: unknown) => ({
+  ...verificationObservations(value),
+  expectedRevision: positive(field(value, 'expectedRevision')),
+  returnId: property(value, 'returnId', uuidPattern),
+})
+export type VerificationInput = ReturnType<typeof parseVerificationInput>
 export type BuildAction =
   | { kind: 'repository-binding'; body: ReturnType<typeof bindingInput> }
   | { kind: 'exports'; body: ReturnType<typeof prepareInput> }
@@ -166,6 +229,36 @@ export interface BuildScope extends ExploreScope {
 const esc = encodeURIComponent
 const base = ({ projectId, sessionId, approvalId }: BuildScope) =>
   `/api/v1/projects/${esc(projectId)}/explore/sessions/${esc(sessionId)}/handoff/${esc(approvalId)}` as const
+export interface BuildReviewScope extends BuildScope {
+  returnId: string
+}
+const verificationPath = (scope: BuildScope) => `${base(scope)}/verifications` as const
+
+export const getBuildReview = (scope: BuildReviewScope, signal: AbortSignal) =>
+  callApi(
+    `${verificationPath(scope)}?returnId=${esc(scope.returnId)}`,
+    { token: scope.token, method: 'GET', memberRead: true, signal },
+    (value) => {
+      const read = verificationReview(value)
+      if (read.target.returnId !== scope.returnId) throw invalid()
+      return read
+    },
+  )
+
+export const sendBuildVerification = (
+  scope: BuildReviewScope,
+  body: VerificationInput,
+  key: string,
+  signal: AbortSignal,
+) =>
+  callApi(verificationPath(scope), { token: scope.token, body, key, signal }, (value) => {
+    const receipt = verificationReceipt(value)
+    if (receipt.target.returnId !== scope.returnId || receipt.kind !== body.kind || receipt.outcome !== body.outcome) {
+      throw invalid()
+    }
+    return receipt
+  })
+
 const exportPath = (scope: BuildScope, exportId: string) => `${base(scope)}/exports/${esc(exportId)}` as const
 
 export const getBuildDestination = (scope: BuildScope, signal: AbortSignal) =>

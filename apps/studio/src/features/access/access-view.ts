@@ -202,7 +202,17 @@ export function countdown(session: Pick<RoomSession, 'startsAt' | 'endsAt'>, now
   return `starts ${inTime(session.startsAt, now)}`
 }
 
-/** "Today · 10:00 – 11:00", "Tomorrow · 09:30 – 10:30" or "Thu, Oct 1 · 10:00 – 11:00", in the viewer's zone. */
+/**
+ * Between a session's start and end: the dash between no-break spaces, a word joiner after it (a dash may break after
+ * itself even before a no-break space), so the range never breaks across lines, on a phone's narrow line either
+ * (docs/plans/touch-fields.md). Nothing of it is read aloud.
+ */
+export const RANGE_DASH = '\u00a0–\u2060\u00a0'
+
+/**
+ * "Today · 10:00 – 11:00", "Tomorrow · 09:30 – 10:30" or "Thu, Oct 1 · 10:00 – 11:00", in the viewer's zone; the range
+ * held together (`RANGE_DASH`).
+ */
 export function sessionLabel(
   session: Pick<RoomSession, 'startsAt' | 'endsAt'>,
   now: number,
@@ -221,7 +231,7 @@ export function sessionLabel(
       : day === tomorrow
         ? 'Tomorrow'
         : new Intl.DateTimeFormat('en-US', { ...zone, weekday: 'short', month: 'short', day: 'numeric' }).format(start)
-  return `${name} · ${time.format(start)} – ${time.format(new Date(session.endsAt))}`
+  return `${name} · ${time.format(start)}${RANGE_DASH}${time.format(new Date(session.endsAt))}`
 }
 
 /** A session from the form's local date and time (the browser's zone), lasting `minutes`. */

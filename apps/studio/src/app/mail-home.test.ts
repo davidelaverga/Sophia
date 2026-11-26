@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { mailHome, plausibleEmail } from './mail-home.ts'
+import { addressProblem, mailHome, NOT_AN_ADDRESS, plausibleEmail } from './mail-home.ts'
 
 describe('mailHome', () => {
   it('opens the inbox of a common address, by its domain, whatever its case', () => {
@@ -23,5 +23,13 @@ describe('plausibleEmail', () => {
     for (const bad of ['luis@', '@sophia.test', 'luis@sophia', 'luis sophia@x.test', '']) {
       assert.equal(plausibleEmail(bad), false, bad)
     }
+  })
+})
+
+describe('addressProblem', () => {
+  it('says what an address lacks, and nothing for one that can be an address', () => {
+    assert.equal(addressProblem('luis'), NOT_AN_ADDRESS)
+    assert.equal(addressProblem('luis@sophia'), NOT_AN_ADDRESS)
+    assert.equal(addressProblem(' luis@sophia.test '), null)
   })
 })

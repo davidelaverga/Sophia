@@ -30,7 +30,7 @@ import {
   type FirstStep,
   type ProfileFacts,
 } from './first-run.ts'
-import { useCapped } from './useCapped.ts'
+import { useNameLimit } from './NameLimit.tsx'
 
 export { useFirstRun } from './useFirstRun.ts'
 
@@ -249,7 +249,7 @@ interface ProjectProps {
  */
 function ProjectStep({ token, heading, onCreated, onAdded, onNotNow }: ProjectProps) {
   const [title, setTitle] = useState('')
-  const capping = useCapped(TITLE_MOST, title, setTitle)
+  const limit = useNameLimit('hw-first-project-field', TITLE_MOST, title, setTitle)
   const admission = useAdmission<string, ProjectCreated>((key, t) => createProject(token, key, t))
   const open = useMounted()
   const { status } = admission.state
@@ -274,11 +274,12 @@ function ProjectStep({ token, heading, onCreated, onAdded, onNotNow }: ProjectPr
           void submit()
         }}
       >
-        <input id="hw-first-project-field" value={title} readOnly={status === 'unknown'} {...capping} />
+        <input id="hw-first-project-field" value={title} readOnly={status === 'unknown'} {...limit.input} />
         <Button kind="primary" type="submit" size="lg" disabled={status === 'sending' || !title.trim()}>
           {pressWords(status, FIRST_RUN.project.go, WAITING.project)}
         </Button>
       </Field>
+      {limit.note}
       <Trouble state={admission.state} words={words} />
       <div className="hw-first-acts">
         <Button kind="text" onClick={onNotNow}>

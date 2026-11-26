@@ -375,6 +375,8 @@ interface Project {
   outsider?: boolean
   /** The project list's reads fail (`projects=fail`). */
   projectsFail?: boolean
+  /** Who the project list says is in the room (`inroom=Davide,Sophia`): Home's presence, People's before joining. */
+  inRoom?: { people: string[]; sophia: boolean } | null
   /** The report's tasks (task-data.ts, A17); absent, their requests are unexpected. */
   tasks?: Tasks
   /** The project's human tasks as A39 serves them (human-tasks-data.ts), on the served page only (`humantasks=seed`). */
@@ -1522,7 +1524,7 @@ function projectListAnswer(project: Project): Response | Promise<Response> {
   if (held) return new Promise<Response>((resolve) => held.push(() => resolve(projectListAnswer(project))))
   if (project.projectsFail) return unavailable()
   served.push('projects:read')
-  const room = null
+  const room = project.inRoom ?? null
   const listed = {
     projectId: PROJECT,
     title: 'Fixture project',
@@ -2109,7 +2111,8 @@ function contributed(project: Project, init: RequestInit | undefined): Response 
   publish(project)
   served.push(`contribution:${body.intent}`)
   const receipt: ContributionReceipt = {
-    contributionId: `00000000-0000-4000-8000-${String(map.size + 1).padStart(12, 'f')}`,
+    // The entry's own id, as the API's: a message's contribution is the discussion entry it reads as (chat-pace.md).
+    contributionId: id,
     projectId: PROJECT,
     sourceId: '00000000-0000-4000-8000-0000000000ae',
     sha256: '0'.repeat(64),

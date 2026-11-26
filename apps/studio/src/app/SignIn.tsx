@@ -16,7 +16,7 @@ import { PasskeyLink, usePasskeySignIn } from './PasskeySignIn.tsx'
 import { ProviderButtons } from './ProviderButtons.tsx'
 import { SLOW_NOTE, useSlow } from './useSlow.ts'
 import { Mark } from './Mark.tsx'
-import { mailHome, plausibleEmail } from './mail-home.ts'
+import { mailHome, NOT_AN_ADDRESS, plausibleEmail } from './mail-home.ts'
 import { CODE_NOT_CONFIRMED, EMAIL_NOT_CONFIRMED, FIRST_EMAIL_NOT_CONFIRMED, waitAfter } from './auth-words.ts'
 import { SENT_HOW, SENT_TO } from './auth-words.ts'
 import { endsWithin } from './deadline.ts'
@@ -213,8 +213,6 @@ function useFocusOnPointer(shown: boolean) {
   }, [shown])
   return field
 }
-
-const NOT_AN_ADDRESS = 'Check the address: it needs a name, an @ and a domain.'
 
 /**
  * The threshold (docs/plans/signin-threshold.md): Sophia notices whoever writes their address. While the field has the

@@ -36,7 +36,7 @@ import {
   homeRows,
   notesLabel,
   rowNote,
-  showsAllProjects,
+  type AllProjects,
   type HomeAction,
   type HomeLine,
   type HomeRow,
@@ -62,8 +62,8 @@ interface Props {
   loadingProjects: boolean
   now: Date
   inCallProject: string | null
-  /** "4 projects", ending the index; empty while they load. */
-  count: string
+  /** The row to all projects, or null where it isn't offered (`allProjects`). */
+  all: AllProjects | null
   /** The personal space is locked: your row unlocks it, and there is no line. */
   locked: boolean
   /**
@@ -212,7 +212,7 @@ function Row({ row, index, onPress }: { row: HomeRow; index: number; onPress: ()
   )
 }
 
-function Index(props: Pick<Props, 'projects' | 'loadingProjects' | 'now' | 'inCallProject' | 'count' | 'actions'>) {
+function Index(props: Pick<Props, 'projects' | 'loadingProjects' | 'now' | 'inCallProject' | 'all' | 'actions'>) {
   const { projects, actions } = props
   if (!projects) {
     if (!props.loadingProjects) return null
@@ -240,11 +240,12 @@ function Index(props: Pick<Props, 'projects' | 'loadingProjects' | 'now' | 'inCa
           </button>
         </li>
       )}
-      {showsAllProjects(projects) && (
+      {props.all && (
         <li style={{ '--i': rows.length }}>
           <button className="hw-row hw-more" type="button" onClick={actions.work}>
             <span className="hw-n" aria-hidden />
-            <span className="hw-t">All {props.count}</span>
+            <span className="hw-t">{props.all.title}</span>
+            {props.all.meta && <span className="hw-m">{props.all.meta}</span>}
             <span className="hw-go">
               <span aria-hidden>→</span>
             </span>
@@ -621,7 +622,7 @@ function Today(props: Props & { line: RefObject<HTMLElement | null>; onTalk: (t:
             loadingProjects={props.loadingProjects}
             now={props.now}
             inCallProject={props.inCallProject}
-            count={props.count}
+            all={props.all}
             actions={props.actions}
           />
         </section>

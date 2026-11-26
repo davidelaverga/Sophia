@@ -2750,7 +2750,7 @@ function checkR26Ack(r: R26AckView, want: Map<string, string>): void {
   // Negative-only admission, checked on the written values rather than trusted from the type.
   const negative: readonly string[] = ['recorded_only', 'clarification_required', 'waiting', 'denied']
   assert.ok(r.cases.every((c) => negative.includes(c.observation.admission.outcome)))
-  assert.equal(r.policy.version, 'sophia.intake-observation.policy.v25')
+  assert.equal(r.policy.version, 'sophia.intake-observation.policy.v26')
 }
 
 describe('r26 through the consumer: an empty "also" adds nothing (policy v22, kept in v23)', () => {
@@ -3070,11 +3070,11 @@ describe('r30 through the consumer: dash-joined fillers and "also" read as their
     })
   })
 
-  it('names policy v25 and report v7 (identity, checked apart from the outcomes)', () => {
+  it('names policy v26 and report v7 (identity, checked apart from the outcomes)', () => {
     const { doc } = r30PrefixCorpus()
     const r = report(doc)
     assert.equal(r.schema, 'sophia.intake-observation.report.v7')
-    assert.equal(r.policy.version, 'sophia.intake-observation.policy.v25')
+    assert.equal(r.policy.version, 'sophia.intake-observation.policy.v26')
   })
 })
 

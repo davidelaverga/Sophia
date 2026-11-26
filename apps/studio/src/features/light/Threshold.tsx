@@ -55,15 +55,19 @@ export function Threshold({ at, from }: { at: LightTarget; from: Point | null })
   }, [])
   const size = markSize(at.radius)
   return (
-    <svg
-      ref={svg}
-      className="threshold"
-      data-mark="umbral"
-      viewBox="0 0 48 48"
-      style={{ left: at.x - size / 2, top: at.y - size / 2, width: size, height: size }}
-    >
-      <path className="umbral-you" d={UMBRAL.you.path} />
-      <path className="umbral-sophia" d={UMBRAL.her.path} />
-    </svg>
+    <>
+      {/* Her light under the mark, on paper only (paper-light-rays.md): in the room the canvas draws it. */}
+      <span className="threshold-light" aria-hidden style={{ left: at.x, top: at.y, '--ms': `${String(size)}px` }} />
+      <svg
+        ref={svg}
+        className="threshold"
+        data-mark="umbral"
+        viewBox="0 0 48 48"
+        style={{ left: at.x - size / 2, top: at.y - size / 2, width: size, height: size }}
+      >
+        <path className="umbral-you" d={UMBRAL.you.path} />
+        <path className="umbral-sophia" d={UMBRAL.her.path} />
+      </svg>
+    </>
   )
 }

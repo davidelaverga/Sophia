@@ -22,7 +22,7 @@ const event = (sequence: string): Frame => ({
 })
 const advance = (sequence: string): Frame => ({ projectId: P, type: 'cursor.advanced', sequence })
 
-type Attempt = (after: string, onOpen: () => void, onFrame: (f: Frame) => void) => Promise<void>
+type Attempt = (after: string, onOpen: () => void, onFrame: (f: Frame) => void, signal: AbortSignal) => Promise<void>
 
 /**
  * Scripted ports: each stream attempt runs the next scripted behaviour; the loop stops after them. `doors` answers
@@ -45,14 +45,14 @@ function harness(attempts: Attempt[], snapshotCursor = '0', doors: boolean[] = [
       feed = rebase(feed, snapshotCursor)
       return Promise.resolve()
     },
-    follow: (after, _signal, onOpen, onFrame) => {
+    follow: (after, signal, onOpen, onFrame) => {
       followedFrom.push(after)
       const next = attempts.shift()
       if (!next) {
         stop.abort()
         return Promise.resolve()
       }
-      return next(after, onOpen, onFrame)
+      return next(after, onOpen, onFrame, signal)
     },
     setConnection: (c) => connections.push(c),
     refused: () => Promise.resolve(doors.shift() ?? true),
@@ -63,6 +63,7 @@ function harness(attempts: Attempt[], snapshotCursor = '0', doors: boolean[] = [
     },
     random,
     wakes: () => () => undefined,
+    drops: () => () => undefined,
   }
   const run = () => runFeedLoop(ports, stop.signal)
   return {
@@ -115,6 +116,29 @@ function wakeable(h: ReturnType<typeof harness>) {
       for (const wake of listening) wake()
     },
   }
+}
+
+/** A drop source the check fires: the browser says the network is gone (feed-offline.md). */
+function droppable(h: ReturnType<typeof harness>) {
+  const listening = new Set<() => void>()
+  h.ports.drops = (drop) => {
+    listening.add(drop)
+    return () => listening.delete(drop)
+  }
+  return {
+    listening,
+    fire: () => {
+      for (const drop of listening) drop()
+    },
+  }
+}
+
+/** A stream that opens and stays open, bringing nothing, until its attempt is aborted, as a quiet stream does. */
+const openUntilAborted: Attempt = (_after, onOpen, _onFrame, signal) => {
+  onOpen()
+  return new Promise((_resolve, reject) =>
+    signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))),
+  )
 }
 
 /** Lets the loop run as far as it goes without a wait ending. */
@@ -268,6 +292,51 @@ describe('runFeedLoop', () => {
       assert.equal(h.followedFrom.length, 1)
     } finally {
       source.fire() // releases a wait the loop left behind, so the check ends either way
+      await running
+    }
+  })
+
+  it('the network gone while the stream is open ends that attempt at once: Reconnecting, one wait, then it asks', async () => {
+    const h = harness([openUntilAborted, fail])
+    const wakes = wakeable(h)
+    const drops = droppable(h)
+    const running = h.run()
+    try {
+      await settle()
+      assert.equal(h.connections.at(-1), 'live')
+      assert.equal(drops.listening.size, 1, 'the open stream listens for the network going')
+      drops.fire() // the browser's offline
+      await settle()
+      assert.equal(h.connections.at(-1), 'reconnecting', 'said at once, not after the stream’s silence runs out')
+      assert.equal(h.sleeps.length, 1, 'then one wait')
+      assert.equal(h.followedFrom.length, 1, 'nothing asked during it')
+      assert.equal(drops.listening.size, 0, 'the ended attempt listens no more')
+      wakes.fire() // the browser's online
+      await settle()
+      assert.equal(h.followedFrom.length, 2, 'woken, it asks again')
+    } finally {
+      h.stop.abort()
+      wakes.fire()
+      await running
+    }
+  })
+
+  it('nothing listens for the network going while the loop waits, only while a stream attempt runs', async () => {
+    const h = harness([fail, fail])
+    const wakes = wakeable(h)
+    const drops = droppable(h)
+    const running = h.run()
+    try {
+      await settle()
+      assert.equal(h.connections.at(-1), 'reconnecting')
+      assert.equal(drops.listening.size, 0)
+      drops.fire()
+      await settle()
+      assert.equal(h.followedFrom.length, 1, 'a drop while waiting asks nothing')
+      assert.equal(h.sleeps.length, 1, 'and starts no other wait')
+    } finally {
+      h.stop.abort()
+      wakes.fire()
       await running
     }
   })

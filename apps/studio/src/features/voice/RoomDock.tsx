@@ -3,7 +3,7 @@
 // and leave. Nothing here changes project work. Its height (a note, a second row on a phone) is the room's
 // --dock-h, so the words and the video above always clear it.
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import type { ExchangeReceipt, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip, type IconName } from '@sophia/ui'
@@ -33,7 +33,10 @@ import type { SophiaView } from './sophia-view.ts'
 import { SOUND_BLOCKED, soundView } from './sound-view.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
 import { useReloadOffer } from './useReloadOffer.ts'
+import { facesOf, type RoomPresence } from './room-presence.ts'
+import { useRoomPresence } from './useRoomPresence.ts'
 import { DockWord } from './DockWord.tsx'
+import { useDockFit } from './useDockFit.ts'
 import { useMedia } from '../../app/useMedia.ts'
 
 interface Props {
@@ -106,11 +109,14 @@ export function RoomDock(props: Props) {
   const live = room.status === 'live' || room.status === 'reconnecting'
   const wrap = useRef<HTMLDivElement>(null)
   useDockHeight(wrap)
+  useDockFit(wrap)
   const micOn = !!room.participants.find((p) => p.local)?.micOn
   const talking = usePushToTalk(micOn, room, live)
   const note = room.mediaError ?? room.error
   const sound = soundView(room, props.sophia)
   const { back, said } = useWayBack(props, note, live)
+  // Who is in before this person joins (one-truth.md): Join shows them, as Home and Work's card do.
+  const presence = useRoomPresence(props.projectId, props.identity, !live)
   return (
     <>
       {/* Beside the dock, not in it: the dock's measured height (--dock-h) is the dock's alone. */}
@@ -137,7 +143,7 @@ export function RoomDock(props: Props) {
             <LiveControls {...props} sophiaAllow={sound.sophiaAllow} />
           ) : (
             <>
-              {!partGone(room) && <JoinButton room={room} onJoin={back.join} />}
+              {!partGone(room) && <JoinButton room={room} presence={presence} onJoin={back.join} />}
               <CheckOpener room={room} />
               <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
               <RejoinLeave room={room} />
@@ -293,24 +299,55 @@ function useWayBack(props: Props, note: string | null, live: boolean) {
   return { back, said: note ?? (offered ? RELOADED_IN_CALL : null) }
 }
 
-/** Join; after a reload in the call, as the call was (`onJoin`, useReloadOffer). */
-function JoinButton({ room, onJoin }: { room: ProjectRoom; onJoin: (() => void) | null }) {
+/** Join, with who is in; after a reload in the call, as the call was (`onJoin`, useReloadOffer). */
+function JoinButton({
+  room,
+  presence,
+  onJoin,
+}: {
+  room: ProjectRoom
+  presence: RoomPresence
+  onJoin: (() => void) | null
+}) {
   // Its tip says the microphone's default (joinTip): drawn again as Settings changes it (Codex P2 on #398).
   useMicOnJoin()
   const label = room.status === 'joining' ? 'joining' : room.status === 'failed' ? 'retry' : 'join'
+  // Who is in, as Work's card shows it: their initials where the dot was, and their names for a screen reader.
+  const faces = facesOf(presence)
+  const who = useId()
+  const words = presence.known ? presence.words : null
   return (
-    <button
-      type="button"
-      className="pill primary has-tip"
-      // Where a switch beside it that goes away hands the focus (TextMode).
-      data-call-anchor
-      disabled={room.status === 'joining' || !room.ready}
-      onClick={() => (onJoin ? onJoin() : void room.join())}
-    >
-      <span className="pill-dot" aria-hidden />
-      <SwapLabel value={label} labels={{ join: 'Join the room', joining: 'Joining…', retry: 'Try again' }} />
-      <Tip label={joinTip(room.textMode)} keys={roomKey('join')} />
-    </button>
+    <>
+      <button
+        type="button"
+        className="pill primary has-tip"
+        // Where a switch beside it that goes away hands the focus (TextMode).
+        data-call-anchor
+        disabled={room.status === 'joining' || !room.ready}
+        aria-describedby={words ? who : undefined}
+        onClick={() => (onJoin ? onJoin() : void room.join())}
+      >
+        {faces.length > 0 ? (
+          <span className="join-faces" aria-hidden>
+            {faces.map((initial, i) => (
+              <span key={`${initial}-${String(i)}`} className="join-face">
+                {initial}
+              </span>
+            ))}
+          </span>
+        ) : (
+          <span className="pill-dot" aria-hidden />
+        )}
+        <SwapLabel value={label} labels={{ join: 'Join the room', joining: 'Joining…', retry: 'Try again' }} />
+        <Tip label={joinTip(room.textMode)} keys={roomKey('join')} />
+      </button>
+      {/* Outside the button, so its name stays «Join the room», and hidden, so it is read once, as its description. */}
+      {words && (
+        <span id={who} hidden>
+          {words}
+        </span>
+      )}
+    </>
   )
 }
 
@@ -578,7 +615,7 @@ function FloorAction({ floor, me, busy, onPass }: ActionProps) {
   if (floor.canTake) {
     return (
       <button type="button" className="pill warm" disabled={busy} onClick={() => onPass(me)}>
-        <DockWord icon="hand" said="Take the floor">
+        <DockWord icon="floor" said="Take the floor">
           Take the floor
         </DockWord>
       </button>
