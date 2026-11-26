@@ -1,9 +1,14 @@
 import { useEffect, type RefObject } from 'react'
-import { wraps } from './dock-fit.ts'
+import { firstFit, wraps, type DockLayout } from './dock-fit.ts'
+
+/** A control as laid out: a group that lays its controls in the row itself (`display: contents`) stands for them. */
+const laidOut = (element: Element): Element[] =>
+  getComputedStyle(element).display === 'contents' ? [...element.children].flatMap(laidOut) : [element]
 
 /** The dock's own controls, as laid out: not a tip, which hangs outside the row. */
 const rowOf = (dock: HTMLElement) =>
   [...dock.children]
+    .flatMap(laidOut)
     .map((c) => c.getBoundingClientRect())
     .filter((r) => r.width > 0 && r.height > 0)
     .map((r) => ({ top: r.top, bottom: r.bottom }))
@@ -17,16 +22,25 @@ const isClock = (node: Node) => {
 const clockLength = (dock: HTMLElement) => dock.querySelector('.dock-time')?.textContent.length ?? 0
 
 /**
- * Tried with its words, then with icons where they would wrap (`data-tight`, theme.css): in one go, before anything
- * paints, so the dock is never seen on two rows it didn't need.
+ * Tried with its words, then with icons where they would wrap (`data-tight`, theme.css), then with its extras behind
+ * More controls where the icons would too (`data-fold`, dock-fold.md): in one go, before anything paints, so the dock
+ * is never seen on two rows it didn't need.
  */
 function fit(dock: HTMLElement) {
-  dock.removeAttribute('data-tight')
-  if (wraps(rowOf(dock))) dock.setAttribute('data-tight', '')
+  const lay = (layout: DockLayout) => {
+    dock.toggleAttribute('data-tight', layout !== 'words')
+    dock.toggleAttribute('data-fold', layout === 'folded')
+  }
+  lay(
+    firstFit((layout) => {
+      lay(layout)
+      return wraps(rowOf(dock))
+    }),
+  )
 }
 
 /**
- * The dock keeps one row while its icons fit (docs/plans/visual-fit.md): checked when its controls change and when the
+ * The dock keeps one row (docs/plans/visual-fit.md, dock-fold.md): checked when its controls change and when the
  * stage around it does (a panel opened beside it, a window resized). Its height, read after, stays --dock-h.
  */
 export function useDockFit(ref: RefObject<HTMLDivElement | null>) {
@@ -57,6 +71,7 @@ export function useDockFit(ref: RefObject<HTMLDivElement | null>) {
       controls.disconnect()
       room.disconnect()
       dock.removeAttribute('data-tight')
+      dock.removeAttribute('data-fold')
     }
   }, [ref])
 }

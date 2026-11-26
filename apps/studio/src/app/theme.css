@@ -6392,6 +6392,67 @@ button.contribution-quote:hover {
     transition-delay: 320ms;
   }
 }
+/* The dock's extras (Share your screen, React, Raise hand, picture-in-picture: docs/plans/dock-fold.md) stand in its row
+   as if ungrouped, and More controls is not there, until even its icons don't fit (data-fold, set by RoomDock). Then
+   they wait behind More controls, which opens them in a small tray above it, dressed as a menu: on a computer and on a
+   phone alike, the dock never takes a second row for them. */
+.dock-more,
+.dock-tray {
+  display: contents;
+}
+/* As strong as a phone's `.dock :is(.round, .pill:has(.dock-icon))`, which would otherwise show it. */
+.dock .dock-more > .dock-more-open {
+  display: none;
+}
+.dock[data-fold] .dock-more {
+  position: relative;
+  display: block;
+}
+.dock[data-fold] .dock-more:has(.dock-tray > *) .dock-more-open {
+  display: inline-grid;
+}
+.dock[data-fold] .dock-tray {
+  display: none;
+}
+.dock[data-fold] .dock-more[data-open] .dock-tray {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 50%;
+  z-index: 30;
+  display: flex;
+  gap: 4px;
+  padding: 5px;
+  border-radius: var(--r-4);
+  border: 1px solid var(--line-2);
+  background: var(--plane-2);
+  box-shadow: var(--elev-menu);
+  transform: translateX(-50%);
+  animation: arrive var(--motion-base) var(--ease) both;
+}
+.dock[data-fold] .dock-more[data-open] .dock-more-open {
+  color: var(--text);
+  border-color: var(--line-2);
+  background: var(--state-hover);
+}
+/* Open, the tray says what it holds: its opener's tip would only hang under it. */
+.dock[data-fold] .dock-more[data-open] .dock-more-open > .tip {
+  display: none;
+}
+/* Something on behind it (the screen shared, the hand raised): a dot on More controls, as a closed panel's toggle
+   shows something new. */
+.dock[data-fold] .dock-more:not([data-open]):has(.dock-tray [aria-pressed='true']) .dock-more-open {
+  position: relative;
+}
+.dock[data-fold] .dock-more:not([data-open]):has(.dock-tray [aria-pressed='true']) .dock-more-open::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--core);
+}
 /* Room for both on one band: the dock keeps clear of the corner, and wraps if it must. */
 @container (min-width: 800px) {
   .room-stage:has(> .stage-corner) .dock-wrap {

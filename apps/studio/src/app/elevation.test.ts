@@ -104,6 +104,8 @@ const ROOM: Record<string, string[]> = {
   'src/app/theme.css .lobby': ['0 16px 48px rgb(0 0 0 / 0.45)'],
   'src/app/theme.css .palette': ['0 18px 50px rgb(0 0 0 / 0.55)'],
   'src/app/theme.css .sheet': ['-24px 0 64px rgb(0 0 0 / 0.5)'],
+  // The dock's folded extras (dock-fold.md) open in a tray dressed as the room's menu: the menu's level.
+  'src/app/theme.css .dock[data-fold] .dock-more[data-open] .dock-tray': ['0 18px 50px rgb(0 0 0 / 0.55)'],
   'src/app/theme.css .panel-toggles': ['0 16px 48px rgb(0 0 0 / 0.5)'],
   // A new message beside the closed chat (chat-pace.md): the corner's own glass and lift.
   'src/app/theme.css .chat-peek': ['0 16px 48px rgb(0 0 0 / 0.5)'],

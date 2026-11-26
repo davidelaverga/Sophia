@@ -33,6 +33,7 @@ import { LookingIndicator, SophiaControls } from './SophiaControls.tsx'
 import type { SophiaView } from './sophia-view.ts'
 import { SOUND_BLOCKED, soundView } from './sound-view.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
+import { DockMore } from './DockMore.tsx'
 import { useReloadOffer } from './useReloadOffer.ts'
 import { facesOf, type RoomPresence } from './room-presence.ts'
 import { useRoomPresence } from './useRoomPresence.ts'
@@ -441,16 +442,20 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
         mirror={mirror}
         incoming={{ on: room.incomingVideo, toggle: () => room.setIncomingVideo(!room.incomingVideo) }}
       />
-      {canShareScreen && (
-        <Toggle
-          on={!!me?.screenOn}
-          label={me?.screenOn ? 'Stop sharing' : 'Share your screen'}
-          keys={roomKey('screen')}
-          icons={['screen', 'screen']}
-          onToggle={() => void room.setScreenShare(!me?.screenOn)}
-        />
-      )}
     </>
+  )
+}
+
+function ScreenToggle({ room, me }: { room: ProjectRoom; me: RoomParticipant | undefined }) {
+  if (!canShareScreen) return null
+  return (
+    <Toggle
+      on={!!me?.screenOn}
+      label={me?.screenOn ? 'Stop sharing' : 'Share your screen'}
+      keys={roomKey('screen')}
+      icons={['screen', 'screen']}
+      onToggle={() => void room.setScreenShare(!me?.screenOn)}
+    />
   )
 }
 
@@ -510,10 +515,14 @@ function LiveControls(props: Props & { sophiaAllow: boolean }) {
   return (
     <>
       <MediaToggles room={room} me={me} />
-      {/* A guest's token carries media only (livekit.ts): a reaction or a hand would reach nobody (guest-reactions.md). */}
-      {me?.standing !== 'guest' && <Signals room={room} me={me} />}
-      {/* Keep the call in view (call-picture-in-picture.md): only where the browser has a way. */}
-      <CallPip room={room} />
+      {/* In the row while it fits; behind More controls where even its icons don't (dock-fold.md). */}
+      <DockMore>
+        <ScreenToggle room={room} me={me} />
+        {/* A guest's token carries media only (livekit.ts): a reaction or a hand would reach nobody (guest-reactions.md). */}
+        {me?.standing !== 'guest' && <Signals room={room} me={me} />}
+        {/* Keep the call in view (call-picture-in-picture.md): only where the browser has a way. */}
+        <CallPip room={room} />
+      </DockMore>
       <span className="dock-sep" aria-hidden />
       {snapshot && me && (
         <FloorControl floor={floor} me={me.identity} context={{ projectId, identity, snapshot }} onPassed={onPassed} />
