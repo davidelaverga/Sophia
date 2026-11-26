@@ -2100,7 +2100,8 @@ function contributed(project: Project, init: RequestInit | undefined): Response 
   publish(project)
   served.push(`contribution:${body.intent}`)
   const receipt: ContributionReceipt = {
-    contributionId: `00000000-0000-4000-8000-${String(map.size + 1).padStart(12, 'f')}`,
+    // The entry's own id, as the API's: a message's contribution is the discussion entry it reads as (chat-pace.md).
+    contributionId: id,
     projectId: PROJECT,
     sourceId: '00000000-0000-4000-8000-0000000000ae',
     sha256: '0'.repeat(64),

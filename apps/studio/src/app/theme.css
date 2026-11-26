@@ -2963,6 +2963,42 @@ img.avatar {
 .contribution-text {
   white-space: pre-wrap;
 }
+/* A message that goes on the line above (chat-pace.md): the same author in the same minute shows one name and time
+   for the run, the lines close together; a line's own time shows under the pointer, at its end, moving no word. */
+.discussion > .contribution[data-goes-on] {
+  position: relative;
+  margin-top: -4px;
+}
+.contribution[data-goes-on] .contribution-at {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin: 0;
+  padding-left: 8px;
+  background: var(--surface-well);
+  opacity: 0;
+}
+.contribution[data-goes-on]:hover .contribution-at,
+.contribution[data-goes-on]:focus-within .contribution-at {
+  opacity: 1;
+}
+/* The room's message on its way (chat-pace.md): drawn at once, its words dimmed while it goes, then as any message;
+   where its reply was lost or it was refused, a line under it says so, with Try again. The slot takes no box. */
+.pending-slot {
+  display: contents;
+}
+.contribution[data-pending='sending'] .contribution-text {
+  opacity: 0.55;
+}
+.contribution-pending {
+  display: block;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.contribution[data-pending='unknown'] .contribution-pending,
+.contribution[data-pending='failed'] .contribution-pending {
+  color: var(--rose);
+}
 /* When each message was said (docs/plans/chat-times.md): its time by the author, and a day line above each day's first
    message, as the conversations' day line is set. */
 .contribution-at,
@@ -4882,6 +4918,34 @@ button.contribution-quote:hover {
 .sheet-tab-body > .text-button {
   justify-self: start;
 }
+/* A link the browser wouldn't copy (chat-pace.md): said, then the link itself in a field on a line of its own, focused
+   and selected to copy by hand. */
+.copy-by-hand {
+  display: grid;
+  flex-basis: 100%;
+  gap: 4px;
+  width: 100%;
+  color: var(--rose);
+  font-size: var(--type-small);
+}
+/* Its row makes room: the field takes a line of its own under the presses, across the invitation's row. */
+.control-row:has(> .copy-by-hand),
+.invitation-actions:has(> .copy-by-hand) {
+  flex-wrap: wrap;
+}
+.invitation-actions:has(> .copy-by-hand) {
+  grid-column: 1 / -1;
+  grid-row: auto;
+}
+.copy-by-hand input {
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--surface-well);
+  color: var(--text);
+  font: 400 var(--type-small) / var(--lh-small) var(--mono);
+}
 .room-link {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -6246,6 +6310,55 @@ button.contribution-quote:hover {
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow: var(--lift), var(--elev-dock);
   animation: rise var(--motion-slow) var(--ease) 0.1s backwards;
+}
+/* A new message beside the closed chat (chat-pace.md): who and the first line, for a moment, a press away from the
+   chat. Under the corner where the corner sits at the top, over it where it rests on the floor beside the dock. */
+.chat-peek-line {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: max-content;
+  max-width: min(300px, calc(100vw - 2 * var(--gutter)));
+}
+@container (min-width: 800px) {
+  .chat-peek-line {
+    top: auto;
+    bottom: calc(100% + 8px);
+  }
+}
+.chat-peek {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--glass-stage);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: var(--lift), var(--elev-dock);
+  color: var(--text);
+  font-size: var(--type-small);
+  text-align: left;
+  cursor: pointer;
+  animation: rise var(--motion-base) var(--ease) both;
+}
+.chat-peek:hover {
+  border-color: rgb(var(--halo-rgb) / 0.5);
+}
+.chat-peek-author {
+  color: var(--text-2);
+  font-weight: 500;
+}
+.chat-peek-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-peek {
+    animation: none;
+  }
 }
 /* Something new behind a closed panel: a dot of Sophia's violet on its toggle. */
 .toggle-dot {
