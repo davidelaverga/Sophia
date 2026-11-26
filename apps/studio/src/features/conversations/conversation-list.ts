@@ -9,6 +9,7 @@ import type {
   ConversationSummary,
 } from '../../api/conversations.ts'
 import { plainOf } from './sophia-text.ts'
+import { memberName } from '../../app/person-name.ts'
 
 /** Every conversation list read, whatever its project or reader: what a write moves. */
 export const LISTS = ['conversations', 'list'] as const
@@ -205,7 +206,7 @@ function firstOf(all: MissionDecision[], every: boolean) {
 export const messageBy = (
   m: { author: 'member' | 'sophia'; actorId: string | null; name: string | null },
   me: string,
-) => (m.author === 'sophia' ? 'Sophia' : m.actorId === me ? 'You' : (m.name ?? 'A member'))
+) => (m.author === 'sophia' ? 'Sophia' : m.actorId === me ? 'You' : memberName(m.name))
 
 /** How close in time two messages by the same author are to read as one run (docs/plans/conversation-thread.md). */
 const RUN_MS = 5 * 60_000
@@ -458,7 +459,7 @@ export function remainsAfter(after: ThreadHeld, gone: ConversationMessage, reade
   return {
     writer,
     writerStays: theirs !== null,
-    writerName: theirs === null ? null : (theirs.name ?? 'A member'),
+    writerName: theirs === null ? null : memberName(theirs.name),
     writerIsReader: writer !== null && writer === reader,
     writerPlaces: writer === null ? [] : (shownIn(after).get(writer) ?? []),
     firsts: firstsIn(after),
@@ -776,7 +777,7 @@ function withWriter(
 ): Pick<ConversationSummary & Unnamed, 'contributors' | 'othersUnnamed'> {
   const writer = m.author === 'member' ? m.actorId : null
   if (writer === null) return { contributors: c.contributors }
-  const name = m.name ?? 'A member'
+  const name = memberName(m.name)
   if (c.contributors.some((p) => p.actorId === writer)) return { contributors: renamedIn(c.contributors, writer, name) }
   const them = { actorId: writer, name }
   if (c.contributors.length < NAMED_AT_MOST) {

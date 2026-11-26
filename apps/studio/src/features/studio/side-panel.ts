@@ -42,7 +42,8 @@ export function mergeNames(
   known: ReadonlyMap<string, string>,
   people: readonly { identity: string; name: string }[],
 ): ReadonlyMap<string, string> {
-  const fresh = people.filter((p) => known.get(p.identity) !== p.name)
+  // An empty name is none: it never takes the place of a name the visit knew, nor of a message's own.
+  const fresh = people.filter((p) => p.name.trim() !== '' && known.get(p.identity) !== p.name)
   if (fresh.length === 0) return known
   const next = new Map(known)
   for (const p of fresh) next.set(p.identity, p.name)

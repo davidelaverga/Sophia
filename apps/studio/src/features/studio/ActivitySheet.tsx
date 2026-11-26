@@ -9,6 +9,7 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { summaryLabel } from '../work/labels.ts'
+import { memberName } from '../../app/person-name.ts'
 
 interface Props {
   projectId: string
@@ -22,7 +23,7 @@ type Reading = 'reading' | 'idle' | 'failed'
 const when = (iso: string) =>
   new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
-const who = (person: { name: string | null }) => person.name ?? 'A member'
+const who = (person: { name: string | null }) => memberName(person.name)
 
 /**
  * Acts on a member said as their actor did them, beside the actor's name («Marco · Took out of the call · Lucía»); the

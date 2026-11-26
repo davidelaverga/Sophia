@@ -20,7 +20,7 @@ import { reportsOn } from './crash-report.ts'
 import { FeedbackSheet } from './FeedbackSheet.tsx'
 import { type Handover, SettingsSheet } from './SettingsSheet.tsx'
 import { closingEveryDialog } from './useDialog.ts'
-import { useMyProfile } from './useMyProfile.ts'
+import { useMyProfile, useShownIdentity } from './useMyProfile.ts'
 
 export interface AccountActions {
   data: () => void
@@ -79,7 +79,8 @@ function Head({
   return (
     <MenuHead>
       <span className="account-who">
-        <Avatar identity={identity} />
+        {/* The face says the name beside it: the saved one first (one-truth.md). */}
+        <Avatar identity={{ ...identity, displayName: name }} />
         <span className="account-names">
           <span className="account-name">{name ?? identity.name}</span>
           {authMode !== 'dev' && name && <span>{identity.name}</span>}
@@ -180,6 +181,7 @@ export function AccountMenu({ identity, where, actions }: Props) {
   // on #388).
   const [sheet, setSheet] = useState<SheetName>(null)
   const mine = useMyProfile(identity)
+  const shown = useShownIdentity(identity)
   const menu = usePopover(open, () => setOpen(false))
   // The item goes with the menu: its button takes the focus first, so a sheet the item opens gives it back there.
   const pick = (run: () => void) => () => {
@@ -190,7 +192,7 @@ export function AccountMenu({ identity, where, actions }: Props) {
   const tip = DATA_TIP[where]
   return (
     <div ref={menu.wrap} className="account">
-      <AccountButton identity={identity} opener={menu.opener} open={open} onToggle={() => setOpen(!open)} />
+      <AccountButton identity={shown} opener={menu.opener} open={open} onToggle={() => setOpen(!open)} />
       {open && (
         <Menu popover={menu} label="Account" className="account-menu">
           <Head

@@ -14,6 +14,7 @@ import type { NotesFor } from './GoalNotes.tsx'
 import { notesRead } from './goal-notes.ts'
 import { dayOf } from './goal-day.ts'
 import { dueOf, dueWords, type Due } from './goal-due.ts'
+import { memberName } from '../../app/person-name.ts'
 
 export { dayOf } from './goal-day.ts'
 
@@ -67,7 +68,7 @@ export function useMembersRead(at: At) {
 export const useMembers = (at: At): readonly ProjectMember[] => useMembersRead(at).members
 
 const ownerName = (members: readonly ProjectMember[], id: string) =>
-  members.find((m) => m.actorId === id)?.name ?? 'A member'
+  memberName(members.find((m) => m.actorId === id)?.name)
 
 /** Against what a row's target is read: the viewer (named «You»), their calendar day, and whether the goal is done. */
 export interface TargetAt {
@@ -155,7 +156,7 @@ function TargetForm(props: {
         <option value="">No owner</option>
         {props.members.map((m) => (
           <option key={m.actorId} value={m.actorId}>
-            {m.name ?? 'A member'}
+            {memberName(m.name)}
           </option>
         ))}
       </select>

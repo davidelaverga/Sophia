@@ -7,6 +7,7 @@ import { authorLabel } from '../conversation/conversation-view.ts'
 import { shortName } from './room-view.ts'
 import { CAPTION_HOLD_MS, newSince, saidKey, saidSoFar, stageCaptions, type StageCaption } from './stage-captions.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
+import { UNNAMED } from '../../app/person-name.ts'
 
 /**
  * The captions the stage may show: while anything is being said, and until the hold passes after the last word or
@@ -38,7 +39,7 @@ export interface RoomNames {
  * one (CONTRIBUTING: a guest is never mistaken for a member).
  */
 export function memberLabel(actorId: string, who: RoomNames): string {
-  if (!actorId) return 'A member'
+  if (!actorId) return UNNAMED
   const name = actorId === who.me ? undefined : who.names.get(actorId)
   const label = name ? shortName(name) : authorLabel(actorId, who.me, who.names)
   return who.guests.has(actorId) ? `${label} · guest` : label

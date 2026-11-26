@@ -306,13 +306,16 @@ export function useReadAgainOnErasure(identity: Identity, space: SpaceRead | und
   }, [seen, client, identity.name])
 }
 
+/** The person's project list as Home, Work and a room's presence read it (one-truth.md): one key, one pace. */
+export const projectsQuery = (identity: Pick<Identity, 'name' | 'token'>) => ({
+  queryKey: ['projects', identity.name],
+  queryFn: ({ signal }: { signal: AbortSignal }) => listProjects(identity.token, signal), // an account that leaves stops its read
+  // Who is in a room and when a session starts change without us: the Work side reads them again now and then.
+  refetchInterval: 20_000,
+})
+
 export function useProjects(identity: Identity) {
-  return useQuery({
-    queryKey: ['projects', identity.name],
-    queryFn: ({ signal }) => listProjects(identity.token, signal), // an account that leaves stops its read
-    // Who is in a room and when a session starts change without us: the Work side reads them again now and then.
-    refetchInterval: 20_000,
-  })
+  return useQuery(projectsQuery(identity))
 }
 
 /** A message asked to go while another is on its way: it waits, as the field's words do. */

@@ -1,7 +1,7 @@
 // The work pulse's rows: repeats of one change close together fold into one row with a count, so a burst
 // (links issued and closed, messages sent) reads as one line instead of a column of the same words.
 import type { Event as ProjectEvent } from '@sophia/contracts'
-import { summaryLabel } from './labels.ts'
+import { pulseTone, summaryLabel, type PulseTone } from './labels.ts'
 
 /** How close repeats must be to fold: within five minutes of the row's newest one. */
 export const FOLD_MS = 5 * 60_000
@@ -10,6 +10,8 @@ export interface PulseRow {
   /** The newest event's id, stable while the row grows. */
   key: string
   label: string
+  /** What its dot says: asked, done or halted (one-truth.md). Repeats share a label, so they share it too. */
+  tone: PulseTone
   count: number
   /** When the newest of them happened. */
   at: string
@@ -23,7 +25,7 @@ export function pulseRows(events: readonly ProjectEvent[]): PulseRow[] {
     const when = Date.parse(e.occurredAt)
     const row = rows.find((r) => r.label === label && Math.abs(Date.parse(r.at) - when) <= FOLD_MS)
     if (!row) {
-      rows.push({ key: e.eventId, label, count: 1, at: e.occurredAt })
+      rows.push({ key: e.eventId, label, tone: pulseTone(e.summaryCode, e.type), count: 1, at: e.occurredAt })
       continue
     }
     row.count += 1
