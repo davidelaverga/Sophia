@@ -63,6 +63,10 @@ const ALLOWED = new Map<string, string>([
     'src/app/theme.css  threshold-breathe 4.8s var(--ease-in-out) 1.2s infinite alternate',
     'the threshold’s slow breath',
   ],
+  [
+    'src/app/theme.css  threshold-glow 4.8s var(--ease-in-out) 1.2s infinite alternate',
+    'her light under the mark on paper, on the threshold’s breath',
+  ],
   ['src/app/theme.css  var(--motion-sweep) ease', 'the glow’s colour turn eases on the CSS default, kept'],
   ['src/features/personal/personal.css  ps-ambient 7s var(--ease-in-out) infinite', 'Personal’s ambient light'],
   ['src/features/personal/personal.css  1.8s', 'Personal’s ambient light while she speaks, quicker'],

@@ -156,7 +156,8 @@ export interface RoomCallbacks {
 
 const toView = (p: Participant, local: boolean): RoomParticipant => ({
   identity: p.identity,
-  name: p.name || p.identity.slice(0, 8),
+  // No name is no name: the views say the one word for it (person-name.ts), never an id.
+  name: p.name ?? '',
   speaking: p.isSpeaking,
   micOn: p.isMicrophoneEnabled,
   cameraOn: p.isCameraEnabled,

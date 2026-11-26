@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict'
 import { createHash, randomUUID } from 'node:crypto'
 import { after, before, it } from 'node:test'
+import { setTimeout as delay } from 'node:timers/promises'
 import type {
   FounderBuildBinding,
   FounderBuildDestination,
   FounderBuildExport,
   FounderBuildReturn,
+  FounderBuildVerification,
+  FounderBuildVerificationAccess,
+  FounderBuildVerificationRequest,
+  FounderBuildVerificationTarget,
   ManagedExploreApproval,
   ManagedExplorePreviewPermit,
 } from '@sophia/contracts'
@@ -29,6 +34,8 @@ import { managedExplorePreviewReader } from './routes/managed-explore.ts'
 
 const founder = randomUUID()
 const editor = randomUUID()
+const deployedVerifier = randomUUID()
+const implementationAuthor = randomUUID()
 const issuer = 'https://build-fixture.example.test/auth/v1'
 const secret = 'synthetic-foundation-build-signing-secret'
 const previewOrigin = 'https://build-fixture-preview.example.test'
@@ -126,7 +133,11 @@ async function call(
 }
 
 async function startPrototype() {
-  const { projectId } = await seedProject(db.ownerUrl, { admin: founder, editors: [editor] })
+  const { projectId } = await seedProject(db.ownerUrl, {
+    admin: founder,
+    editors: [editor],
+    viewers: [deployedVerifier, implementationAuthor],
+  })
   const note = await withActor(pool, founder, 'write', (c) =>
     recordMissionEntry(c, projectId, randomUUID(), {
       kind: 'expectation',
@@ -259,7 +270,12 @@ it('binds a private target, exports the original bytes and retains reported retu
   assert.equal((await call(destination, { actor: editor })).statusCode, 404)
   const empty = await call(destination)
   assert.equal(empty.statusCode, 200, empty.body)
-  assert.deepEqual(empty.json<FounderBuildDestination>(), { revision: 1, binding: null, export: null, returns: [] })
+  assert.deepEqual(empty.json<FounderBuildDestination>(), {
+    revision: 1,
+    binding: null,
+    export: null,
+    returns: [],
+  })
   const bindRequest = { ...target, expectedRevision: 1 }
   assert.equal((await call(bind, { payload: bindRequest })).statusCode, 404)
   await installTarget(projectId, sessionId, approvalId)
@@ -388,4 +404,416 @@ it('binds a private target, exports the original bytes and retains reported retu
     onRead = undefined
   }
   assert.equal((await call(manifest)).statusCode, 404)
+})
+
+const reportedTuple = {
+  candidateSha: 'c'.repeat(40),
+  pullRequestNumber: 19,
+  mergeSha: 'd'.repeat(40),
+  deploymentReference: 'https://client-fixture.example.test/deploy/immutable-one',
+  deployedSha: 'e'.repeat(40),
+}
+
+async function verificationFixture() {
+  const f = await approveFixture()
+  await installTarget(f.projectId, f.sessionId, f.approvalId)
+  const bind = await call(`${f.path}/repository-binding`, { payload: { ...target, expectedRevision: 1 } })
+  assert.equal(bind.statusCode, 200, bind.body)
+  const exported = await call(`${f.path}/exports`, {
+    payload: { bindingId: bind.json<FounderBuildBinding>().id, expectedRevision: 2 },
+  })
+  assert.equal(exported.statusCode, 200, exported.body)
+  const { id: exportId, sha256: exportSha256 } = exported.json<FounderBuildExport>()
+  const bound = { exportId, exportSha256, repositoryId: target.repositoryId }
+  const report = async (revision: number, details: object) => {
+    const returned = await call(`${f.path}/returns`, { payload: { ...bound, ...details, expectedRevision: revision } })
+    assert.equal(returned.statusCode, 200, returned.body)
+    return returned.json<FounderBuildReturn>()
+  }
+  const destination = async () => (await call(`${f.path}/destination`)).json<FounderBuildDestination>()
+  return { ...f, destination, report, bound }
+}
+
+async function installVerification(
+  f: Awaited<ReturnType<typeof verificationFixture>>,
+  pinned: FounderBuildVerificationTarget,
+  role: { reviewer: string; kind: FounderBuildVerificationRequest['kind']; author?: string },
+  client: pg.Pool | pg.PoolClient = owner,
+) {
+  const { rows } = await client.query<{ id: string }>(
+    `INSERT INTO sophia.founder_build_verification_grants
+      (project_id,session_id,approval_id,return_id,export_id,reviewer_id,source_author_id,kind,target,enabled,authority_ref,expires_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,'approved disposable reviewer fixture',now()+interval '1 hour')
+     RETURNING id`,
+    [
+      f.projectId,
+      f.sessionId,
+      f.approvalId,
+      pinned.returnId,
+      pinned.exportId,
+      role.reviewer,
+      role.author ?? implementationAuthor,
+      role.kind,
+      JSON.stringify(pinned),
+    ],
+  )
+  return rows[0]?.id
+}
+
+function verificationPayload(ret: FounderBuildReturn, revision: number): FounderBuildVerificationRequest {
+  return {
+    expectedRevision: revision,
+    returnId: ret.id,
+    kind: 'source_review',
+    outcome: 'passed',
+    scenario: 'Reviewed the exact candidate independently.',
+    expected: 'The acceptance checks run against the reviewed head.',
+    observed: 'The reviewed head passed the acceptance checks.',
+    evidenceReference: 'https://review-fixture.example.test/evidence/pr-19',
+  }
+}
+
+function deploymentPayload(ret: FounderBuildReturn, revision: number, pinned: FounderBuildVerificationTarget) {
+  return {
+    ...verificationPayload(ret, revision),
+    kind: 'deployed_app',
+    mappingSourceSha: pinned.mergeSha,
+    observedDeployedSha: pinned.deployedSha,
+    observedDeploymentReference: pinned.deploymentReference,
+    evidenceReference: 'https://test-fixture.example.test/observations/first-pass',
+  } satisfies FounderBuildVerificationRequest
+}
+
+it('requires exact independent authorities and retains the original evidence when a later reported tuple is partial', async () => {
+  const f = await verificationFixture()
+  const partial = await f.report(3, { candidateSha: reportedTuple.candidateSha })
+  assert.deepEqual((await f.destination()).verification, {
+    status: 'reported',
+    currentReturnId: partial.id,
+    receipts: [],
+    checks: { sourceReview: 'pending', deployedApp: 'pending' },
+  })
+  const complete = await f.report(4, reportedTuple)
+  const pinned = { ...f.bound, ...reportedTuple, repository: target.repository, returnId: complete.id }
+  const path = `${f.path}/verifications`
+  const access = `${path}?returnId=${complete.id}`
+  const sourceGrant = await installVerification(f, pinned, { reviewer: editor, kind: 'source_review' })
+  await installVerification(f, pinned, { reviewer: deployedVerifier, kind: 'deployed_app' })
+  assert.equal((await f.destination()).verification?.status, 'awaiting_verification')
+  const read = await call(access, { actor: editor })
+  assert.equal(read.statusCode, 200, read.body)
+  assert.deepEqual(read.json<FounderBuildVerificationAccess>(), { revision: 5, kind: 'source_review', target: pinned })
+  assert.equal((await call(access)).statusCode, 404)
+  assert.equal((await call(access, { actor: implementationAuthor })).statusCode, 404)
+  assert.equal((await call(access.replace(f.projectId, randomUUID()), { actor: editor })).statusCode, 404)
+  assert.equal((await call(`${f.path}/destination`, { actor: editor })).statusCode, 404)
+  assert.equal(
+    (await call(`${f.path}/exports/${pinned.exportId}/manifest`, { actor: deployedVerifier })).statusCode,
+    404,
+  )
+
+  const key = randomUUID()
+  const payload = verificationPayload(complete, 5)
+  assert.equal((await call(path, { payload })).statusCode, 404)
+  const pair = await Promise.all([
+    call(path, { actor: editor, payload, key }),
+    call(path, { actor: editor, payload, key }),
+  ])
+  for (const result of pair) assert.equal(result.statusCode, 200, result.body)
+  const [source, replay] = pair.map((result) => result.json<FounderBuildVerification>())
+  assert.deepEqual(replay, source)
+  assert.equal(
+    (await call(path, { actor: editor, payload: { ...payload, observed: 'Changed observation.' }, key })).statusCode,
+    409,
+  )
+  const appEvidence = deploymentPayload(complete, 6, pinned)
+  assert.equal((await call(path, { actor: editor, payload: appEvidence })).statusCode, 404)
+  assert.equal(
+    (await call(path, { actor: deployedVerifier, payload: { ...appEvidence, mappingSourceSha: 'f'.repeat(40) } }))
+      .statusCode,
+    409,
+  )
+  assert.equal(
+    (await call(path, { actor: deployedVerifier, payload: { ...appEvidence, observedDeployedSha: 'f'.repeat(40) } }))
+      .statusCode,
+    409,
+  )
+  assert.equal(
+    (
+      await call(path, {
+        actor: deployedVerifier,
+        payload: { ...appEvidence, observedDeploymentReference: 'https://client-fixture.example.test/deploy/other' },
+      })
+    ).statusCode,
+    409,
+  )
+  assert.equal(
+    (await call(path, { actor: deployedVerifier, payload: { ...appEvidence, expectedRevision: 5 } })).statusCode,
+    409,
+  )
+  const failed = await call(path, {
+    actor: deployedVerifier,
+    payload: {
+      ...payload,
+      kind: 'deployed_app',
+      expectedRevision: 6,
+      outcome: 'failed',
+      evidenceReference: 'https://test-fixture.example.test/observations/wrong-build',
+      observedDeployedSha: 'f'.repeat(40),
+    },
+  })
+  assert.equal(failed.statusCode, 200, failed.body)
+  assert.equal(failed.json<FounderBuildVerification>().observedDeployedSha, 'f'.repeat(40))
+  assert.equal(failed.json<FounderBuildVerification>().mappingSourceSha, undefined)
+  assert.deepEqual((await f.destination()).verification?.checks, { sourceReview: 'passed', deployedApp: 'failed' })
+  assert.equal((await f.destination()).verification?.status, 'awaiting_verification')
+  const tested = await call(path, {
+    actor: deployedVerifier,
+    payload: { ...appEvidence, expectedRevision: 7 },
+  })
+  assert.equal(tested.statusCode, 200, tested.body)
+  assert.deepEqual((await f.destination()).verification, {
+    status: 'verified_in_app',
+    currentReturnId: complete.id,
+    checks: { sourceReview: 'passed', deployedApp: 'passed' },
+    receipts: [source, failed.json<FounderBuildVerification>(), tested.json<FounderBuildVerification>()],
+  })
+
+  await owner.query('UPDATE sophia.founder_build_verification_grants SET enabled=false WHERE id=$1', [sourceGrant])
+  assert.equal((await call(path, { actor: editor, payload, key })).statusCode, 404)
+  assert.equal((await f.destination()).verification?.status, 'awaiting_verification')
+  assert.deepEqual((await f.destination()).verification?.checks, {
+    sourceReview: 'authority_withdrawn',
+    deployedApp: 'passed',
+  })
+  await owner.query('UPDATE sophia.founder_build_verification_grants SET enabled=true WHERE id=$1', [sourceGrant])
+  const next = await f.report(8, { deployedSha: 'a'.repeat(40) })
+  const reopened = await f.destination()
+  assert.equal(reopened.verification?.status, 'reported')
+  assert.equal(reopened.verification?.currentReturnId, next.id)
+  assert.equal(reopened.verification?.receipts.length, 3)
+  assert.equal((await call(access, { actor: editor })).statusCode, 404)
+})
+
+it('denies mis-scoped, expired, revoked-source and author verification authority without recording', async () => {
+  const f = await verificationFixture()
+  const complete = await f.report(3, reportedTuple)
+  const pinned = { ...f.bound, ...reportedTuple, repository: target.repository, returnId: complete.id }
+  const path = `${f.path}/verifications`
+  const access = `${path}?returnId=${complete.id}`
+  const payload = verificationPayload(complete, 4)
+  await assert.rejects(installVerification(f, pinned, { reviewer: implementationAuthor, kind: 'source_review' }), {
+    code: '23514',
+  })
+  const grant = await installVerification(
+    f,
+    { ...pinned, repositoryId: '987654321' },
+    { reviewer: editor, kind: 'source_review' },
+  )
+  assert.equal((await call(access, { actor: editor })).statusCode, 404)
+  await owner.query('UPDATE sophia.founder_build_verification_grants SET target=$2,expires_at=now() WHERE id=$1', [
+    grant,
+    JSON.stringify(pinned),
+  ])
+  assert.equal((await call(path, { payload, actor: editor })).statusCode, 404)
+  await owner.query(
+    "UPDATE sophia.founder_build_verification_grants SET expires_at=now()+interval '1 hour' WHERE id=$1",
+    [grant],
+  )
+  await owner.query('UPDATE sophia.project_members SET active=false WHERE project_id=$1 AND actor_id=$2', [
+    f.projectId,
+    editor,
+  ])
+  assert.equal((await call(access, { actor: editor })).statusCode, 404)
+  await owner.query('UPDATE sophia.project_members SET active=true WHERE project_id=$1 AND actor_id=$2', [
+    f.projectId,
+    editor,
+  ])
+  await owner.query("UPDATE sophia.source_objects SET eligible=false,state='blocked' WHERE project_id=$1 AND id=$2", [
+    f.projectId,
+    f.sourceId,
+  ])
+  assert.equal((await call(path, { payload, actor: editor })).statusCode, 404)
+  const kept = await owner.query('SELECT 1 FROM sophia.founder_build_verifications WHERE project_id=$1', [f.projectId])
+  assert.equal(kept.rowCount, 0)
+})
+
+it('refuses a stale passing observation and a conflicting evidence URL while a distinct retest can pass', async () => {
+  const f = await verificationFixture()
+  const returned = await f.report(3, reportedTuple)
+  const pinned = { ...f.bound, ...reportedTuple, repository: target.repository, returnId: returned.id }
+  const path = `${f.path}/verifications`
+  await installVerification(f, pinned, { reviewer: editor, kind: 'source_review' })
+  await installVerification(f, pinned, { reviewer: deployedVerifier, kind: 'deployed_app' })
+  const source = await call(path, { actor: editor, payload: verificationPayload(returned, 4) })
+  assert.equal(source.statusCode, 200, source.body)
+  const pass = {
+    ...deploymentPayload(returned, 5, pinned),
+    observed: ['The first check passed.', 'The server kept the explanation.'].join(String.fromCodePoint(10)),
+  }
+  const originalKey = randomUUID()
+  const initial = await call(path, { actor: deployedVerifier, payload: pass, key: originalKey })
+  assert.equal(initial.statusCode, 200, initial.body)
+  assert.equal((await f.destination()).verification?.status, 'verified_in_app')
+  const failure = await call(path, {
+    actor: deployedVerifier,
+    payload: {
+      ...pass,
+      expectedRevision: 6,
+      outcome: 'failed',
+      observed: 'The latest check found a failed control.',
+      evidenceReference: 'https://test-fixture.example.test/observations/new-failure',
+    },
+  })
+  assert.equal(failure.statusCode, 200, failure.body)
+  const unresolved = await f.destination()
+  assert.equal(unresolved.verification?.status, 'awaiting_verification')
+  assert.equal(unresolved.revision, 7)
+
+  const retry = await call(path, { actor: deployedVerifier, payload: pass, key: originalKey })
+  assert.equal(retry.statusCode, 200, retry.body)
+  assert.deepEqual(retry.json<FounderBuildVerification>(), initial.json<FounderBuildVerification>())
+  const duplicate = await call(path, {
+    actor: deployedVerifier,
+    payload: {
+      ...pass,
+      expectedRevision: 7,
+      observed: pass.observed + String.fromCodePoint(0xa0, 0x3000, 9, 10),
+      evidenceReference: 'https://test-fixture.example.test/observations/relabeled',
+    },
+  })
+  assert.equal(duplicate.statusCode, 409, duplicate.body)
+  const differentFraming = [
+    String.fromCodePoint(0x3000, 32) + pass.observed,
+    pass.observed.replaceAll(String.fromCodePoint(10), String.fromCodePoint(13, 10)),
+  ]
+  for (const observed of differentFraming) {
+    const match = await call(path, {
+      actor: deployedVerifier,
+      payload: {
+        ...pass,
+        expectedRevision: 7,
+        observed,
+        evidenceReference: 'https://test-fixture.example.test/observations/relabeled',
+      },
+    })
+    assert.equal(match.statusCode, 409, match.body)
+  }
+  const conflicting = await call(path, {
+    actor: deployedVerifier,
+    payload: {
+      ...pass,
+      expectedRevision: 7,
+      observed: 'Conflicting content with the first evidence link.',
+    },
+  })
+  assert.equal(conflicting.statusCode, 409, conflicting.body)
+  assert.deepEqual(await f.destination(), unresolved)
+  const fresh = {
+    ...pass,
+    expectedRevision: 7,
+    observed: '船🚢'.repeat(1_000),
+    evidenceReference: 'https://test-fixture.example.test/observations/new-retest',
+  }
+  assert.equal(
+    (await call(path, { actor: deployedVerifier, payload: { ...fresh, observed: fresh.observed + '🚢' } })).statusCode,
+    422,
+  )
+  const retest = await call(path, { actor: deployedVerifier, payload: fresh })
+  assert.equal(retest.statusCode, 200, retest.body)
+  assert.equal(retest.json<FounderBuildVerification>().observed, fresh.observed)
+  const final = await f.destination()
+  assert.equal(final.revision, 8)
+  assert.equal(final.verification?.status, 'verified_in_app')
+  assert.equal(final.verification?.receipts.length, 4)
+})
+
+it('refuses to reclassify identical evidence without a URL and accepts a distinct retest', async () => {
+  const f = await verificationFixture()
+  const returned = await f.report(3, reportedTuple)
+  const pinned = { ...f.bound, ...reportedTuple, repository: target.repository, returnId: returned.id }
+  const path = `${f.path}/verifications`
+  await installVerification(f, pinned, { reviewer: editor, kind: 'source_review' })
+  await installVerification(f, pinned, { reviewer: deployedVerifier, kind: 'deployed_app' })
+  const source = await call(path, { actor: editor, payload: verificationPayload(returned, 4) })
+  assert.equal(source.statusCode, 200, source.body)
+  const failure = {
+    expectedRevision: 5,
+    returnId: returned.id,
+    kind: 'deployed_app',
+    outcome: 'failed',
+    scenario: 'Signed in as the chief engineer in a fresh session.',
+    expected: 'A valid explanation enables shore assignment.',
+    observed: 'Assignment stayed disabled after the explanation was saved.',
+    mappingSourceSha: pinned.mergeSha,
+    observedDeployedSha: pinned.deployedSha,
+    observedDeploymentReference: pinned.deploymentReference,
+  } satisfies FounderBuildVerificationRequest
+  const submitted = await call(path, { actor: deployedVerifier, payload: failure })
+  assert.equal(submitted.statusCode, 200, submitted.body)
+  const saved = await f.destination()
+  assert.equal(saved.verification?.checks?.deployedApp, 'failed')
+  assert.equal(saved.verification?.status, 'awaiting_verification')
+  const reclassified = { ...failure, expectedRevision: 6, outcome: 'passed' }
+  const duplicate = await call(path, { actor: deployedVerifier, payload: reclassified })
+  assert.equal(duplicate.statusCode, 409, duplicate.body)
+  assert.deepEqual(await f.destination(), saved)
+
+  const retest = await call(path, {
+    actor: deployedVerifier,
+    payload: {
+      ...reclassified,
+      observed: 'In a new session, shore assigned the fault after the explanation was saved.',
+    },
+  })
+  assert.equal(retest.statusCode, 200, retest.body)
+  const closed = await f.destination()
+  assert.equal(closed.verification?.checks?.deployedApp, 'passed')
+  assert.equal(closed.verification?.status, 'verified_in_app')
+  assert.equal(closed.verification?.receipts.length, 3)
+})
+
+async function waitForVerifierGrantLock() {
+  const deadline = performance.now() + 1500
+  while (performance.now() < deadline) {
+    const { rowCount } = await owner.query(
+      `SELECT 1 FROM pg_stat_activity
+       WHERE datname=current_database() AND wait_event_type='Lock'
+       AND query LIKE 'SELECT sophia.write_founder_build_verification%'`,
+    )
+    if (rowCount) return
+    await delay(10)
+  }
+  assert.fail('verification did not reach its blocked grant row')
+}
+
+it('does not move an in-flight verification onto a replacement grant after revocation', async () => {
+  const f = await verificationFixture()
+  const returned = await f.report(3, reportedTuple)
+  const pinned = { ...f.bound, ...reportedTuple, repository: target.repository, returnId: returned.id }
+  const role = { reviewer: editor, kind: 'source_review' } as const
+  const original = await installVerification(f, pinned, role)
+  const submit = () => call(`${f.path}/verifications`, { actor: editor, payload: verificationPayload(returned, 4) })
+  const operator = await owner.connect()
+  let replacement: string | undefined
+  try {
+    await operator.query('BEGIN')
+    await operator.query('UPDATE sophia.founder_build_verification_grants SET enabled=false WHERE id=$1', [original])
+    replacement = await installVerification(f, pinned, role, operator)
+    const waiting = submit()
+    await waitForVerifierGrantLock()
+    await operator.query('COMMIT')
+    const refused = await waiting
+    assert.equal(refused.statusCode, 404, refused.body)
+  } finally {
+    await operator.query('ROLLBACK')
+    operator.release()
+  }
+  assert.deepEqual((await f.destination()).verification?.receipts, [])
+  const accepted = await submit()
+  assert.equal(accepted.statusCode, 200, accepted.body)
+  const { rows } = await owner.query('SELECT grant_id FROM sophia.founder_build_verifications WHERE project_id=$1', [
+    f.projectId,
+  ])
+  assert.deepEqual(rows, [{ grant_id: replacement }])
 })

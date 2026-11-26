@@ -31,9 +31,10 @@ import { factWords, madeFacts, madeHeading, madeKey, madeOnStage } from './made-
 import { memberLabel, withMe, type RoomNames } from './StageCaptions.tsx'
 import type { ShowRender } from './ShowEveryone.tsx'
 import type { ProjectRoom } from './useProjectRoom.ts'
+import { UNNAMED } from '../../app/person-name.ts'
 
 /** A name inside a sentence: "Asked by you", "Asked by a member". */
-const inSentence = (name: string) => (name === 'You' || name === 'A member' ? name.toLowerCase() : name)
+const inSentence = (name: string) => (name === 'You' || name === UNNAMED ? name.toLowerCase() : name)
 
 /** One key per notice in a set, kept as it grows; `add` stays the same function. */
 function useKeys() {

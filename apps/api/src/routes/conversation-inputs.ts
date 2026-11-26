@@ -8,8 +8,8 @@
 // reach SQL as typed uuids. The same Idempotency-Key and request replays the first receipt under the caller's current
 // authority; another request under the key is idempotency_conflict (0063's conversation_prior).
 //
-// Mounted only when the API is built with conversations and conversationInputs (both off by default; server.ts wires
-// conversations from SOPHIA_CONVERSATIONS and never sets conversationInputs). A database without 0095 answers
+// Mounted only when the API is built with conversations and conversationInputs. The stock server enables this
+// recorder alongside addressed inputs through SOPHIA_CONVERSATION_INPUT_ADDRESSING. A database without 0095 answers
 // projection_unavailable (503), never a database message.
 // The legacy A33 routes (project-conversations.ts) are untouched.
 import type { FastifyInstance } from 'fastify'
@@ -47,24 +47,28 @@ const conversationParams = {
 } as const
 
 /** Whether 0095 is installed: remembered once seen (a migration is never undone under a running API). */
-function installation(pool: pg.Pool): () => Promise<void> {
+export function conversationInputsInstallation(
+  pool: pg.Pool,
+  schema = CONVERSATION_INPUTS_SCHEMA,
+  missing = 'Automatic inputs are not installed on this database',
+): () => Promise<void> {
   let installed = false
   return async () => {
     if (installed) return
     let ok = false
     try {
-      const { rows } = await pool.query<{ ok: boolean }>(CONVERSATION_INPUTS_SCHEMA)
+      const { rows } = await pool.query<{ ok: boolean }>(schema)
       ok = rows[0]?.ok === true
     } catch (err) {
       throw new DomainError('unavailable', 'Database unavailable', { cause: err })
     }
-    if (!ok) throw new DomainError('projection_unavailable', 'Automatic inputs are not installed on this database')
+    if (!ok) throw new DomainError('projection_unavailable', missing)
     installed = true
   }
 }
 
 /** The input as the receipt names it: recorded, with no effect. */
-const inputRef = (r: ConversationInputReceipt): ConversationInputRef => ({
+export const conversationInputRef = (r: ConversationInputReceipt): ConversationInputRef => ({
   id: r.inputId,
   interactionContract: r.interactionContract,
   contractVersion: r.contractVersion,
@@ -73,7 +77,7 @@ const inputRef = (r: ConversationInputReceipt): ConversationInputRef => ({
 })
 
 export function conversationInputRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool }): void {
-  const installed = installation(pool)
+  const installed = conversationInputsInstallation(pool)
 
   app.post<{ Params: { projectId: string }; Headers: { 'idempotency-key': string }; Body: ConversationInputStart }>(
     '/api/v1/projects/:projectId/conversation-inputs',
@@ -99,7 +103,7 @@ export function conversationInputRoutes(app: FastifyInstance, { pool }: { pool: 
         const conversation = await readConversationSummary(c, r.conversationId)
         const message = await readConversationMessage(c, r.messageId)
         // Where this receipt is current: read last, under the project lock the start holds until commit.
-        return { conversation, message, input: inputRef(r), cursor: await readFeedPosition(c, projectId) }
+        return { conversation, message, input: conversationInputRef(r), cursor: await readFeedPosition(c, projectId) }
       })
       return reply.status(202).send(started)
     },
@@ -125,7 +129,7 @@ export function conversationInputRoutes(app: FastifyInstance, { pool }: { pool: 
           { contract: req.body.interactionContract, text: req.body.text },
           await nameActor(c, namesOf(req)),
         )
-        return { message: await readConversationMessage(c, r.messageId), input: inputRef(r) }
+        return { message: await readConversationMessage(c, r.messageId), input: conversationInputRef(r) }
       })
       return reply.status(202).send(recorded)
     },

@@ -1685,3 +1685,51 @@ test('seams · why dictation stopped goes with the next attempt, and with what y
   await field(page).fill('I’ll write it')
   await expect(line).toHaveCount(0)
 })
+
+// INC03-DES-001: a controlled space's messages, as the fixture's `controlled=1` presents them (the actual reader is
+// crossed in app-personal-controlled.spec.ts): each status in the quiet line under its message, the kept answer opened
+// by keyboard or touch, the stale line with Try again, all readable (the 4.5:1 floor) and within the column.
+const CONTROLLED = `${PAGE}?controlled=1&stale=1`
+
+async function controlledStatuses(page: Page) {
+  const lines = page.locator('[data-control]')
+  await expect(lines).toHaveText([
+    'Withdrawn after her answer was published',
+    'Held to replace an earlier message — not asked yet · answers are off',
+    'Cancelled before it was sent to Sophia',
+    'Withdrawn; work may already have started · cost not settled yet · Show the kept answer',
+  ])
+  await expect(page.locator('[data-recorded]')).toHaveCount(0)
+  await expect(page.locator('[data-stale]')).toContainText('Couldn’t read the latest; the last full read ended at')
+}
+
+test('personal · a controlled space says how each answer stands, quietly, and its kept answer opens by keyboard', async ({
+  page,
+}) => {
+  await page.goto(CONTROLLED)
+  await controlledStatuses(page)
+  const show = page.getByRole('button', { name: 'Show the kept answer' })
+  await show.focus()
+  await page.keyboard.press('Enter')
+  const kept = page.locator('[data-kept]').filter({ visible: true })
+  await expect(kept.locator('q').first()).toHaveText(
+    'Tell them the date moves to Thursday, and why: the pilot needs a second region.',
+  )
+  await expect(page.getByRole('button', { name: 'Hide' })).toBeFocused()
+  expect(await lowContrast(page, '.c3-space', '.c3-edge')).toEqual([])
+  await page.keyboard.press('Enter')
+  await expect(kept).toHaveCount(0)
+  await page.locator('[data-stale]').getByRole('button', { name: 'Try again' }).click()
+  expect(await pressed(page)).toContain('read again')
+})
+
+test('@phone personal · at 390 a controlled space’s statuses, its kept answer and the stale line fit, by touch', async ({
+  page,
+}) => {
+  await page.goto(CONTROLLED)
+  await controlledStatuses(page)
+  await page.getByRole('button', { name: 'Show the kept answer' }).tap()
+  await expect(page.locator('[data-kept]').filter({ visible: true })).toHaveCount(1)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  expect(await lowContrast(page, '.c3-space', '.c3-edge')).toEqual([])
+})

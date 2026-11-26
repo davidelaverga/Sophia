@@ -126,3 +126,131 @@ test('light · a stored value the app does not read is the room at first paint t
   await expect(page.locator('html')).toHaveAttribute('data-first-icon', '/favicon-dark.svg')
   await expect(page.locator('link[rel="icon"][type="image/svg+xml"]')).toHaveAttribute('href', '/favicon-dark.svg')
 })
+
+// Her light under the formed mark, on paper (docs/plans/paper-light-rays.md): drawn as the room's canvas draws it, one
+// light the halves block, white where it pours past them and shadow behind them, moving towards the pointer.
+const paperLight = (page: Page) =>
+  page.evaluate(() => {
+    const light = document.querySelector<HTMLElement>('.threshold-light')
+    const svg = document.querySelector<SVGSVGElement>('svg.threshold')
+    if (!light || !svg) return null
+    const l = light.getBoundingClientRect()
+    const m = svg.getBoundingClientRect()
+    const look = getComputedStyle(light)
+    const animations = light.getAnimations({ subtree: true }).filter((a) => a.playState === 'running')
+    return {
+      shown: look.display !== 'none' && look.visibility !== 'hidden',
+      // The point it stands on, against the line between the halves (BEHIND, 31.5 × 22 on the 48 grid).
+      dx: l.left + l.width / 2 - (m.left + (31.5 * m.width) / 48),
+      dy: l.top + l.height / 2 - (m.top + (22 * m.height) / 48),
+      x: l.left + l.width / 2,
+      size: Math.round(m.width),
+      shadows: getComputedStyle(light, '::before').backgroundImage,
+      light: getComputedStyle(light, '::after').backgroundImage,
+      running: animations.length,
+      // Under the mark: drawn just before it in the same box, neither lifted (the mark takes no pointer, so no
+      // elementFromPoint can say which is on top).
+      under:
+        light.nextElementSibling === svg &&
+        getComputedStyle(light).zIndex === 'auto' &&
+        getComputedStyle(svg).zIndex === 'auto',
+    }
+  })
+
+for (const [w, h, size] of [
+  [1280, 800, 96],
+  [390, 844, 48],
+] as const) {
+  test(`light · ${String(w)} px: her light stands under the formed mark, on the line between you, shaded by the halves`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: w, height: h })
+    await page.goto('/home.html?demo=1&theme=light')
+    await drawn(page, DRAWN.home)
+    await expect.poll(async () => (await paperLight(page))?.shown).toBe(true)
+    const seen = await paperLight(page)
+    expect(seen?.size).toBe(size)
+    expect(Math.abs(seen?.dx ?? 99)).toBeLessThanOrEqual(2)
+    expect(Math.abs(seen?.dy ?? 99)).toBeLessThanOrEqual(2)
+    // Shadow behind the halves, white where the light gets past: the canvas's pattern, not her violet (Luis 2026-11-25).
+    expect(seen?.shadows).toMatch(/^conic-gradient\(.*rgba\(29, 27, 34, 0\.17\)/)
+    expect(seen?.light).toMatch(/conic-gradient\(rgb\(255, 255, 255\)(?!.*109, 91, 208)/)
+    expect(seen?.under).toBe(true)
+    expect(seen?.running, 'it breathes with her halo; no fan turns').toBe(1)
+  })
+}
+
+// Home's mark sits on the right of its greeting: the pointer goes left of it, inside the page (one that leaves the page
+// is no one to lean to).
+test('light · her light under the mark leans towards the pointer', async ({ page }) => {
+  await page.goto('/home.html?demo=1&theme=light')
+  await drawn(page, DRAWN.home)
+  await expect.poll(async () => (await paperLight(page))?.shown).toBe(true)
+  const rest = (await paperLight(page))?.x ?? 0
+  const box = await page.locator('svg.threshold').boundingBox()
+  await page.mouse.move((box?.x ?? 0) - 500, (box?.y ?? 0) + (box?.height ?? 0) / 2)
+  await expect.poll(async () => rest - ((await paperLight(page))?.x ?? 0)).toBeGreaterThan(3)
+})
+
+test('in the room, no paper light: the canvas draws hers', async ({ page }) => {
+  await page.goto('/home.html?demo=1')
+  await drawn(page, DRAWN.home)
+  await expect(page.locator('svg.threshold')).toBeVisible()
+  expect((await paperLight(page))?.shown ?? false).toBe(false)
+})
+
+test('light · under reduced motion her light under the mark stands still', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/home.html?demo=1&theme=light')
+  await drawn(page, DRAWN.home)
+  await expect.poll(async () => (await paperLight(page))?.shown).toBe(true)
+  expect((await paperLight(page))?.running).toBe(0)
+})
+
+// The sign-in once the link has gone and Talk draw the same formed mark (Threshold.tsx), so the same light under it.
+const FORMED: readonly [string, (page: Page, theme: string) => Promise<void>][] = [
+  [
+    'the sign-in, once the link has gone',
+    async (page, theme) => {
+      await page.goto(`/signin.html?theme=${theme}`)
+      await page.getByRole('textbox', { name: 'Email' }).fill('someone@example.com')
+      await page.getByRole('button', { name: 'Email me a link' }).click()
+      await expect(page.getByRole('heading', { name: 'Check your email' })).toBeVisible()
+    },
+  ],
+  [
+    'Talk',
+    async (page, theme) => {
+      await page.goto(`/personal.html?voice=1&theme=${theme}`)
+      await page.getByRole('button', { name: 'Talk with her' }).click()
+      await expect(page.getByRole('dialog', { name: 'Talking with Sophia' })).toBeVisible()
+    },
+  ],
+]
+
+for (const [name, open] of FORMED) {
+  for (const [w, h, size] of [
+    [1280, 800, 96],
+    [390, 844, 48],
+  ] as const) {
+    test(`light · ${String(w)} px, ${name}: her light stands under the formed mark, on the line between you`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: w, height: h })
+      await open(page, 'light')
+      await expect(page.locator('svg.threshold')).toBeVisible()
+      await expect.poll(async () => (await paperLight(page))?.shown).toBe(true)
+      const seen = await paperLight(page)
+      expect(seen?.size).toBe(size)
+      expect(Math.abs(seen?.dx ?? 99)).toBeLessThanOrEqual(2)
+      expect(Math.abs(seen?.dy ?? 99)).toBeLessThanOrEqual(2)
+      expect(seen?.under).toBe(true)
+    })
+  }
+
+  test(`in the room, ${name}: no paper light`, async ({ page }) => {
+    await open(page, 'dark')
+    await expect(page.locator('svg.threshold')).toBeVisible()
+    expect((await paperLight(page))?.shown ?? false).toBe(false)
+  })
+}

@@ -1,0 +1,149 @@
+{
+  "id": "A64",
+  "goal": "INC03-S05",
+  "title": "Exact artifact version on addressed conversation inputs",
+  "why": [
+    "An addressed start or send can bind one exact currently shared published artifact version.",
+    "The version is part of the original request identity. Current eligibility is required for fresh writes.",
+    "The receipt still records the input only. Attached inputs wait for an artifact-aware observation and admission path."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/AddressedConversationInputStart/properties/artifactVersionId",
+      "value": {
+        "type": "string",
+        "format": "uuid",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        "description": "Optional exact published version from the same project. Stored with the key and rechecked before a fresh write."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/AddressedConversationInputSend/properties/artifactVersionId",
+      "value": {
+        "type": "string",
+        "format": "uuid",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        "description": "Optional exact published version from the same project. Stored with the key and rechecked before a fresh write."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationArtifactVersion",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["artifactId", "versionId", "title", "versionNumber"],
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "versionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "versionNumber": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "description": "One currently readable published project artifact version and its display label."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1conversation-artifact-versions~1{versionId}",
+      "value": {
+        "get": {
+          "operationId": "getConversationArtifactVersion",
+          "summary": "Check a published artifact version for a shared conversation",
+          "tags": ["conversations"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC03-S05",
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "name": "versionId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Currently eligible version",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ConversationArtifactVersion"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Sign-in required",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Artifact version unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Projection unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

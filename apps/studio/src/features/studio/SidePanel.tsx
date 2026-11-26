@@ -4,7 +4,24 @@
 import { useCallback, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Icon, Tabs, Tip, type IconName } from '@sophia/ui'
 import { ShortcutScope } from '../../app/shortcuts.ts'
-import { changedUnseen, focusOnOpen, focusStep, isNew, PANEL_TITLE, PANELS, seenNow, type Panel } from './side-panel.ts'
+import type { Snapshot } from '@sophia/contracts'
+import { authorLabel } from '../conversation/conversation-view.ts'
+import type { ProjectRoom } from '../voice/useProjectRoom.ts'
+import {
+  changedUnseen,
+  focusOnOpen,
+  focusStep,
+  isNew,
+  PANEL_TITLE,
+  PANELS,
+  PEEK_MS,
+  peekOf,
+  seenNow,
+  type Panel,
+  type Peek,
+  type Seen,
+} from './side-panel.ts'
+import { useKnownNames } from './useKnownNames.ts'
 
 interface PanelProps {
   open: Panel | null
@@ -177,14 +194,43 @@ interface ToggleProps {
   unread: boolean
   /** The brief changed since it was last in view. */
   updated: boolean
+  /** A new message from someone else, for a moment (useChatPeek); none, nothing is said. */
+  peek?: Peek | null
 }
 
 const ICON: Record<Panel, IconName> = { chat: 'chat', people: 'people', brief: 'brief' }
 const KEY: Record<Panel, string> = { chat: 'C', people: 'P', brief: 'B' }
 
 /** The stage's corner: the chat and the brief, each a toggle, with a dot for what is new. */
-export function PanelToggles({ open, onToggle, unread, updated }: ToggleProps) {
+export function PanelToggles({ open, onToggle, unread, updated, peek = null }: ToggleProps) {
   const dot: Record<Panel, boolean> = { chat: unread, people: false, brief: updated }
+  return (
+    <>
+      <ChatPeek peek={peek} onOpen={() => onToggle('chat')} />
+      <TogglesRow open={open} onToggle={onToggle} dot={dot} />
+    </>
+  )
+}
+
+/**
+ * A new message beside the closed chat (chat-pace.md): who wrote it and its first line, for a moment; a press opens the
+ * chat. Said politely as it comes, from a line mounted all along, so only what arrives is read, never the history.
+ */
+function ChatPeek({ peek, onOpen }: { peek: Peek | null; onOpen: () => void }) {
+  return (
+    <div className="chat-peek-line" role="status">
+      {peek && (
+        <button key={peek.id} type="button" className="chat-peek" onClick={onOpen}>
+          <span className="sr-only">New message from </span>
+          <span className="chat-peek-author">{peek.author}</span>
+          <span className="chat-peek-text">{peek.line}</span>
+        </button>
+      )}
+    </div>
+  )
+}
+
+function TogglesRow({ open, onToggle, dot }: Pick<ToggleProps, 'open' | 'onToggle'> & { dot: Record<Panel, boolean> }) {
   return (
     <div className="panel-toggles">
       {PANELS.map((p) => (
@@ -204,6 +250,44 @@ export function PanelToggles({ open, onToggle, unread, updated }: ToggleProps) {
       ))}
     </div>
   )
+}
+
+/** The discussion's newest entry as seen now; null until the project has loaded (no baseline yet). */
+const seenOf = (snapshot: Pick<Snapshot, 'discussion'> | undefined): Seen | null => {
+  if (!snapshot) return null
+  const newest = snapshot.discussion.at(-1)
+  return { id: newest?.id ?? '', at: newest?.createdAt ?? '' }
+}
+
+/**
+ * The newest message from someone else, while the chat is out of view, for PEEK_MS (chat-pace.md). The first read is
+ * the baseline; your own messages and a chat in view peek at nothing.
+ */
+export function useChatPeek(
+  snapshot: Pick<Snapshot, 'discussion'> | undefined,
+  room: ProjectRoom,
+  me: string | null,
+  inView: boolean,
+): Peek | null {
+  const names = useKnownNames(room)
+  const newest = snapshot?.discussion.at(-1)
+  const last = seenOf(snapshot)
+  const [seen, setSeen] = useState<Seen | null>(last)
+  const [peek, setPeek] = useState<Peek | null>(null)
+  if (last !== null && seen?.id !== last.id) {
+    setSeen(last)
+    const author = (actorId: string) => authorLabel(actorId, me ?? '', names, newest?.authorName)
+    const next = inView ? null : peekOf(newest, seen, me, author)
+    if (next) setPeek(next)
+  }
+  // The chat opened: what it peeked at is in view, and doesn't come back when it closes.
+  if (inView && peek) setPeek(null)
+  useEffect(() => {
+    if (!peek) return undefined
+    const gone = setTimeout(() => setPeek(null), PEEK_MS)
+    return () => clearTimeout(gone)
+  }, [peek])
+  return inView ? null : peek
 }
 
 /** Whether what the chat shows changed while it was out of view; the first chat that loads is the baseline. */

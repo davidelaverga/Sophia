@@ -1007,6 +1007,23 @@ button:disabled,
   background: var(--core);
   box-shadow: var(--glow-dot);
 }
+/* Who is in the room, on Join where its dot was (one-truth.md): Work's card faces, in the press's own ink. */
+.join-faces {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: -4px;
+}
+.join-face {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+  font-size: 9.5px; /* an initial: a glyph sized to its circle, not text on the scale */
+  font-weight: 600;
+  line-height: 1;
+}
 /* Keys inside buttons: quiet until they matter; on the light primary they are ink. */
 .pill kbd {
   margin-right: -4px;
@@ -1805,6 +1822,85 @@ img.avatar {
   .threshold .umbral-sophia {
     animation: none;
     filter: var(--glow-threshold-still);
+  }
+}
+/* Her light under the formed mark, on paper (docs/plans/paper-light-rays.md), drawn as the room's canvas draws it: one
+   light behind the mark, which the halves block. Your half shades the left, hers the right, and the light pours past
+   them, up and down the line between you and out on her side (shadowArcs in threshold.ts: the angles below, held to
+   it by threshold.test.ts). White with shadow, not her violet (Luis 2026-11-25): on paper that is nearly white, light
+   reads only against something darker. It stands where the canvas's light does (BEHIND, 31.5 × 22 on the 48 grid:
+   7.5 right of the mark's centre, 2 above) and moves with it towards the pointer (--bx, --by, from the engine). In the
+   room it is not drawn: the canvas is. */
+.threshold-light {
+  display: none;
+}
+:root[data-theme='light'] .threshold-light {
+  display: block;
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  translate: calc(var(--ms) * 7.5 / 48 + var(--bx, 0px)) calc(var(--ms) * -2 / 48 + var(--by, 0px));
+}
+:root[data-theme='light'] .threshold-light::before,
+:root[data-theme='light'] .threshold-light::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+}
+/* The halves' shadows, close to the mark: deep behind yours, faint behind hers. */
+:root[data-theme='light'] .threshold-light::before {
+  width: calc(var(--ms) * 4.4);
+  height: calc(var(--ms) * 4.4);
+  margin: calc(var(--ms) * -2.2);
+  background: conic-gradient(
+    transparent 0deg 1deg,
+    rgb(var(--shadow-rgb) / 0.05) 11deg 121deg,
+    transparent 132deg 180deg,
+    rgb(var(--shadow-rgb) / 0.17) 191deg 343deg,
+    transparent 353deg
+  );
+  mask: radial-gradient(closest-side, #000 8%, rgb(0 0 0 / 0.6) 30%, transparent 62%);
+  filter: blur(calc(var(--ms) / 20));
+}
+/* The light that gets past, reaching further: a white line between two shadows on the gap, and white where the halves
+   leave it open, softer behind hers, none behind yours. It breathes with her halo. */
+:root[data-theme='light'] .threshold-light::after {
+  width: calc(var(--ms) * 4);
+  height: calc(var(--ms) * 4);
+  margin: calc(var(--ms) * -2);
+  background-image:
+    linear-gradient(
+      90deg,
+      transparent calc(50% - var(--ms) * 0.18),
+      rgb(var(--shadow-rgb) / 0.15) calc(50% - var(--ms) * 0.08),
+      rgb(var(--sheen-rgb) / 1) 50%,
+      rgb(var(--shadow-rgb) / 0.15) calc(50% + var(--ms) * 0.08),
+      transparent calc(50% + var(--ms) * 0.18)
+    ),
+    conic-gradient(
+      rgb(var(--sheen-rgb) / 1) 0deg 1deg,
+      rgb(var(--sheen-rgb) / 0.6) 11deg 121deg,
+      rgb(var(--sheen-rgb) / 1) 132deg 180deg,
+      transparent 191deg 343deg,
+      rgb(var(--sheen-rgb) / 1) 353deg
+    );
+  mask: radial-gradient(closest-side, #000 12%, rgb(0 0 0 / 0.55) 42%, transparent 88%);
+  filter: blur(calc(var(--ms) / 16));
+  animation: threshold-glow 4.8s var(--ease-in-out) 1.2s infinite alternate;
+}
+@keyframes threshold-glow {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme='light'] .threshold-light::after {
+    animation: none;
+    opacity: 0.8;
   }
 }
 .light[data-fallback] .light-gl {
@@ -2821,9 +2917,13 @@ img.avatar {
   .chat-start {
     height: 52px;
   }
+  /* At least 16 px: a touch browser zooms the page into a smaller field as it takes the focus (iOS Safari); larger
+     text set in the browser still grows it. The line keeps its 20 px, so the bar keeps its height
+     (docs/plans/touch-fields.md). */
   .message-bar textarea {
     min-height: 40px;
     padding: 10px 0;
+    font-size: max(16px, var(--type-body));
   }
   .send {
     width: 40px;
@@ -2871,6 +2971,42 @@ img.avatar {
    a blank line before a quote stays (Codex P2 on #429). */
 .contribution-text {
   white-space: pre-wrap;
+}
+/* A message that goes on the line above (chat-pace.md): the same author in the same minute shows one name and time
+   for the run, the lines close together; a line's own time shows under the pointer, at its end, moving no word. */
+.discussion > .contribution[data-goes-on] {
+  position: relative;
+  margin-top: -4px;
+}
+.contribution[data-goes-on] .contribution-at {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin: 0;
+  padding-left: 8px;
+  background: var(--surface-well);
+  opacity: 0;
+}
+.contribution[data-goes-on]:hover .contribution-at,
+.contribution[data-goes-on]:focus-within .contribution-at {
+  opacity: 1;
+}
+/* The room's message on its way (chat-pace.md): drawn at once, its words dimmed while it goes, then as any message;
+   where its reply was lost or it was refused, a line under it says so, with Try again. The slot takes no box. */
+.pending-slot {
+  display: contents;
+}
+.contribution[data-pending='sending'] .contribution-text {
+  opacity: 0.55;
+}
+.contribution-pending {
+  display: block;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.contribution[data-pending='unknown'] .contribution-pending,
+.contribution[data-pending='failed'] .contribution-pending {
+  color: var(--rose);
 }
 /* When each message was said (docs/plans/chat-times.md): its time by the author, and a day line above each day's first
    message, as the conversations' day line is set. */
@@ -4791,6 +4927,34 @@ button.contribution-quote:hover {
 .sheet-tab-body > .text-button {
   justify-self: start;
 }
+/* A link the browser wouldn't copy (chat-pace.md): said, then the link itself in a field on a line of its own, focused
+   and selected to copy by hand. */
+.copy-by-hand {
+  display: grid;
+  flex-basis: 100%;
+  gap: 4px;
+  width: 100%;
+  color: var(--rose);
+  font-size: var(--type-small);
+}
+/* Its row makes room: the field takes a line of its own under the presses, across the invitation's row. */
+.control-row:has(> .copy-by-hand),
+.invitation-actions:has(> .copy-by-hand) {
+  flex-wrap: wrap;
+}
+.invitation-actions:has(> .copy-by-hand) {
+  grid-column: 1 / -1;
+  grid-row: auto;
+}
+.copy-by-hand input {
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--surface-well);
+  color: var(--text);
+  font: 400 var(--type-small) / var(--lh-small) var(--mono);
+}
 .room-link {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -4849,6 +5013,13 @@ button.contribution-quote:hover {
 .sheet-form > input {
   width: 100%;
 }
+/* Invite's addresses at 16 px on touch, as the chat's field (docs/plans/touch-fields.md): no zoom as they take the focus,
+   and the row keeps its height beside its press or its role. */
+@media (pointer: coarse) {
+  .sheet-form .field input[type='email'] {
+    font-size: max(16px, var(--type-body));
+  }
+}
 /* A chosen report's cited sources (A43), under it and set in, so each belongs to its report. */
 .review-cited {
   margin: 2px 0 6px;
@@ -4864,6 +5035,36 @@ button.contribution-quote:hover {
   margin: 0 0 4px;
   color: var(--text-3);
   font-size: var(--type-small);
+}
+/* A name's limit under its field (docs/plans/words-whole.md): the count as it comes near, at the line's end; a cut
+   said before it. In the second ink, its digits not moving as they change. Nothing takes room until there is
+   something to say. */
+.field-limit {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+/* Empty, it stays in the page (its live part must be there before it speaks) and takes no room. */
+.field-limit:not(:has(.field-limit-count)):has(> span:empty) {
+  margin: 0;
+}
+.field-with-limit {
+  width: 100%;
+}
+/* A date or time read back under the browser's own field, as the Studio says it (24-hour clock, «15 Dec 2026»):
+   docs/plans/words-whole.md. */
+.when-said {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+}
+.field-limit-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }
 .sheet-status {
   min-height: 1.3em;
@@ -5103,6 +5304,19 @@ button.contribution-quote:hover {
     min-height: 44px;
   }
 }
+/* Under a mouse the same presses answer across the row's height, 28 px like the filled press beside them, and 2 px
+   past each side: a third of the row's 6 px gap, so two targets keep 2 px between them, clear of the hit test's pixel
+   rounding (five-decisions.md, 12). Nothing drawn changes. */
+@media (pointer: fine) {
+  .controls .control-row .text-button {
+    position: relative;
+  }
+  .controls .control-row .text-button::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+  }
+}
 /* Asking first, in place: what will happen, the safe answer, then the one that acts. */
 .confirm {
   display: inline-flex;
@@ -5310,6 +5524,15 @@ button.contribution-quote:hover {
 }
 .event.hidden-event {
   color: var(--text-3);
+}
+/* A dot by what happened (one-truth.md): asked in the halo's violet, done in teal, halted in amber; the words say it too. */
+.event .dot[data-tone='asked'] {
+  background: var(--halo-text);
+  box-shadow: 0 0 0 3px rgb(var(--halo-rgb) / 0.14);
+}
+.event .dot[data-tone='halted'] {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px rgb(var(--amber-rgb) / 0.14);
 }
 .event.hidden-event .dot {
   background: var(--text-4);
@@ -6083,6 +6306,8 @@ button.contribution-quote:hover {
 .room-stage {
   /* What the dock leaves free on each side for the corner: its three toggles (Chat, People, Brief) and a gap. */
   --corner-room: 144px;
+  /* The corner's own height: three 36 px toggles in their 5 px bar (48), on a phone above the dock. */
+  --corner-h: 48px;
 }
 .stage-corner {
   position: absolute;
@@ -6232,13 +6457,6 @@ button.contribution-quote:hover {
     bottom: auto;
   }
 }
-/* No room beside the lenses either (a phone): under them. With video on the stage there are no lenses, and the
-   tiles start where that would put it, so the corner keeps to the lenses' empty line. */
-@container (max-width: 560px) {
-  .room-stage[data-mode='light'] .stage-corner {
-    top: 72px;
-  }
-}
 /* The lobby card takes a phone's width and sat where that puts the corner. It goes under it: someone waiting at
    the door never hides the chat and the brief. */
 @media (max-width: 560px) {
@@ -6251,11 +6469,36 @@ button.contribution-quote:hover {
 @media (pointer: coarse) {
   .room-stage {
     --corner-room: 156px;
+    --corner-h: 52px;
   }
   @container (max-width: 799.98px) {
     .stage-corner {
       top: 12px;
     }
+  }
+}
+/* A phone (five-decisions.md, 23): no room beside the lenses, so the corner sits just above the dock on the right,
+   in the thumb's reach, as it sits level with the dock on a computer. What ends above the dock (the captions, the
+   video, the lens body) ends above the corner instead. That band costs 60 px of height: below a 720 px stage (a
+   375 × 667 phone) her line, what she made and two captions would no longer fit over it, so there the corner keeps
+   to the lenses' line as before: under them, or with video on the stage, where they would be. */
+@container (max-width: 560px) and (max-height: 719.98px) {
+  .room-stage[data-mode='light'] .stage-corner {
+    top: 72px;
+  }
+}
+@container (max-width: 560px) and (min-height: 720px) {
+  /* Under the dock's layer: a menu opened from the dock (React's, a device list) rises over the corner. */
+  .stage-corner {
+    top: auto;
+    bottom: calc(var(--floor) + var(--dock-h, 48px) + 8px);
+    z-index: 3;
+  }
+  .room-stage:has(> .stage-corner) > :is(.stage-captions, .gallery, .present, .stage-body) {
+    bottom: calc(var(--floor) + var(--dock-h, 48px) + 8px + var(--corner-h) + 12px);
+  }
+  .room-stage:has(> .stage-corner):has(> .stage-captions) > :is(.gallery, .present, .stage-body) {
+    bottom: calc(var(--floor) + var(--dock-h, 48px) + 8px + var(--corner-h) + 12px + var(--captions-h, 0px) + 12px);
   }
 }
 .panel-toggles {
@@ -6269,6 +6512,55 @@ button.contribution-quote:hover {
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow: var(--lift), var(--elev-dock);
   animation: rise var(--motion-slow) var(--ease) 0.1s backwards;
+}
+/* A new message beside the closed chat (chat-pace.md): who and the first line, for a moment, a press away from the
+   chat. Under the corner where the corner sits at the top, over it where it rests on the floor beside the dock. */
+.chat-peek-line {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: max-content;
+  max-width: min(300px, calc(100vw - 2 * var(--gutter)));
+}
+@container (min-width: 800px) {
+  .chat-peek-line {
+    top: auto;
+    bottom: calc(100% + 8px);
+  }
+}
+.chat-peek {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--glass-stage);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: var(--lift), var(--elev-dock);
+  color: var(--text);
+  font-size: var(--type-small);
+  text-align: left;
+  cursor: pointer;
+  animation: rise var(--motion-base) var(--ease) both;
+}
+.chat-peek:hover {
+  border-color: rgb(var(--halo-rgb) / 0.5);
+}
+.chat-peek-author {
+  color: var(--text-2);
+  font-weight: 500;
+}
+.chat-peek-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-peek {
+    animation: none;
+  }
 }
 /* Something new behind a closed panel: a dot of Sophia's violet on its toggle. */
 .toggle-dot {
@@ -7867,6 +8159,10 @@ button.contribution-quote:hover {
 .person:hover {
   background: rgb(var(--ink-rgb) / 0.04);
 }
+/* Before joining, a row is a name the server gave and nothing to press: no plane answers the pointer (one-truth.md). */
+.people-outside .person:hover {
+  background: none;
+}
 /* Touch: the menu and the volume are each a finger's 40 px square, and their columns follow, so neither passes its row.
    The shared touch rule lifts a round button's height only: the volume stayed 36 px wide (Codex P2 on #425). */
 @media (pointer: coarse) {
@@ -7946,6 +8242,11 @@ button.contribution-quote:hover {
 .goal-target-form button {
   grid-column: 2;
   justify-self: start;
+}
+/* The day read back under its field, in the field's column; the space above it is the row's own. */
+.goal-target-form .when-said {
+  grid-column: 2;
+  margin-top: -4px;
 }
 .goal-target p {
   margin: 0;

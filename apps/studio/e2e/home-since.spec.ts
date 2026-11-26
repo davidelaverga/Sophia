@@ -106,7 +106,7 @@ test('home · a call ended with Home open says nothing, then or after: what it h
   page,
 }) => {
   await page.goto(`${QUIET}&since=some&call=${id(1)}`)
-  await expect(page.locator('.hw-says')).toHaveText('You’re in Launch plan’s room.')
+  await expect(page.locator('.hw-says')).toHaveText('You’re in the room for Launch plan.')
   // Fixed wait kept: negative check: no read may follow in this window, and no event marks an absence
   await page.waitForTimeout(400)
   expect(await reads(page)).toEqual([])
@@ -131,7 +131,7 @@ test('home · a call whose read after it failed says nothing once the service is
 }) => {
   // `sinceFail=1`: the read as the call ends is the page's first, and the service is away for it.
   await page.goto(`${QUIET}&since=some&call=${id(1)}&sinceFail=1`)
-  await expect(page.locator('.hw-says')).toHaveText('You’re in Launch plan’s room.')
+  await expect(page.locator('.hw-says')).toHaveText('You’re in the room for Launch plan.')
   await page.evaluate(() => window.homeFixture?.hangUp())
   await answered(page, SHOWN)
   await expect(news(page)).toHaveText('')

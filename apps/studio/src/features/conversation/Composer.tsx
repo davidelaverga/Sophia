@@ -18,7 +18,10 @@ import {
   type ChatEntry,
   type ChatMoment,
 } from './chat-view.ts'
+import { createPortal } from 'react-dom'
 import { ContinuityChoice } from './ContinuityChoice.tsx'
+import { PendingMessages } from './PendingMessage.tsx'
+import { usePendingRows } from './usePendingRows.ts'
 import { HELD_WORDS, offlineBarWords, TARGET_WORDS, type Target } from './discussion-view.ts'
 import { MentionPicker, useMentions } from './MentionPicker.tsx'
 import { ReplyingTo, useReplyBar, type Replying } from './ReplyingTo.tsx'
@@ -45,6 +48,10 @@ interface Props {
   onStopReplying?: () => void
   /** A message goes from the bar: what came while the tab was hidden is behind the person (WhileAway.tsx). */
   onSend?: (() => void) | undefined
+  /** Where the room's message on its way is drawn: the discussion's end (chat-pace.md); none, it isn't drawn. */
+  pendingSlot?: HTMLElement | null
+  /** This person's actor id, to know their own message in the discussion when the feed brings it first. */
+  me?: string
 }
 
 const NOTHING = () => undefined
@@ -358,9 +365,23 @@ function useFootWords(
   roomNote: { text: string } | null,
 ) {
   const online = useOnline()
-  if (online) return { online, words: toRoom.words, unknown: toRoom.state === 'unknown' }
+  // A message whose reply was lost says so on its own row, with Try again (PendingMessage): not twice.
+  if (online) return { online, words: toRoom.state === 'unknown' ? null : toRoom.words, unknown: false }
   const field = { going: toRoom.state === 'sending', held: toRoom.held, written: draft.trim() !== '' }
   return { online, words: offlineBarWords(field, toRoom.words, roomNote?.text ?? null), unknown: false }
+}
+
+/** Back to voice from the chat's line: the pressed link goes; the focus stays at the bar. */
+const backToVoice = (room: ProjectRoom, field: RefObject<HTMLTextAreaElement | null>) => () => {
+  void room.setTextMode(false)
+  field.current?.focus({ preventScroll: true })
+}
+
+/** The room's messages on their way, drawn at the discussion's end (chat-pace.md), until the discussion holds them. */
+function OnItsWay({ toRoom, of, offline }: { toRoom: ReturnType<typeof useRoomMessage>; of: Props; offline: boolean }) {
+  const rows = usePendingRows(toRoom, of.snapshot, of.me ?? null)
+  if (!of.pendingSlot) return null
+  return createPortal(<PendingMessages rows={rows} offline={offline} />, of.pendingSlot)
 }
 
 /** One line above the bar for what the room's message or a held one needs. */
@@ -436,10 +457,7 @@ export function Composer(props: Props) {
   // this panel covers the dock, and a button that falls back to "Chat with Sophia" without a word reads as broken. A
   // start that failed is said while starting is still the way in.
   const error = footError(room.error, inRoom, chat.error, bar ? null : startError)
-  const voice = () => {
-    void room.setTextMode(false)
-    field.current?.focus({ preventScroll: true }) // the pressed link goes; the focus stays at the bar
-  }
+  const voice = backToVoice(room, field)
   const foot = useFootWords(toRoom, draft, error)
   const sending = sendingTo(target, { chat, toRoom, starting, draft, online: foot.online })
   return (
@@ -453,6 +471,7 @@ export function Composer(props: Props) {
         onVoice={voice}
         onShowRoom={onShowRoom}
       />
+      <OnItsWay toRoom={toRoom} of={props} offline={!foot.online} />
       <FootError error={error} />
       <FootLine
         words={foot.words}

@@ -7,6 +7,7 @@
 // With the synthetic backend, S1-05A adds the worker (runtime dispatch) and, on request, the dsh runtime:
 //   --runtime rehearse   keyless mock model: exercises the whole brief path, never live evidence
 //   --runtime live       the recorded model route with the key in YOUR environment: billable model calls
+//   (on Windows the runtime runs in a Linux container: lib/runtime-container.ts)
 // and the media bridge (Sophia's voice in the room):
 //   --voice rehearse     no Google call and no key: a chime stands in for her voice, never live evidence
 //   --voice live         Gemini Live with GEMINI_API_KEY from YOUR environment: billable model calls
@@ -22,6 +23,12 @@ import { parseArgs } from 'node:util'
 import { readEnvFile, requireKeys } from './lib/env-file.ts'
 import { namedLiveKit } from './lib/livekit.ts'
 import { namedPostgres } from './lib/postgres.ts'
+import {
+  RUNTIME_CONTAINER,
+  removeRuntimeContainer,
+  runsInContainer,
+  startRuntimeContainer,
+} from './lib/runtime-container.ts'
 
 process.chdir(fileURLToPath(new URL('..', import.meta.url)))
 
@@ -139,6 +146,11 @@ function startWorker(workerEnv: Record<string, string>): ChildProcess {
  */
 function startRuntime(runtimeEnv: Record<string, string>, mode: string): ChildProcess {
   if (mode !== 'rehearse' && mode !== 'live') throw new Error('--runtime is rehearse or live')
+  if (runsInContainer(process.platform)) {
+    // The runtime is Linux and macOS only: here it runs in a Linux container (docs/plans/dev-runtime-container.md).
+    console.log(`[dev-stack] runtime in a Linux container (${RUNTIME_CONTAINER}); its first start installs and builds`)
+    return startRuntimeContainer({ checkout: process.cwd(), env: runtimeEnv, rehearse: mode === 'rehearse' })
+  }
   const root = join(tmpdir(), 'sophia-next', 'dev-stack', runtimeEnv.SOPHIA_PROJECT_ID ?? 'dev')
   console.log(`[dev-stack] runtime data: ${root}`)
   const args = ['scripts/runtime-host.mjs', '--root', root, ...(mode === 'rehearse' ? ['--rehearse'] : [])]
@@ -213,6 +225,7 @@ const stop = () => {
   studio.kill()
   worker?.kill()
   runtime?.kill()
+  if (runtime && runsInContainer(process.platform)) removeRuntimeContainer()
   bridge?.kill()
   process.exit(0)
 }

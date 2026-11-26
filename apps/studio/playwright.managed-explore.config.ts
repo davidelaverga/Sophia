@@ -6,7 +6,11 @@ const studio = 'http://127.0.0.1:5276'
 const off = 'http://127.0.0.1:5278'
 const env = {
   VITE_DEV_PROJECT_ID: PROJECT,
-  VITE_DEV_IDENTITIES: JSON.stringify([{ name: 'Founder', role: 'admin', token: 'synthetic-founder' }]),
+  VITE_DEV_IDENTITIES: JSON.stringify([
+    { name: 'Founder', role: 'admin', token: 'synthetic-founder' },
+    { name: 'Source reviewer', role: 'member', token: 'synthetic-source-reviewer' },
+    { name: 'Deployment verifier', role: 'member', token: 'synthetic-deployment-verifier' },
+  ]),
   VITE_SUPABASE_URL: '',
   VITE_SUPABASE_PUBLISHABLE_KEY: '',
   VITE_SOPHIA_PREVIEW_ORIGIN: 'http://localhost:5277',

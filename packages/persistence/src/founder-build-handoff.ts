@@ -1,4 +1,5 @@
 import type pg from 'pg'
+import { DomainError } from '@sophia/domain'
 import type {
   FounderBuildBinding,
   FounderBuildBindingRequest,
@@ -7,6 +8,9 @@ import type {
   FounderBuildExportRequest,
   FounderBuildReturn,
   FounderBuildReturnRequest,
+  FounderBuildVerification,
+  FounderBuildVerificationAccess,
+  FounderBuildVerificationRequest,
 } from '@sophia/contracts'
 import type { ManagedExploreRetainedEntry } from './managed-explore.ts'
 import { onlyRow } from './rows.ts'
@@ -81,3 +85,33 @@ export const recordFounderBuildReturn = (
   key: string,
   request: FounderBuildReturnRequest,
 ) => write<FounderBuildReturn>(c, scope, 'return', key, request)
+
+async function verification<T>(c: pg.PoolClient, sql: string, args: unknown[]): Promise<T> {
+  const installed = await buildQuery<boolean>(
+    c,
+    `SELECT to_regprocedure('sophia.read_founder_build_verification(uuid,uuid,uuid,uuid)') IS NOT NULL
+        AND to_regprocedure('sophia.write_founder_build_verification(uuid,uuid,uuid,text,jsonb)') IS NOT NULL AS result`,
+    [],
+  )
+  if (!installed) throw new DomainError('unavailable', 'Build verification is unavailable')
+  return buildQuery<T>(c, sql, args)
+}
+
+export const readFounderBuildVerification = (c: pg.PoolClient, scope: FounderBuildScope, returnId: string) =>
+  verification<FounderBuildVerificationAccess>(
+    c,
+    'SELECT sophia.read_founder_build_verification($1,$2,$3,$4) AS result',
+    [scope.projectId, scope.sessionId, scope.approvalId, returnId],
+  )
+
+export const recordFounderBuildVerification = (
+  c: pg.PoolClient,
+  scope: FounderBuildScope,
+  key: string,
+  request: FounderBuildVerificationRequest,
+) =>
+  verification<FounderBuildVerification>(
+    c,
+    'SELECT sophia.write_founder_build_verification($1,$2,$3,$4,$5) AS result',
+    [scope.projectId, scope.sessionId, scope.approvalId, key, JSON.stringify(request)],
+  )

@@ -10,6 +10,7 @@ import { signedInWith } from './profile.ts'
 import { EVERYWHERE } from './sign-out.ts'
 import { Sheet } from './Sheet.tsx'
 import { type Theme, useTheme } from './theme.ts'
+import { useShownIdentity } from './useMyProfile.ts'
 import { rememberMic, useMicOnJoin } from '../features/voice/mic-preference.ts'
 import { useMirror } from '../features/voice/mirror-preference.ts'
 
@@ -78,13 +79,15 @@ function Account({
   passkeys,
 }: Pick<Props, 'identity' | 'onPasskeys' | 'onSignOutEverywhere'> & { passkeys: RefObject<HTMLButtonElement | null> }) {
   const how = signedInWith(identity.provider)
+  // Named as the account menu names them: the saved name first (one-truth.md).
+  const shown = useShownIdentity(identity)
   return (
     <Part title="Account">
       <div className="settings-who">
-        <Avatar identity={identity} />
+        <Avatar identity={shown} />
         <span className="account-names">
-          <span className="account-name">{identity.displayName ?? identity.name}</span>
-          {identity.displayName && <span>{identity.name}</span>}
+          <span className="account-name">{shown.displayName ?? identity.name}</span>
+          {shown.displayName && <span>{identity.name}</span>}
           {how && <span>{how}</span>}
         </span>
       </div>

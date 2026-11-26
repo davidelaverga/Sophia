@@ -162,3 +162,76 @@ composer and founder acceptance are not done here.
 set neither switch. More exactly: `server.ts` wires `conversations` from `SOPHIA_CONVERSATIONS` (on, off or unset) and
 never sets `conversationInputs`, so `server.ts` never mounts the automatic-input routes. Wording only; no behaviour
 changed.
+
+
+## S01c: trusted addressing references (A63 / 0123, source-only candidate)
+
+The separate A63 boundary extends saved project conversation inputs with trusted member and reply-target references.
+It preserves the closed A49 bodies and all 0095 bytes. This is an opt-in `buildApp` composition, not a stock server
+activation or composer release. The candidate starts at main `1edbc5a38cffb929ce1e057a61c42f59a9afcad6`; its R1
+source/test/contract tree before this documentation is `4ed60e51dc872b0a232a8341b334a0f5f1050cf4`.
+
+| New route | Closed request additions to the explicit `automatic_v1` body | Response |
+|---|---|---|
+| `POST /api/v1/projects/:projectId/conversation-inputs/addressed` | `addressingVersion: 1`, `mentions` (member UUIDs); start still requires title/text | Existing A49 record-only started receipt |
+| `POST /api/v1/conversations/:conversationId/inputs/addressed` | `addressingVersion: 1`, `mentions`; required nullable `replyToMessageId` (UUID or explicit null); send still requires text | Existing A49 record-only recorded receipt |
+
+`conversationInputAddressing: true` requires `conversationInputs: true`, which requires `conversations: true`.
+Without that separate addressing opt-in neither new path is mounted. A49-only composition stays ready without 0123;
+requesting the addressed composition without its two 0123 writers makes readiness report schema unavailable and valid
+addressed writes return `503 projection_unavailable`, with no database detail or recorded rows. With 0123 installed,
+synthetic authenticated writers can start/send addressed inputs and receive `state: recorded`, `effect: none`.
+`server.ts` and environment configuration remain unchanged; no stock process enables A49 or A63.
+
+0123 adds API-only definer writers and the immutable reference sidecar `saved_conversation_input_addressing`. Actor,
+writer authority and conversation visibility come from current server/database identity before replay. Under the
+existing project-then-conversation lock, a fresh write validates active mentioned members and a nonwithdrawn reply
+target in the exact project and conversation. The database derives the target sequence, author kind and actor; it
+stores those references and the input's conversation/erasure revisions, with no copied target body or name. It reuses
+0069's pure mention validators and 0095's private record helper, never the attention-binding writer.
+
+The original request-key namespace includes canonical addressing semantics. An identical authorized replay returns
+the original receipt without resolving targets again or refreshing stored context, even after target withdrawal or
+recipient loss. A fresh request must pass current checks; changed context or A49/addressed key reuse conflicts.
+Withdrawal of the originating input still redacts its request and refuses replay. RLS restricts sidecar reads to
+current project members while the conversation is open; application logins cannot write it directly. No reply,
+attention, assessment, native work, reservation or provider dispatch follows from recording.
+
+R1 keeps explicit-null `replyToMessageId` in both the generated TypeScript request type and runtime schema. Its
+regression constructs the generated type with null and sends that exact body through the authenticated app. The
+prior generated type rejected null (`TS2322`); the corrected type and real request pass.
+
+Evidence for this bounded candidate: **48 focused PostgreSQL/app tests pass, 0 fail/skip/cancel**; separate real HTTP
+missing-0123 and installed-0123 fixtures pass. Contract generation check and API typecheck pass. The ordinary check
+reaches the unit phase and ends with **5213 pass, 3 fail, 70 skipped**. All three failures reproduce in a clean
+`1edbc5a3` sparse worktree: a local UNIX-socket fixture gets `EINVAL`, the destination map sees intentionally absent
+`db/tests/`, and the filesystem does not retain the special mode bits expected by the live-home fixture. These are
+retained local failures, not a full-check pass or new S01c failures. Details and exact evidence references are in
+[the S01c handoff](../handoffs/INC03-S01C-A63-0123.md).
+
+This completes only record-time trusted context source preparation. Later assessment/admission must revalidate the
+exact target, membership and audience before using it; withdrawal or recipient loss never permits substitution,
+audience expansion or another effect. Selections, assessment, automatic routing, composer integration, stock mounting,
+rollout and real app acceptance remain outside this candidate.
+
+
+**Subsequent exact-R1 verification.** The coordinator completed the checks on source tree
+`4ed60e51dc872b0a232a8341b334a0f5f1050cf4`: all 103 migrations and the 15 allowlisted SQL tests pass;
+the destination-map target passes with the reviewed parent SQL files present; runtime artifact identities reproduce.
+The ordinary integration run passes 140 tests with 2 counted skips (and conditional suite omissions retained in its
+log); a separate legacy conversation-service crossing passes both selected real pinned runtime/Fastify/PostgreSQL
+leaves using a loopback provider double. These are separate completed results, not a replacement for the earlier
+ordinary unit failures. The ordinary-before-merge gate remains open. Exact receipt paths are in the handoff below.
+
+## DEP-R07/R09 addressed rollback replay (0133, source-only candidate)
+
+`SOPHIA_CONVERSATION_INPUT_ADDRESSING` also accepts `replay`. Leaving it unset or setting it to `off` keeps
+addressed paths off. The `on` setting retains ordinary recording. Replay serves addressed Start and Send
+receipts and the A64 artifact read. While replay is set, the A49 unaddressed recorder is unmounted and the
+addressed routes skip actor-profile and observation writes. Legacy A33 retains its existing behavior.
+
+The addressed writers check current authority, erasure and exact request identity under their existing locks.
+A matching prior receipt returns before the replay guard. A fresh key returns 503 `outcome_unknown` with
+`same_admission_key` and leaves the database unchanged. Migration 0133 installs both guards and the sentinel
+atomically. Readiness and addressed replay require the sentinel, and the replay transaction checks it again before
+setting its local guard.

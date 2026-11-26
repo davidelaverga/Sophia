@@ -1,7 +1,8 @@
 // The words of the three places (direction C): the greeting, what each door says it opens, how a project card in Work
 // reads, who can see a place, how privacy works, and what a read that is slow or failed says. Pure, so the copy is
 // tested and components only render it.
-import type { PersonalTurn, ProjectSummary } from '@sophia/contracts'
+import type { ProjectSummary } from '@sophia/contracts'
+import type { ShownTurn } from '../../api/personal.ts'
 import type { Place } from '../../app/route.ts'
 import { shortName } from '../voice/room-view.ts'
 import type { Way } from './arrive.ts'
@@ -186,7 +187,7 @@ export interface YouDoor {
 export function youDoor(input: {
   locked: LockedBy | null
   /** Undefined until the space has loaded. */
-  turns: readonly PersonalTurn[] | undefined
+  turns: readonly ShownTurn[] | undefined
   notes: number
   now: Date
 }): YouDoor | null {
@@ -262,6 +263,15 @@ export function roomNames(room: NonNullable<ProjectSummary['room']>): string {
 }
 
 const peopleIn = (p: ProjectSummary) => p.room?.people.length ?? 0
+
+/**
+ * «Davide and Sophia are in the room»: who the server says is in a room, as Work's card, People before joining and the
+ * dock's Join say it (one-truth.md); null when nobody is (Sophia alone is nobody to join).
+ */
+export function inTheRoom(room: ProjectSummary['room']): string | null {
+  if (!room || room.people.length === 0) return null
+  return `${roomNames(room)} ${room.people.length === 1 && !room.sophia ? 'is' : 'are'} in the room`
+}
 
 /**
  * The next ask Home's line suggests (docs/plans/next-ask-places.md): a session about to start, the one thing Home's
@@ -340,11 +350,24 @@ export function orderProjects(projects: readonly ProjectSummary[], order: Projec
   return projects.toSorted((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
 }
 
-/** All projects' count, under Home's rows: how many, and the notes carried from you. Nothing while they load. */
-export function workCount(projects: readonly ProjectSummary[] | undefined): string {
-  if (!projects || projects.length === 0) return ''
+/** Home's last row, to all projects: its words, and the notes carried from you on a line of their own. */
+export interface AllProjects {
+  title: string
+  meta: string | null
+}
+
+/**
+ * All projects, under Home's rows (docs/plans/words-whole.md): «All 3 projects», with «2 notes from you» under it,
+ * each a sentence of its own rather than joined by a dot. Null while they load, and with fewer than two, where the row
+ * isn't offered (`showsAllProjects`).
+ */
+export function allProjects(projects: readonly ProjectSummary[] | undefined): AllProjects | null {
+  if (!projects || !showsAllProjects(projects)) return null
   const carried = projects.reduce((n, p) => n + p.releases.filter((r) => r.mine).length, 0)
-  return `${String(projects.length)} project${projects.length === 1 ? '' : 's'}${carried ? ` · ${String(carried)} from you` : ''}`
+  return {
+    title: `All ${String(projects.length)} projects`,
+    meta: carried > 0 ? `${String(carried)} ${carried === 1 ? 'note' : 'notes'} from you` : null,
+  }
 }
 
 /**
@@ -386,10 +409,7 @@ export const carriedFrom = (mine: boolean, ownerName: string) =>
 export function projectCard(project: ProjectSummary, now: Date, inCallHere: boolean): ProjectCard {
   const live = peopleIn(project) > 0
   const when = sessionWhen(project, now)
-  const presence =
-    live && project.room
-      ? `${roomNames(project.room)} ${project.room.people.length === 1 && !project.room.sophia ? 'is' : 'are'} in the room`
-      : null
+  const presence = inTheRoom(project.room)
   const meta = `${membersLabel(project.members)}${when ? ` · session ${when}` : ''}`
   const action = inCallHere ? 'leave' : live || soon(project, now) ? 'join' : 'open'
   return { presence, meta, action }
@@ -488,7 +508,8 @@ export function sophiaSays(
   news: ReadonlyMap<string, Since> = NO_NEWS,
 ): Said[] {
   if (!projects) return []
-  if (call) return [{ text: 'You’re in ' }, { text: call.title, strong: true }, { text: '’s room.' }]
+  // The room for the project, not «Title’s room»: a title is a name of its own, often ending in a bracket.
+  if (call) return [{ text: 'You’re in the room for ' }, { text: call.title, strong: true }, { text: '.' }]
   // Where she can't answer, she doesn't offer to talk (home-no-companion.md).
   if (projects.length === 0)
     return [

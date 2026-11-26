@@ -53,7 +53,7 @@ test('home · a live room is said in Sophia’s sentence and on its row, and the
 
 test('home · the call you are in: Sophia says so, and its row takes you back, never hangs up', async ({ page }) => {
   await page.goto(`${PAGE}?call=${id(1)}`)
-  await expect(page.locator('.hw-says')).toHaveText('You’re in Launch plan’s room.')
+  await expect(page.locator('.hw-says')).toHaveText('You’re in the room for Launch plan.')
   await expect(row(page, 'Launch plan')).toContainText('You’re in the room')
   await row(page, 'Launch plan').click()
   expect(await pressed(page)).toEqual([`back ${id(1)}`])

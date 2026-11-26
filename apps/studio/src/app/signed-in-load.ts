@@ -2,6 +2,7 @@
 // account's session is likely, once one is there, or as someone starts to sign in, so it is there by the time they are.
 import { readAuthCallback } from './auth-callback.ts'
 import { accountSessionKept } from './kept-session.ts'
+import { isBuildReviewPath } from './route.ts'
 import { legalDoc } from './legal.ts'
 import type { Studio } from './SignedIn.tsx'
 
@@ -35,5 +36,6 @@ export function warmSignedIn(): void {
 
 // An account's session likely as the page loads: the chunk goes as the app starts, beside the session's check, never
 // after the first render (one more round of requests, which a slow connection or a dev server's modules pay in full).
-// Not for the terms and the privacy notice: they read on their own and load nothing of the Studio (Codex on #366).
-if (sessionLikely() && legalDoc(window.location.pathname) === null) warmSignedIn()
+// Terms, privacy and Build review each open without the Studio.
+const path = window.location.pathname
+if (sessionLikely() && legalDoc(path) === null && !isBuildReviewPath(path)) warmSignedIn()

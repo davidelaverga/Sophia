@@ -2,6 +2,7 @@ import type {
   FounderBuildBindingRequest,
   FounderBuildExportRequest,
   FounderBuildReturnRequest,
+  FounderBuildVerificationRequest,
 } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import {
@@ -12,6 +13,8 @@ import {
   readFounderBuildExport,
   readFounderBuildExportFile,
   recordFounderBuildReturn,
+  recordFounderBuildVerification,
+  readFounderBuildVerification,
   withActor,
   type FounderBuildScope,
 } from '@sophia/persistence'
@@ -136,6 +139,40 @@ function registerReads(app: FastifyInstance, { pool, store }: Deps): void {
   )
 }
 
+function registerVerifications(app: FastifyInstance, pool: pg.Pool): void {
+  app.get<{ Params: FounderBuildScope; Querystring: { returnId: string } }>(
+    `${base}/verifications`,
+    {
+      schema: {
+        params: params(),
+        querystring: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['returnId'],
+          properties: { returnId: { type: 'string', pattern: UUID_PATTERN } },
+        },
+        response: { 200: ref('FounderBuildVerificationAccess') },
+      },
+    },
+    (req, reply) => {
+      noStore(reply)
+      return withActor(pool, req.actorId, 'read', (c) =>
+        readFounderBuildVerification(c, req.params, req.query.returnId),
+      )
+    },
+  )
+  app.post<{ Params: FounderBuildScope; Headers: Headers; Body: FounderBuildVerificationRequest }>(
+    `${base}/verifications`,
+    { schema: write('FounderBuildVerificationRequest', 'FounderBuildVerification') },
+    (req, reply) => {
+      noStore(reply)
+      return withActor(pool, req.actorId, 'write', (c) =>
+        recordFounderBuildVerification(c, req.params, req.headers['idempotency-key'], req.body),
+      )
+    },
+  )
+}
+
 export function founderBuildRoutes(app: FastifyInstance, deps: Deps): void {
   void app.register((scoped, _opts, done) => {
     scoped.setErrorHandler((err, req, reply) => {
@@ -150,6 +187,7 @@ export function founderBuildRoutes(app: FastifyInstance, deps: Deps): void {
     })
     registerReads(scoped, deps)
     registerWrites(scoped, deps)
+    registerVerifications(scoped, deps.pool)
     done()
   })
 }

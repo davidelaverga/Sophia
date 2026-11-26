@@ -1,6 +1,7 @@
 // Explicit mentions in the room's chat (docs/plans/mentions.md, A37; the mentions flag's): who may be named and how a
 // message says whom it names. Pure, so the rules and their words are unit-tested; MentionPicker.tsx draws them.
 import type { ProjectMember } from '@sophia/contracts'
+import { memberName } from '../../app/person-name.ts'
 
 /** At most this many members on one message (A37). */
 export const MOST_MENTIONS = 5
@@ -9,7 +10,7 @@ export const MOST_MENTIONS = 5
 export const canMention = (role: ProjectMember['role'] | undefined) => role === 'editor' || role === 'admin'
 
 /** A member as the chat names them: their current display name, never an address; «A member» without one. */
-export const labelOf = (member: Pick<ProjectMember, 'name'> | undefined) => member?.name ?? 'A member'
+export const labelOf = (member: Pick<ProjectMember, 'name'> | undefined) => memberName(member?.name)
 
 /** Who can be named: every other current member, in the members read's order. */
 export const nameable = (members: readonly ProjectMember[], me: string) => members.filter((m) => m.actorId !== me)

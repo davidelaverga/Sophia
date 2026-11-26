@@ -5,9 +5,11 @@
 // toast is the app's (SignedIn), so a result is said the same way in a project and here.
 import { InvitedBand } from '../access/InvitedBand.tsx'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { PersonalSpace as Space, ProjectRelease, ProjectSummary } from '@sophia/contracts'
+import type { ProjectRelease, ProjectSummary } from '@sophia/contracts'
+import { isControlled, type SpaceRead as Space } from '../../api/personal.ts'
 import { accountOf, tokenSubject } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { useShownIdentity } from '../../app/useMyProfile.ts'
 import { useDocumentTitle } from '../../app/document-title.ts'
 import type { Place, View as ProjectView } from '../../app/route.ts'
 import { modalOnScreen } from '../../app/shortcuts.ts'
@@ -16,7 +18,7 @@ import type { ShowToast } from '../../app/Toast.tsx'
 import { DataSheet } from './DataSheet.tsx'
 import { epochNow } from './epoch.ts'
 import {
-  focusConversation,
+  conversationLanding,
   focusLater,
   focusNotesToggle,
   focusPersonalSwitch,
@@ -42,7 +44,7 @@ import {
   READ_FAILED,
   readState,
   sophiaSays,
-  workCount,
+  allProjects,
   youDoor,
   type Said,
 } from './places-view.ts'
@@ -61,6 +63,7 @@ import {
 import { usePlaceMotion } from './usePlaceMotion.ts'
 import type { Handed } from './handed.ts'
 import { Welcome } from './Welcome.tsx'
+import { useSeenBefore, welcomes } from './home-seen.ts'
 import { FirstRun, FirstRunHeld, useFirstRun } from './FirstRun.tsx'
 import { WorkSpace } from './WorkSpace.tsx'
 import { useArchivedWork } from '../studio/Archive.tsx'
@@ -185,14 +188,11 @@ function useCarried(place: Place) {
 
 type Carried = ReturnType<typeof useCarried>
 
-/** Where to land after arriving: Home's row for the side left, the conversation (focusConversation), Work's heading. */
-function focusOnArrival(place: Place, left: Place) {
-  if (place === 'personal') {
-    focusConversation()
-    return
-  }
+/** Where to land after arriving: Home's row for the side left, the conversation, or Work's heading. */
+function arrivalLanding(place: Place, left: Place): HTMLElement | null {
+  if (place === 'personal') return conversationLanding()
   const door = place === 'home' ? homeRowFor(left) : null
-  ;(door ?? document.getElementById(place === 'work' ? 'c-w-h' : 'c-p-h'))?.focus({ preventScroll: true })
+  return door ?? document.getElementById(place === 'work' ? 'c-w-h' : 'c-p-h')
 }
 
 function useArrival(place: Place) {
@@ -202,7 +202,8 @@ function useArrival(place: Place) {
     last.current = place
     if (left === null || left === place) return undefined
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
-    const timer = setTimeout(() => focusOnArrival(place, left), reduced ? 0 : 420)
+    const land = focusLater()
+    const timer = setTimeout(() => land(arrivalLanding(place, left)), reduced ? 0 : 420)
     return () => clearTimeout(timer)
   }, [place])
 }
@@ -368,6 +369,8 @@ interface View {
   /** A long conversation read back, before what the space lists. */
   readBack: ReadBack
   projects: ReturnType<typeof useProjects>
+  /** The signed-in person as the places name them: the name they saved first (one-truth.md). */
+  you: Identity
   writes: PersonalWrites
   shown: readonly Place[]
   nav: Nav
@@ -394,6 +397,16 @@ const personalRead = (v: View): Read => ({
   failed: READ_FAILED.personal,
   retry: () => void v.space.refetch(),
 })
+
+/**
+ * A controlled space shown while its latest read failed (the read before stays, react-query's): said as of then, with
+ * Try again. The old way's reads say nothing here, as before.
+ */
+function staleOf(v: View): { asOf: string; retry: () => void } | null {
+  const data = v.personal
+  if (!data || !isControlled(data) || !v.space.isError) return null
+  return { asOf: data.asOf, retry: () => void v.space.refetch() }
+}
 
 const projectsRead = (v: View): Read => ({
   state: readState(v.projects),
@@ -447,6 +460,13 @@ function useHomeFirstRun(v: View): { node: ReactNode; pending: boolean } {
   return { node, pending }
 }
 
+/** «Welcome» on an empty space's first visit only, the hour's greeting after (home-welcome-once.md). */
+function useHomeFresh(v: View): boolean {
+  const data = v.personal
+  const seenBefore = useSeenBefore(accountOf(v.props.identity), !!data && v.shown.includes('home'))
+  return welcomes({ fresh: !!data && data.turns.length === 0 && data.notes.length === 0, seenBefore })
+}
+
 function Home({ v }: { v: View }) {
   const { props, now, nav } = v
   const data = v.personal
@@ -466,7 +486,7 @@ function Home({ v }: { v: View }) {
     { locked: props.lock.locked },
   )
   const projects = v.projects.data?.projects
-  const fresh = !!data && data.turns.length === 0 && data.notes.length === 0
+  const fresh = useHomeFresh(v)
   // Whether Sophia answers here, as the API says; unknown until the space is read (home-no-companion.md).
   const answers = data ? data.companion !== 'unavailable' : undefined
   const says = useHomeSays(v, answers)
@@ -476,7 +496,7 @@ function Home({ v }: { v: View }) {
       {first.pending && <span hidden data-guide="held" />}
       <Welcome
         hello={greeting(now.getHours(), null, fresh)}
-        name={firstName(props.identity)}
+        name={firstName(v.you)}
         date={dateLine(now)}
         says={says}
         you={youDoor({ locked: lockedBy(props.lock), turns: data?.turns, notes: data?.notes.length ?? 0, now })}
@@ -488,7 +508,7 @@ function Home({ v }: { v: View }) {
         loadingProjects={readState(v.projects) === 'loading'}
         now={now}
         inCallProject={props.call?.projectId ?? null}
-        count={workCount(projects)}
+        all={allProjects(projects)}
         locked={props.lock.locked}
         answers={answers}
         hidden={!v.shown.includes('home')}
@@ -524,11 +544,12 @@ function Personal({ v }: { v: View }) {
       locked={props.lock.locked}
       now={v.now}
       account={accountOf(props.identity)}
-      name={firstName(props.identity)}
+      name={firstName(v.you)}
       space={v.personal}
       epoch={v.personal?.epoch ?? v.projects.data?.personalEpoch}
       readBack={v.readBack}
       read={personalRead(v)}
+      stale={staleOf(v)}
       projects={v.projects.data?.projects}
       projectsRead={projectsRead(v)}
       writes={v.writes}
@@ -609,8 +630,9 @@ function Sheets({ v }: { v: View }) {
       <PlaceDialogs layers={layers} me={tokenSubject(identity.token)} inCall={!!props.call} onUnlocked={nav.unlocked} />
       {layers.data && (
         <DataSheet
+          name={identity.name}
           token={identity.token}
-          who={identity.displayName ?? firstName(identity) ?? identity.name}
+          who={v.you.displayName ?? firstName(v.you) ?? identity.name}
           space={v.personal}
           read={personalRead(v)}
           epoch={epochNow(v.personal, v.projects.data)}
@@ -695,6 +717,7 @@ export function Places(props: PlacesProps) {
     personal: lock.locked ? undefined : space.data,
     readBack: useReadBack(identity, lock.locked ? undefined : space.data),
     projects,
+    you: useShownIdentity(identity),
     writes: usePersonalWrites(identity, lock.locked),
     shown: usePlaceMotion(place, root),
     nav,

@@ -49,6 +49,7 @@ import { LinkedText } from '../../app/LinkedText.tsx'
 import { RichText } from '../../app/RichText.tsx'
 import { CopyLink } from '../resources/CopyLink.tsx'
 import { addressOf, CONVERSATION } from '../resources/link.ts'
+import { memberName } from '../../app/person-name.ts'
 
 interface Props {
   projectId: string
@@ -731,7 +732,7 @@ function useActsPlace(
 const HOVERS = '(hover: hover)'
 
 /** Who said a message, by name, for words that leave the thread (the clipboard, a quote). */
-const portableBy = (m: ConversationMessage) => (m.author === 'sophia' ? 'Sophia' : (m.name ?? 'A member'))
+const portableBy = (m: ConversationMessage) => (m.author === 'sophia' ? 'Sophia' : memberName(m.name))
 
 /** One message: its day when it starts one, who wrote it, its words; where one can propose, its press and form (C7). */
 function MessageItem(props: {

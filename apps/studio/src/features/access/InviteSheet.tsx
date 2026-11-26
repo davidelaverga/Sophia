@@ -1,13 +1,15 @@
 // Invite: the room's link and its QR for guests, emailed invitations, and the room's calendar. A sheet over
 // the Studio; nothing here changes the room itself until someone uses a link. Every action says when it is
 // working and when it failed, every link can be copied by hand, and what cuts someone off asks first.
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { Invitation, InvitationCreate, LobbyEntry } from '@sophia/contracts'
 import { ConfirmButton, SwapLabel, Tabs } from '@sophia/ui'
 import { createInvitation, reissueInvitation, revokeInvitation } from '../../api/access.ts'
 import { ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { Sheet } from '../../app/Sheet.tsx'
+import { NOTICE } from '../personal/notice-view.ts'
+import { useCopy } from '../resources/copy.ts'
 import {
   admissionLabel,
   doorNote,
@@ -117,22 +119,37 @@ function useAction(refresh: () => void) {
   return { busy, error, run }
 }
 
-/** Copy with a word of thanks that fades back: the label swaps in place, so nothing moves. */
+/**
+ * Copy with a word of thanks that fades back: the label swaps in place, so nothing moves. Refused by the browser, it
+ * says so in the words Your data uses, and hands the link over in a field, focused and selected, to copy by hand: a
+ * member's invitation link is on screen nowhere else (chat-pace.md).
+ */
 function CopyButton({ text, quiet = false }: { text: string; quiet?: boolean }) {
-  const [done, setDone] = useState(false)
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setDone(true)
-      setTimeout(() => setDone(false), 2000)
-    } catch {
-      // Clipboard unavailable: the link is on screen to select.
-    }
-  }
+  const { state, refused, copy } = useCopy(() => text)
   return (
-    <button type="button" className={quiet ? 'ghost' : 'pill'} onClick={() => void copy()}>
-      <SwapLabel value={done ? 'done' : 'copy'} labels={{ copy: 'Copy link', done: 'Copied' }} />
-    </button>
+    <>
+      <button type="button" className={quiet ? 'ghost' : 'pill'} onClick={copy}>
+        <SwapLabel value={state === 'copied' ? 'done' : 'copy'} labels={{ copy: 'Copy link', done: 'Copied' }} />
+      </button>
+      {refused !== null && <ByHand link={refused} />}
+    </>
+  )
+}
+
+/** The link to copy by hand, as it shows: focused and selected. */
+function ByHand({ link }: { link: string }) {
+  const field = useRef<HTMLInputElement>(null)
+  const why = useId()
+  // Focused (into view, in a long list too) and selected; the field's description says why, read with it once.
+  useEffect(() => {
+    field.current?.focus()
+    field.current?.select()
+  }, [link])
+  return (
+    <span className="copy-by-hand" role="group" aria-label="Copy this link">
+      <span id={why}>{NOTICE.clipboardBlocked}</span>
+      <input ref={field} className="field-input" readOnly value={link} aria-label="Link" aria-describedby={why} />
+    </span>
   )
 }
 
