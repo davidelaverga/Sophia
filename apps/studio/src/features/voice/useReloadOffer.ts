@@ -72,6 +72,9 @@ function useNoteAsThePageGoes(project: string, account: string, latest: { curren
   }, [project, account, latest])
 }
 
+/** The way back a reload left: the offer, and the join that goes back as the call was (null with no offer). */
+export type WayBack = ReturnType<typeof useReloadOffer>
+
 export function useReloadOffer(projectId: string, identity: Identity, room: ProjectRoom) {
   const account = accountOf(identity)
   const [offer, setOffer] = useState(() => readMark(foundNote(), projectId, account, Date.now()))

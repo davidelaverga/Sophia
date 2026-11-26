@@ -21,6 +21,7 @@ import { reachesSophia } from '../conversation/chat-view.ts'
 import { useVoiceMeters } from './useVoiceMeters.ts'
 import { SophiaLight, type SophiaLightHandle } from '../light/SophiaLight.tsx'
 import { Presences } from './Presences.tsx'
+import { useReloadOffer, type WayBack } from './useReloadOffer.ts'
 import { canShareScreen, partGone, RoomDock } from './RoomDock.tsx'
 import { ROOM_KEYS } from './room-keys.ts'
 import {
@@ -188,8 +189,16 @@ const onOff = (on: boolean | undefined) => (on ? 'off' : 'on')
 /** A command's action while the room allows it; none otherwise, so it is not offered. */
 const when = (ok: boolean, run: () => void) => (ok ? run : undefined)
 
-/** The stage's commands (docs/plans/commands.md): join; in the room the microphone, the camera and the screen. */
-function roomCommands(room: ProjectRoom, me: Participant | undefined, speaks: boolean, joins: boolean): Command[] {
+/**
+ * The stage's commands (docs/plans/commands.md): join (`join`: as Join does, after a reload as the call was); in the
+ * room the microphone, the camera and the screen.
+ */
+function roomCommands(
+  room: ProjectRoom,
+  me: Participant | undefined,
+  speaks: boolean,
+  join: (() => void) | null,
+): Command[] {
   return [
     {
       id: 'join',
@@ -197,7 +206,7 @@ function roomCommands(room: ProjectRoom, me: Participant | undefined, speaks: bo
       group: 'room',
       also: ['call', 'meet'],
       key: ROOM_KEYS.join,
-      run: when(joins, () => void room.join()),
+      run: join ?? undefined,
     },
     {
       id: 'microphone',
@@ -226,12 +235,12 @@ function roomCommands(room: ProjectRoom, me: Participant | undefined, speaks: bo
   ]
 }
 
-function useRoomKeys(room: ProjectRoom) {
+function useRoomKeys(room: ProjectRoom, back: WayBack) {
   const me = room.participants.find((p) => p.local)
   const speaks = room.status === 'live' || room.status === 'reconnecting'
   // Its part gone after a deploy, only the note's Reload is offered: no key or palette joins (stale-part-call.md).
   const joins = room.ready && (room.status === 'idle' || room.status === 'failed') && !partGone(room)
-  useCommands(roomCommands(room, me, speaks, joins))
+  useCommands(roomCommands(room, me, speaks, joins ? (back.join ?? (() => void room.join())) : null))
 }
 
 /** Sophia as observed (sophia-view.ts): the light's mode and her line come from this, never from `live`. */
@@ -379,7 +388,9 @@ export function RoomStage(props: Props) {
   const passed = useFloorHandoff(stage, light, holder)
   useResultArrival(snapshot?.work, light)
   useVoiceMeters(stage, people, room.voiceLevel)
-  useRoomKeys(room)
+  // A reload in the call: the way back, for Join, J and the palette alike (call-way-back.md).
+  const back = useReloadOffer(projectId, identity, room)
+  useRoomKeys(room, back)
   return (
     <section
       ref={stage}
@@ -417,6 +428,7 @@ export function RoomStage(props: Props) {
         snapshot={snapshot}
         sophia={sophia}
         onPassed={passed}
+        back={back}
       />
       {corner && <div className="stage-corner">{corner}</div>}
     </section>

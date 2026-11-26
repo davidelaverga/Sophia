@@ -43,14 +43,16 @@ function useJustDeclined(
 ) {
   const [declined, setDeclined] = useState<readonly Declined[]>([])
   const [now, setNow] = useState(() => Date.now())
-  const at = nextExpiry(declined)
+  const clock = Math.max(now, Date.now())
+  // Past the last minute, nothing is left to wake for: no timer runs while the panel stays mounted.
+  const at = nextExpiry(declined, clock)
   // Woken when the next one's minute is up; woken early (a timer a little ahead), it waits again.
   useEffect(() => {
     if (at === null) return undefined
     const t = setTimeout(() => setNow(Date.now()), Math.max(0, at - Date.now()) + 1)
     return () => clearTimeout(t)
   }, [at, now])
-  const shown = undoable(declined, lobby, Math.max(now, Date.now())).map((d) => d.entry)
+  const shown = undoable(declined, lobby, clock).map((d) => d.entry)
   return {
     declined: shown,
     /** Declined at once; a Decline that doesn't go through gives them back their row and its answers. */

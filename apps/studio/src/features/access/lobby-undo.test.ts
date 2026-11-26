@@ -30,7 +30,13 @@ describe('«Let in instead» stands while the decline holds (call-way-back.md)',
   })
 
   it('says when the next one leaves by time', () => {
-    assert.equal(nextExpiry(declined), 1_000 + ASK_AGAIN_MS)
-    assert.equal(nextExpiry([]), null)
+    assert.equal(nextExpiry(declined, 2_000), 1_000 + ASK_AGAIN_MS)
+    assert.equal(nextExpiry([], 2_000), null)
+  })
+
+  it('has nothing to wake for once the last minute is past (Codex P2 on #547)', () => {
+    assert.equal(nextExpiry(declined, 1_000 + ASK_AGAIN_MS), null)
+    const two = [...declined, { entry: entry('waiting'), at: 30_000 }]
+    assert.equal(nextExpiry(two, 1_000 + ASK_AGAIN_MS), 30_000 + ASK_AGAIN_MS)
   })
 })
