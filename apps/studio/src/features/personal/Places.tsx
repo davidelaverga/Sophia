@@ -62,6 +62,7 @@ import {
 import { usePlaceMotion } from './usePlaceMotion.ts'
 import type { Handed } from './handed.ts'
 import { Welcome } from './Welcome.tsx'
+import { useSeenBefore, welcomes } from './home-seen.ts'
 import { FirstRun, FirstRunHeld, useFirstRun } from './FirstRun.tsx'
 import { WorkSpace } from './WorkSpace.tsx'
 import { useArchivedWork } from '../studio/Archive.tsx'
@@ -456,6 +457,13 @@ function useHomeFirstRun(v: View): { node: ReactNode; pending: boolean } {
   return { node, pending }
 }
 
+/** «Welcome» on an empty space's first visit only, the hour's greeting after (home-welcome-once.md). */
+function useHomeFresh(v: View): boolean {
+  const data = v.personal
+  const seenBefore = useSeenBefore(accountOf(v.props.identity), !!data && v.shown.includes('home'))
+  return welcomes({ fresh: !!data && data.turns.length === 0 && data.notes.length === 0, seenBefore })
+}
+
 function Home({ v }: { v: View }) {
   const { props, now, nav } = v
   const data = v.personal
@@ -475,7 +483,7 @@ function Home({ v }: { v: View }) {
     { locked: props.lock.locked },
   )
   const projects = v.projects.data?.projects
-  const fresh = !!data && data.turns.length === 0 && data.notes.length === 0
+  const fresh = useHomeFresh(v)
   // Whether Sophia answers here, as the API says; unknown until the space is read (home-no-companion.md).
   const answers = data ? data.companion !== 'unavailable' : undefined
   const says = useHomeSays(v, answers)
