@@ -128,3 +128,32 @@ test('dock fold @phone · seven squares fit 390 px with nothing folded; at 360 t
   await more(page).click()
   await expect(tray(page).getByRole('button', { name: 'React', exact: true })).toBeVisible()
 })
+
+test('dock fold · in the row, Escape on an extra goes on to the view: the closed tray never takes it (Codex P2 on #555)', async ({
+  page,
+}) => {
+  await enter(page, 1280, false)
+  await expect(more(page)).toBeHidden()
+  await page.evaluate(() => {
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') document.body.dataset['escape'] = e.defaultPrevented ? 'taken' : 'passed'
+    })
+  })
+  await dock(page).getByRole('button', { name: 'Share your screen', exact: true }).focus()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('body')).toHaveAttribute('data-escape', 'passed')
+})
+
+test('dock fold · the focus on a control the fold hides goes to the one in its place, either way (Codex P2 on #555)', async ({
+  page,
+}) => {
+  await enter(page, 1280, false)
+  const share = dock(page).getByRole('button', { name: 'Share your screen', exact: true })
+  await share.focus()
+  // Narrowed: the extra goes into the closed tray, and More controls takes the focus.
+  await page.setViewportSize({ width: 340, height: 780 })
+  await expect(more(page)).toBeFocused()
+  // Widened: More controls goes, and the first extra, back in the row, takes it.
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await expect(share).toBeFocused()
+})
