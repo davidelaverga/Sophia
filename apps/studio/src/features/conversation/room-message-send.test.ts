@@ -8,10 +8,11 @@ describe('what follows a send to the room (chat-pace.md)', () => {
   })
 
   it('refused: back to an empty bar, else a row of its own; its words are never lost', () => {
-    assert.deepEqual(afterSend(false, true, true, false), { goes: 'bar', letGoRow: true })
+    assert.deepEqual(afterSend(false, true, true, false), { goes: 'bar', letGoRow: false })
     assert.deepEqual(afterSend(false, true, false, false), { goes: 'row', letGoRow: false })
-    // A row's own Try again refused, the bar busy: the row stays as it was.
+    // A row's own Try again refused, the bar busy or empty: the row stays as it was, with its reply and mentions.
     assert.deepEqual(afterSend(false, true, false, true), { goes: 'nowhere', letGoRow: false })
+    assert.deepEqual(afterSend(false, true, true, true), { goes: 'nowhere', letGoRow: false })
   })
 
   it('no reply: nothing moves yet; its row offers it again under its key', () => {
