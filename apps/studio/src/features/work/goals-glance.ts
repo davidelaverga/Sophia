@@ -127,13 +127,16 @@ function attentionLine(plan: Glanced | undefined): string {
 
 /**
  * What matters now, said after its health word: what waits on the viewer, then a difficulty written on it or what
- * stands in its way; else its latest note, or where it is.
+ * stands in its way; else its latest note, or where it is. At rest, its state leads and a note follows it, so a held or
+ * stopped goal never reads as its note alone.
  */
 export function rowLine(goal: Goal, plan: Glanced | undefined): string {
+  const health = healthOf(goal, plan)
   // Past its date with nothing else in the way: the line says where it is; the target's line says the date.
-  const why = healthOf(goal, plan) === 'attention' ? attentionLine(plan) : ''
+  const why = health === 'attention' ? attentionLine(plan) : ''
   if (why) return why
   const note = plan?.note
+  if (atRest(health)) return [stateLine(goal, plan?.glance), note?.said].filter(Boolean).join(' · ')
   if (note) return note.said
   if (goal.status === 'running' && plan?.checkpoint) return `Next · ${plan.checkpoint}`
   return stateLine(goal, plan?.glance)

@@ -1,12 +1,13 @@
 // The room's presence as the server gives it (room-presence.ts), read while this person is out of the call. It is
 // Home's own query (`projectsQuery`: one key, read again every 20 s), so the two never say different things. Leaving
 // the call reads it again at once, and until that read answers nothing is claimed: a read from while they were in still
-// lists them. A guest (the lobby's token, no project list) reads nothing.
+// lists them. A failed read is unknown, even with an older answer kept. A guest (the lobby's token, no project list)
+// reads nothing.
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { Identity } from '../../app/dev-identity.ts'
 import { projectsQuery } from '../personal/usePersonal.ts'
-import { presenceIn, READING, UNKNOWN, type RoomPresence } from './room-presence.ts'
+import { presenceRead, UNKNOWN, type RoomPresence } from './room-presence.ts'
 
 export function useRoomPresence(
   projectId: string,
@@ -26,7 +27,5 @@ export function useRoomPresence(
   useEffect(() => {
     if (leftAt > 0 && member) void refetch()
   }, [leftAt, member, refetch])
-  if (!member) return UNKNOWN
-  if (query.dataUpdatedAt < leftAt || query.data === undefined) return query.isError ? UNKNOWN : READING
-  return presenceIn(query.data, projectId)
+  return member ? presenceRead(query, leftAt, projectId) : UNKNOWN
 }
