@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import {
   aimOf,
@@ -6,7 +7,9 @@ import {
   condensedRadius,
   lightBehind,
   markSize,
+  paperBehind,
   roomForMark,
+  shadowArcs,
   shapedTarget,
   UMBRAL,
 } from './threshold.ts'
@@ -97,5 +100,47 @@ describe('Umbral’s halves, drawn and blocked alike', () => {
 
   it('your half lies left of the line between you, hers right of it', () => {
     assert.ok(UMBRAL.you.x < UMBRAL.you.cut && UMBRAL.her.x > UMBRAL.her.cut)
+  })
+})
+
+describe('the light behind the mark, on paper (paper-light-rays.md)', () => {
+  const mark = { markSize: 96, sourceX: BEHIND.x, sourceY: BEHIND.y }
+  it('stands on the line between the halves at rest: no lean', () => {
+    assert.deepEqual(paperBehind(mark), { '--bx': '0px', '--by': '0px' })
+  })
+  it('leans in the mark’s pixels: 3.5 on the grid of a 96 px mark is 7 px', () => {
+    assert.deepEqual(paperBehind({ ...mark, sourceX: BEHIND.x + 3.5, sourceY: BEHIND.y - 1 }), {
+      '--bx': '7px',
+      '--by': '-2px',
+    })
+    assert.deepEqual(paperBehind({ ...mark, markSize: 48, sourceX: BEHIND.x + 3.5 }), {
+      '--bx': '3.5px',
+      '--by': '0px',
+    })
+  })
+  it('with no mark, no lean', () => {
+    assert.deepEqual(paperBehind({ markSize: 0, sourceX: BEHIND.x + 3, sourceY: BEHIND.y }), {
+      '--bx': '0px',
+      '--by': '0px',
+    })
+  })
+  it('your half shades the left and hers the right; the light pours up and down the line and out on her side', () => {
+    assert.deepEqual(shadowArcs(BEHIND), { you: { from: 185.4, to: 348.2 }, her: { from: 5.6, to: 126.5 } })
+  })
+  it('draws its shadows and its light where the halves block it, not in an even fan', () => {
+    const css = readFileSync(new URL('../../app/theme.css', import.meta.url), 'utf8')
+    const conics = [...css.matchAll(/\.threshold-light::(?:before|after) \{[^}]*?conic-gradient\(([^;]*?)\);/g)]
+    assert.equal(conics.length, 2, 'the shadows (::before) and the light (::after)')
+    const arcs = shadowArcs(BEHIND)
+    for (const [, stops] of conics) {
+      const at = [...(stops ?? '').matchAll(/(\d+(?:\.\d+)?)deg/g)].map((m) => Number(m[1]))
+      assert.equal(at.length, 9, stops)
+      // Each edge is a soft step: its middle stands within a degree of where the half's straight edge ends.
+      const middles = [1, 3, 5, 7].map((i) => ((at[i] ?? 0) + (at[i + 1] ?? 0)) / 2)
+      const edges = [arcs.her.from, arcs.her.to, arcs.you.from, arcs.you.to]
+      middles.forEach((middle, i) =>
+        assert.ok(Math.abs(middle - (edges[i] ?? 0)) <= 1, `${String(middle)} ≈ ${String(edges[i])}`),
+      )
+    }
   })
 })

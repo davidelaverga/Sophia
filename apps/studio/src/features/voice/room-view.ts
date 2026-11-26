@@ -2,6 +2,7 @@
 // video LiveKit reports. Pure, so the rules are unit-tested; React only renders the result.
 import type { ReactNode } from 'react'
 import type { NativeTask, Snapshot } from '@sophia/contracts'
+import { UNNAMED } from '../../app/person-name.ts'
 import { BackgroundUnavailable } from './camera-background.ts'
 
 export type DockStatus = 'idle' | 'joining' | 'live' | 'reconnecting' | 'failed'
@@ -137,8 +138,9 @@ export function orderParticipants(participants: readonly RoomParticipant[]): Roo
   return participants.toSorted((a, b) => Number(b.local) - Number(a.local) || a.name.localeCompare(b.name))
 }
 
-/** A short name for a person: the part of an email before the @, capitalized. */
+/** A short name for a person: the part of an email before the @, capitalized; no name is the one word (UNNAMED). */
 export function shortName(name: string): string {
+  if (!name.trim()) return UNNAMED
   const base = name.includes('@') ? (name.split('@')[0] ?? name) : name
   const word = base.split(/[.\-_+\s]/)[0] || base
   return word.charAt(0).toUpperCase() + word.slice(1)

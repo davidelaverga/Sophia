@@ -36,6 +36,12 @@ function pageWakes(wake: () => void): () => void {
   }
 }
 
+/** The network went (feed-offline.md): the open stream is given up at once, so the bar says so. */
+function pageDrops(drop: () => void): () => void {
+  window.addEventListener('offline', drop)
+  return () => window.removeEventListener('offline', drop)
+}
+
 /** Waits `ms`, or until `woken`. */
 const sleep = (ms: number, woken: AbortSignal) =>
   new Promise<void>((resolve) => {
@@ -112,6 +118,7 @@ export function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => v
     },
     sleep,
     wakes: pageWakes,
+    drops: pageDrops,
     random: Math.random,
   }
   return {

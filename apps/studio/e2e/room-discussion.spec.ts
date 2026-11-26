@@ -9,6 +9,13 @@ const chatToggle = (page: Page) => page.getByRole('button', { name: /^Chat/ }).f
 const bar = (page: Page) => page.locator('#converse-draft')
 const target = (page: Page) => page.locator('.message-bar .bar-target')
 const discussion = (page: Page) => page.getByRole('list', { name: 'Recent discussion' })
+/** The room's message on its way, drawn at the discussion's end before the service answers (chat-pace.md). */
+const pending = (page: Page) => page.getByRole('list', { name: 'Your message on its way' }).locator('.contribution')
+/** Its reply lost: the row says so, with Try again, and holds its words. */
+async function notConfirmed(page: Page, words: string) {
+  await expect(pending(page)).toContainText(words)
+  await expect(pending(page)).toContainText('Not confirmed.')
+}
 const view = (page: Page) =>
   page.evaluate(() => ({ asked: [...(window.fixture?.asked ?? [])], served: [...(window.fixture?.served ?? [])] }))
 const toRoom = async (page: Page) => (await view(page)).served.filter((s) => s.startsWith('contribution:'))
@@ -72,11 +79,12 @@ test('discussion · a message whose reply is lost says so; Try again sends the s
   await page.evaluate(() => window.fixture?.loseNextContributionReply())
   await bar(page).fill('Once only.')
   await bar(page).press('Enter')
-  await expect(page.getByText('Not confirmed: “Once only.”')).toBeVisible()
-  await expect(bar(page)).toHaveValue('Once only.')
-  await page.getByRole('button', { name: 'Try again' }).click()
+  await notConfirmed(page, 'Once only.')
+  // Drawn at once in the discussion (chat-pace.md): the bar is free for the next words; the message waits on its row.
   await expect(bar(page)).toHaveValue('')
-  await expect(page.getByText('Not confirmed: “')).toHaveCount(0)
+  await pending(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(bar(page)).toHaveValue('')
+  await expect(pending(page)).toHaveCount(0)
   await expect(discussion(page).getByText('Once only.')).toHaveCount(1)
   expect(await toRoom(page)).toEqual(['contribution:discuss'])
 })
@@ -110,14 +118,15 @@ test('discussion · a message with no reply is offered again after a reload; Try
   await page.evaluate(() => window.fixture?.loseNextContributionReply())
   await bar(page).fill('Once only.')
   await bar(page).press('Enter')
-  await expect(page.getByText('Not confirmed: “Once only.”')).toBeVisible()
+  await notConfirmed(page, 'Once only.')
   await reenter(page)
-  // The service holds it (it landed; its reply was lost), and the bar says it may not be confirmed. The bar holds its
-  // words, as it did before the reload: they are cleared once the message is in (drafts-survive-reload.md).
-  await expect(page.getByText('Not confirmed: “Once only.”')).toBeVisible()
-  await expect(bar(page)).toHaveValue('Once only.')
-  await page.getByRole('button', { name: 'Try again' }).click()
-  await expect(page.getByText('Not confirmed: “')).toHaveCount(0)
+  // The service holds it (it landed; its reply was lost), and its row says it may not be confirmed, again after the
+  // reload (held-in-tab.ts): its words are on the row, not in the bar (chat-pace.md).
+  await notConfirmed(page, 'Once only.')
+  // Drawn at once in the discussion (chat-pace.md): the bar is free for the next words; the message waits on its row.
+  await expect(bar(page)).toHaveValue('')
+  await pending(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(pending(page)).toHaveCount(0)
   await expect(bar(page)).toHaveValue('')
   await expect(discussion(page).getByText('Once only.')).toHaveCount(1)
   expect(await toRoom(page)).toEqual(['contribution:discuss'])
@@ -128,7 +137,7 @@ test('discussion · a message with no reply is offered again after a reload; Try
   expect(await heldInTab(page)).toEqual([])
   await reenter(page)
   await expect(discussion(page).getByText('Once only.')).toHaveCount(1)
-  await expect(page.getByText('Not confirmed: “')).toHaveCount(0)
+  await expect(pending(page)).toHaveCount(0)
 })
 
 /** What each message to the room named when it reached the synthetic service (`server=kept`'s journal), try by try. */
@@ -175,10 +184,10 @@ test('discussion · a kept message that named members names them again when sent
   await page.evaluate(() => window.fixture?.loseNextContributionReply())
   await bar(page).fill('Marco, the door plan.')
   await bar(page).press('Enter')
-  await expect(page.getByText('Not confirmed: “Marco, the door plan.”')).toBeVisible()
+  await notConfirmed(page, 'Marco, the door plan.')
   await reenter(page)
-  await page.getByRole('button', { name: 'Try again' }).click()
-  await expect(page.getByText('Not confirmed: “')).toHaveCount(0)
+  await pending(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(pending(page)).toHaveCount(0)
   await expect(
     discussion(page).locator('.contribution').filter({ hasText: 'the door plan' }).locator('.contribution-mentions'),
   ).toHaveText('to Marco')
@@ -201,7 +210,7 @@ test('discussion · a message on its way is kept in the tab until its reply land
   await expect.poll(() => heldInTab(page)).toEqual([])
   await reenter(page)
   await expect(discussion(page).getByText('Slow but sure.')).toHaveCount(1)
-  await expect(page.getByText('Not confirmed: “')).toHaveCount(0)
+  await expect(pending(page)).toHaveCount(0)
 })
 
 test('discussion · offline, the bar says so before any press and sends nothing; back online, one message', async ({
@@ -254,7 +263,7 @@ test('discussion · offline, a message held with no reply is not confirmed, neve
   await page.evaluate(() => window.fixture?.loseNextContributionReply())
   await bar(page).fill('Once only.')
   await bar(page).press('Enter')
-  await expect(page.getByText('Not confirmed: “Once only.”')).toBeVisible()
+  await notConfirmed(page, 'Once only.')
   await context.setOffline(true)
   const line = page.locator('.composer .outcome')
   await expect(line).toHaveText(
@@ -266,9 +275,9 @@ test('discussion · offline, a message held with no reply is not confirmed, neve
   await page.waitForTimeout(600) // a send let through would have gone by now
   expect(await toRoom(page)).toEqual(['contribution:discuss']) // the first one, which landed
   await context.setOffline(false)
-  await expect(page.getByText('Not confirmed: “Once only.”')).toBeVisible()
-  await page.getByRole('button', { name: 'Try again' }).click()
-  await expect(page.getByText('Not confirmed: “')).toHaveCount(0)
+  await notConfirmed(page, 'Once only.')
+  await pending(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(pending(page)).toHaveCount(0)
   await expect(discussion(page).getByText('Once only.')).toHaveCount(1)
   expect(await toRoom(page)).toEqual(['contribution:discuss'])
 })
@@ -282,7 +291,7 @@ test('discussion · offline, a held message keeps its words after a Join pressed
   await page.evaluate(() => window.fixture?.loseNextContributionReply())
   await bar(page).fill('Once only.')
   await bar(page).press('Enter')
-  await expect(page.getByText('Not confirmed: “Once only.”')).toBeVisible()
+  await notConfirmed(page, 'Once only.')
   await context.setOffline(true)
   const line = page.locator('.composer .outcome')
   const held =
@@ -291,7 +300,10 @@ test('discussion · offline, a held message keeps its words after a Join pressed
   await page.getByRole('button', { name: 'Chat with Sophia' }).click()
   // The room's line says the join waits for the network; the held message keeps the words Luis chose.
   await expect(line).toHaveText(['You’re offline. Join once you’re back.', held])
+  // The line above the bar says it; its row keeps its words, with no Try again while offline (chat-pace.md).
   await expect(page.getByText('Not confirmed: “')).toHaveCount(0)
+  await expect(pending(page)).toContainText('Once only.')
+  await expect(pending(page).getByRole('button', { name: 'Try again' })).toHaveCount(0)
   expect(await toRoom(page)).toEqual(['contribution:discuss']) // the first one, which landed; nothing more
 })
 
@@ -364,14 +376,14 @@ test('discussion · after no reply, Try again sends the message it names; what w
   await page.evaluate(() => window.fixture?.loseNextContributionReply())
   await bar(page).fill('First message.')
   await bar(page).press('Enter')
-  await expect(page.getByText('Not confirmed: “First message.”')).toBeVisible()
+  await notConfirmed(page, 'First message.')
   await bar(page).fill('A second thought.')
   // Pressed twice, it still resends the one message it names, once; the words written since are not sent.
-  await page.getByRole('button', { name: 'Try again' }).dblclick()
+  await pending(page).getByRole('button', { name: 'Try again' }).dblclick()
   await expect
     .poll(async () => (await view(page)).served.filter((s) => s === 'replayed:contribution'))
     .toEqual(['replayed:contribution'])
-  await expect(page.getByText('Not confirmed: “')).toHaveCount(0)
+  await expect(pending(page)).toHaveCount(0)
   await expect(bar(page)).toHaveValue('A second thought.')
   await expect(discussion(page).getByText('First message.')).toHaveCount(1)
   expect(await toRoom(page)).toEqual(['contribution:discuss'])

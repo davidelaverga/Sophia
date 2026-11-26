@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { Goal } from '@sophia/contracts'
-import { goalCommands, nextLine, SETTLED_WORDS, summaryLabel, type CommandKind, type CommandLine } from './labels.ts'
+import {
+  goalCommands,
+  nextLine,
+  pulseTone,
+  SETTLED_WORDS,
+  summaryLabel,
+  type CommandKind,
+  type CommandLine,
+} from './labels.ts'
 
 describe('event words in the work pulse', () => {
   it('names room access and membership events', () => {
@@ -45,6 +53,29 @@ describe('a goal’s commands (docs/plans/prod-asks.md)', () => {
     assert.deepEqual(goalCommands('ready', false), ['stop'])
     assert.deepEqual(goalCommands('ready', true), ['request_review', 'stop'])
     assert.deepEqual(goalCommands('completed', true), [])
+  })
+})
+
+describe('a pulse dot says what happened (one-truth.md)', () => {
+  it('is asked for a command sent and a guest at the door', () => {
+    assert.equal(pulseTone('command.hold', 'command.admitted'), 'asked')
+    assert.equal(pulseTone('command.steer', 'command.admitted'), 'asked')
+    assert.equal(pulseTone('room.lobby_knock', 'room.lobby_changed'), 'asked')
+    assert.equal(pulseTone('native_task.research', 'native_task.created'), 'asked')
+  })
+
+  it('is halted for a goal held or stopped, and a command not carried out or not confirmed', () => {
+    assert.equal(pulseTone('goal.held', 'goal.held'), 'halted')
+    assert.equal(pulseTone('goal.stopped', 'goal.stopped'), 'halted')
+    assert.equal(pulseTone('command.stop', 'command.denied'), 'halted')
+    assert.equal(pulseTone('command.hold', 'command.outcome_unknown'), 'halted')
+    assert.equal(pulseTone('room.lobby_removal_pending', 'room.lobby_changed'), 'halted')
+  })
+
+  it('is done for everything else that happened', () => {
+    assert.equal(pulseTone('goal.completed', 'goal.completed'), 'done')
+    assert.equal(pulseTone('room.session', 'room.session_scheduled'), 'done')
+    assert.equal(pulseTone('command.retire_sessions', 'command.retirement_changed'), 'done')
   })
 })
 

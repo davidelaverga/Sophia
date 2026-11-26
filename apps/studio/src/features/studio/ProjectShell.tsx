@@ -31,6 +31,7 @@ import { sendingOf } from '../voice/CallSwitches.tsx'
 import { MiniDock, RoomSwitches } from '../voice/MiniDock.tsx'
 import { CallInReach } from '../../app/call-in-reach.tsx'
 import { askedJoin, shortName } from '../voice/room-view.ts'
+import { withOwnName } from '../voice/own-name.ts'
 import { useOnline } from '../personal/online.ts'
 import { lookingText } from '../voice/sophia-view.ts'
 import { useHeldCaptions } from '../voice/StageCaptions.tsx'
@@ -242,6 +243,11 @@ interface Props {
   inviteOnOpen?: boolean
   onInviteHandled?: () => void
   /**
+   * The name this person saved (one-truth.md): their own tile, row and hand read it at once, while the others
+   * see it from their next join. Absent (the fixtures), the call's own name stands.
+   */
+  ownName?: string | null
+  /**
    * The Resources view's content, once something serves the project's resources (SCM-01/02); until then the view says
    * it is coming. The resource fixture fills it (fixtures/resources.tsx).
    */
@@ -421,9 +427,9 @@ function useProjectKeys(
 }
 
 /** What the shell reads of the project: its feed, its room and the viewer's membership. */
-function useProject(projectId: string, identity: Props['identity']) {
+function useProject({ projectId, identity, ownName = null }: Pick<Props, 'projectId' | 'identity' | 'ownName'>) {
   const { snapshot, feed, connection, checkedAt } = useProjectFeed(projectId, identity.name, identity.token)
-  const room = useProjectRoom(projectId, identity.token, snapshot.data)
+  const room = withOwnName(useProjectRoom(projectId, identity.token, snapshot.data), ownName)
   const membership = useProjectMembership(projectId, identity.name, identity.token, snapshot.dataUpdatedAt).data
   return { snapshot, feed, connection, checkedAt, room, membership }
 }
@@ -606,7 +612,7 @@ function shellAt(s: {
 
 export function ProjectShell(props: Props) {
   const { projectId, view, identity, account, onShow, onLeave, onWork, onSignOut } = props
-  const { snapshot, feed, connection, checkedAt, room, membership } = useProject(projectId, identity)
+  const { snapshot, feed, connection, checkedAt, room, membership } = useProject(props)
   const { inviting, setInviting, searching, setSearching, invite, search } = useShellSheets(props)
   const { loaded, blocked, shown } = doorOf(snapshot)
   const dockAt = useDockPlace(room, snapshot.data, () => onShow('studio'), dockShown(view, blocked))
@@ -805,6 +811,10 @@ function ProjectDoor({
   )
 }
 
+/** The side panel, its tab in view while the room is on screen and this shell is the routed one. */
+const useBodyPanel = (p: BodyProps) =>
+  useRoomPanel(p.snapshot, p.room, p.view === 'studio' && !p.background && p.routed, p.membership?.actorId ?? null)
+
 /**
  * Studio is the room itself; every other view is a page, with the room one click away in the mini dock.
  * The lobby shows on every view: someone waiting at the door should never depend on which page you read.
@@ -814,7 +824,7 @@ function ProjectBody(props: BodyProps) {
   const { view, projectId, identity, room, membership, snapshot, pulse, onShow, background } = props
   // The side panel's state lives here, past a visit to another view (useRoomPanel). Out of sight for its call, its open
   // tab isn't in view: what arrives there meanwhile is new when the person comes back.
-  const panel = useRoomPanel(snapshot, room, view === 'studio' && !background && props.routed)
+  const panel = useBodyPanel(props)
   // So is the stage captions' hold: back from another view, what was said meanwhile has gone, as in the room.
   const captions = useHeldCaptions(room.captions)
   // And what Sophia made, once put away: it stays away past a visit to another view.

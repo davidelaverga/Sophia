@@ -1,7 +1,7 @@
 // Invite: the room's link and its QR for guests, emailed invitations, and the room's calendar. A sheet over
 // the Studio; nothing here changes the room itself until someone uses a link. Every action says when it is
 // working and when it failed, every link can be copied by hand, and what cuts someone off asks first.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { Invitation, InvitationCreate, LobbyEntry } from '@sophia/contracts'
 import { ConfirmButton, SwapLabel, Tabs } from '@sophia/ui'
 import { createInvitation, reissueInvitation, revokeInvitation } from '../../api/access.ts'
@@ -10,6 +10,8 @@ import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import { useFocusKept } from '../../app/useFocusKept.ts'
 import { paramIn, showParam } from '../../app/address-param.ts'
+import { NOTICE } from '../personal/notice-view.ts'
+import { useCopy } from '../resources/copy.ts'
 import {
   admissionLabel,
   doorNote,
@@ -26,6 +28,7 @@ import { CalendarTab } from './CalendarTab.tsx'
 import { FromYourProjects } from './FromYourProjects.tsx'
 import { InProject } from './InProject.tsx'
 import { QrCode } from './QrCode.tsx'
+import { useAddressField } from './useAddressField.tsx'
 import { useInvitations, useLobbyDecision, useRefreshInvitations, type SheetContext } from './useAccess.ts'
 import { useNow } from '../../app/use-now.ts'
 
@@ -128,22 +131,37 @@ function useAction(refresh: () => void) {
   return { busy, error, run }
 }
 
-/** Copy with a word of thanks that fades back: the label swaps in place, so nothing moves. */
+/**
+ * Copy with a word of thanks that fades back: the label swaps in place, so nothing moves. Refused by the browser, it
+ * says so in the words Your data uses, and hands the link over in a field, focused and selected, to copy by hand: a
+ * member's invitation link is on screen nowhere else (chat-pace.md).
+ */
 function CopyButton({ text, quiet = false }: { text: string; quiet?: boolean }) {
-  const [done, setDone] = useState(false)
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setDone(true)
-      setTimeout(() => setDone(false), 2000)
-    } catch {
-      // Clipboard unavailable: the link is on screen to select.
-    }
-  }
+  const { state, refused, copy } = useCopy(() => text)
   return (
-    <button type="button" className={quiet ? 'ghost' : 'pill'} onClick={() => void copy()}>
-      <SwapLabel value={done ? 'done' : 'copy'} labels={{ copy: 'Copy link', done: 'Copied' }} />
-    </button>
+    <>
+      <button type="button" className={quiet ? 'ghost' : 'pill'} onClick={copy}>
+        <SwapLabel value={state === 'copied' ? 'done' : 'copy'} labels={{ copy: 'Copy link', done: 'Copied' }} />
+      </button>
+      {refused !== null && <ByHand link={refused} />}
+    </>
+  )
+}
+
+/** The link to copy by hand, as it shows: focused and selected. */
+function ByHand({ link }: { link: string }) {
+  const field = useRef<HTMLInputElement>(null)
+  const why = useId()
+  // Focused (into view, in a long list too) and selected; the field's description says why, read with it once.
+  useEffect(() => {
+    field.current?.focus()
+    field.current?.select()
+  }, [link])
+  return (
+    <span className="copy-by-hand" role="group" aria-label="Copy this link">
+      <span id={why}>{NOTICE.clipboardBlocked}</span>
+      <input ref={field} className="field-input" readOnly value={link} aria-label="Link" aria-describedby={why} />
+    </span>
   )
 }
 
@@ -360,35 +378,36 @@ interface FormProps {
 
 /** Each emailed guest gets a link of their own, so it can be turned off without turning off the room link. */
 function EmailGuest({ context, invitations, onSent }: FormProps) {
-  const [email, setEmail] = useState('')
+  const address = useAddressField('guest-email')
+  const { email } = address
   const create = useAdmission<InvitationCreate, Invitation>((key, body) =>
     createInvitation(context.identity.token, context.projectId, key, body),
   )
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!address.check()) return
     const sent = await create.send({ kind: 'guest', email: email.trim() })
-    if (sent) setEmail('')
+    if (sent) address.setEmail('')
     onSent()
   }
   return (
-    <form className="sheet-form" onSubmit={(e) => void submit(e)}>
+    <form className="sheet-form" noValidate onSubmit={(e) => void submit(e)}>
       <label htmlFor="guest-email" className="field-label">
         Send a guest their own link
       </label>
       <div className="field">
         <input
-          id="guest-email"
+          {...address.input}
           type="email"
           required
           placeholder="name@company.com"
-          value={email}
           readOnly={create.state.status === 'unknown'}
-          onChange={(e) => setEmail(e.target.value)}
         />
         <button type="submit" className="pill" disabled={create.state.status === 'sending' || !email.trim()}>
           {admissionLabel(create.state.status, 'Send', 'Sending…')}
         </button>
       </div>
+      {address.error}
       <SentNote state={create.state} invitations={invitations} onRetry={() => void create.retry().then(onSent)} />
     </form>
   )
@@ -450,7 +469,8 @@ function MembersTab({ context, onGuests }: { context: SheetContext; onGuests: ()
 }
 
 function MemberForm({ context, invitations, onSent }: FormProps) {
-  const [email, setEmail] = useState('')
+  const address = useAddressField('member-email')
+  const { email } = address
   const [role, setRole] = useState<'editor' | 'viewer'>('editor')
   const create = useAdmission<InvitationCreate, Invitation>((key, body) =>
     createInvitation(context.identity.token, context.projectId, key, body),
@@ -458,28 +478,26 @@ function MemberForm({ context, invitations, onSent }: FormProps) {
   const sending = create.state.status === 'sending'
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (sending) return
-    if (await create.send({ kind: 'member', role, email: email.trim() })) setEmail('')
+    if (sending || !address.check()) return
+    if (await create.send({ kind: 'member', role, email: email.trim() })) address.setEmail('')
     onSent()
   }
   // Sent, the field empties and Send waits for the next address: the focus goes back to the field (focus-kept.md).
   const box = useRef<HTMLFormElement>(null)
   useFocusKept(box)
   return (
-    <form ref={box} className="sheet-form" onSubmit={(e) => void submit(e)}>
+    <form ref={box} className="sheet-form" noValidate onSubmit={(e) => void submit(e)}>
       <div className="field">
         <label htmlFor="member-email" className="sr-only">
           Email
         </label>
         <input
-          id="member-email"
+          {...address.input}
           data-focus-slot="next"
           type="email"
           required
           placeholder="name@company.com"
-          value={email}
           readOnly={create.state.status === 'unknown'}
-          onChange={(e) => setEmail(e.target.value)}
         />
         <select
           aria-label="Role"
@@ -491,6 +509,7 @@ function MemberForm({ context, invitations, onSent }: FormProps) {
           <option value="viewer">Viewer</option>
         </select>
       </div>
+      {address.error}
       <p className="role-note">{ROLE_NOTE[role]}</p>
       {/* Sending, it waits keeping the focus (aria-disabled); empty, there is nothing to send (disabled). */}
       <button

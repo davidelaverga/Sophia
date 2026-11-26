@@ -327,3 +327,25 @@ export function withActor<T>(
   if (!ACTOR_ID.test(actorId)) throw new DomainError('actor_context_required', 'A verified actor is required')
   return transaction(pool, { mode, actorId }, fn, control)
 }
+
+/** Opt-in actor-bound acquisition/statement budget; late acquisitions are released and never run the callback. */
+export function withActorWithin<T>(
+  pool: pg.Pool,
+  actorId: string,
+  mode: TxMode,
+  fn: (c: pg.PoolClient, within: () => Promise<void>) => Promise<T>,
+  control: ServiceControl,
+): Promise<T> {
+  if (!ACTOR_ID.test(actorId)) throw new DomainError('actor_context_required', 'A verified actor is required')
+  checkServiceControl(control)
+  return transaction(
+    pool,
+    { mode, actorId, deadline: control.deadline },
+    async (c, within) => {
+      checkServiceControl(control)
+      await within()
+      return fn(c, within)
+    },
+    control,
+  )
+}

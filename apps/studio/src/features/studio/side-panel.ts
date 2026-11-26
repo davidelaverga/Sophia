@@ -43,7 +43,8 @@ export function mergeNames(
   known: ReadonlyMap<string, string>,
   people: readonly { identity: string; name: string }[],
 ): ReadonlyMap<string, string> {
-  const fresh = people.filter((p) => known.get(p.identity) !== p.name)
+  // An empty name is none: it never takes the place of a name the visit knew, nor of a message's own.
+  const fresh = people.filter((p) => p.name.trim() !== '' && known.get(p.identity) !== p.name)
   if (fresh.length === 0) return known
   const next = new Map(known)
   for (const p of fresh) next.set(p.identity, p.name)
@@ -85,3 +86,44 @@ export function focusStep(
  */
 export const panelNote = (open: Panel | null, device: string | null, call: string | null): string | null =>
   device ?? (open === 'chat' ? null : call)
+
+/** A message peeked at beside the Chat toggle (chat-pace.md): who wrote it, and its first line. */
+export interface Peek {
+  id: string
+  author: string
+  line: string
+}
+
+/** How long a peek stays beside a closed chat. */
+export const PEEK_MS = 6_000
+
+/** The first line of a message, cut to a peek's length. */
+export function firstLine(text: string, most = 80): string {
+  const line = text.trim().split('\n')[0]?.trim() ?? ''
+  return line.length > most ? `${line.slice(0, most - 1).trimEnd()}…` : line
+}
+
+/** The discussion's newest entry as last seen: its id and when it was said. */
+export interface Seen {
+  id: string
+  at: string
+}
+
+/**
+ * The peek for a discussion's newest entry, once it moved on past the one last seen, to a message said since: someone
+ * else's only (your own was sent from the bar), named as the chat names them; nothing for an empty line. The newest
+ * withdrawn, the one before it becomes the newest: older, it is no news.
+ */
+export function peekOf(
+  newest: { id: string; actorId: string; text: string; createdAt: string } | undefined,
+  seen: Seen | null,
+  me: string | null,
+  author: (actorId: string) => string,
+): Peek | null {
+  if (!newest || seen === null || newest.id === seen.id || newest.actorId === me) return null
+  // An empty discussion seen has no time: anything after it is news.
+  const before = Date.parse(seen.at)
+  if (!Number.isNaN(before) && !(Date.parse(newest.createdAt) >= before)) return null
+  const line = firstLine(newest.text)
+  return line ? { id: newest.id, author: author(newest.actorId), line } : null
+}

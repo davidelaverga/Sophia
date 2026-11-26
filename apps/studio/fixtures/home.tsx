@@ -32,7 +32,7 @@ import {
   homeShown,
   READ_FAILED,
   sophiaSays,
-  workCount,
+  allProjects,
   youDoor,
 } from '../src/features/personal/places-view.ts'
 import { homeRowFor } from '../src/features/personal/focus.ts'
@@ -684,7 +684,7 @@ function Home() {
           loadingProjects={shown === 'loading'}
           now={NOW}
           inCallProject={inCall}
-          count={workCount(projects)}
+          all={allProjects(projects)}
           locked={locked}
           {...{ hidden: away, here: !away, invited: INVITED_BAND, answers }}
           firstRun={firstRun}

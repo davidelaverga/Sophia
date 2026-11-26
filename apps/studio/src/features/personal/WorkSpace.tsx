@@ -25,7 +25,7 @@ import {
   type ProjectOrder,
 } from './places-view.ts'
 import { FailedReads, ReadNotes, type Read } from './ReadNotes.tsx'
-import { useCapped } from './useCapped.ts'
+import { useNameLimit } from './NameLimit.tsx'
 import { useNow } from '../../app/use-now.ts'
 
 /** The most characters a project's title holds. */
@@ -85,13 +85,13 @@ const START_WORDS = { idle: 'Start the project', sending: 'Creating…', unknown
 interface TitleProps {
   title: string
   status: AdmissionState<string, ProjectCreated>['status']
-  onTitle: (title: string) => void
+  /** Its handlers and description, held to the most a title holds (useNameLimit). */
+  limit: ReturnType<typeof useNameLimit>['input']
   onClose: () => void
 }
 
 /** The title and its Start, in one field; Esc lets the form go. After no answer, the title waits as it was sent. */
-function TitleField({ title, status, onTitle, onClose }: TitleProps) {
-  const capping = useCapped(TITLE_MOST, title, onTitle)
+function TitleField({ title, status, limit, onClose }: TitleProps) {
   const field = useRef<HTMLInputElement>(null)
   useEffect(() => field.current?.focus(), [])
   const words = status === 'sending' || status === 'unknown' ? START_WORDS[status] : START_WORDS.idle
@@ -108,7 +108,7 @@ function TitleField({ title, status, onTitle, onClose }: TitleProps) {
         placeholder="Name the project"
         value={title}
         readOnly={status === 'unknown'}
-        {...capping}
+        {...limit}
         onKeyDown={(e) => {
           if (e.key !== 'Escape') return
           e.preventDefault()
@@ -138,6 +138,7 @@ function NewProject({
   onClose: () => void
 }) {
   const [title, setTitle] = useState('')
+  const limit = useNameLimit('c-newproj', TITLE_MOST, title, setTitle)
   const admission = useAdmission<string, ProjectCreated>((key, t) => createProject(token, key, t))
   const { status } = admission.state
   const slow = useSlow(status === 'sending')
@@ -160,11 +161,15 @@ function NewProject({
         void submit()
       }}
     >
-      <div className="c3-newproj-row">
-        <TitleField title={title} status={status} onTitle={setTitle} onClose={onClose} />
-        <button className="ghost" type="button" onClick={onClose}>
-          Cancel
-        </button>
+      {/* One place in the form's grid for the row and its limit: no gap is added while nothing is said. */}
+      <div className="field-with-limit">
+        <div className="c3-newproj-row">
+          <TitleField title={title} status={status} limit={limit.input} onClose={onClose} />
+          <button className="ghost" type="button" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+        {limit.note}
       </div>
       <div className="outcome" role="status">
         {slow ? SLOW_NOTE : <AdmissionNote state={admission.state} onRetry={() => void submit()} />}

@@ -11,6 +11,7 @@ import { replyLost } from '../../api/reply-lost.ts'
 import { useMembers } from '../work/GoalTargets.tsx'
 import { membershipKey, type SheetContext } from './useAccess.ts'
 import { removalKeys } from './removal-keys.ts'
+import { memberName } from '../../app/person-name.ts'
 import { afterSave, SAVED_MS, savedGone, savedNote, type RowNote } from './role-notes.ts'
 
 type Role = ProjectMember['role']
@@ -178,7 +179,7 @@ export function InProject({ context }: { context: SheetContext }) {
       <ul className="in-project-people" aria-labelledby="in-project-title">
         {members.map((m) => {
           const mine = m.actorId === me
-          const name = m.name ?? 'A member'
+          const name = memberName(m.name)
           const note = rows.notes.get(m.actorId)
           return (
             <li key={m.actorId}>

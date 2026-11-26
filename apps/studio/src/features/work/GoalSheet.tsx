@@ -11,7 +11,7 @@ import { GoalNotes, type NotesFor } from './GoalNotes.tsx'
 import { GoalTargetSection } from './GoalTargets.tsx'
 import { Asks } from './GoalParts.tsx'
 import { Criteria } from './Criteria.tsx'
-import { HEALTH_LABEL, healthOf, stateLine, wayLine, type Glanced } from './goals-glance.ts'
+import { healthOf, sheetHealth, wayLine, type Glanced } from './goals-glance.ts'
 import { progressOf, type Ask } from './planning/plan.ts'
 
 interface Props {
@@ -91,8 +91,7 @@ export function GoalSheet({ goal, plan, notes, reports = [], onClose, onOpenAsk,
     >
       <div className="goal-sheet" data-health={health}>
         <p className="goal-sheet-health">
-          <span className="goal-health">{HEALTH_LABEL[health]}</span>
-          {health === 'paused' && ` · ${stateLine(goal, plan?.glance)}`}
+          <span className="goal-health">{sheetHealth(goal, health, plan?.glance)}</span>
         </p>
         <p className="goal-outcome">{goal.outcome}</p>
         <GoalTargetSection goalId={goal.id} at={notes} />

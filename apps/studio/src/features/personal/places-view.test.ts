@@ -32,7 +32,7 @@ import {
   roomCaption,
   sessionWhen,
   UNLOCK,
-  workCount,
+  allProjects,
   showsAllProjects,
   youDoor,
 } from './places-view.ts'
@@ -120,14 +120,18 @@ describe('home words', () => {
     assert.equal(readState({ data: [], isFetching: false, isError: true }), 'ready')
   })
 
-  it('counts the projects for All projects, and the notes carried from you; nothing while they load', () => {
-    assert.equal(workCount(undefined), '')
-    assert.equal(workCount([]), '')
-    assert.equal(workCount([project(), project({ title: 'Pitch deck, Q4' })]), '2 projects')
-    const mine = project({
-      releases: [{ id: 'r', text: 'x', ownerName: 'a', mine: true, createdAt: NOW.toISOString() }],
+  it('words All projects whole, the notes carried from you on their own line; nothing while they load or under two', () => {
+    assert.equal(allProjects(undefined), null)
+    assert.equal(allProjects([]), null)
+    assert.equal(allProjects([project()]), null)
+    const two = [project(), project({ title: 'Pitch deck, Q4' })]
+    assert.deepEqual(allProjects(two), { title: 'All 2 projects', meta: null })
+    const note = (id: string) => ({ id, text: 'x', ownerName: 'a', mine: true, createdAt: NOW.toISOString() })
+    assert.deepEqual(allProjects([project({ releases: [note('r')] }), project()]), {
+      title: 'All 2 projects',
+      meta: '1 note from you',
     })
-    assert.equal(workCount([mine]), '1 project · 1 from you')
+    assert.deepEqual(allProjects([project({ releases: [note('r'), note('s')] }), project()])?.meta, '2 notes from you')
   })
 
   it('ends the index with All projects only when there are two or more: one project is its own row (#16)', () => {
@@ -238,7 +242,7 @@ describe('home, as a place that knows where you’ll go', () => {
       room: { people: ['davide@sophia.test'], sophia: true },
     })
     assert.equal(plain(sophiaSays([project(), live], NOW, null)), 'Davide and Sophia are in Pitch deck.')
-    assert.equal(plain(sophiaSays(four, NOW, { title: 'Launch plan' })), 'You’re in Launch plan’s room.')
+    assert.equal(plain(sophiaSays(four, NOW, { title: 'Launch plan' })), 'You’re in the room for Launch plan.')
     // The project's name is the sentence's strong part.
     assert.deepEqual(
       sophiaSays([project(), live], NOW, null)
@@ -613,7 +617,7 @@ describe('what changed since you last looked, in Sophia’s sentence on Home (ho
     const windows = news([1, twoAndOne])
     assert.equal(
       plain(sophiaSays(quiet, NOW, { title: 'Launch plan' }, true, windows)),
-      'You’re in Launch plan’s room.',
+      'You’re in the room for Launch plan.',
     )
     const soon = [...quiet, project({ projectId: id(4), title: 'Weekly standup', nextSession: session(10) })]
     assert.equal(plain(sophiaSays(soon, NOW, null, true, windows)), 'Pitch run in Weekly standup starts in 10 min.')

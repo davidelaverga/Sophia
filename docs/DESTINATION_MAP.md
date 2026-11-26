@@ -116,7 +116,27 @@ and [session handoff](handoffs/INC03-S01C-A63-0123.md).
 | `packages/contracts/amendments/A63-saved-conversation-input-addressing.json` | built | S1-12, INC03-S01c | Separate closed addressed paths, explicit automatic/addressing version, member references and nullable send reply target; existing record-only receipts |
 | `packages/persistence/src/conversation-input-addressing.ts` | built | S1-12, INC03-S01c | Typed addressed writer wrappers; exported by persistence index; absent-schema readiness and responses belong to the API routes |
 | `packages/persistence/src/conversation-input-addressing.db.test.ts` | built | S1-12, INC03-S01c | Fresh target/member authority, replay/withdrawal, exact context, RLS/grants, concurrency and no-effect regressions |
-| `apps/api/src/routes/conversation-input-addressing.ts` | built | S1-12, INC03-S01c | Authenticated addressed start/send beside A49; separate opt-in app mount and 0123 readiness, no stock server enablement |
+| `apps/api/src/routes/conversation-input-addressing.ts` | built | S1-12, INC03-S01c | Authenticated addressed start/send beside A49; default-off stock switches, 0123/0124 readiness and optional exact-version availability |
 | `apps/api/src/conversation-input-addressing.db.test.ts` | built | S1-12, INC03-S01c | R1 generated nullable-type and authenticated explicit-null request regression |
 | `docs/plans/conversation-inputs.md` | built | S1-12, INC03-S01c | Retained A49/0095 plan plus additive A63/0123 authority, composition, verification and limits |
 | `docs/handoffs/INC03-S01C-A63-0123.md` | built | S1-12, INC03-S01c | Normal source-only candidate handoff with evidence, failures, authority and remaining scope |
+| `db/migrations/0124_saved_conversation_input_observations.sql` | built | S1-12 | INC03-S02 — Shared current-context reader and immutable observation metadata for the original actor |
+| `db/migrations/0128_saved_input_artifact_context.sql` | built | S1-12 | INC03-S05 — Exact published artifact-version binding, current-scope lookup and exclusion from v1 observation |
+| `packages/persistence/src/addressed-input-observation.ts` | built | S1-12 | INC03-O4 — Apply the deterministic policy to one current saved input under the original actor |
+| `packages/persistence/src/saved-input-observations.ts` | built | S1-12 | INC03-S02 — Read or record one current metadata-only observation under the original actor |
+| `packages/persistence/src/conversation-input-addressing-read.db.test.ts` | built | S1-12 | INC03-O4 — Current scoped reads of retained input, audience and references |
+| `packages/persistence/src/addressed-input-observation.db.test.ts` | built | S1-12 | INC03-O4 — Deterministic mapping, actor binding and stale source refusals |
+| `packages/persistence/src/saved-input-observations.db.test.ts` | built | S1-12 | INC03-S02 — Durable replay, scope races, immutable metadata and role grants |
+| `apps/api/src/conversation-artifact-version-compat.db.test.ts` | built | S1-12 | INC03-S05 — Pre-0128 attached-scope refusal and ordinary addressed input compatibility |
+| `packages/contracts/amendments/A64-saved-input-artifact-context.json` | built | S1-12 | INC03-S05 — Optional artifact identity on addressed writes and the exact-version metadata response |
+| `docs/handoffs/INC03-S02-DURABLE-OBSERVATION.md` | built | S1-12 | INC03-S02 — Reviewed 0124 observation boundary and verification evidence |
+
+## DEP-R07/R09 addressed rollback replay (source candidate)
+
+| Destination | Status | Goal | Boundary |
+|---|---|---|---|
+| `db/migrations/0133_saved_input_addressed_replay.sql` | built | S1-12, DEP-R07, DEP-R09 | Atomic replay sentinel and guards on the two 0128 addressed writers |
+| `apps/api/src/conversation-input-replay.db.test.ts` | built | S1-12, DEP-R07, DEP-R09 | Disposable PostgreSQL receipt recovery across the migration, fresh-key refusal, authority, erasure and no-effect checks |
+| `docs/handoffs/DEP-R07-R09-ADDRESSED-REPLAY.md` | built | S1-12, DEP-R07, DEP-R09 | Source boundary and replay qualification |
+
+See [the replay handoff](handoffs/DEP-R07-R09-ADDRESSED-REPLAY.md).

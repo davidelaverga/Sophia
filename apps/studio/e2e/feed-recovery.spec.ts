@@ -208,3 +208,28 @@ test('feed · offline, then back online: Up to date within 2 s, not when the pen
   console.log(`feed · back online to Up to date in ${String(took)} ms`)
   expect(took).toBeLessThanOrEqual(2000)
 })
+
+// docs/plans/feed-offline.md: the browser knows the network went before the open stream's silence runs out (25 s).
+test('feed · the browser goes offline with the stream open: Reconnecting within 1 s, Up to date once back', async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(45_000)
+  await open(page)
+  // Out of reach: new asks fail, but the open stream is not ended; only the browser's word says the network went.
+  await page.evaluate(() => window.fixture?.outage(true))
+  const from = await now(page)
+  await context.setOffline(true)
+  await expect(pill(page)).toHaveAttribute('data-state', 'reconnecting', { timeout: 5000 })
+  const lost = (await states(page)).find((s) => s.at >= from && s.state === 'reconnecting')
+  const took = lost ? Math.round(lost.at - from) : null
+  console.log(`feed · offline to Reconnecting in ${String(took)} ms`)
+  expect(took).not.toBeNull()
+  expect(took).toBeLessThanOrEqual(1000)
+  await expect(pill(page).getByRole('status')).toHaveText('Reconnecting')
+  await page.evaluate(() => window.fixture?.outage(false))
+  const back = await now(page)
+  await context.setOffline(false)
+  await expect.poll(() => liveAfter(page, back), { timeout: 15_000 }).not.toBeNull()
+  expect(await liveAfter(page, back)).toBeLessThanOrEqual(2000)
+})
