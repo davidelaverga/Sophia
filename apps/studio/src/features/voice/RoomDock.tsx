@@ -592,7 +592,7 @@ function FloorAction({ floor, me, busy, onPass }: ActionProps) {
   if (floor.canTake) {
     return (
       <button type="button" className="pill warm" disabled={busy} onClick={() => onPass(me)}>
-        <DockWord icon="hand" said="Take the floor">
+        <DockWord icon="floor" said="Take the floor">
           Take the floor
         </DockWord>
       </button>

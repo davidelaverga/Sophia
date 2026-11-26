@@ -71,6 +71,26 @@ test('dock · on a phone: one row of 42 px squares, icons only, still named for 
   expect(new Set(buttons.map((b) => b.top)).size).toBe(1)
 })
 
+test('dock · Take the floor draws a person on a lit spot, not a hand: the hand is Raise hand’s alone (five-decisions.md, 22)', async ({
+  page,
+}) => {
+  await enter(page, 'people=2', 1280)
+  // Both glyphs sit in the dock's markup at every width (on a computer Take the floor shows its words instead).
+  const take = await dock(page)
+    .getByRole('button', { name: 'Take the floor', exact: true })
+    .locator('svg')
+    .evaluate((svg) => svg.innerHTML)
+  const raise = await dock(page)
+    .getByRole('button', { name: 'Raise hand', exact: true })
+    .locator('svg')
+    .evaluate((svg) => svg.innerHTML)
+  // A finger is the hand's round-topped stroke (a 1.5 radius arc); the spot is an ellipse.
+  const finger = /a1\.5 1\.5 0 0 1 3 0/
+  expect(raise).toMatch(finger)
+  expect(take).not.toMatch(finger)
+  expect(take).toContain('<ellipse')
+})
+
 test('dock · at 390 px, from the keyboard or under a hovering pointer, an icon says what it does', async ({ page }) => {
   await enter(page, 'people=2', 390)
   const take = dock(page).getByRole('button', { name: 'Take the floor', exact: true })
