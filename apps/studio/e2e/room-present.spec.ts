@@ -108,6 +108,18 @@ test('present · against a room that moved, Show says so; pressed again, it show
   await made(page).getByRole('button', { name: 'Show everyone' }).click()
   await expect(made(page)).toContainText('The room changed. Show it again.')
   expect(await shows(page)).toEqual([])
+  // Its words on their own line under the row: the title keeps its room (Codex P2 on #556).
+  const fit = await made(page).evaluate((el) => {
+    const title = el.querySelector('.made-title')
+    const said = el.querySelector('.made-acts .focus-said')
+    if (!title || !said) return null
+    return {
+      below: said.getBoundingClientRect().top - title.getBoundingClientRect().bottom,
+      cut: title.scrollWidth - title.clientWidth,
+    }
+  })
+  expect(fit?.below).toBeGreaterThanOrEqual(0)
+  expect(fit?.cut).toBeLessThanOrEqual(1)
   await made(page).getByRole('button', { name: 'Show everyone' }).click()
   await expect(presented(page)).toBeVisible()
 })
@@ -214,4 +226,29 @@ test('present · shown from the pane, the report takes the focus as it arrives, 
   await pane.getByRole('button', { name: 'Show everyone' }).click()
   await expect(pane).toHaveCount(0)
   await expect(presented(page)).toBeFocused()
+})
+
+test('present @phone · against a room that moved, Show’s words go under the row and the title keeps its room (Codex P2 on #556)', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => {
+    window.fixture?.notice()
+    window.fixture?.moveRoom()
+  })
+  await made(page).getByRole('button', { name: 'Show everyone' }).click()
+  await expect(made(page)).toContainText('The room changed. Show it again.')
+  const fit = await made(page).evaluate((el) => {
+    const title = el.querySelector('.made-title')
+    const said = el.querySelector('.made-acts .focus-said')
+    if (!title || !said) return null
+    return {
+      below: said.getBoundingClientRect().top - title.getBoundingClientRect().bottom,
+      cut: title.scrollWidth - title.clientWidth,
+      inside: el.getBoundingClientRect().top + el.scrollHeight - el.getBoundingClientRect().bottom,
+    }
+  })
+  expect(fit?.below).toBeGreaterThanOrEqual(0)
+  expect(fit?.cut).toBeLessThanOrEqual(1)
+  expect(fit?.inside).toBeLessThanOrEqual(1)
 })
