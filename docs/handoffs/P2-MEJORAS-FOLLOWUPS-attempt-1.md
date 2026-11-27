@@ -21,8 +21,9 @@ guests before joining) needs the API to send each person's condition and is left
 
 ## Decisions and changes
 
-- Back and Forward read `?panel=` and `?invite=` again through one hook in `app/` (`useOnBackForward`), at render time
-  after the pop, so nothing is written over the entry first.
+- The panel's `?panel=` is read again only as the room comes back on screen from another view (`panelOnReturn`), as the
+  lens is. A Back within the room, such as a report's Close, leaves what is on screen (addressed-follows-back.md).
+- `?invite=` is read after each Back or Forward through `useOnBackForward` (app/). It opens the sheet, and never closes it.
 - A row's own refused Try again keeps its row instead of going to an empty bar: the row is the only place that holds
   its mentions and reply.
 - The reload offer now lives in RoomStage (one instance), handed to the dock as a prop.
