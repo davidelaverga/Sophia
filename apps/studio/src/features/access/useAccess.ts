@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { LobbyDecision, LobbyEntry, Membership, RoomSession } from '@sophia/contracts'
 import { decideLobbyEntry, getMembership, listInvitations } from '../../api/access.ts'
+import { audienceMoved } from './access-view.ts'
 import { ApiError } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
@@ -39,7 +40,13 @@ export function useMembership(projectId: string, viewer: string, token: string) 
  * asks again: the membership's own failures never do, so a membership that keeps failing is asked a bounded number of
  * times, not without end. Until it is read, none is offered: an unread membership decides nothing.
  */
-export function useProjectMembership(projectId: string, viewer: string, token: string, readAt: number) {
+export function useProjectMembership(
+  projectId: string,
+  viewer: string,
+  token: string,
+  readAt: number,
+  audience?: number,
+) {
   const read = useMembership(projectId, viewer, token)
   const { isError: failed, refetch } = read
   // The project read the last asking-again answered to: a failure since is never a reason to ask again.
@@ -49,7 +56,26 @@ export function useProjectMembership(projectId: string, viewer: string, token: s
     askedAt.current = readAt
     void refetch()
   }, [failed, readAt, refetch])
+  useAudienceFollowed(projectId, audience, refetch)
   return read
+}
+
+/**
+ * A change to the project's audience, seen in its snapshot (`audienceRevision`), reads this person's role and the
+ * members again (role-follows-audience.md): an admin's change reaches an open tab without a reload, and what the role
+ * no longer allows stops being offered.
+ */
+function useAudienceFollowed(projectId: string, audience: number | undefined, refetch: () => unknown) {
+  const client = useQueryClient()
+  const seen = useRef<number | null>(null)
+  useEffect(() => {
+    if (audience === undefined) return
+    const moved = audienceMoved(seen.current, audience)
+    seen.current = audience
+    if (!moved) return
+    void refetch()
+    void client.invalidateQueries({ queryKey: ['members', projectId] })
+  }, [audience, client, projectId, refetch])
 }
 
 export const canInvite = (m: Membership | undefined) => m?.role === 'admin' || m?.role === 'editor'
