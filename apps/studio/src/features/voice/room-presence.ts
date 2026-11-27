@@ -22,6 +22,23 @@ export function presenceIn(list: ProjectList | undefined, projectId: string): Ro
   return { known: true, people: room.people.map(shortName), sophia: room.sophia, words: inTheRoom(room) }
 }
 
+/** The read of the person's project list, as the query holds it. */
+export interface ListRead {
+  data: ProjectList | undefined
+  dataUpdatedAt: number
+  isError: boolean
+}
+
+/**
+ * What the latest read says now: failed, unknown, even with an older answer kept (it is no longer current); not yet
+ * answered since this person left the call (`leftAt`), still being read; else the room it lists.
+ */
+export function presenceRead(read: ListRead, leftAt: number, projectId: string): RoomPresence {
+  if (read.isError) return UNKNOWN
+  if (read.data === undefined || read.dataUpdatedAt < leftAt) return READING
+  return presenceIn(read.data, projectId)
+}
+
 /** The initials Join shows beside its words (Work's card shows the same): at most three, in the server's order. */
 export const facesOf = (presence: RoomPresence): readonly string[] =>
   presence.known ? presence.people.slice(0, 3).map((name) => name.charAt(0)) : []

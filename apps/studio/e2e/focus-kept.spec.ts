@@ -78,3 +78,35 @@ test('focus · Join hands it to the microphone; Leave, back to Join', async ({ p
   await expect(dock(page).getByRole('button', { name: 'Join the room' })).toBeFocused()
   expect(await onPage(page)).toBe(false)
 })
+
+const param = (page: Page, key: string) => new URL(page.url()).searchParams.get(key)
+
+/** A new history entry at the same address, as the router pushes one (the fixture's views keep a single entry). */
+const pushEntry = (page: Page) =>
+  page.evaluate(() => {
+    window.history.pushState(window.history.state, '', window.location.href)
+    window.dispatchEvent(new Event('sophia:address-moved'))
+  })
+
+test('address · Forward to an entry that names Invite opens it again; Back leaves it as it is (Codex P2 on #545)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1')
+  await drawn(page, DRAWN.room)
+  await pushEntry(page)
+  await page.getByRole('button', { name: 'Invite' }).first().click()
+  await page.getByRole('tab', { name: 'Members' }).click()
+  await expect.poll(() => param(page, 'invite')).toBe('members')
+  const sheet = page.getByRole('dialog', { name: 'Invite' })
+  // Back to the entry that named no sheet: what is on screen stays (addressed-follows-back.md); closed there.
+  await page.goBack()
+  await expect(sheet).toBeVisible()
+  await sheet.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(sheet).toBeHidden()
+  expect(param(page, 'invite')).toBeNull()
+  // Forward to the one that names Members: it opens there again.
+  await page.goForward()
+  await expect(sheet).toBeVisible()
+  await expect(sheet.getByRole('tab', { name: 'Members' })).toHaveAttribute('aria-selected', 'true')
+  expect(param(page, 'invite')).toBe('members')
+})

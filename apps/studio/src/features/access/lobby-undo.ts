@@ -28,7 +28,16 @@ export function undoable(declined: readonly Declined[], lobby: readonly LobbyEnt
   })
 }
 
-/** When the next of them leaves the undo by time alone; null when none waits on time. */
-export function nextExpiry(declined: readonly Declined[]): number | null {
-  return declined.length === 0 ? null : Math.min(...declined.map((d) => d.at + ASK_AGAIN_MS))
+/** When the next of them leaves the undo by time alone, after `now`; null when none is still to: nothing to wake for. */
+export function nextExpiry(declined: readonly Declined[], now: number): number | null {
+  const ahead = declined.map((d) => d.at + ASK_AGAIN_MS).filter((at) => at > now)
+  return ahead.length === 0 ? null : Math.min(...ahead)
+}
+
+/**
+ * The declines kept once a Decline's answers are in: those it asked for that didn't go through give the guests back
+ * their row; those that went keep their undo, a Decline all that failed partway too.
+ */
+export function keptAfter(declined: readonly Declined[], asked: readonly LobbyEntry[], went: readonly string[]) {
+  return declined.filter((d) => went.includes(d.entry.id) || !asked.some((e) => e.id === d.entry.id))
 }

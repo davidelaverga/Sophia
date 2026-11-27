@@ -2622,6 +2622,7 @@ img.avatar {
 }
 .made-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   min-width: 0;
@@ -2704,7 +2705,12 @@ img.avatar {
 .made-acts .focus-said:empty {
   display: none;
 }
+/* What Show everyone said when it didn't go through: on its own line under the row, as a failed read's, so the title
+   keeps its room (Codex P2 on #556). */
 .made-acts .focus-said {
+  order: 1;
+  flex-basis: 100%;
+  padding: 0 4px 4px 26px;
   color: var(--text-3);
   font-size: 12px;
 }

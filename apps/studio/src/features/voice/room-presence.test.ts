@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ProjectList, ProjectSummary } from '@sophia/contracts'
-import { facesOf, presenceIn, UNKNOWN } from './room-presence.ts'
+import { facesOf, presenceIn, presenceRead, READING, UNKNOWN } from './room-presence.ts'
 
 const PROJECT = '5c1decc5-6bfe-49fd-8ebb-178992ef84f8'
 
@@ -52,6 +52,20 @@ describe('who is in the room before joining (one-truth.md)', () => {
 
   it('reads a room the server couldn’t ask in time (`room: null`) as unknown, never as nobody', () => {
     assert.deepEqual(presenceIn(listed(null), PROJECT), UNKNOWN)
+  })
+
+  it('reads a failed refresh as unknown, though an older answer is kept', () => {
+    const was = listed({ people: ['Ana'], sophia: false })
+    assert.equal(presenceRead({ data: was, dataUpdatedAt: 10, isError: false }, 0, PROJECT).known, true)
+    assert.deepEqual(presenceRead({ data: was, dataUpdatedAt: 10, isError: true }, 0, PROJECT), UNKNOWN)
+    const nobody = listed({ people: [], sophia: false })
+    assert.deepEqual(presenceRead({ data: nobody, dataUpdatedAt: 10, isError: true }, 0, PROJECT), UNKNOWN)
+  })
+
+  it('claims nothing until a read answers after leaving the call', () => {
+    const was = listed({ people: ['Ana'], sophia: false })
+    assert.deepEqual(presenceRead({ data: was, dataUpdatedAt: 10, isError: false }, 20, PROJECT), READING)
+    assert.deepEqual(presenceRead({ data: undefined, dataUpdatedAt: 0, isError: false }, 0, PROJECT), READING)
   })
 
   it('shows at most three faces, by initial', () => {

@@ -68,6 +68,7 @@ import {
   shownConnection,
   type Blocked,
 } from './project-door.ts'
+import { useOnBackForward } from '../../app/useOnBackForward.ts'
 import { PanelCallSwitches, StudioShell, useRoomPanel, type RoomPanel } from './StudioShell.tsx'
 import { lensInAddress } from './viewer-state.ts'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
@@ -434,16 +435,20 @@ function useProject({ projectId, identity, ownName = null }: Pick<Props, 'projec
   return { snapshot, feed, connection, checkedAt, room, membership }
 }
 
+/** The address names Invite's tab (`?invite=`). */
+const inviteAddressed = () => paramIn(window.location.search, 'invite', INVITE_TABS) !== null
+
 /** The two sheets the shell opens itself: inviting (at once when the project was opened to invite), and search. */
 function useShellSheets(props: Pick<Props, 'inviteOnOpen' | 'onInviteHandled' | 'routed' | 'background'>) {
   const { inviteOnOpen = false, onInviteHandled } = props
   // An address that names Invite's tab (`?invite=`, focus-kept.md) opens the sheet, unless this shell isn't the
-  // address's (kept for its call while another shows).
-  const [inviting, setInviting] = useState(
-    () =>
-      inviteOnOpen ||
-      (props.routed !== false && !props.background && paramIn(window.location.search, 'invite', INVITE_TABS) !== null),
-  )
+  // address's (kept for its call while another shows). Back or Forward to an entry that names it opens it again; one that
+  // doesn't leaves the sheet as it is (addressed-follows-back.md).
+  const ours = props.routed !== false && !props.background
+  const [inviting, setInviting] = useState(() => inviteOnOpen || (ours && inviteAddressed()))
+  useOnBackForward(() => {
+    if (ours && inviteAddressed()) setInviting(true)
+  })
   const [searching, setSearching] = useState(false)
   useEffect(() => {
     if (!inviteOnOpen) return

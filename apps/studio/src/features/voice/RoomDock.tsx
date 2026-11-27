@@ -34,7 +34,7 @@ import type { SophiaView } from './sophia-view.ts'
 import { SOUND_BLOCKED, soundView } from './sound-view.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
 import { DockMore } from './DockMore.tsx'
-import { useReloadOffer } from './useReloadOffer.ts'
+import type { WayBack } from './useReloadOffer.ts'
 import { facesOf, type RoomPresence } from './room-presence.ts'
 import { useRoomPresence } from './useRoomPresence.ts'
 import { DockWord } from './DockWord.tsx'
@@ -51,6 +51,8 @@ interface Props {
   sophia: SophiaView
   /** The floor was passed and the receipt says to whom: the stage shows it leave at once. */
   onPassed: (nextActorId: string) => void
+  /** A reload in the call: the way back, held by the stage so J and the palette join as Join does (useReloadOffer). */
+  back: WayBack
 }
 
 /** Screen sharing needs getDisplayMedia, which phones do not offer; an insecure page has no mediaDevices. */
@@ -296,8 +298,7 @@ function CheckOpener({ room }: { room: ProjectRoom }) {
  * A reload in the call: the way back, offered once (call-way-back.md), and what the dock's one polite line says: its
  * note, else the reload, once that line is in the page (a live region born full is often not read).
  */
-function useWayBack(props: Props, note: string | null, live: boolean) {
-  const back = useReloadOffer(props.projectId, props.identity, props.room)
+function useWayBack({ back }: Props, note: string | null, live: boolean) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
   const offered = back.offer !== null && !live && mounted

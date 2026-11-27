@@ -10,6 +10,7 @@ import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import { useFocusKept } from '../../app/useFocusKept.ts'
 import { paramIn, showParam } from '../../app/address-param.ts'
+import { useOnBackForward } from '../../app/useOnBackForward.ts'
 import { NOTICE } from '../personal/notice-view.ts'
 import { useCopy } from '../resources/copy.ts'
 import {
@@ -61,6 +62,10 @@ export function InviteSheet({ context, onClose }: { context: SheetContext; onClo
   )
   // The sheet and its tab are in the address while it is open (`?invite=`): a reload or a pasted link opens the same
   // tab; closing takes it away (focus-kept.md).
+  useOnBackForward(() => {
+    const named = paramIn(window.location.search, 'invite', INVITE_TABS)
+    if (named) setTab(named)
+  })
   useEffect(() => showParam('invite', tab), [tab])
   useEffect(() => () => showParam('invite', null), [])
   return (

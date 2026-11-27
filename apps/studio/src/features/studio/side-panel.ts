@@ -52,6 +52,17 @@ export function mergeNames(
 }
 
 /** Opening a panel that is open closes it; any other opens in its place. */
+/**
+ * The panel to open as the room comes back on screen (`was` → `now`, focus-kept.md): the one its address names, as the
+ * lens is read then (Back to an earlier Studio entry from another view); none named, the panel held stays. A move within
+ * the room (a report's Close steps Back) reads nothing: what is on screen stays (addressed-follows-back.md).
+ */
+export function panelOnReturn(was: boolean, now: boolean, search: string): Panel | null {
+  if (was || !now) return null
+  const named = new URLSearchParams(search).get('panel')
+  return PANELS.find((p) => p === named) ?? null
+}
+
 export const toggled = (open: Panel | null, panel: Panel): Panel | null => (open === panel ? null : panel)
 
 /** Something is new when it grew past what was seen, and it isn't in view right now. */

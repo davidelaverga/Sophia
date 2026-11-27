@@ -242,4 +242,11 @@ describe('a stopped goal is not paused (one-truth.md)', () => {
   it('reads its row by its state, as a pause does', () => {
     assert.equal(rowLine(goal('a', 'stopped'), undefined), 'Stopped')
   })
+
+  it('keeps its state ahead of a note, stopped or paused', () => {
+    const note = { kind: 'observation' as const, said: 'Sophia “Parked until the review.”' }
+    assert.equal(rowLine(goal('a', 'stopped'), { glance: glance(), note }), `Stopped · 1 of 5 done · ${note.said}`)
+    assert.equal(rowLine(goal('a', 'stopping'), { note }), `Stopping · finished work is kept · ${note.said}`)
+    assert.equal(rowLine(goal('a', 'held'), { note: { ...note, kind: 'blocker' } }), `Held · ${note.said}`)
+  })
 })

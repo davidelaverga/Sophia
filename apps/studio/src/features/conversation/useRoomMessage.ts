@@ -74,14 +74,13 @@ function useKeptMessage(projectId: string, identity: Identity) {
 }
 
 /**
- * What follows a send (chat-pace.md): recorded; refused, back to an empty bar, or onto a row of its own (a row's own
- * Try again refused keeps its row); with no reply, nothing yet (its row offers it again). A row's message goes from its
- * row once it is recorded or back in the bar.
+ * What follows a send (chat-pace.md): recorded; refused, back to an empty bar, or onto a row of its own; with no reply,
+ * nothing yet (its row offers it again). A row's own Try again refused keeps its row: the row holds the whole message,
+ * its reply and mentions too, which the bar can't take back. A row's message goes from its row once it is recorded.
  */
 export function afterSend(ok: boolean, refused: boolean, barEmpty: boolean, fromRow: boolean) {
   if (ok) return { goes: 'recorded', letGoRow: true } as const
-  if (refused && barEmpty) return { goes: 'bar', letGoRow: true } as const
-  if (refused && !fromRow) return { goes: 'row', letGoRow: false } as const
+  if (refused && !fromRow) return { goes: barEmpty ? 'bar' : 'row', letGoRow: false } as const
   return { goes: 'nowhere', letGoRow: false } as const
 }
 
@@ -106,15 +105,11 @@ const wasRefused = (refused: { current: boolean }) => refused.current
 /**
  * A message recorded: the reply it went as is let go (another chosen meanwhile, while it went or after no reply, stays),
  * and so are the members it named, unless the choice is no longer the one sent: that is the next message's (409 P2
- * 4304921244). The bar clears only if it still holds what was sent.
+ * 4304921244). The bar is left as it is: it emptied as the message went, so what it holds now is new words, even the
+ * same ones.
  */
-function recorded(
-  message: RoomMessage,
-  now: { draft: string; reply: ReplyUnderWay; mentions: MentionsUnderWay },
-  onDraft: (text: string) => void,
-) {
+function recorded(message: RoomMessage, now: { reply: ReplyUnderWay; mentions: MentionsUnderWay }) {
   if (message.replyTo !== null && message.replyTo === now.reply.id) now.reply.done()
-  if (now.draft.trim() === message.text) onDraft('')
   if (message.mentions.length > 0 && sameMembers(now.mentions.ids, message.mentions)) now.mentions.done()
 }
 
@@ -181,8 +176,10 @@ export function useRoomMessage(
     if (!again && latest.current.draft.trim() === message.text) onDraft('')
     const ok = (await write.send(message)) !== undefined
     const next = afterSend(ok, wasRefused(refused), latest.current.draft.trim() === '', again !== undefined)
-    if (next.letGoRow) setFailed((was) => was.filter((m) => m !== again))
-    if (next.goes === 'recorded') recorded(message, latest.current, onDraft)
+    // The row it came from, by the message itself: a row's Try again whose reply was lost goes again from the line
+    // above the bar (`unknown`), the same message, and its row goes when that lands.
+    if (next.letGoRow) setFailed((was) => was.filter((m) => m !== message))
+    if (next.goes === 'recorded') recorded(message, latest.current)
     if (next.goes === 'bar') onDraft(message.text)
     if (next.goes === 'row') setFailed((was) => [...was, message])
   }

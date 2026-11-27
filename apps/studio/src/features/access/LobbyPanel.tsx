@@ -9,7 +9,7 @@ import type { LobbyEntry } from '@sophia/contracts'
 import { Button, ConfirmButton } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { knockNote } from './access-view.ts'
-import { nextExpiry, undoable, type Declined } from './lobby-undo.ts'
+import { keptAfter, nextExpiry, undoable, type Declined } from './lobby-undo.ts'
 import { useLobbyDecision } from './useAccess.ts'
 import { lasted } from '../../app/time-words.ts'
 import { useNow } from '../../app/use-now.ts'
@@ -39,26 +39,29 @@ function waitedFor(requestedAt: string, now: number): string {
  */
 function useJustDeclined(
   lobby: readonly LobbyEntry[] | undefined,
-  decide: (entries: readonly LobbyEntry[], decision: 'deny') => Promise<boolean>,
+  decide: (entries: readonly LobbyEntry[], decision: 'deny') => Promise<readonly string[]>,
 ) {
   const [declined, setDeclined] = useState<readonly Declined[]>([])
   const [now, setNow] = useState(() => Date.now())
-  const at = nextExpiry(declined)
+  const clock = Math.max(now, Date.now())
+  // Past the last minute, nothing is left to wake for: no timer runs while the panel stays mounted.
+  const at = nextExpiry(declined, clock)
   // Woken when the next one's minute is up; woken early (a timer a little ahead), it waits again.
   useEffect(() => {
     if (at === null) return undefined
     const t = setTimeout(() => setNow(Date.now()), Math.max(0, at - Date.now()) + 1)
     return () => clearTimeout(t)
   }, [at, now])
-  const shown = undoable(declined, lobby, Math.max(now, Date.now())).map((d) => d.entry)
+  const shown = undoable(declined, lobby, clock).map((d) => d.entry)
   return {
     declined: shown,
-    /** Declined at once; a Decline that doesn't go through gives them back their row and its answers. */
+    /**
+     * Declined at once; those a Decline doesn't get through give them back their row and its answers, the ones it did
+     * keep their undo (keptAfter).
+     */
     decline: (entries: readonly LobbyEntry[]) => {
       setDeclined(entries.map((entry) => ({ entry, at: Date.now() })))
-      void decide(entries, 'deny').then((went) => {
-        if (!went) setDeclined((was) => was.filter((d) => !entries.some((e) => e.id === d.entry.id)))
-      })
+      void decide(entries, 'deny').then((went) => setDeclined((was) => keptAfter(was, entries, went)))
     },
     clear: () => setDeclined([]),
   }

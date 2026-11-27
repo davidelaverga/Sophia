@@ -73,3 +73,23 @@ test('way back · another tab of the same person is never offered this tab’s c
   await expect(join(other)).toBeVisible()
   await expect(other.getByText(LINE)).toHaveCount(0)
 })
+
+test('way back · after a reload in text mode, J goes back as the call was: typing, the microphone off (Codex P2 on #547)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?exchange=open&sophia=listening')
+  await join(page).click()
+  await expect(leave(page)).toBeVisible()
+  await page.locator('.panel-toggles [data-panel="chat"]').click()
+  const bar = page.locator('#converse-draft')
+  await bar.fill('A question, typed')
+  await bar.press('Enter') // typing to Sophia puts the call in text mode
+  const textMode = page.getByRole('button', { name: /^Text mode/ })
+  await expect(textMode).toHaveAttribute('aria-pressed', 'true')
+  await page.reload()
+  await expect(page.locator('.dock-wrap').getByRole('status').filter({ hasText: LINE })).toBeVisible()
+  await page.locator('body').press('ControlOrMeta+j')
+  await expect(leave(page)).toBeVisible()
+  await expect(textMode).toHaveAttribute('aria-pressed', 'true')
+  expect(await page.evaluate(() => window.fixture?.asked)).toEqual(['connect', 'text:on'])
+})

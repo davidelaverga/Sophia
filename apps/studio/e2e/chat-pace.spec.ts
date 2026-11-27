@@ -104,3 +104,58 @@ test('pace · a member’s invitation link the browser won’t copy is handed ov
   expect(await field.inputValue()).toMatch(/^https?:\/\//)
   expect(await field.evaluate((el) => el instanceof HTMLInputElement && el.selectionEnd === el.value.length)).toBe(true)
 })
+
+/** The page's fetch, with each message to the room first held `ms`, and the first `refuse` of them refused for good. */
+const slowSends = (page: Page, hold: number, refusals = 0) =>
+  page.evaluate(
+    ({ ms, refuse }) => {
+      const answer = window.fetch.bind(window)
+      let left = refuse
+      window.fetch = async (input, init) => {
+        const url = input instanceof Request ? input.url : input instanceof URL ? input.href : input
+        if (init?.method !== 'POST' || !url.endsWith('/contributions')) return answer(input, init)
+        await new Promise((r) => setTimeout(r, ms))
+        if (left-- <= 0) return answer(input, init)
+        const body = { code: 'invalid_request', message: 'Not accepted', requestId: '0', retry: 'never' }
+        return new Response(JSON.stringify(body), { status: 422, headers: { 'content-type': 'application/json' } })
+      }
+    },
+    { ms: hold, refuse: refusals },
+  )
+
+test('pace · new words like the ones on their way stay in the bar when the first lands (Codex P2 on #546)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?call=on&people=2&floor=1')
+  await chatToggle(page).click()
+  await slowSends(page, 1500)
+  await bar(page).fill('Yes')
+  await bar(page).press('Enter')
+  await expect(bar(page)).toHaveValue('')
+  await bar(page).fill('Yes')
+  await expect(discussion(page).getByText('Yes', { exact: true })).toHaveCount(1)
+  await expect(pending(page)).toHaveCount(0)
+  await expect(bar(page)).toHaveValue('Yes')
+})
+
+test('pace · a refused row sent again whose reply is lost goes once it lands: never «Not sent» after (Codex P2 on #546)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?call=on&people=2&floor=1')
+  await chatToggle(page).click()
+  await slowSends(page, 800, 1)
+  await bar(page).fill('The first word')
+  await bar(page).press('Enter')
+  // The bar holds new words when the refusal comes: the refused message keeps a row of its own.
+  await bar(page).fill('Still writing')
+  const notSent = pending(page).filter({ hasText: 'Not sent.' })
+  await expect(notSent).toContainText('The first word')
+  await page.evaluate(() => window.fixture?.loseNextContributionReply())
+  await notSent.getByRole('button', { name: 'Try again' }).click()
+  const unknown = pending(page).filter({ hasText: 'Not confirmed.' })
+  await expect(unknown).toContainText('The first word')
+  await unknown.getByRole('button', { name: 'Try again' }).click()
+  await expect(discussion(page).getByText('The first word')).toHaveCount(1)
+  await expect(pending(page)).toHaveCount(0)
+  await expect(bar(page)).toHaveValue('Still writing')
+})
