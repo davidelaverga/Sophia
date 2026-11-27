@@ -13,6 +13,7 @@ import type { SectionAsk } from './useSectionArrival.ts'
 import { openedLink, readReportLink, withReportLink, type ReportLink, type ViewerTab } from './report-link.ts'
 import { ViewerContext, type OpenRequest, type ViewerApi } from './viewer-context.ts'
 import { keptFragment } from '../resources/useAddressed.ts'
+import { stepBack } from './own-history.ts'
 import './artifacts.css'
 
 export { useDocumentViewer, type OpenRequest } from './viewer-context.ts'
@@ -65,19 +66,24 @@ function useReportHistory(projectId: string) {
     setLink(next)
   }, [])
 
-  /** Back as far as `steps` of the viewer's own entries, or in place when the current entry is not one of them. */
+  /**
+   * Back as far as `steps` of the viewer's own entries (own-history.ts), or in place when the current entry is not one
+   * of them or the step can't reach them. Whether it stepped: a step ends in a popstate, a change in place doesn't.
+   */
   const back = useCallback(
     (steps: number, otherwise: ReportLink | null) => {
       const n = Math.min(steps, viewerDepth())
-      if (n === 0) {
+      const step = n === 0 ? null : stepBack(n)
+      if (!step) {
         write(otherwise, false)
-        return
+        return false
       }
       if (n < steps) landing.current = { link: otherwise }
       // Where the step lands: its depth among the viewer's entries (an entry of anyone else's is 0).
       const lands = viewerDepth() - n
       keptFragment.note(window.location.hash, () => viewerDepth() === lands)
-      window.history.go(-n)
+      step()
+      return true
     },
     [write],
   )
@@ -94,15 +100,18 @@ function useReportHistory(projectId: string) {
  * Leaving the report for elsewhere in the project: where it covers the page (a phone, the full page) it closes first.
  * Closing steps Back over the viewer's own entries: what comes after waits for that, or Back would take it away.
  */
-function useLeaveFor(link: ReportLink | null, close: () => void) {
+function useLeaveFor(link: ReportLink | null, close: () => boolean) {
   return useCallback(
     (after: () => void) => {
       const covers = link?.size === 'full' || window.matchMedia('(width <= 760px)').matches
       if (!link || !covers) return after()
-      const depth = viewerDepth()
-      if (depth > 0) window.addEventListener('popstate', () => after(), { once: true })
-      close()
-      if (depth === 0) after()
+      const stepped = () => after()
+      window.addEventListener('popstate', stepped, { once: true })
+      // Closed in place (no entry of the viewer's to step back over, or none it can reach): no popstate comes.
+      if (!close()) {
+        window.removeEventListener('popstate', stepped)
+        after()
+      }
     },
     [link, close],
   )
@@ -112,7 +121,7 @@ function useLeaveFor(link: ReportLink | null, close: () => void) {
 function useViewerApi(
   open: ViewerApi['open'],
   link: ReportLink | null,
-  close: () => void,
+  close: () => boolean,
   leave: ViewerApi['leave'],
 ): ViewerApi {
   const leaveFor = useLeaveFor(link, close)
