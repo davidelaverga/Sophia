@@ -90,9 +90,9 @@ function useRows() {
       else notes.delete(actorId)
       return { busy, notes }
     })
-  /** A role change landed: the row is free and says Saved for a moment; no refusal from before stays (role-notes.ts). */
-  const saved = (actorId: string) => {
-    const note = savedNote()
+  /** A role change landed: the row is free and says who has which role now, for a moment; no refusal from before stays (role-notes.ts). */
+  const saved = (actorId: string, name: string, role: Role) => {
+    const note = savedNote(name, role)
     setRows((r) => {
       const busy = new Set(r.busy)
       busy.delete(actorId)
@@ -118,7 +118,7 @@ function useRoleChange(context: SheetContext) {
     begin(member.actorId)
     changeMemberRole(identity.token, projectId, member.actorId, role).then(
       async () => {
-        saved(member.actorId)
+        saved(member.actorId, memberName(member.name), role)
         await readAgain()
       },
       async (err: unknown) => {

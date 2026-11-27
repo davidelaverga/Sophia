@@ -125,6 +125,15 @@ test('away · back from two messages, the chat marks the first with a divider; i
   await expect(line(page)).toHaveCount(0)
 })
 
+test('away · in the call all along, what came is new, not missed (demo finding 7)', async ({ page }) => {
+  await page.goto('/room.html?call=on&people=2&discussion=3')
+  await expect(page.getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  await backFromTwo(page)
+  await chatToggle(page).click()
+  await expect(divider(page, '2 new messages')).toBeVisible()
+  await expect(page.getByText('came while you were away')).toHaveCount(0)
+})
+
 test('away · the chat open while the tab was hidden: the divider shows all the same', async ({ page }) => {
   await page.goto('/room.html?discussion=3')
   await chatToggle(page).click()
