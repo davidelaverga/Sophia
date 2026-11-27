@@ -46,7 +46,7 @@ test('roles · the only admin stepping down is told why, and their role stays', 
   await expect(mine).toHaveValue('admin')
 })
 
-test('roles · a change that lands says Saved beside its select, then goes, and clears an earlier refusal (focus-kept.md)', async ({
+test('roles · a change that lands says who has which role now beside its select, then goes, and clears an earlier refusal (focus-kept.md)', async ({
   page,
 }) => {
   const list = await inProject(page, '&admins=1')
@@ -56,7 +56,7 @@ test('roles · a change that lands says Saved beside its select, then goes, and 
   await marco.focus()
   await marco.selectOption('viewer')
   const row = list.getByRole('listitem').filter({ hasText: 'Marco' })
-  await expect(row.getByRole('status')).toHaveText('Saved')
+  await expect(row.getByRole('status')).toHaveText('Marco is now a viewer.')
   await expect(list.getByRole('alert')).toHaveCount(0)
   // The keyboard's place is kept: the select waited as it saved, never dropping the focus to the page.
   await expect(marco).toBeFocused()

@@ -7,13 +7,13 @@ const checked: RowNote = { text: 'Saved. The reply was slow, so we checked.', po
 
 describe('the members’ rows after a role change lands (focus-kept.md)', () => {
   it('says Saved on the row that changed, and clears a refusal left on another row', () => {
-    const saved = savedNote()
+    const saved = savedNote('Ana', 'viewer')
     const notes = afterSave(new Map([['luis', refusal]]), 'ana', saved)
     assert.deepEqual([...notes], [['ana', saved]])
   })
 
   it('keeps another row’s status, and replaces this row’s refusal', () => {
-    const saved = savedNote()
+    const saved = savedNote('Ana', 'viewer')
     const notes = afterSave(
       new Map([
         ['ana', refusal],
@@ -32,11 +32,19 @@ describe('the members’ rows after a role change lands (focus-kept.md)', () => 
   })
 
   it('lets a Saved go after its moment, never what was said since, nor a later Saved', () => {
-    const first = savedNote()
+    const first = savedNote('Ana', 'viewer')
     assert.equal(savedGone(afterSave(new Map(), 'ana', first), 'ana', first).size, 0)
     const since = new Map([['ana', refusal]])
     assert.equal(savedGone(since, 'ana', first), since)
-    const later = afterSave(new Map(), 'ana', savedNote())
+    const later = afterSave(new Map(), 'ana', savedNote('Ana', 'viewer'))
     assert.equal(savedGone(later, 'ana', first), later)
+  })
+})
+
+describe('savedNote (demo finding 5)', () => {
+  it('says who has which role now, with its article', () => {
+    assert.equal(savedNote('Davide', 'viewer').text, 'Davide is now a viewer.')
+    assert.equal(savedNote('Ana', 'editor').text, 'Ana is now an editor.')
+    assert.equal(savedNote('Luis', 'admin').text, 'Luis is now an admin.')
   })
 })

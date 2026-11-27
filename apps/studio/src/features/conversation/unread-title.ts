@@ -40,6 +40,11 @@ export interface Away {
   ids: readonly string[]
   /** Its divider was seen in the chat: the chat's head no longer offers to go there. */
   reached: boolean
+  /**
+   * The person was in the room's call all along (demo finding 7): they were there, only the tab was elsewhere, so the
+   * messages are new, not missed. Absent, they were away.
+   */
+  inRoom?: true
 }
 
 /**
@@ -51,16 +56,20 @@ export interface Unseen {
   counted: Counted
   hidden: boolean
   away: Away | null
+  /** In the room's call at every read while the tab was hidden so far; false while shown. */
+  inRoom?: boolean
 }
 
 /**
  * Shown again, what was counted came while away: after what an earlier absence brought, while its divider isn't reached
  * (its first stays where the person left off), else on its own. Nothing counted, it is what it was.
  */
-function cameWhileAway(was: Away | null, counted: Counted): Away | null {
+function cameWhileAway(was: Away | null, counted: Counted, inRoom: boolean): Away | null {
   if (counted.size === 0) return was
   const ids = [...counted.keys()]
-  return { ids: was && !was.reached ? [...was.ids, ...ids] : ids, reached: false }
+  const after = was && !was.reached ? was : null
+  const there = inRoom && (after === null || after.inRoom === true)
+  return { ids: after ? [...after.ids, ...ids] : ids, reached: false, ...(there ? { inRoom: true as const } : {}) }
 }
 
 /**
@@ -76,6 +85,14 @@ function unanswered(away: Away | null, entries: readonly DiscussionEntry[], me: 
   return ids.length > 0 ? { ...away, ids } : null
 }
 
+/** A read while the tab is hidden: what came is counted, and whether the person is still in the call all along. */
+function readHidden(was: Unseen, entries: readonly DiscussionEntry[], me: string | null, inCall: boolean): Unseen {
+  const counted = withUnseen(was.counted, entries, was.seen, me)
+  const inRoom = inCall && (!was.hidden || was.inRoom === true)
+  const same = counted === was.counted && was.hidden && inRoom === (was.inRoom === true)
+  return same ? was : { ...was, counted, hidden: true, inRoom }
+}
+
 /**
  * The next read of the discussion. Hidden, what comes is counted: the same state when nothing changes, so a refresh
  * alone renders nothing. Shown, all is seen, and shown again, what was counted came while away, less what the viewer
@@ -87,13 +104,11 @@ export function nextUnseen(
   entries: readonly DiscussionEntry[],
   hidden: boolean,
   me: string | null,
+  inCall = false,
 ): Unseen {
-  if (hidden && was) {
-    const counted = withUnseen(was.counted, entries, was.seen, me)
-    return counted === was.counted && was.hidden ? was : { ...was, counted, hidden }
-  }
+  if (hidden && was) return readHidden(was, entries, me, inCall)
   const came = was?.hidden
-    ? cameWhileAway(was.away, withUnseen(was.counted, entries, was.seen, me))
+    ? cameWhileAway(was.away, withUnseen(was.counted, entries, was.seen, me), inCall && was.inRoom === true)
     : (was?.away ?? null)
   return { seen: new Set(entries.map((e) => e.id)), counted: new Map(), hidden, away: unanswered(came, entries, me) }
 }
@@ -103,9 +118,12 @@ export function reachedAway(away: Away | null, first: string): Away | null {
   return away && !away.reached && away.ids[0] === first ? { ...away, reached: true } : away
 }
 
-/** «2 messages came while you were away»: counted as the Studio counts, one in the singular. */
-export const awayWords = (count: number) =>
-  `${String(count)} ${count === 1 ? 'message' : 'messages'} came while you were away`
+/**
+ * «2 messages came while you were away»: counted as the Studio counts, one in the singular. To someone who was in the
+ * room's call all along, «2 new messages» (demo finding 7): they were there, only the tab was elsewhere.
+ */
+export const awayWords = (count: number, inRoom = false) =>
+  `${String(count)} ${inRoom ? 'new ' : ''}${count === 1 ? 'message' : 'messages'}${inRoom ? '' : ' came while you were away'}`
 
 /** Where the divider goes: above the first drawn of the messages that came (past 50, the first left the snapshot). */
 export function dividerAt(away: Away | null, entries: readonly DiscussionEntry[]): string | null {
@@ -194,6 +212,7 @@ export function useUnseenWhileHidden(
   entries: readonly DiscussionEntry[] | undefined,
   me: string | null,
   reads?: Reads,
+  inCall = false,
 ) {
   const { hidden, back } = useVisibility(reads?.refetch)
   // Whichever read lands first after the tab is shown, its own or the feed's, ends the absence with what it brings.
@@ -201,8 +220,8 @@ export function useUnseenWhileHidden(
   const [unseen, setUnseen] = useState<Unseen | null>(null)
   useEffect(() => {
     if (!entries) return // the shell in the background reads no discussion
-    setUnseen((was) => nextUnseen(was, entries, hidden || catching, me))
-  }, [entries, hidden, catching, me])
+    setUnseen((was) => nextUnseen(was, entries, hidden || catching, me, inCall))
+  }, [entries, hidden, catching, me, inCall])
   const count = hidden && entries && unseen ? withUnseen(unseen.counted, entries, unseen.seen, me).size : 0
   return { count, whileAway: useWhileAway(unseen?.away ?? null, setUnseen) }
 }

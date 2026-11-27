@@ -117,8 +117,8 @@ function useLeaveBehindClosedDoor(blocked: Blocked | null, room: ProjectRoom, pr
  * came while the person was away, for the room's chat to mark, with what the snapshot read again then brings
  * (messages-while-away.md).
  */
-function useTabTitle(snapshot: Snapshot | undefined, me: string | null, mine = 0, reads?: Reads) {
-  const { count, whileAway } = useUnseenWhileHidden(snapshot?.discussion, me, reads)
+function useTabTitle(snapshot: Snapshot | undefined, me: string | null, mine = 0, reads?: Reads, inCall = false) {
+  const { count, whileAway } = useUnseenWhileHidden(snapshot?.discussion, me, reads, inCall)
   const waiting = (snapshot?.lobby.filter((e) => e.status === 'waiting').length ?? 0) + mine + count
   useDocumentTitle(snapshot ? projectTitle(snapshot.title, waiting) : null)
   return whileAway
@@ -357,7 +357,7 @@ function useBeyondTheView(
   const decisions = useDecisionsWaiting(shown, viewer.plans, props.projectId)
   const reads = props.background ? undefined : viewer.reads
   const tools = shown ? (props.resourcesWaiting ?? 0) : 0
-  const whileAway = useTabTitle(shown, viewer.me, tools + decisions, reads)
+  const whileAway = useTabTitle(shown, viewer.me, tools + decisions, reads, isInCall(room))
   const looking = lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))
   useReportCall(props.projectId, snapshot?.title, room, looking, props.onCall)
   useJoinOnOpen(room, props.joinOnOpen ?? false, props.onJoinHandled)

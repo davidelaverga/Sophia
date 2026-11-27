@@ -27,10 +27,10 @@ export function AwayDivider({ words }: { words: string }) {
 }
 
 /** At the chat's head while the divider is out of view: how many came, and Jump. A status: it never takes the focus. */
-function AwayLine({ count, onJump }: { count: number; onJump: () => void }) {
+function AwayLine({ count, words, onJump }: { count: number; words: string; onJump: () => void }) {
   return (
     <p className="while-away-line" role="status">
-      {awayWords(count)}.{' '}
+      {words}.{' '}
       <button type="button" className="text-button" onClick={onJump}>
         {count === 1 ? 'Jump to it' : 'Jump to the first'}
       </button>
@@ -105,7 +105,7 @@ function markOf(away: Away | null, entries: readonly DiscussionEntry[]) {
   const id = dividerAt(away, entries)
   if (!away || !id) return null
   const count = away.ids.length
-  return { id, words: awayWords(count), count, open: away.reached ? null : (away.ids[0] ?? null) }
+  return { id, words: awayWords(count, away.inRoom), count, open: away.reached ? null : (away.ids[0] ?? null) }
 }
 
 /**
@@ -127,7 +127,7 @@ export function useWhileAway(scroll: History, entries: readonly DiscussionEntry[
   }
   return {
     divider: mark,
-    line: lined && mark ? <AwayLine count={mark.count} onJump={jump} /> : null,
+    line: lined && mark ? <AwayLine count={mark.count} words={mark.words} onJump={jump} /> : null,
     sent: whileAway?.sent,
   }
 }

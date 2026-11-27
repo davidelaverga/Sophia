@@ -162,3 +162,28 @@ test('the viewer known only once the tab is shown: their own message and what ca
   const known = nextUnseen(shown, [...before, ...came], false, 'me')
   assert.deepEqual(known.away, { ids: ['b'], reached: false })
 })
+
+// Someone in the room's call with the tab elsewhere was there: the messages are new, not missed (demo finding 7).
+
+/** Shown, hidden, two messages, shown again: in the call at each read as `inCall` says. */
+const backInCall = (inCall: readonly boolean[]) =>
+  (
+    [
+      [before, false],
+      [before, true],
+      [after, true],
+      [after, false],
+    ] as const
+  ).reduce<Unseen | null>((was, [entries, hidden], i) => nextUnseen(was, entries, hidden, 'me', inCall[i]), null)!
+
+test('in the call all along, what came is new, not missed (demo finding 7)', () => {
+  assert.deepEqual(backInCall([true, true, true, true]).away, { ids: ['a', 'b'], reached: false, inRoom: true })
+  assert.equal(awayWords(2, true), '2 new messages')
+  assert.equal(awayWords(1, true), '1 new message')
+})
+
+test('out of the call for any read while hidden, or back after leaving, it came while away', () => {
+  assert.deepEqual(backInCall([true, true, false, true]).away, { ids: ['a', 'b'], reached: false })
+  assert.deepEqual(backInCall([true, true, true, false]).away, { ids: ['a', 'b'], reached: false })
+  assert.deepEqual(backInCall([false, false, false, false]).away, { ids: ['a', 'b'], reached: false })
+})
