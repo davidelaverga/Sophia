@@ -371,6 +371,8 @@ interface Project {
   outage?: boolean
   /** The membership's reads fail as the API's `unavailable`, the rest answer (`membership=fail`, `failMembership`). */
   membershipFails?: boolean
+  /** The project's audience revision, raised by an admin's change elsewhere (`window.fixture.roleByAdmin`); absent, 1. */
+  audience?: number
   /** This viewer is no member of the project (`member=0`): its reads are refused, as the API refuses them. */
   outsider?: boolean
   /** The project list's reads fail (`projects=fail`). */
@@ -497,6 +499,10 @@ function eventStream(project: Project, after: number, signal: AbortSignal | null
 /** A held snapshot answers with the cursor it was held at: consistent with what it shows, as the API's is. */
 const heldCursor = (project: Project) => (project.heldAt === undefined ? {} : { cursor: String(project.heldAt) })
 
+/** The snapshot with the audience an admin's change elsewhere raised (`roleByAdmin`); as it was, absent one. */
+const withAudience = <T extends object>(project: Project, now: T): T =>
+  project.audience ? { ...now, audienceRevision: project.audience } : now
+
 function snapshotOf(project: Project, revisions = false) {
   const now = {
     ...snapshot(project.revision, project.exchange, project.messages, project.goals, project.room),
@@ -514,8 +520,9 @@ function snapshotOf(project: Project, revisions = false) {
     : work
   const reported = project.goalReports ? withGoalReports(project, designed) : designed
   const titled = project.title ? { ...reported, title: project.title } : reported
+  const heard = withAudience(project, titled)
   const lobby = lobbyNow(project)
-  return withFocus(project, lobby ? { ...titled, lobby } : titled)
+  return withFocus(project, lobby ? { ...heard, lobby } : heard)
 }
 
 /** The research task in the snapshot's work and the report's current version in its artifacts (goal-reports.md). */

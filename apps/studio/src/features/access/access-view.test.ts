@@ -4,6 +4,7 @@ import { LINK_FAILED, OTHER_BROWSER_NOTICE } from '../../app/auth-callback.ts'
 import { ago } from '../../app/time-words.ts'
 import {
   acceptFailure,
+  audienceMoved,
   admissionLabel,
   askAgainIn,
   clashWith,
@@ -305,5 +306,17 @@ describe('the join page with no invitation token on this device (docs/plans/join
       title: 'You’re signed in',
       text: 'To accept the invitation, open the invitation email again and use its link.',
     })
+  })
+})
+
+describe('audienceMoved (role-follows-audience.md)', () => {
+  it('takes the first reading as the baseline', () => {
+    assert.equal(audienceMoved(null, 3), false)
+  })
+  it('moves when the revision rises, and only then', () => {
+    assert.equal(audienceMoved(3, 4), true)
+    assert.equal(audienceMoved(4, 4), false)
+    // An older snapshot answered late never reads as a change.
+    assert.equal(audienceMoved(4, 3), false)
   })
 })

@@ -310,3 +310,9 @@ export function qrPath(cells: readonly (readonly boolean[])[], border: number): 
   )
   return parts.join('')
 }
+
+/**
+ * Whether the project's audience moved since it was last seen (role-follows-audience.md): a role changed, a member
+ * joined, left or was removed, all of which raise the snapshot's `audienceRevision`. The first reading is the baseline.
+ */
+export const audienceMoved = (seen: number | null, now: number): boolean => seen !== null && now > seen

@@ -431,7 +431,13 @@ function useProjectKeys(
 function useProject({ projectId, identity, ownName = null }: Pick<Props, 'projectId' | 'identity' | 'ownName'>) {
   const { snapshot, feed, connection, checkedAt } = useProjectFeed(projectId, identity.name, identity.token)
   const room = withOwnName(useProjectRoom(projectId, identity.token, snapshot.data), ownName)
-  const membership = useProjectMembership(projectId, identity.name, identity.token, snapshot.dataUpdatedAt).data
+  const membership = useProjectMembership(
+    projectId,
+    identity.name,
+    identity.token,
+    snapshot.dataUpdatedAt,
+    snapshot.data?.audienceRevision,
+  ).data
   return { snapshot, feed, connection, checkedAt, room, membership }
 }
 

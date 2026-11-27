@@ -387,6 +387,8 @@ interface Fixture {
   outage: (on: boolean) => void
   /** While on, only the membership's reads fail (`membership=fail`). */
   failMembership: (on: boolean) => void
+  /** An admin elsewhere changes this viewer's role: the membership answers it, and the snapshot's audience moves. */
+  roleByAdmin: (role: 'editor' | 'viewer') => void
   /** Marco carries a note to this project, and the feed moves (chapter 1). */
   carryIn: () => void
   /** While on, tasks' writes land but their replies wait for `releaseTasks` (A17). */
@@ -1000,6 +1002,7 @@ const project = {
   // `snapshot=hold`: the project's snapshot isn't read until the page lets it through (offline-join-from-rest.md).
   snapshotHeld: query.get('snapshot') === 'hold' ? waiting() : null,
   membershipFails: query.get('membership') === 'fail',
+  audience: 1,
   outage: query.get('outage') === '1',
   outsider: query.get('member') === '0',
   // A13: searches held while the page asks (`holdSearch`).
@@ -1499,6 +1502,11 @@ window.fixture = {
   },
   failMembership: (on) => {
     project.membershipFails = on
+  },
+  roleByAdmin: (role) => {
+    project.role = role
+    project.audience += 1
+    publish(project)
   },
   carryIn: () => {
     project.carriedIn = [
