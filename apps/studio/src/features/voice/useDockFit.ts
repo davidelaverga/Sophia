@@ -1,5 +1,5 @@
 import { useEffect, type RefObject } from 'react'
-import { firstFit, wraps, type DockLayout } from './dock-fit.ts'
+import { fitBeside, wraps, type DockFit } from './dock-fit.ts'
 
 /** A control as laid out: a group that lays its controls in the row itself (`display: contents`) stands for them. */
 const laidOut = (element: Element): Element[] =>
@@ -23,17 +23,19 @@ const clockLength = (dock: HTMLElement) => dock.querySelector('.dock-time')?.tex
 
 /**
  * Tried with its words, then with icons where they would wrap (`data-tight`, theme.css), then with its extras behind
- * More controls where the icons would too (`data-fold`, dock-fold.md): in one go, before anything paints, so the dock
- * is never seen on two rows it didn't need.
+ * More controls where the icons would too (`data-fold`, dock-fold.md), beside the corner while it fits there and with
+ * the corner up where it doesn't (`data-corner-up` on the stage, corner-stays-low.md): in one go, before anything
+ * paints, so the dock is never seen on two rows it didn't need.
  */
-function fit(dock: HTMLElement) {
-  const lay = (layout: DockLayout) => {
+function fit(dock: HTMLElement, stage: HTMLElement) {
+  const lay = ({ layout, cornerUp }: DockFit) => {
     dock.toggleAttribute('data-tight', layout !== 'words')
     dock.toggleAttribute('data-fold', layout === 'folded')
+    stage.toggleAttribute('data-corner-up', cornerUp)
   }
   lay(
-    firstFit((layout) => {
-      lay(layout)
+    fitBeside((layout, cornerUp) => {
+      lay({ layout, cornerUp })
       return wraps(rowOf(dock))
     }),
   )
@@ -53,7 +55,7 @@ export function useDockFit(ref: RefObject<HTMLDivElement | null>) {
     const again = () => {
       if (!live) return
       clock = clockLength(dock)
-      fit(dock)
+      fit(dock, stage)
     }
     again()
     // Its own attribute is not watched: setting it is not a change of controls. Nor is each tick of the call's clock,
@@ -72,6 +74,7 @@ export function useDockFit(ref: RefObject<HTMLDivElement | null>) {
       room.disconnect()
       dock.removeAttribute('data-tight')
       dock.removeAttribute('data-fold')
+      stage.removeAttribute('data-corner-up')
     }
   }, [ref])
 }

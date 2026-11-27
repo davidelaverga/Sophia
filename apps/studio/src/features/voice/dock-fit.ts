@@ -28,3 +28,20 @@ export type DockLayout = 'words' | 'icons' | 'folded'
 export function firstFit(wrapsAs: (layout: DockLayout) => boolean): DockLayout {
   return (['words', 'icons'] as const).find((layout) => !wrapsAs(layout)) ?? 'folded'
 }
+
+/** Where the corner (Chat, People, Brief) sits: low, level with the dock, or up at the lenses' line. */
+export interface DockFit {
+  layout: DockLayout
+  cornerUp: boolean
+}
+
+/**
+ * The corner keeps its place beside the dock while the dock fits there in any layout, folded included
+ * (docs/plans/corner-stays-low.md): opening the panel moves nothing under the pointer. Only where even folded it would
+ * wrap does the corner go up and leave the band to the dock.
+ */
+export function fitBeside(wrapsAs: (layout: DockLayout, cornerUp: boolean) => boolean): DockFit {
+  const low = (['words', 'icons', 'folded'] as const).find((layout) => !wrapsAs(layout, false))
+  if (low) return { layout: low, cornerUp: false }
+  return { layout: firstFit((layout) => wrapsAs(layout, true)), cornerUp: true }
+}

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { firstFit, wraps, type DockLayout } from './dock-fit.ts'
+import { firstFit, fitBeside, wraps, type DockLayout } from './dock-fit.ts'
 
 const box = (top: number, height: number) => ({ top, bottom: top + height })
 
@@ -44,5 +44,33 @@ describe('firstFit', () => {
     const d = dock(['words', 'icons', 'folded'])
     assert.equal(firstFit(d.wrapsAs), 'folded')
     assert.deepEqual(d.tried, ['words', 'icons'])
+  })
+})
+
+/** A dock that wraps in the layouts given, beside the corner (low) or with the band to itself (up). */
+function beside(low: readonly DockLayout[], up: readonly DockLayout[]) {
+  const tried: string[] = []
+  const wrapsAs = (layout: DockLayout, cornerUp: boolean) => {
+    tried.push(`${layout}${cornerUp ? ' up' : ''}`)
+    return (cornerUp ? up : low).includes(layout)
+  }
+  return { tried, wrapsAs }
+}
+
+describe('fitBeside', () => {
+  it('keeps the corner low with the words where they fit beside it', () => {
+    const d = beside([], [])
+    assert.deepEqual(fitBeside(d.wrapsAs), { layout: 'words', cornerUp: false })
+    assert.deepEqual(d.tried, ['words'])
+  })
+
+  it('folds the dock rather than move the corner, while folded fits beside it', () => {
+    assert.deepEqual(fitBeside(beside(['words', 'icons'], []).wrapsAs), { layout: 'folded', cornerUp: false })
+  })
+
+  it('sends the corner up only where even folded wraps beside it, and lays the dock out again on the whole band', () => {
+    const d = beside(['words', 'icons', 'folded'], ['words'])
+    assert.deepEqual(fitBeside(d.wrapsAs), { layout: 'icons', cornerUp: true })
+    assert.deepEqual(d.tried, ['words', 'icons', 'folded', 'words up', 'icons up'])
   })
 })
