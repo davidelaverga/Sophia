@@ -361,8 +361,10 @@ export function StudioShell(props: Props) {
   const captions = useStageCaptions(held, room, chatOpen, who)
   const stageExtras = { snapshot, room, made, panel, common, spoken: latestSpoken(held), catchUp, background }
   const { present, under, showing } = useUnderTheLine(stageExtras, chatOpen)
+  // The page's main part, unless out of sight for its call: then another page has it.
+  const Main = background ? 'div' : 'main'
   return (
-    <div className="studio" data-content>
+    <Main className="studio" data-content>
       <RoomStage
         room={room}
         snapshot={snapshot}
@@ -396,7 +398,7 @@ export function StudioShell(props: Props) {
         call={call}
         note={panelNote(panel.panel, room.mediaError, room.error)}
       />
-    </div>
+    </Main>
   )
 }
 

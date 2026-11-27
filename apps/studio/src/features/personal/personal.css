@@ -835,11 +835,11 @@
   flex-wrap: wrap;
   padding: 22px 0 12px;
 }
-.places .c3-head h2 {
+.places .c3-head h1 {
   font-size: 20px;
   line-height: var(--lh-head);
 }
-.places .c3-head h2:focus {
+.places .c3-head h1:focus {
   outline: none;
 }
 /* With the notes open the whole column moves together, title included. */
@@ -858,7 +858,7 @@
   padding: 24px 0 10px;
   border-bottom: 1px solid var(--line);
 }
-.places .c3-space.you .c3-head h2 {
+.places .c3-space.you .c3-head h1 {
   font: 500 var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1928,7 +1928,7 @@
   .places .c3-head {
     padding-top: 14px;
   }
-  .places .c3-head h2 {
+  .places .c3-head h1 {
     font-size: 20px;
   }
   .places .c3-edge {
