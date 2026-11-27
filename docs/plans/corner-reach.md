@@ -27,7 +27,8 @@ fit over it: the first CI run measured what she made 35 px into the captions (`r
 
 Nothing else moves:
 
-- From 560 to 800 px the corner stays up at the lenses' line.
+- From 560 to 800 px the corner stays up at the lenses' line. (Since corner-stays-low.md it stays level with the dock
+  there, and goes up only where even the folded dock wouldn't fit beside it.)
 - On a computer it stays level with the dock.
 
 | Measure (390 × 844, touch)          | Before         | After                   |

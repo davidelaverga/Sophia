@@ -6450,15 +6450,42 @@ button.contribution-quote:hover {
 }
 /* Room for both on one band: the dock keeps clear of the corner, and wraps if it must. */
 @container (min-width: 800px) {
-  .room-stage:has(> .stage-corner) .dock-wrap {
+  .room-stage:not([data-corner-up]):has(> .stage-corner) .dock-wrap {
     max-width: calc(100% - 2 * (var(--gutter) + var(--corner-room)));
   }
 }
-/* No room for both (a small window, or the panel open beside the stage): the corner goes up to the lenses' line
-   (16 px down, 36 px tall; the corner is 48), and the dock has the band to itself. */
-@container (max-width: 799.98px) {
+/* Narrower (a small window, or the panel open beside the stage): the corner stays where it was, and the dock centres in
+   what it leaves, giving way as it must (corner-stays-low.md). Opening the panel moves nothing under the pointer. */
+@container (min-width: 560.02px) and (max-width: 799.98px) {
+  .room-stage:not([data-corner-up]):has(> .stage-corner) .dock-wrap {
+    left: calc(50% - var(--corner-room) / 2);
+    max-width: calc(100% - 2 * var(--gutter) - var(--corner-room));
+  }
+}
+/* No room for both, even with the dock's extras folded away (data-corner-up, set by useDockFit), or a phone's width:
+   the corner goes up to the lenses' line (16 px down, 36 px tall; the corner is 48), and the dock has the band to
+   itself. Up there its tips open downwards, over the stage, never into the top bar. */
+@container (min-width: 560.02px) {
+  .room-stage[data-corner-up] > .stage-corner {
+    top: 10px;
+    bottom: auto;
+  }
+  .room-stage[data-corner-up] > .stage-corner .tip {
+    top: calc(100% + 8px);
+    bottom: auto;
+  }
+  .room-stage[data-corner-up] .chat-peek-line {
+    top: calc(100% + 8px);
+    bottom: auto;
+  }
+}
+@container (max-width: 560px) {
   .stage-corner {
     top: 10px;
+    bottom: auto;
+  }
+  .stage-corner .tip {
+    top: calc(100% + 8px);
     bottom: auto;
   }
 }
@@ -6476,8 +6503,13 @@ button.contribution-quote:hover {
     --corner-room: 156px;
     --corner-h: 52px;
   }
-  @container (max-width: 799.98px) {
+  @container (max-width: 560px) {
     .stage-corner {
+      top: 12px;
+    }
+  }
+  @container (min-width: 560.02px) {
+    .room-stage[data-corner-up] > .stage-corner {
       top: 12px;
     }
   }
@@ -6498,6 +6530,10 @@ button.contribution-quote:hover {
     top: auto;
     bottom: calc(var(--floor) + var(--dock-h, 48px) + 8px);
     z-index: 3;
+  }
+  .stage-corner .tip {
+    top: auto;
+    bottom: calc(100% + 8px);
   }
   .room-stage:has(> .stage-corner) > :is(.stage-captions, .gallery, .present, .stage-body) {
     bottom: calc(var(--floor) + var(--dock-h, 48px) + 8px + var(--corner-h) + 12px);
@@ -6527,7 +6563,7 @@ button.contribution-quote:hover {
   width: max-content;
   max-width: min(300px, calc(100vw - 2 * var(--gutter)));
 }
-@container (min-width: 800px) {
+@container (min-width: 560.02px) {
   .chat-peek-line {
     top: auto;
     bottom: calc(100% + 8px);
