@@ -25,10 +25,14 @@ export function DockMore({ children }: { children: ReactNode }) {
   useEffect(() => {
     const dock = more.wrap.current?.closest('.dock')
     if (!dock) return undefined
+    let was = dock.hasAttribute('data-fold')
     const watch = new MutationObserver(() => {
       const folded = dock.hasAttribute('data-fold')
+      // The mark written again with the same value is no change: a focus in the open tray (React's menu) stays put.
+      if (folded === was) return
+      was = folded
       if (!folded) setOpen(false)
-      handOver(folded, more.opener.current, more.panel.current)
+      if (!more.wrap.current?.hasAttribute('data-open')) handOver(folded, more.opener.current, more.panel.current)
     })
     watch.observe(dock, { attributes: true, attributeFilter: ['data-fold'] })
     return () => watch.disconnect()

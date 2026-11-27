@@ -442,11 +442,12 @@ const inviteAddressed = () => paramIn(window.location.search, 'invite', INVITE_T
 function useShellSheets(props: Pick<Props, 'inviteOnOpen' | 'onInviteHandled' | 'routed' | 'background'>) {
   const { inviteOnOpen = false, onInviteHandled } = props
   // An address that names Invite's tab (`?invite=`, focus-kept.md) opens the sheet, unless this shell isn't the
-  // address's (kept for its call while another shows); Back or Forward shows what the entry's address says.
+  // address's (kept for its call while another shows). Back or Forward to an entry that names it opens it again; one that
+  // doesn't leaves the sheet as it is (addressed-follows-back.md).
   const ours = props.routed !== false && !props.background
   const [inviting, setInviting] = useState(() => inviteOnOpen || (ours && inviteAddressed()))
   useOnBackForward(() => {
-    if (ours) setInviting(inviteAddressed())
+    if (ours && inviteAddressed()) setInviting(true)
   })
   const [searching, setSearching] = useState(false)
   useEffect(() => {

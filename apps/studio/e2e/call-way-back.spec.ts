@@ -78,7 +78,6 @@ test('way back · after a reload in text mode, J goes back as the call was: typi
   page,
 }) => {
   await page.goto('/room.html?exchange=open&sophia=listening')
-  await drawn(page, DRAWN.room)
   await join(page).click()
   await expect(leave(page)).toBeVisible()
   await page.locator('.panel-toggles [data-panel="chat"]').click()
@@ -88,7 +87,6 @@ test('way back · after a reload in text mode, J goes back as the call was: typi
   const textMode = page.getByRole('button', { name: /^Text mode/ })
   await expect(textMode).toHaveAttribute('aria-pressed', 'true')
   await page.reload()
-  await drawn(page, DRAWN.room)
   await expect(page.locator('.dock-wrap').getByRole('status').filter({ hasText: LINE })).toBeVisible()
   await page.locator('body').press('ControlOrMeta+j')
   await expect(leave(page)).toBeVisible()

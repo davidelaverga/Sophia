@@ -3,13 +3,14 @@ import { describe, it } from 'node:test'
 import type { Snapshot } from '@sophia/contracts'
 import {
   changedUnseen,
-  firstLine,
   chatSignature,
+  firstLine,
   focusOnOpen,
   focusStep,
   isNew,
   mergeNames,
   panelNote,
+  panelOnReturn,
   peekOf,
   seenNow,
   toggled,
@@ -159,5 +160,19 @@ describe('a new message peeked at beside a closed chat (chat-pace.md)', () => {
   it('cuts a long first line', () => {
     assert.equal(firstLine('a'.repeat(100), 10), `${'a'.repeat(9)}…`)
     assert.equal(firstLine('  \n'), '')
+  })
+})
+
+describe('the panel as the room comes back on screen (focus-kept.md, Codex P2 on #545)', () => {
+  it('opens the one the address names when the room comes back, and nothing else', () => {
+    assert.equal(panelOnReturn(false, true, '?lens=converse&panel=chat'), 'chat')
+    assert.equal(panelOnReturn(false, true, '?panel=people'), 'people')
+    assert.equal(panelOnReturn(false, true, '?lens=converse'), null)
+    assert.equal(panelOnReturn(false, true, '?panel=elsewhere'), null)
+  })
+
+  it('reads nothing while the room stays (a report’s Close steps Back) or goes', () => {
+    assert.equal(panelOnReturn(true, true, '?panel=chat'), null)
+    assert.equal(panelOnReturn(true, false, '?panel=chat'), null)
   })
 })

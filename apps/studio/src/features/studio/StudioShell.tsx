@@ -33,13 +33,12 @@ import { showRenderOf, useStagePresent } from '../voice/StagePresent.tsx'
 import { latestSpoken } from '../voice/voice-trail.ts'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
-import { chatSignature, panelNote, PANELS, toggled, type Panel } from './side-panel.ts'
+import { chatSignature, panelNote, panelOnReturn, PANELS, toggled, type Panel } from './side-panel.ts'
 import { useKnownNames } from './useKnownNames.ts'
 import { PeoplePanel } from './PeoplePanel.tsx'
 import { PanelToggles, SidePanel, useBriefUpdates, useChatPeek, useUnread } from './SidePanel.tsx'
 import { useAddressMoves, useViewerState } from './useViewerState.ts'
 import { paramIn, showParam } from '../../app/address-param.ts'
-import { useOnBackForward } from '../../app/useOnBackForward.ts'
 import { lensesShown, type Lens } from './viewer-state.ts'
 
 /** What each lens will hold, stated plainly instead of showing fake content (the goal is noted for us). */
@@ -73,13 +72,17 @@ export function useRoomPanel(
     studio ? paramIn(window.location.search, 'panel', PANELS) : null,
   )
   const [opener, setOpener] = useState<Panel | null>(panel)
-  // Back or Forward to a Studio entry: the panel its address names, before this one is written over it.
-  useOnBackForward(() => {
-    if (!studio) return
-    const named = paramIn(window.location.search, 'panel', PANELS)
-    setPanel(named)
-    setOpener(named)
-  })
+  // The room back on screen (Back to an earlier Studio entry from another view): the panel its address names, read in
+  // the render, before this one is written over it (Codex P2 on #545).
+  const [wasStudio, setWasStudio] = useState(studio)
+  if (wasStudio !== studio) {
+    setWasStudio(studio)
+    const named = panelOnReturn(wasStudio, studio, window.location.search)
+    if (named) {
+      setPanel(named)
+      setOpener(named)
+    }
+  }
   const moves = useAddressMoves()
   useEffect(() => {
     if (studio) showParam('panel', panel)

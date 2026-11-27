@@ -1,5 +1,5 @@
-// Back and Forward under a view that stays mounted (focus-kept.md): what the entry's address names (`?panel=`,
-// `?invite=`) is read again, as the Studio's lens is, rather than written over with what the view held.
+// Back and Forward under a view that stays mounted (focus-kept.md): what the entry's address names (`?invite=`) is read
+// again, rather than written over with what the view held.
 import { useEffect, useState } from 'react'
 
 /**

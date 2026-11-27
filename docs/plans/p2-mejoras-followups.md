@@ -11,8 +11,8 @@ for one to move (none here), and no endpoint is invented.
 | #544 | People before joining doesn't mark guests | **Not here.** `ProjectSummary.room.people` carries names only; marking guests needs the API to send the condition. Left for Davide's lane. |
 | #544 | A failed presence refresh keeps the old attendees as current | `presenceRead` (room-presence.ts): a failed latest read is unknown, even with an older answer kept. |
 | #544 | A stopped goal with a note shows the note alone | `rowLine`: at rest (held, holding, stopping, stopped), the state leads and the note follows («Stopped · 1 of 5 done · …»). |
-| #545 | Back to an earlier Studio entry writes the held panel over `?panel=` | `useOnBackForward` (app/): after each Back or Forward, the shell reads `?panel=` again before writing, as the lens is read. |
-| #545 | Back/Forward don't restore the Invite sheet | The same hook: the sheet opens or closes as the entry's `?invite=` says, and an open sheet takes the tab it names. |
+| #545 | Back to an earlier Studio entry writes the held panel over `?panel=` | As the room comes back on screen from another view, the panel its address names is read before anything is written (`panelOnReturn`), as the lens is. A move within the room reads nothing: a report's Close steps Back, and what is on screen stays (addressed-follows-back.md). |
+| #545 | Back/Forward don't restore the Invite sheet | `useOnBackForward` (app/): Back or Forward to an entry that names `?invite=` opens the sheet on that tab; one that doesn't leaves it as it is. |
 | #546 | A refused row retried with a lost reply stays «Not sent» | The row goes by the message sent, not by `again`: the unknown line's Try again sends the row's own message, and the row goes when it lands. |
 | #546 | A new draft with the same words is cleared when the first lands | `recorded` no longer clears the bar: it emptied as the message went, so what it holds is new words. |
 | #546 | A refused row back in the bar loses its mentions and reply | A row's own refused Try again keeps its row, which holds the whole message (the bar can't take mentions or a reply back). |
@@ -28,7 +28,7 @@ for one to move (none here), and no endpoint is invented.
 
 - Unit: `goals-glance`, `room-presence`, `room-message-send`, `lobby-undo` (new cases each); the Studio's units 2658/2660
   (the two Windows-only failures, `attention` and `browser-imports`, fail on main too).
-- E2E added: focus-kept (panel and Invite by Back/Forward), chat-pace (same words kept; refused row's lost retry),
+- E2E added: focus-kept (Invite by Back/Forward; the panel's return is a unit, since the fixture's views keep one history entry), chat-pace (same words kept; refused row's lost retry),
   call-way-back (J after a reload in text mode), dock-fold (Escape in the row; focus across the fold), room-present
   (failure under the row, desktop and @phone).
 - Each case was walked first on the fixtures in the app's browser pane (Opera was open, so the Playwright guard would
@@ -36,3 +36,13 @@ for one to move (none here), and no endpoint is invented.
   text mode (`connect`, `text:on`, no microphone), the fold's focus both ways, Escape in the row (not prevented), and the
   made row at 375 × 812 dark and paper (title 132/132 px, the failure on its own line, content inside the box).
 - CI is the record for the specs.
+
+## After the first CI run
+
+The first run failed four of my cases, plus two known flakes (signed-in-later, and voice-chat CX-0022, which the same panel change caused).
+- Reading `?panel=` on every Back reopened Chat when a report's Close stepped Back (addressed-back, report LFE-02.1, voice-chat CX-0022). Fix: read it only as the room comes back on screen.
+- The fold's observer acted on the mark written again with the same value and took the focus out of React's menu in the open tray (dock-fold). Fix: act only on a change, and only while the tray is closed.
+- Invite now only opens on Back/Forward, never closes, as addressed-follows-back.md asks.
+- My J spec waited for a «drawn» sign that page doesn't show. It now waits for Join.
+
+Each was walked again on the fixtures before the push.
