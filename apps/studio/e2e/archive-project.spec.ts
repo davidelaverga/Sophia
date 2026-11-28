@@ -297,7 +297,7 @@ async function noneActive(page: Page) {
   const make = page.locator('.c3-head').getByRole('button', { name: 'New project' })
   await expect(make).toBeInViewport()
   await make.click()
-  await expect(page.getByLabel('Project title')).toBeVisible()
+  await expect(page.getByLabel('Project name')).toBeVisible()
 }
 
 /** None active and none archived: the first run, as it was: its sentence and Start a project, no header press, no fold. */
@@ -311,7 +311,7 @@ async function firstRun(page: Page) {
   await expect(page.locator('.c3-head').getByRole('button', { name: 'New project' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /^Archived/ })).toHaveCount(0)
   await empty.getByRole('button', { name: 'Start a project' }).click()
-  await expect(page.getByLabel('Project title')).toBeVisible()
+  await expect(page.getByLabel('Project name')).toBeVisible()
 }
 
 /**
