@@ -31,7 +31,8 @@ export function useComposerMentions(
   const ids = held ? (held.ask.mentions ?? EMPTY) : draft
   const read = useMemberNames(projectId, identity, enabled)
   const options = read.known && enabled ? nameable(read.members, me) : []
-  const unavailable = ids.some((id) => !options.some((member) => member.actorId === id))
+  // A stored selection is inactive when writing under the legacy contract.
+  const unavailable = enabled && ids.some((id) => !options.some((member) => member.actorId === id))
   const set = (next: readonly string[]) => change((k) => withDraftMentions(k, conversationId, slot, next))
   const clearIf = (sent: readonly string[], text?: string) => {
     let same = false
