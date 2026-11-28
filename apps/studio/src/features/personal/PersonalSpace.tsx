@@ -344,9 +344,9 @@ function Head({
   const ticked = useTicked(count)
   return (
     <header className="c3-head" inert={under}>
-      <h2 id="c-p-h" tabIndex={-1}>
+      <h1 id="c-p-h" tabIndex={-1}>
         You and Sophia
-      </h2>
+      </h1>
       <div className="c3-head-acts">
         {count !== undefined && <FindToggle find={find} />}
         {onTalk && (
@@ -686,7 +686,7 @@ export function PersonalSpace(props: Props) {
     />
   )
   return (
-    <section
+    <main
       className={`c3-space you${waiting ? ' speaking' : ''}${listening ? ' listening' : ''}`}
       data-place-view="personal"
       data-content
@@ -716,6 +716,6 @@ export function PersonalSpace(props: Props) {
         <Notes props={props} actions={actions} under={talk.talking} />
       </div>
       <Edge edge={props.edge} onCross={props.onCross} />
-    </section>
+    </main>
   )
 }

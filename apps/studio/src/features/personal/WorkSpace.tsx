@@ -395,12 +395,12 @@ export function WorkSpace(props: Props) {
   // project is never out of reach while it loads, retries or waits offline.
   const offerNew = !newProject.open && !!projects && empty !== 'first'
   return (
-    <section className="c3-space job" data-place-view="work" data-content hidden={props.hidden} aria-labelledby="c-w-h">
+    <main className="c3-space job" data-place-view="work" data-content hidden={props.hidden} aria-labelledby="c-w-h">
       <Edge lock={personalLock} onCross={actions.cross} />
       <header className="c3-head">
-        <h2 id="c-w-h" tabIndex={-1}>
+        <h1 id="c-w-h" tabIndex={-1}>
           Your projects
-        </h2>
+        </h1>
         <div className="c3-head-acts">
           {offerNew && (
             <button className="ghost" type="button" onClick={() => newProject.set(true)}>
@@ -439,6 +439,6 @@ export function WorkSpace(props: Props) {
         ))}
         <ArchivedFold archived={props.archived} onOpen={actions.open} />
       </div>
-    </section>
+    </main>
   )
 }

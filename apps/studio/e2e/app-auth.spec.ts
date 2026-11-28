@@ -861,7 +861,7 @@ test('browser-account · another account at the same address sends its own Unarc
   const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
   await page.goto(`${APP}/app.html`)
   await expect(account(page)).toBeVisible()
-  const work = page.locator('section[data-place-view="work"]')
+  const work = page.locator('[data-place-view="work"]')
   const unarchive = async () => {
     await page.evaluate(() => {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
@@ -1001,7 +1001,7 @@ test('browser-account · past five projects, Work finds one by its title and ord
   await page.goto(`${APP}/app.html`)
   await expect(account(page)).toBeVisible()
   await page.keyboard.press('w')
-  const work = page.locator('section[data-place-view="work"]')
+  const work = page.locator('[data-place-view="work"]')
   const titles = work.locator('.c3-proj h3')
   const field = work.getByRole('searchbox', { name: 'Find a project' })
   await expect(titles).toHaveCount(7)
@@ -1080,7 +1080,7 @@ test('reliability · the project list answered twice by a proxy’s 502 page loa
   await page.goto(`${APP}/app.html`)
   await expect(account(page)).toBeVisible()
   await page.keyboard.press('w')
-  const work = page.locator('section[data-place-view="work"]')
+  const work = page.locator('[data-place-view="work"]')
   // TanStack's own waits, 1 s then 2 s, and the list; well before the list's 20 s interval would read it again.
   await expect(work.locator('.c3-proj h3')).toHaveCount(7, { timeout: 8000 })
   await expect(work.getByRole('alert')).toHaveCount(0)
@@ -1115,7 +1115,7 @@ test('reliability · a new project answered by a proxy’s 504 page is sent agai
   await page.goto(`${APP}/app.html`)
   await expect(account(page)).toBeVisible()
   await page.keyboard.press('w')
-  const work = page.locator('section[data-place-view="work"]')
+  const work = page.locator('[data-place-view="work"]')
   await expect(work.locator('.c3-proj h3')).toHaveCount(7)
   await work.getByRole('button', { name: 'New project' }).click()
   const form = work.locator('form.c3-newproj')

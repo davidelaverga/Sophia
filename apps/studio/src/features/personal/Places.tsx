@@ -492,7 +492,7 @@ function Home({ v }: { v: View }) {
   const says = useHomeSays(v, answers)
   const first = useHomeFirstRun(v)
   return (
-    <div className="c-home" data-place-view="home" data-content hidden={!v.shown.includes('home')}>
+    <main className="c-home" data-place-view="home" data-content hidden={!v.shown.includes('home')}>
       {first.pending && <span hidden data-guide="held" />}
       <Welcome
         hello={greeting(now.getHours(), null, fresh)}
@@ -530,7 +530,7 @@ function Home({ v }: { v: View }) {
           updates: (projectId) => props.onOpenView(projectId, 'updates', {}),
         }}
       />
-    </div>
+    </main>
   )
 }
 

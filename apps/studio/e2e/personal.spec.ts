@@ -868,7 +868,7 @@ test('touch · a long unbroken word (a pasted link) wraps inside the field; the 
   const bar = await page.locator('.ps-composer .message-bar').boundingBox()
   expect(bar?.width ?? Infinity).toBeLessThanOrEqual((column?.width ?? 0) + 1)
   expect(await field(page).evaluate((f) => f.scrollWidth <= f.clientWidth + 1)).toBe(true)
-  await expect(page.locator('.c3-head h2')).toBeInViewport()
+  await expect(page.locator('.c3-head h1')).toBeInViewport()
 })
 
 // Moments (docs/plans/personal-moments.md §2): her light follows the hour; the days carry where you began, time

@@ -163,7 +163,7 @@ function Greeting({ hello, name, date, says, actions }: Pick<Props, 'hello' | 'n
   return (
     <header className="hw-head">
       <p className="hw-date">{date}</p>
-      <h2 className="hw-hello">
+      <h1 className="hw-hello">
         {name ? (
           <>
             <span>{hello},</span>
@@ -172,7 +172,7 @@ function Greeting({ hello, name, date, says, actions }: Pick<Props, 'hello' | 'n
         ) : (
           <span>{hello}.</span>
         )}
-      </h2>
+      </h1>
       {says.length > 0 && !news && <p className="hw-says">{words}</p>}
       {/* Mounted all along, so news is announced as it comes, never taking the focus. With nothing to say it holds her
           sentence's place, so nothing below moves when one comes or goes with Home open (home-no-false-claim.md);

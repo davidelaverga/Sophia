@@ -665,7 +665,7 @@ function Home() {
         </button>
       )}
       {TURNS && <FixtureLog hidden={TURNS === 'hidden'} />}
-      <div className="c-home" data-place-view="home" hidden={away}>
+      <main className="c-home" data-place-view="home" hidden={away}>
         {first.pending && <span hidden data-guide="held" />}
         <Welcome
           hello={greeting(NOW.getHours(), null, false)}
@@ -693,7 +693,7 @@ function Home() {
           }
           actions={ACTIONS}
         />
-      </div>
+      </main>
     </div>
   )
 }
