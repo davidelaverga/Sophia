@@ -6,6 +6,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 const stage = (page: Page) => page.getByRole('region', { name: 'Project room' })
 const reconnecting = (page: Page) => stage(page).getByRole('status').filter({ hasText: 'Reconnecting…' })
+const leave = (page: Page) => page.getByRole('button', { name: 'Leave the room' })
 
 test.beforeEach(async ({ page }) => {
   await page.route(
@@ -19,6 +20,7 @@ test('reconnecting · with cameras on, a lost link says so over the tiles, and t
 }) => {
   await page.goto('/room.html?call=on&people=2&video=camera')
   await expect(stage(page)).toHaveAttribute('data-mode', 'gallery')
+  await expect(leave(page)).toBeVisible()
   await page.evaluate(() => window.fixture?.linkLost(true))
   await expect(reconnecting(page)).toBeVisible()
   await page.evaluate(() => window.fixture?.linkLost(false))
@@ -28,6 +30,7 @@ test('reconnecting · with cameras on, a lost link says so over the tiles, and t
 test('reconnecting · without video, Sophia’s line says it, as before', async ({ page }) => {
   await page.goto('/room.html?call=on&people=2')
   await expect(stage(page)).toHaveAttribute('data-mode', 'light')
+  await expect(leave(page)).toBeVisible()
   await page.evaluate(() => window.fixture?.linkLost(true))
   await expect(stage(page).locator('.line-text')).toHaveText('Reconnecting…')
   await page.evaluate(() => window.fixture?.linkLost(false))
