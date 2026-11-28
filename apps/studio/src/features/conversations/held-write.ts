@@ -12,6 +12,19 @@ export interface Held<A> {
   sending: boolean
 }
 
+/** Only these held conversation starts/sends use the addressed contract on their next press. */
+export const isAddressedWrite = (held: Held<{ addressingVersion?: 1 }> | null): boolean =>
+  held?.ask.addressingVersion === 1
+
+const unavailableReplay = (held: boolean, enabled: boolean, failure: ApiError): boolean =>
+  held &&
+  enabled &&
+  ((failure.unstructuredHttp && failure.status === 404 && failure.code === 'http_404') ||
+    (!failure.unstructuredHttp &&
+      failure.status === 503 &&
+      failure.code === 'projection_unavailable' &&
+      failure.retry === 'never'))
+
 const noReply = () => new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key')
 
 /** Where a write's refusal is kept (with its intent, by the view): its words, until the next press. */
@@ -27,6 +40,8 @@ export function useHeldWrite<A, R>(
   onHeld: (next: Held<A> | null) => void,
   send: (key: string, ask: A) => Promise<R>,
   refusal: Refusal,
+  /** Addressed start/send only: an unavailable receipt lookup cannot settle an earlier unanswered request. */
+  retainRouteUnavailable = false,
 ) {
   /**
    * Sends the held intent again, or this new one under a new key; undefined unless it was recorded, and undefined too
@@ -45,7 +60,7 @@ export function useHeldWrite<A, R>(
       return born === currentGeneration() ? result : undefined
     } catch (err: unknown) {
       const failure = err instanceof ApiError ? err : noReply()
-      if (failure.retry === 'same_admission_key') {
+      if (failure.retry === 'same_admission_key' || unavailableReplay(held !== null, retainRouteUnavailable, failure)) {
         onHeld({ key, ask, sending: false })
       } else {
         // Kept with the intent, by the view: whatever part pressed may be gone by now.

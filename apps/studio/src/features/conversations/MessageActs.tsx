@@ -12,6 +12,7 @@ interface Props {
   now: number
   /** Puts a quote under the draft; null for those who can't write here. */
   onQuote: ((quote: string) => void) | null
+  onReply?: (() => void) | undefined
   /** The propose press, or nothing (a viewer; the form open). */
   propose: ReactNode
   /** Beside the bubble, not above it: a message continuing a run, under a pointer (OpenConversation). */
@@ -124,7 +125,7 @@ function useActsRoom(side: boolean) {
   return row
 }
 
-export function MessageActs({ message, who, now, onQuote, propose, side = false }: Props) {
+export function MessageActs({ message, who, now, onQuote, onReply, propose, side = false }: Props) {
   const { said, say, clearAll } = useSaid()
   // Each write starts in its own press (Safari grants the clipboard to the gesture, not to a promise after it). Only the
   // latest press's outcome is said, on any message; an earlier write that goes through late, even one given up, is
@@ -165,6 +166,12 @@ export function MessageActs({ message, who, now, onQuote, propose, side = false 
         <Icon name="copy" />
         <Tip label="Copy" side="top" align="end" />
       </button>
+      {onReply && (
+        <button type="button" className="conv-act has-tip" aria-label="Reply to this message" onClick={onReply}>
+          <Icon name="reply" />
+          <Tip label="Reply to this message" side="top" align="end" />
+        </button>
+      )}
       {onQuote && (
         <button
           type="button"

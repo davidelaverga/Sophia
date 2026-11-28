@@ -116,6 +116,10 @@ const ROOM: Record<string, string[]> = {
   'src/features/conversations/conversations.css .conv-output-page': ['0 4px 12px rgb(0 0 0 / 0.5)'],
   'src/features/conversations/conversations.css .conv-field-box': ['0 18px 50px rgb(0 0 0 / 0.55)'],
   'src/features/conversations/conversations.css .conv-field-box:focus-within': ['0 18px 50px rgb(0 0 0 / 0.55)'],
+  // The addressed composer casts from its outer writing surface.
+  'src/features/conversations/conversations.css .conv-compose-surface[data-addressed]': [
+    '0 18px 50px rgb(0 0 0 / 0.55)',
+  ],
   'src/features/conversations/conversations.css .conv-context': ['-30px 0 80px rgb(0 0 0 / 0.6)'],
   'src/features/personal/personal.css .places .popover': ['0 18px 50px rgb(0 0 0 / 0.55)'],
   'src/features/personal/personal.css .places .c3-daypill': ['0 8px 24px rgb(0 0 0 / 0.4)'],

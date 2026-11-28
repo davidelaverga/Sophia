@@ -52,12 +52,21 @@ export class ApiError extends Error {
   readonly status: number
   readonly code: string
   readonly retry: ApiErrorBody['retry']
+  /** Local parsing provenance: the response had no valid typed Error body. */
+  readonly unstructuredHttp: boolean
 
-  constructor(status: number, code: string, message: string, retry: ApiErrorBody['retry'], options?: ErrorOptions) {
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    retry: ApiErrorBody['retry'],
+    options?: ErrorOptions & { unstructuredHttp?: boolean },
+  ) {
     super(message, options)
     this.status = status
     this.code = code
     this.retry = retry
+    this.unstructuredHttp = options?.unstructuredHttp ?? false
   }
 }
 
@@ -98,7 +107,7 @@ export async function toError(res: Response, call: Call): Promise<ApiError> {
   const body = asErrorBody(await res.json().catch(() => null))
   if (body) return new ApiError(res.status, body.code, body.message, body.retry)
   const retry = PROXY_PAUSE.has(res.status) ? UNANSWERED[call] : 'never'
-  return new ApiError(res.status, `http_${res.status}`, unreadRefusal(res.status), retry)
+  return new ApiError(res.status, `http_${res.status}`, unreadRefusal(res.status), retry, { unstructuredHttp: true })
 }
 
 /**

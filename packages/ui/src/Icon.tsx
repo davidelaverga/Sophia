@@ -31,6 +31,7 @@ export type IconName =
   | 'home'
   | 'forward'
   | 'back'
+  | 'reply'
   | 'stop'
   | 'search'
   | 'hand'
@@ -177,6 +178,7 @@ const PATHS: Record<IconName, ReactNode> = {
   home: <path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z" />,
   forward: <path d="M9.5 6.5 15 12l-5.5 5.5" />,
   back: <path d="M14.5 6.5 9 12l5.5 5.5" />,
+  reply: <path d="M10 6 5 11l5 5M5 11h9a5 5 0 0 1 5 5v2" />,
   stop: <rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" />,
   search: (
     <>

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { draftsKey } from '../src/app/held-in-tab.ts'
 import { typeSizes } from './type-sizes.ts'
 
 // Project conversations, the writes (docs/plans/project-conversation-writes.md, Davide's chapter 2): continuing one,
@@ -36,6 +37,56 @@ async function openBriefs(page: Page, query = '') {
   await rows(page).nth(1).click()
   await expect(messages(page)).toHaveCount(2)
 }
+
+const ADDRESSED_MEMBER = '00000000-0000-4000-8000-0000000000a2'
+const SECOND_CONVERSATION = '00000000-0000-4000-8000-0000000000c2'
+
+async function restoreMentionDraft(page: Page, slot: string, text?: string) {
+  const key = draftsKey({
+    account: 'fixture@sophia.test',
+    part: 'talk',
+    project: '00000000-0000-4000-8000-0000000000aa',
+  })
+  const kept = {
+    ...(text ? { [slot]: { text, askSophia: false } } : {}),
+    '#mentions': { [slot]: { '#general': [ADDRESSED_MEMBER] } },
+  }
+  await page.addInitScript(({ storageKey, drafts }) => sessionStorage.setItem(storageKey, JSON.stringify(drafts)), {
+    storageKey: key,
+    drafts: kept,
+  })
+}
+
+test('writes · legacy Send works with a mention restored from an addressed draft', async ({ page }) => {
+  const text = 'An unsent message kept through rollback.'
+  await restoreMentionDraft(page, SECOND_CONVERSATION, text)
+  await openBriefs(page)
+  await expect(field(page)).toHaveValue(text)
+  const kept = await page.evaluate(() => window.fixture?.kept()?.mentionDrafts)
+  expect(kept?.[SECOND_CONVERSATION]?.['#general']).toEqual([ADDRESSED_MEMBER])
+  await expect(open(page).getByRole('button', { name: 'Mention', exact: true })).toHaveCount(0)
+  await expect(send(page)).toBeEnabled()
+  await send(page).click()
+  await expect(messages(page).last()).toContainText(text)
+  expect(await written(page, 'conversation-message')).toEqual([`conversation-message:${text}:no`])
+})
+
+test('writes · legacy Start works with a mention restored from an addressed draft', async ({ page }) => {
+  const title = 'A new question after rollback'
+  await restoreMentionDraft(page, '#start')
+  await page.goto(PAGE)
+  await list(page).getByRole('button', { name: 'New conversation' }).click()
+  await form(page).getByRole('textbox', { name: 'Question' }).fill(title)
+  await form(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  const kept = await page.evaluate(() => window.fixture?.kept()?.mentionDrafts)
+  expect(kept?.['#start']?.['#general']).toEqual([ADDRESSED_MEMBER])
+  await expect(form(page).getByRole('button', { name: 'Mention', exact: true })).toHaveCount(0)
+  const start = form(page).getByRole('button', { name: 'Start', exact: true })
+  await expect(start).toBeEnabled()
+  await start.click()
+  await expect(open(page).getByRole('heading', { level: 3 })).toHaveText(title)
+  expect(await written(page, 'conversation-start')).toEqual([`conversation-start:${title}:no`])
+})
 
 test('writes · a message sent is listed last as You, once, the conversation goes to the top, and the field clears', async ({
   page,

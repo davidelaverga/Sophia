@@ -17,7 +17,11 @@ import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
+import { usesAddressedInput } from '../../app/vision.ts'
 import { offlineWords, useOnline } from '../personal/online.ts'
+import { ReplyArtifact } from './ReplyArtifact.tsx'
+import { visibleArtifact, type useConversationArtifact } from './conversation-artifact.ts'
+import { useComposerMentions } from './composer-mentions.tsx'
 import {
   firstWords,
   lastSaid,
@@ -27,16 +31,24 @@ import {
   withMessage,
   type ReadPages,
 } from './conversation-list.ts'
-import { useHeldWrite, type Held } from './held-write.ts'
+import { isAddressedWrite, useHeldWrite, type Held } from './held-write.ts'
 import { setListsData } from './list-data.ts'
 import type { Suggestion } from './next-ask.ts'
 import { useNextAsk, type NextAskSource } from './useNextAsk.ts'
 
 interface Props {
+  projectId: string
   conversationId: string
   identity: Identity
+  me: string
   draft: string
   onDraft: (text: string) => void
+  context: {
+    reply: { id: string; label: string | null; remove: (() => void) | undefined } | null
+    artifact: ReturnType<typeof useConversationArtifact>
+    slot: string | null
+    onArtifact: ((version: string | null) => void) | undefined
+  }
   /** Whether this message asks Sophia, kept with the draft (talk-store.ts). */
   askSophia: boolean
   onAskSophia: (on: boolean) => void
@@ -105,25 +117,55 @@ export function writeFailure(err: ApiError): string {
   return 'That didn’t go through. Try again.'
 }
 
-/** The message's write: the held intent again, or the draft as a new one; the draft cleared only if unchanged. */
-function useMessageWrite(props: Props, askSophia: boolean) {
-  const { conversationId, identity, draft, onClearIf, onSent } = props
-  const queryClient = useQueryClient()
+function useMessageReceipt(props: Props) {
+  const { identity, conversationId, held, onHeld } = props
+  const { artifact } = props.context
   const refusal = { words: props.refused, onWords: props.onRefused, say: writeFailure }
-  const write = useHeldWrite<MessageAsk, MessageSent>(
-    props.held,
-    props.onHeld,
-    (key, ask) => sendConversationMessage(identity.token, conversationId, key, ask),
+  return useHeldWrite<MessageAsk, MessageSent>(
+    held,
+    onHeld,
+    (key, ask) =>
+      sendConversationMessage(identity.token, conversationId, key, ask).catch((error: unknown) => {
+        if (ask.artifactVersionId) artifact.refresh()
+        throw error
+      }),
     refusal,
+    isAddressedWrite(held),
   )
+}
+
+/** The message's write: the held intent again, or the draft as a new one; the draft cleared only if unchanged. */
+function useMessageWrite(props: Props, addressed: boolean) {
+  const { projectId, me, conversationId, identity, draft, onClearIf, onSent } = props
+  const { reply, artifact, slot } = props.context
+  const mentions = useComposerMentions(
+    { projectId, me, conversationId, identity, slot },
+    addressed && visibleArtifact(artifact),
+    props.held,
+  )
+  const queryClient = useQueryClient()
+  const write = useMessageReceipt(props)
   // Offline (navigator.onLine false; a true proves nothing), nothing goes, not even a message held with no reply: the
   // line says so before any press. Back online, Send goes as before (costuras seam #8).
   const online = useOnline()
-  const ready = online && props.canSend && (write.unknown?.text ?? draft).trim() !== ''
+  const unavailable = reply?.label === null || !visibleArtifact(artifact)
+  const ready =
+    online && props.canSend && readyDraft(write.unknown, draft, unavailable || !artifact.ready || !mentions.ready)
   /** The draft, or a quick ask's words (Sophia asked, the draft left as it is). */
   const send = async (text: string, asking: boolean, fromDraft: boolean) => {
     // Undefined too for an account forgotten meanwhile: its receipt never comes back into the cache.
-    const sent = await write.run({ text, askSophia: asking })
+    const sent = await write.run(
+      addressed
+        ? {
+            text,
+            askSophia: false,
+            addressingVersion: 1,
+            replyToMessageId: reply?.id ?? null,
+            ...(artifact.versionId ? { artifactVersionId: artifact.versionId } : {}),
+            mentions: mentions.ids,
+          }
+        : { text, askSophia: asking },
+    )
     if (!sent) return false
     // The conversation erased while this was on its way: its receipt (its words) goes into no page and no list.
     if (props.gone()) return false
@@ -148,19 +190,31 @@ function useMessageWrite(props: Props, askSophia: boolean) {
     void queryClient.invalidateQueries({ queryKey: LISTS })
     onSent(sent)
     // Asked of the view: this field may be gone by now, and the words written since are the view's.
-    if (fromDraft) onClearIf(sent.message.text ?? text)
+    if (fromDraft) clearAcceptedDraft(sent.message.text ?? text, onClearIf, addressed ? mentions : null)
     return true
   }
   const go = async () => {
-    if (!write.busy && ready) await send(draft.trim(), askSophia, true)
+    if (!write.busy && ready) await send(draft.trim(), props.askSophia, true)
   }
   /** A quick ask: whether it is in, or went unanswered or refused (null when it wasn't sent at all). */
   const quick = async (words: string) =>
     online && !write.busy && props.canSend && !write.unknown ? await send(words, true, false) : null
   const offline = !online && props.canSend
-  const line = lineOf(write, offline, draft)
-  return { busy: write.busy, ready, go, quick, ...line, held: write.unknown, offline }
+  const line = lineOf(write, offline, draft, unavailable)
+  return { busy: write.busy, ready, go, quick, ...line, held: write.unknown, offline, mentions: mentions.controls }
 }
+
+function clearAcceptedDraft(
+  text: string,
+  clear: Props['onClearIf'],
+  mentions: ReturnType<typeof useComposerMentions> | null,
+) {
+  if (mentions && !mentions.clearIf(mentions.ids, text)) return
+  clear(text)
+}
+
+const readyDraft = (unknown: MessageAsk | null, draft: string, unavailable: boolean): boolean =>
+  unknown ? unknown.text.trim() !== '' : !unavailable && draft.trim() !== ''
 
 /**
  * What the field's line says, and whether politely: offline, what waits (offlineWords), in place of what the last press
@@ -170,7 +224,14 @@ function lineOf(
   write: { busy: boolean; unknown: MessageAsk | null; refused: string | null },
   offline: boolean,
   draft: string,
+  hideHeldWords: boolean,
 ): { words: string | null; polite: boolean } {
+  if (hideHeldWords && write.unknown) {
+    const words = offline
+      ? 'Offline. The reply can be retried when you reconnect.'
+      : 'Not confirmed. Send retries the same reply.'
+    return { words, polite: offline }
+  }
   const held = write.unknown ? firstWords(write.unknown.text) : null
   const waits = offline ? offlineWords({ going: write.busy, held, written: draft.trim() !== '' }) : null
   if (waits) return { words: waits, polite: true }
@@ -184,7 +245,14 @@ function lineOf(
  * Under the field: who the message goes to (Sophia only where she answers here), and how Enter sends. Where she won't,
  * the reason is `why`'s, which describes «Ask Sophia»; a phone shows it alone, without the keys.
  */
-function Hint(props: { asks: boolean; answers: boolean; unanswered: string; why: string }) {
+function Hint(props: { addressed: boolean; asks: boolean; answers: boolean; unanswered: string; why: string }) {
+  if (props.addressed)
+    return (
+      <p className="conv-compose-hint" data-addressed>
+        <span>Visible to project members</span>
+        <span>Enter sends · Shift+Enter, a new line</span>
+      </p>
+    )
   const { asks, answers } = props
   const why = asks && !answers
   const to = asks ? (answers ? 'Sophia will answer' : props.unanswered) : 'To the team only'
@@ -202,16 +270,16 @@ function Hint(props: { asks: boolean; answers: boolean; unanswered: string; why:
  * The field's suggestion (docs/plans/next-ask.md): none while a message is held, a refusal stands or the conversation is
  * not read; shown only at an empty field; Tab puts it in with «Ask Sophia» on.
  */
-function useComposerNext(props: Props, held: boolean, go: () => Promise<void>) {
+function useComposerNext(props: Props, quiet: boolean, go: () => Promise<void>) {
   const next = useNextAsk(
     props.next,
     props.conversationId,
     props.identity,
-    held || props.refused !== null || !props.canSend,
+    quiet || props.refused !== null || !props.canSend,
   )
   const shown = props.draft === '' ? next.suggestion : null
   // A question written while Sophia is not asked (and nothing held): Tab asks her too (docs/plans/question-asks.md).
-  const asked = held || props.askSophia
+  const asked = quiet || props.askSophia
   const onKey = useFieldKeys(
     props.draft,
     { shown, asked },
@@ -247,6 +315,7 @@ function FieldBox(props: {
   draft: string
   onDraft: (text: string) => void
   grows: RefObject<HTMLTextAreaElement | null>
+  readOnly: boolean
   next: ReturnType<typeof useComposerNext>
   children: ReactNode
 }) {
@@ -260,6 +329,7 @@ function FieldBox(props: {
         ref={props.grows}
         rows={1}
         value={props.draft}
+        readOnly={props.readOnly}
         onChange={(e) => props.onDraft(e.target.value)}
         onKeyDown={props.next.onKey}
       />
@@ -269,28 +339,65 @@ function FieldBox(props: {
   )
 }
 
+function ReplyContext({ reply }: Pick<Props['context'], 'reply'>) {
+  if (!reply) return null
+  return (
+    <div className="conv-reply-target">
+      <p role="status">{reply.label ?? 'This reply target is unavailable.'}</p>
+      {reply.remove && (
+        <button type="button" className="text-button" onClick={reply.remove}>
+          Cancel reply
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** A quick ask whose response was lost gives its retry button the focus if the row still has it. */
+function focusQuickRetry(form: HTMLFormElement | null): void {
+  const row = form?.querySelector('.conv-quick[data-away]')
+  const at = document.activeElement
+  if (row && (at === document.body || (at && row.contains(at)))) form?.querySelector<HTMLElement>('.conv-send')?.focus()
+}
+
+const contextReadOnly = ({ context, held }: Props) =>
+  context.reply?.label === null || !visibleArtifact(context.artifact) || (!!context.artifact.versionId && held !== null)
+
+function ComposeContext({ props, mentions }: { props: Props; mentions: ReactNode }) {
+  const { reply, artifact, onArtifact } = props.context
+  return (
+    <div className="conv-compose-context">
+      <ReplyContext reply={reply} />
+      <div className="conv-compose-tools" role="group" aria-label="Message context">
+        <ReplyArtifact
+          projectId={props.projectId}
+          identity={props.identity}
+          artifact={artifact}
+          onSelect={onArtifact}
+        />
+        {visibleArtifact(artifact) && mentions}
+      </div>
+    </div>
+  )
+}
+
 export function ConversationComposer(props: Props) {
   const { draft, onDraft } = props
-  const { busy, ready, go, quick, words, polite, held, offline } = useMessageWrite(props, props.askSophia)
+  const addressed = usesAddressedInput(props.held)
+  const explicitAsks = !addressed && props.answers
+  const { busy, ready, go, quick, words, polite, held, offline, mentions } = useMessageWrite(props, addressed)
   // With no reply, the box says what the held message asked, and stays so until it is answered.
   const asks = held?.askSophia ?? props.askSophia
   // A message on its way (sending, or held with no reply) quiets the field's suggestions (Codex on #265).
   // Nor where she doesn't answer here: the suggestions are asks of her.
-  const next = useComposerNext(props, props.held !== null || busy || !props.answers, go)
+  const next = useComposerNext(props, props.held !== null || busy || !explicitAsks, go)
   const slow = useSlow(busy)
   const form = useRef<HTMLFormElement>(null)
   const why = useId()
   const grows = useGrowing(draft)
   const ask = async (said: string) => {
     if ((await quick(said)) !== false) return
-    // Unanswered, the row steps aside with the press in it: Send, which sends it again, takes the focus. Only then, and
-    // only from the row: a refusal leaves the row where it was, and a focus moved meanwhile (the field) stays.
-    requestAnimationFrame(() => {
-      const row = form.current?.querySelector('.conv-quick[data-away]')
-      const at = document.activeElement
-      if (row && (at === document.body || (at && row.contains(at))))
-        form.current?.querySelector<HTMLElement>('.conv-send')?.focus()
-    })
+    requestAnimationFrame(() => focusQuickRetry(form.current))
   }
   return (
     <form
@@ -303,25 +410,30 @@ export function ConversationComposer(props: Props) {
       }}
     >
       {props.notice && <p className="conv-note conv-notice">{props.notice}</p>}
-      <FieldBox draft={draft} onDraft={onDraft} grows={grows} next={next}>
-        <AskSophia
-          on={asks}
-          held={held !== null}
-          describedBy={asks && !props.answers ? why : undefined}
-          onChange={props.onAskSophia}
-        />
-        <SendButton ready={ready} busy={busy} />
-      </FieldBox>
-      {props.canSend && props.answers && (
-        <QuickAsks
-          asks={next.quick}
-          // Offline, too: a quick ask could only wait, as words in the field do.
-          away={draft.trim() !== '' || held !== null || offline}
-          busy={busy}
-          onAsk={(w) => void ask(w)}
-        />
-      )}
-      <Hint asks={asks} answers={props.answers} unanswered={props.unanswered} why={why} />
+      <div className="conv-compose-surface" data-addressed={addressed || undefined}>
+        <ComposeContext props={props} mentions={mentions} />
+        <FieldBox draft={draft} onDraft={onDraft} grows={grows} readOnly={contextReadOnly(props)} next={next}>
+          <AskSophia
+            addressed={addressed}
+            answers={props.answers}
+            on={asks}
+            held={held !== null}
+            why={why}
+            onChange={props.onAskSophia}
+          />
+          <SendButton ready={ready} busy={busy} />
+        </FieldBox>
+        {props.canSend && explicitAsks && (
+          <QuickAsks
+            asks={next.quick}
+            // Offline, too: a quick ask could only wait, as words in the field do.
+            away={draft.trim() !== '' || held !== null || offline}
+            busy={busy}
+            onAsk={(w) => void ask(w)}
+          />
+        )}
+        <Hint addressed={addressed} asks={asks} answers={props.answers} unanswered={props.unanswered} why={why} />
+      </div>
       <Note words={words} slow={slow} polite={polite} />
     </form>
   )
@@ -378,19 +490,22 @@ function QuickAsks(props: { asks: readonly string[]; away: boolean; busy: boolea
 
 /** «Ask Sophia» in the field: her mark, lit when on; a checkbox under it, named so; still while a message waits. */
 function AskSophia(props: {
+  addressed: boolean
+  answers: boolean
   on: boolean
   held: boolean
   /** The hint's reason, where she won't answer here. */
-  describedBy: string | undefined
+  why: string
   onChange: (on: boolean) => void
 }) {
+  if (props.addressed) return null
   return (
     <label className="conv-ask" title="Ask Sophia">
       <input
         type="checkbox"
         checked={props.on}
         disabled={props.held}
-        aria-describedby={props.describedBy}
+        aria-describedby={props.on && !props.answers ? props.why : undefined}
         onChange={(e) => props.onChange(e.target.checked)}
       />
       <span className="conv-ask-box" aria-hidden />
