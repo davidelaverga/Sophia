@@ -35,8 +35,9 @@ import {
   type ThreadHeld,
 } from './conversation-list.ts'
 import { Rows } from './ConversationRows.tsx'
-import type { Held } from './held-write.ts'
-import { NewConversation } from './NewConversation.tsx'
+import { isAddressedWrite, type Held } from './held-write.ts'
+import { HeldRetryRefusal } from './HeldConversationRetry.tsx'
+import { HeldStartRetry, NewConversation } from './NewConversation.tsx'
 import { ContextToggle, OpenConversation } from './OpenConversation.tsx'
 import { ProjectContext } from './ProjectContext.tsx'
 import { listWithout, type Erase } from './EraseHere.tsx'
@@ -48,6 +49,8 @@ import {
   START,
   awaiting,
   useKept,
+  withDraftMentions,
+  withStartArtifact,
   withEntry,
   withErasure,
   withFound,
@@ -73,9 +76,13 @@ import './conversations.css'
  * than a question may be are cut at a word to fit, with an ellipsis (Codex on #267).
  */
 function beginOn(talk: ReturnType<typeof useTalk>, question: string) {
-  if (talk.kept.start.held) return
   const title = fitQuestion(question)
-  talk.change((k) => ({ ...k, start: { ...k.start, fields: { title, text: '', askSophia: true } } }))
+  talk.change((k) => {
+    if (startHeld(k.start)) return k
+    const general = withStartArtifact(k, null)
+    const withoutRecipients = withDraftMentions(general, START, null, [])
+    return { ...withoutRecipients, start: { ...general.start, fields: { title, text: '', askSophia: true } } }
+  })
 }
 
 /** Newest activity first, sorted once per answer, with what the reader may do there. */
@@ -109,6 +116,12 @@ const readerOf = (membership: Membership | undefined, write: boolean | undefined
   me: membership?.actorId ?? '',
   writer: membership && write !== undefined ? membership.role !== 'viewer' && write : undefined,
 })
+
+const canRecoverHeld = (
+  membership: Membership | undefined,
+  state: ConversationList['capability']['state'] | undefined,
+  settled: boolean,
+) => settled && state === 'read_only' && (membership?.role === 'admin' || membership?.role === 'editor')
 
 /** The project's refusal (403): the reader isn't a current member of it. */
 const isRefusal = (err: unknown) => err instanceof ApiError && err.code === 'forbidden'
@@ -173,6 +186,7 @@ function useReader(projectId: string, identity: Identity, membership: Membership
     ...read,
     me,
     writer,
+    recoverHeld: canRecoverHeld(membership, capability?.state, read.settled),
     firstNotice: wrote ? null : notice,
     answers: capability?.ask === 'available',
     unanswered: askUnansweredWords(capability?.askReason ?? null),
@@ -257,14 +271,15 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
   useStanding(projectId, identity, talk, reader, start.land)
   useArrivals(ask, writer, talk, start, panes)
   // The one open, unless the form for a new one is in its place; neither while fenced (its fields kept meanwhile).
-  const shown = start.starting ? undefined : open
-  useInAddress({ shown, picked, screen: panes.screen, waiting, starting: start.starting }, ask, panes.show)
+  const starting = writer === true && start.starting
+  const shown = starting ? undefined : open
+  useInAddress({ shown, picked, screen: panes.screen, waiting, starting }, ask, panes.show)
   const openOne = useOpenOne(all, { start, erased, choose, panes })
   return (
     <section
       ref={panes.view}
       className="conversations"
-      data-screen={screenOf(Boolean(shown), start.starting && !fenced, panes.screen)}
+      data-screen={screenOf(Boolean(shown), starting && !fenced, panes.screen)}
       data-context={panes.context || undefined}
       aria-labelledby="conversations-title"
     >
@@ -276,6 +291,8 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
         erased={erased.said}
         {...{ projectId, all, me, missing, capability, fenced }}
         start={writer && !fenced ? start : null}
+        retryStart={reader.recoverHeld ? start.form : null}
+        identity={identity}
         // With no conversation open (none yet, or the form for a new one), «Context» is the list's.
         context={shown ? null : { open: panes.context, toggle: panes.toggleContext, ref: panes.toggle }}
         onOpen={openOne}
@@ -350,16 +367,19 @@ function Middle(props: {
 }) {
   const { shown, projectId, identity, cursor, reader, talk, start, panes, settle, existing } = props
   if (props.fenced) return null
-  if (start.starting) {
+  if (start.starting && reader.writer) {
     return (
       <NewConversation
         {...{ projectId, identity }}
+        me={reader.me}
+        writer={reader.writer}
         notice={reader.firstNotice}
         answers={reader.answers}
         unanswered={reader.unanswered}
         {...start.form}
         conversations={existing.all}
         onOpenExisting={existing.open}
+        cursor={cursor}
       />
     )
   }
@@ -373,6 +393,7 @@ function Middle(props: {
       notice={reader.firstNotice}
       me={reader.me}
       writer={reader.writer}
+      recoverHeld={reader.recoverHeld}
       list={reader.list}
       {...{ projectId, identity, cursor, talk, start, panes, settle }}
     />
@@ -443,6 +464,8 @@ interface ListProps {
   /** What the reader may do here now, as the list says it (advisory: each write is checked again). */
   capability: ConversationList['capability'] | undefined
   start: ReturnType<typeof useStart> | null
+  retryStart: ReturnType<typeof useStart>['form'] | null
+  identity: Identity
   context: Parameters<typeof ContextToggle>[0]['context'] | null
   onOpen: (id: string) => void
 }
@@ -482,6 +505,7 @@ function useFenceFocus(fenced: boolean) {
 
 function ListPane(props: ListProps) {
   const { pane, note } = useFenceFocus(props.fenced)
+  const held = props.retryStart?.held
   return (
     <section ref={pane} className="conv-list" aria-label="All conversations">
       <div className="conv-list-head">
@@ -492,6 +516,19 @@ function ListPane(props: ListProps) {
         </div>
       </div>
       <ListState read={props.read} count={props.fenced ? null : props.all.length} capability={props.capability} />
+      {!props.fenced &&
+        props.retryStart &&
+        (held && isAddressedWrite(held) ? (
+          <HeldStartRetry
+            {...props.retryStart}
+            {...{ held }}
+            projectId={props.projectId}
+            identity={props.identity}
+            me={props.me}
+          />
+        ) : (
+          <HeldRetryRefusal words={props.retryStart.refused} />
+        ))}
       {props.fenced ? (
         <p ref={note} className="conv-note" role="status" tabIndex={-1}>
           This project refused a read of its conversations. None is shown until they can be read again.
@@ -715,6 +752,7 @@ function Open(props: {
   me: string
   cursor: string | undefined
   writer: boolean | undefined
+  recoverHeld: boolean
   answers: boolean
   /** Why she doesn't, where she doesn't (askUnansweredWords). */
   unanswered: string
@@ -750,6 +788,7 @@ function Open(props: {
       me={props.me}
       cursor={props.cursor}
       writer={props.writer}
+      recoverHeld={props.recoverHeld}
       answers={props.answers}
       unanswered={props.unanswered}
       moderate={props.moderate}
@@ -1124,7 +1163,7 @@ function useStart(
   talk: ReturnType<typeof useTalk>,
   open: (id: string) => void,
 ) {
-  const [starting, setStarting] = useState(false)
+  const [starting, setStarting] = useState(() => talk.kept.startArtifact.versionId !== null)
   // Whether the person is on the form now, for a start that lands later (set after each commit, not while rendering).
   const onForm = useRef(false)
   useEffect(() => {
@@ -1153,6 +1192,8 @@ function useStart(
   }
   const form = {
     fields: kept.start.fields,
+    artifactVersionId: kept.startArtifact.versionId,
+    onClearArtifact: () => change((k) => withStartArtifact(k, null)),
     onFields: (fields: ConversationAsk) => change((k) => ({ ...k, start: { ...k.start, fields } })),
     held: startHeld(kept.start),
     onHeld: (held: Held<ConversationAsk> | null) => change((k) => ({ ...k, start: { ...k.start, held } })),

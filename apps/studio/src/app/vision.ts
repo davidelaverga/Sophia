@@ -18,3 +18,10 @@ export const VISION = visionOn(env?.VITE_SOPHIA_VISION, (globalThis as { locatio
  * pages). Separate from VISION, which production never sets: turning conversations on turns on nothing else proposed.
  */
 export const CONVERSATIONS = VISION || env?.VITE_SOPHIA_CONVERSATIONS === '1'
+
+/** The automatic composer requires a Studio built against an API serving addressed inputs. */
+export const ADDRESSED_CONVERSATION_INPUTS = CONVERSATIONS && env?.VITE_SOPHIA_CONVERSATION_INPUT_ADDRESSING === '1'
+
+/** A held write keeps its contract even if the next build changes the flag. */
+export const usesAddressedInput = (held: { ask: { addressingVersion?: 1 } } | null): boolean =>
+  held ? held.ask.addressingVersion === 1 : ADDRESSED_CONVERSATION_INPUTS

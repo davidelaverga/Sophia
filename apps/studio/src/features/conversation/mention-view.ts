@@ -6,6 +6,15 @@ import { memberName } from '../../app/person-name.ts'
 /** At most this many members on one message (A37). */
 export const MOST_MENTIONS = 5
 
+/** Restore only complete recipient selections. An unknown shape must not replay as an empty set. */
+export function keptMentions(value: unknown): readonly string[] | null {
+  if (!Array.isArray(value) || value.length > MOST_MENTIONS) return null
+  const ids = value.filter(
+    (id): id is string => typeof id === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id),
+  )
+  return ids.length === value.length && new Set(ids).size === ids.length ? ids : null
+}
+
 /** Whether this member can name others on a message: an editor or an admin (A37); a viewer can be named. */
 export const canMention = (role: ProjectMember['role'] | undefined) => role === 'editor' || role === 'admin'
 

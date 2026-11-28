@@ -13,7 +13,7 @@ import type {
 import { NOT_ASSESSED, listKey, messagesKey, replyOf, replyOpen, type Unnamed } from './conversation-list.ts'
 import { followedAt } from './followed-thread.ts'
 import type { Held } from './held-write.ts'
-import { NO_WORDS, withEntry, type Kept } from './talk-store.ts'
+import { NO_WORDS, withEntry, withStartArtifact, type Kept } from './talk-store.ts'
 import { orderNow } from './withdrawn-purge.ts'
 
 /** Each list read under `queryKey` that holds data, changed in place; one the change leaves as it was is not touched. */
@@ -160,11 +160,12 @@ export function landed(talk: Talk, receipt: ConversationStarted, put: () => void
   const after = words === undefined ? undefined : orderNow()
   talk.change((was) => {
     const waited = (was.asked[conversation.id] ?? null) !== null
-    return {
+    const cleared = words === undefined || was.start.fields === words
+    const next = {
       ...was,
       start: {
         ...was.start,
-        fields: words === undefined || was.start.fields === words ? NO_WORDS : was.start.fields,
+        fields: cleared ? NO_WORDS : was.start.fields,
         heldBack: null,
       },
       asked:
@@ -178,6 +179,7 @@ export function landed(talk: Talk, receipt: ConversationStarted, put: () => void
           : was.asked,
       reached: after === undefined ? was.reached : withEntry(was.reached, conversation.id, titleOnly(conversation)),
     }
+    return cleared ? withStartArtifact(next, null) : next
   })
   return true
 }

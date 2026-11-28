@@ -11,6 +11,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { ApiError } from '../../api/client.ts'
 import {
   getConversationMessages,
+  sendConversationMessage,
   type ConversationMessage,
   type ConversationReply,
   type ConversationSummary,
@@ -25,16 +26,32 @@ import { Button, Icon } from '@sophia/ui'
 import {
   continuesRun,
   contributorsLine,
+  firstWords,
   initialOf,
+  listKey,
   messageBy,
   messagesKey,
   replyEndWords,
+  type ReadPages,
 } from './conversation-list.ts'
+import { usesAddressedInput } from '../../app/vision.ts'
 import { ConversationComposer } from './ConversationComposer.tsx'
+import { HeldConversationRetry, HeldRetryRefusal } from './HeldConversationRetry.tsx'
+import { useComposerMentions } from './composer-mentions.tsx'
 import { dropUnfollowed, readFromOf, shows } from './followed-thread.ts'
-import type { Held } from './held-write.ts'
+import { isAddressedWrite, type Held } from './held-write.ts'
 import { replyWait } from './list-data.ts'
-import { useKept, withHome, type Asked } from './talk-store.ts'
+import {
+  replySlot,
+  useKept,
+  withHome,
+  withReplyArtifact,
+  withReplyDraft,
+  withReplyTarget,
+  type Asked,
+  type Kept,
+} from './talk-store.ts'
+import { useConversationArtifact, visibleArtifact } from './conversation-artifact.ts'
 import { orderNow } from './withdrawn-purge.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import { settled } from './next-ask.ts'
@@ -62,6 +79,7 @@ interface Props {
   cursor: string | undefined
   /** Members write here; viewers read; undefined until the membership is read (neither, meanwhile). */
   writer: boolean | undefined
+  recoverHeld: boolean
   /** Sophia answers here now (the list's `capability.ask`). */
   answers: boolean
   /** Why she doesn't, where she doesn't (the list's `capability.askReason`, askUnansweredWords). */
@@ -134,14 +152,100 @@ function useAwaiting(asked: Asked | null) {
   }
 }
 
+const focusComposer = (section: RefObject<HTMLElement | null>) =>
+  section.current?.querySelector<HTMLTextAreaElement>('.conv-compose textarea')?.focus()
+
 /** A quote goes under the draft and the field takes the focus; null for those who can't write here. */
 function useQuote(props: Pick<Props, 'writer' | 'draft' | 'onDraft'>, section: RefObject<HTMLElement | null>) {
   if (props.writer !== true) return null
   return (quote: string) => {
     props.onDraft(withQuote(props.draft, quote))
     // The composer's own field: a proposal's form open on a message has a textarea of its own before it.
-    section.current?.querySelector<HTMLTextAreaElement>('.conv-compose textarea')?.focus()
+    focusComposer(section)
   }
+}
+
+function replySelection(
+  addressed: boolean,
+  held: Held<MessageAsk> | null,
+  state: Kept['replyDrafts'][string] | undefined,
+) {
+  if (!addressed) return { id: null, versionId: null }
+  return held
+    ? { id: held.ask.replyToMessageId ?? null, versionId: held.ask.artifactVersionId ?? null }
+    : { id: state?.selected ?? null, versionId: state?.artifactVersionId ?? null }
+}
+
+function replyControls(
+  conversation: string,
+  change: (update: (k: Kept) => Kept) => void,
+  section: RefObject<HTMLElement | null>,
+  enabled: boolean,
+) {
+  if (!enabled) return {}
+  return {
+    onReply: (target: string | null) => {
+      change((k) => withReplyTarget(k, conversation, target))
+      focusComposer(section)
+    },
+    onArtifact: (version: string | null) => {
+      change((k) => withReplyArtifact(k, conversation, version))
+      focusComposer(section)
+    },
+  }
+}
+
+function useReplyDraft(props: Props, read: ReturnType<typeof useTranscript>, section: RefObject<HTMLElement | null>) {
+  const conversation = props.conversation.id
+  const { kept, change } = useKept(props.projectId, accountOf(props.identity))
+  const addressed = usesAddressedInput(props.held)
+  const state = kept.replyDrafts[conversation]
+  const { id, versionId } = replySelection(addressed, props.held, state)
+  const writer = addressed && props.writer === true
+  const artifact = useConversationArtifact(props, versionId, writer && visible(read, props.deniedAt))
+  const slot = replySlot(id, versionId)
+  const { onReply, onArtifact } = replyControls(conversation, change, section, writer && props.held === null)
+  const reply = id
+    ? { id, label: replyTargetLabel(read.data, id, kept.gone[id], props.me), remove: onReply && (() => onReply(null)) }
+    : null
+  const context = { reply, artifact, slot, onArtifact }
+  if (slot === null) return { onReply, context, draft: props.draft, onDraft: props.onDraft, onClearIf: props.onClearIf }
+  const visibleDraft = reply?.label !== null && visibleArtifact(artifact)
+  const fixed = versionId !== null && props.held !== null
+  return { onReply, context, ...scopedWords(conversation, slot, state, change, { visible: visibleDraft, fixed }) }
+}
+
+function scopedWords(
+  conversation: string,
+  slot: string,
+  state: Kept['replyDrafts'][string] | undefined,
+  change: (update: (k: Kept) => Kept) => void,
+  { visible, fixed }: { visible: boolean; fixed: boolean },
+) {
+  return {
+    draft: visible ? (state?.drafts[slot] ?? '') : '',
+    onDraft: (text: string) => {
+      if (visible && !fixed) change((k) => withReplyDraft(k, conversation, slot, text))
+    },
+    onClearIf: (text: string) =>
+      change((k) => {
+        const stored = k.replyDrafts[conversation]?.drafts[slot] ?? ''
+        return stored.trim() === text.trim() ? withReplyDraft(k, conversation, slot, '') : k
+      }),
+  }
+}
+
+function replyTargetLabel(
+  read: Pick<ReadPages<ConversationMessage>, 'pages'> | undefined,
+  id: string,
+  gone: boolean | undefined,
+  me: string,
+): string | null {
+  if (gone) return null
+  const message = read?.pages.flatMap((page) => page.messages).find((item) => item.id === id)
+  if (!message?.text || message.withdrawn) return null
+  const who = message.actorId === me ? 'your message' : messageBy(message, me)
+  return `Replying to ${who} · ${firstWords(message.text)}`
 }
 
 /** Arrived at this conversation (from a link, from Home), the focus lands on its head once. */
@@ -153,6 +257,60 @@ function useArrivalFocus(head: RefObject<HTMLHeadingElement | null>, arrived: bo
   }, [head, arrived, onArrived])
 }
 
+function HeldSendRetry({
+  props,
+  held,
+  clear,
+}: {
+  props: Props
+  held: Held<MessageAsk>
+  clear: (text: string) => void
+}) {
+  const { projectId, identity, me, conversation } = props
+  const conversationId = conversation.id
+  const slot = replySlot(held.ask.replyToMessageId ?? null, held.ask.artifactVersionId ?? null)
+  const mentions = useComposerMentions({ projectId, identity, me, conversationId, slot }, false, held)
+  const query = useQueryClient()
+  const account = accountOf(identity)
+  return (
+    <HeldConversationRetry
+      label="Send"
+      held={held}
+      onHeld={props.onHeld}
+      refusal={{ words: props.refused, onWords: props.onRefused }}
+      send={(key, ask) => sendConversationMessage(identity.token, conversationId, key, ask)}
+      onRecorded={(_, ask) => {
+        if (props.gone()) return
+        if (mentions.clearIf(mentions.ids, ask.text)) clear(ask.text)
+        void query.invalidateQueries({ queryKey: messagesKey(conversationId, account) })
+        void query.invalidateQueries({ queryKey: listKey(projectId, account) })
+      }}
+    />
+  )
+}
+
+function ReadOnlyFooter({
+  props,
+  read,
+  clear,
+}: {
+  props: Props
+  read: ReturnType<typeof useTranscript>
+  clear: (text: string) => void
+}) {
+  if (!props.recoverHeld)
+    return props.writer === false ? (
+      <p className="conv-note">Viewers read conversations; members write in them.</p>
+    ) : null
+  if (!read.isFetchedAfterMount || !read.isSuccess || !visible(read, props.deniedAt)) return null
+  const { held } = props
+  return held && isAddressedWrite(held) ? (
+    <HeldSendRetry {...{ props, held, clear }} />
+  ) : (
+    <HeldRetryRefusal words={props.refused} />
+  )
+}
+
 export function OpenConversation(props: Props) {
   const { conversation: c, identity, me, arrived, onArrived } = props
   const awaiting = useAwaiting(props.asked)
@@ -160,7 +318,8 @@ export function OpenConversation(props: Props) {
   const head = useRef<HTMLHeadingElement>(null)
   const section = useRef<HTMLElement>(null)
   const follow = useFollow()
-  const onQuote = useQuote(props, section)
+  const reply = useReplyDraft(props, read, section)
+  const onQuote = useQuote({ ...props, draft: reply.draft, onDraft: reply.onDraft }, section)
   useArrivalFocus(head, arrived, onArrived)
   return (
     <section ref={section} className="conv-open" aria-label="Open conversation">
@@ -175,22 +334,26 @@ export function OpenConversation(props: Props) {
           onGrown={follow.grown}
           propose={props.writer === true ? { projectId: props.projectId, identity } : null}
           onQuote={onQuote}
+          onReply={reply.onReply}
           withdraw={{ projectId: props.projectId, conversationId: c.id, identity, me, moderate: props.moderate }}
         />
       </Thread>
       {props.writer === true && visible(read, props.deniedAt) && (
         <ConversationComposer
+          projectId={props.projectId}
           conversationId={c.id}
           identity={identity}
-          draft={props.draft}
-          onDraft={props.onDraft}
+          me={me}
+          draft={reply.draft}
+          onDraft={reply.onDraft}
+          context={reply.context}
           askSophia={props.askSophia}
           onAskSophia={props.onAskSophia}
           canSend={read.data !== undefined}
           answers={props.answers}
           unanswered={props.unanswered}
           notice={props.notice}
-          onClearIf={props.onClearIf}
+          onClearIf={reply.onClearIf}
           held={props.held}
           onHeld={props.onHeld}
           gone={props.gone}
@@ -203,7 +366,7 @@ export function OpenConversation(props: Props) {
           next={nextOf(props, read, current)}
         />
       )}
-      {props.writer === false && <p className="conv-note">Viewers read conversations; members write in them.</p>}
+      <ReadOnlyFooter {...{ props, read }} clear={reply.onClearIf} />
     </section>
   )
 }
@@ -502,7 +665,7 @@ const visible = (read: ReturnType<typeof useTranscript>, deniedAt: number | unde
  * read now once that read failed (Try again reads it again; what it held stays hidden: PR #199 CX-0079). Thread's
  * scrolled region holds it, which the keyboard reaches (arrows scroll it).
  */
-function HeldMessages(props: Parameters<typeof Messages>[0] & { shown: boolean }) {
+function HeldMessages(props: MessagesProps & { shown: boolean }) {
   const { read } = props
   if (props.shown) return <Messages {...props} />
   if (!read.isError || read.isFetching) return <Waiting words="Reading this conversation again…" waiting />
@@ -516,8 +679,7 @@ function HeldMessages(props: Parameters<typeof Messages>[0] & { shown: boolean }
   )
 }
 
-/** The conversation's messages, oldest first, a page at a time: Earlier messages reads the one before. */
-function Messages(props: {
+interface MessagesProps {
   read: ReturnType<typeof useTranscript>
   me: string
   awaiting: { replyId: string | null; messageId: string | null; after: number | null; late: boolean }
@@ -527,11 +689,14 @@ function Messages(props: {
   /** Where a message may be proposed as a decision (C7); null for those who can't write here. */
   propose: Propose
   onQuote: ((quote: string) => void) | null
+  onReply: ((id: string) => void) | undefined
   /** Who may withdraw what here: their own messages, and any for an admin. */
   withdraw: Withdraw
-}) {
+}
+
+/** The conversation's messages, oldest first, a page at a time: Earlier messages reads the one before. */
+function Messages(props: MessagesProps) {
   const { read, me, onAnswered, onGrown } = props
-  // Each page is oldest first, and each one read is earlier than the last: the earliest page goes on top.
   const messages = read.data?.pages.toReversed().flatMap((p) => p.messages) ?? []
   const waiting = useReplyWait(messages, props.awaiting, readFromOf(read.data, props.awaiting.messageId), onAnswered)
   // Grown at its end (a message, or the wait): an earlier page read above leaves where the reader is.
@@ -551,8 +716,7 @@ function Messages(props: {
       {read.hasNextPage && (
         <Earlier
           reading={read.isFetchingNextPage}
-          // Not pressed while the thread is read again, paused offline included: an older page then would cancel that
-          // read (Codex on #275).
+          // Fetching an earlier page would cancel a pending read, including one paused offline (Codex on #275).
           busy={!settled(read)}
           failed={read.isFetchNextPageError}
           onRead={() => {
@@ -568,6 +732,7 @@ function Messages(props: {
           first={first}
           propose={props.propose}
           onQuote={props.onQuote}
+          onReply={props.onReply}
           withdraw={props.withdraw}
         />
       )}
@@ -640,6 +805,7 @@ function MessageList(props: {
   first: RefObject<HTMLLIElement | null>
   propose: Propose
   onQuote: ((quote: string) => void) | null
+  onReply: ((id: string) => void) | undefined
   withdraw: Withdraw
 }) {
   const { messages, me, first, propose } = props
@@ -658,6 +824,7 @@ function MessageList(props: {
           first={i === 0 ? first : undefined}
           propose={propose}
           onQuote={props.onQuote}
+          onReply={props.onReply}
           withdraw={props.withdraw}
           pressed={pressed === m.id}
           onPress={(row) => {
@@ -709,7 +876,13 @@ function useHome(messageId: string, conversationId: string, place: Propose) {
 function useActsPlace(
   m: ConversationMessage,
   before: ConversationMessage | undefined,
-  with_: { words: string | null; now: number; onQuote: ((quote: string) => void) | null; propose: ReactNode },
+  with_: {
+    words: string | null
+    now: number
+    onQuote: ((quote: string) => void) | null
+    onReply: ((id: string) => void) | undefined
+    propose: ReactNode
+  },
 ) {
   const run = continuesRun(before, m)
   // Read as the message renders: a pointer that hovers does not come and go within a visit.
@@ -721,6 +894,7 @@ function useActsPlace(
         who={portableBy(m)}
         now={with_.now}
         onQuote={with_.onQuote}
+        onReply={with_.onReply && (() => with_.onReply?.(m.id))}
         propose={with_.propose}
         side={side}
       />
@@ -743,6 +917,7 @@ function MessageItem(props: {
   first: RefObject<HTMLLIElement | null> | undefined
   propose: Propose
   onQuote: ((quote: string) => void) | null
+  onReply: ((id: string) => void) | undefined
   withdraw: Withdraw
   pressed: boolean
   onPress: (row: HTMLLIElement | null) => void
@@ -762,7 +937,7 @@ function MessageItem(props: {
       {away.press}
     </>
   )
-  const { run, side, acts } = useActsPlace(m, before, { words, now, onQuote: props.onQuote, propose })
+  const { run, side, acts } = useActsPlace(m, before, { ...props, words, propose })
   return (
     <li
       ref={props.first}

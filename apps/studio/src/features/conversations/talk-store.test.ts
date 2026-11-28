@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { Probes } from './probes.ts'
 import {
+  START,
   changeIfCurrent,
   changeKept,
   currentGeneration,
@@ -10,6 +12,12 @@ import {
   keepsFor,
   keptAt,
   liftFence,
+  mentionsAt,
+  replySlot,
+  retireWithdrawn,
+  withDraftMentions,
+  withReplyArtifact,
+  withReplyDraft,
   withDenied,
   withErasure,
   withFence,
@@ -461,6 +469,170 @@ describe('unsent words kept in the tab (drafts-survive-reload.md)', () => {
       forgetKept()
       items.set(TAB_KEY, JSON.stringify({ c1: { text: 3 }, c2: 'loose' }))
       assert.equal(keptAt(TAB_PLACE), undefined)
+    } finally {
+      outOfTab()
+    }
+  })
+})
+
+describe('artifact context on an existing conversation', () => {
+  const version = '61cf4775-421d-4f1f-9d06-f73c5e64d802'
+  const target = '143f6af6-049d-488c-8c69-1c43952f2b06'
+  const recipient = '4e7c52dc-adba-423f-ac63-012ee33648fa'
+
+  function scopedAfterReload() {
+    const slot = replySlot(target, version)
+    assert.ok(slot)
+    forgetKept()
+    changeKept(PLACE, (k) => withReplyDraft(k, 'words', slot, 'Scoped words'))
+    changeKept(PLACE, (k) => withReplyArtifact(k, 'attachment', version))
+    changeKept(PLACE, (k) => withDraftMentions(k, 'mentions', slot, [recipient]))
+    changeKept(PLACE, (k) => withReplyDraft(k, 'healthy', slot, 'Other conversation'))
+    changeKept(PLACE, (k) => withReplyDraft(k, 'empty', slot, ' '))
+    changeKept(PLACE, (k) => withDraftMentions(k, START, version, [recipient]))
+    for (const otherPlace of ['other-project luis@sophia.test', 'project other@sophia.test']) {
+      changeKept(otherPlace, (k) => withReplyDraft(k, 'words', slot, 'Other place'))
+    }
+    forgetKept()
+    const back = keptAt(PLACE)
+    assert.ok(back)
+    assert.deepEqual(back.listed, {})
+    assert.deepEqual(back.drafts, {})
+    return { slot, back }
+  }
+
+  it('retires scope-only drafts and selections after reload when a complete list omits them', () => {
+    inTab()
+    try {
+      const { slot, back } = scopedAfterReload()
+      const missing = goneFrom(back, ['healthy'])
+      assert.deepEqual(missing.toSorted(), ['attachment', 'mentions', 'words'])
+      for (const id of missing) changeKept(PLACE, (k) => withoutConversation(k, id))
+      forgetKept()
+      const after = keptAt(PLACE)
+      assert.ok(after)
+      assert.equal(after.replyDrafts.words, undefined)
+      assert.equal(after.replyDrafts.attachment, undefined)
+      assert.equal(after.mentionDrafts.mentions, undefined)
+      assert.equal(after.replyDrafts.healthy?.drafts[slot], 'Other conversation')
+      assert.deepEqual(mentionsAt(after, START, version), [recipient])
+      for (const otherPlace of ['other-project luis@sophia.test', 'project other@sophia.test']) {
+        assert.equal(keptAt(otherPlace)?.replyDrafts.words?.drafts[slot], 'Other place')
+      }
+    } finally {
+      outOfTab()
+    }
+  })
+
+  it('probes scope-only drafts omitted from a partial list and clears them only after not found', async () => {
+    inTab()
+    const reads: string[] = []
+    const notFound = new Error('not found')
+    const probes = new Probes({
+      read: (id) => {
+        reads.push(id)
+        return id === 'mentions' ? Promise.reject(notFound) : Promise.resolve(null)
+      },
+      keeps: (id) => {
+        const current = keptAt(PLACE)
+        return current !== undefined && keepsFor(current, id)
+      },
+      settle: (id) => changeKept(PLACE, (k) => withoutConversation(k, id)),
+      deny: () => assert.fail('unexpected denial'),
+      found: () => undefined,
+      notFound: (error) => error === notFound,
+      denied: () => false,
+    })
+    try {
+      const { slot, back } = scopedAfterReload()
+      changeKept(PLACE, (k) => withListed(k, ['healthy'], false))
+      assert.deepEqual(keptAt(PLACE)?.replyDrafts, back.replyDrafts)
+      assert.deepEqual(keptAt(PLACE)?.mentionDrafts, back.mentionDrafts)
+      for (const id of goneFrom(back, ['healthy'])) probes.start(id)
+      await Promise.resolve()
+      assert.deepEqual(reads.toSorted(), ['attachment', 'mentions', 'words'])
+      forgetKept()
+      const after = keptAt(PLACE)
+      assert.ok(after)
+      assert.equal(after.replyDrafts.words?.drafts[slot], 'Scoped words')
+      assert.equal(after.replyDrafts.attachment?.artifactVersionId, version)
+      assert.equal(after.mentionDrafts.mentions, undefined)
+      assert.equal(after.replyDrafts.healthy?.drafts[slot], 'Other conversation')
+    } finally {
+      probes.stopAll()
+      outOfTab()
+    }
+  })
+
+  it('purges a withdrawn target’s scoped words and mentions without touching an untargeted draft for that version', () => {
+    const targeted = replySlot(target, version)
+    const untargeted = replySlot(null, version)
+    assert.ok(targeted && untargeted)
+    forgetKept()
+    changeKept(PLACE, (was) => withReplyArtifact(was, 'c1', version))
+    changeKept(PLACE, (was) => withReplyDraft(was, 'c1', targeted, 'Context for a message'))
+    changeKept(PLACE, (was) => withReplyDraft(was, 'c1', untargeted, 'Context for the project'))
+    changeKept(PLACE, (was) => withDraftMentions(was, 'c1', targeted, [recipient]))
+    changeKept(PLACE, (was) => withDraftMentions(was, 'c1', untargeted, [recipient]))
+    changeKept(PLACE, (was) => withoutMessage(was, target))
+    const back = keptAt(PLACE)
+    assert.ok(back)
+    assert.deepEqual(back.replyDrafts.c1?.drafts, { [untargeted]: 'Context for the project' })
+    assert.deepEqual(mentionsAt(back, 'c1', targeted), [])
+    assert.deepEqual(mentionsAt(back, 'c1', untargeted), [recipient])
+  })
+
+  it('retires a mention-only withdrawn target in an inactive artifact scope without losing an exact held send', () => {
+    const targeted = replySlot(target, version)
+    const untargeted = replySlot(null, version)
+    assert.ok(targeted && untargeted)
+    forgetKept()
+    const send = {
+      key: 'recorded-key',
+      ask: {
+        text: 'Sent once',
+        askSophia: false,
+        addressingVersion: 1 as const,
+        replyToMessageId: target,
+        artifactVersionId: version,
+        mentions: [recipient],
+      },
+      sending: false,
+    }
+    changeKept(PLACE, (was) => withDraftMentions(was, 'c1', targeted, [recipient]))
+    changeKept(PLACE, (was) => withDraftMentions(was, 'c1', untargeted, [recipient]))
+    changeKept(PLACE, (was) => ({ ...was, holds: { c1: send } }))
+    retireWithdrawn('luis@sophia.test', [target])
+    const back = keptAt(PLACE)
+    assert.ok(back)
+    assert.deepEqual(mentionsAt(back, 'c1', targeted), [])
+    assert.deepEqual(mentionsAt(back, 'c1', untargeted), [recipient])
+    assert.deepEqual(back.holds.c1, send)
+    assert.equal(back.gone[target], true)
+  })
+
+  it('ignores a stored held write with a supplied malformed version instead of restoring it as unscoped', () => {
+    const items = inTab()
+    try {
+      forgetKept()
+      const place = 'project-tab luis'
+      const key = 'sophia.held.v1:["luis","talk","project-tab"]'
+      items.set(
+        key,
+        JSON.stringify({
+          c1: {
+            key: 'request',
+            ask: {
+              text: 'words',
+              askSophia: false,
+              addressingVersion: 1,
+              replyToMessageId: target,
+              artifactVersionId: 'not-a-version',
+            },
+          },
+        }),
+      )
+      assert.equal(keptAt(place), undefined)
     } finally {
       outOfTab()
     }

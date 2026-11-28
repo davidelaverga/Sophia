@@ -289,6 +289,13 @@
   background: var(--amber);
 }
 
+.conv-artifact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
 /* ---- the open conversation: its head, the thread in its own scroll, the field floating at its foot ---- */
 .conv-open,
 .conv-new {
@@ -1152,6 +1159,57 @@
 .conv-compose textarea:focus {
   outline: none;
 }
+.conv-reply-target {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+  padding: 0 4px;
+  font-size: var(--type-small);
+  color: var(--text-2);
+}
+.conv-reply-target p {
+  min-width: 0;
+  flex: 1;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.conv-reply-target button {
+  flex: none;
+}
+.conv-compose > .conv-report-toggle {
+  justify-self: start;
+  width: auto;
+  margin-inline: 4px 0;
+}
+.conv-report-picker {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  font-size: var(--type-small);
+}
+.conv-report-picker label {
+  display: grid;
+  gap: 4px;
+}
+.conv-report-picker select {
+  min-width: 0;
+  padding: 6px 8px;
+  color: var(--text);
+  background: var(--plane-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  font: inherit;
+}
+.conv-report-picker p {
+  margin: 0;
+}
+.conv-report-picker > button {
+  justify-self: start;
+}
 .conv-send {
   display: grid;
   place-items: center;
@@ -1427,8 +1485,9 @@
     padding: 4px 10px calc(var(--floor) + 58px);
   }
   /* The keys are a keyboard's; why Sophia won't answer is anyone's, said alone (conversation-ask-reason.md). */
-  .conv-compose-hint:not([data-unanswered]),
-  .conv-compose-hint[data-unanswered] > span:not([data-asked]) {
+  .conv-compose-hint:not([data-unanswered], [data-addressed]),
+  .conv-compose-hint[data-unanswered] > span:not([data-asked]),
+  .conv-compose-hint[data-addressed] > span:last-child {
     display: none;
   }
   .conv-new {

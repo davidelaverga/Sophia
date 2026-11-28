@@ -16,13 +16,17 @@ import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
+import { usesAddressedInput } from '../../app/vision.ts'
+import { artifactWords, useConversationArtifact, visibleArtifact } from './conversation-artifact.ts'
 import { writeFailure } from './ConversationComposer.tsx'
+import { HeldConversationRetry } from './HeldConversationRetry.tsx'
+import { useComposerMentions } from './composer-mentions.tsx'
 import { firstWords } from './conversation-list.ts'
 import { briefNow, contextQuery } from './decide.ts'
-import { useHeldWrite, type Held } from './held-write.ts'
+import { isAddressedWrite, useHeldWrite, type Held } from './held-write.ts'
 import { askOf, QUESTION_LIMIT, sameQuestion, startable, startersOf } from './new-conversation.ts'
 import { sameQuestionLine } from './same-question-view.ts'
-import { useKept } from './talk-store.ts'
+import { START, useKept } from './talk-store.ts'
 
 /** How long a conversation's question may be. */
 export const QUESTION_MAX = QUESTION_LIMIT
@@ -30,8 +34,13 @@ export const QUESTION_MAX = QUESTION_LIMIT
 interface Props {
   projectId: string
   identity: Identity
+  me: string
+  writer: boolean | undefined
   /** The form's words, kept by the view while the form is away. */
   fields: ConversationAsk
+  artifactVersionId: string | null
+  onClearArtifact: () => void
+  cursor: string | undefined
   onFields: (next: ConversationAsk) => void
   held: Held<ConversationAsk> | null
   onHeld: (next: Held<ConversationAsk> | null) => void
@@ -55,29 +64,85 @@ interface Props {
   onOpenExisting: (conversationId: string) => void
 }
 
-/** The start's write: the held intent again, or the form's words as a new one. */
-function useStartWrite(props: Props) {
+type RetryProps = Pick<Props, 'projectId' | 'identity' | 'me' | 'onHeld' | 'onStarted' | 'refused' | 'onRefused'> & {
+  held: Held<ConversationAsk>
+}
+
+export function HeldStartRetry({ projectId, identity, me, held, onHeld, onStarted, refused, onRefused }: RetryProps) {
+  const slot = held.ask.artifactVersionId ?? null
+  const mentions = useComposerMentions({ projectId, identity, me, conversationId: START, slot }, false, held)
+  return (
+    <HeldConversationRetry
+      label="Start"
+      held={held}
+      onHeld={onHeld}
+      refusal={{ words: refused, onWords: onRefused }}
+      send={(key, ask) => startConversation(identity.token, projectId, key, ask)}
+      onRecorded={(receipt, ask) => {
+        mentions.clearIf(mentions.ids)
+        onStarted(receipt, ask)
+      }}
+    />
+  )
+}
+
+/** A retry keeps the sent version even if its source is no longer readable. Fresh writes require the exact version. */
+function useStartWrite(props: Props, addressed: boolean, artifact: ReturnType<typeof useConversationArtifact>) {
   const { projectId, identity, fields } = props
+  const mentions = useComposerMentions(
+    { projectId, conversationId: START, slot: artifact.versionId, me: props.me, identity },
+    addressed && props.writer === true && artifact.ready,
+    props.held,
+  )
   const write = useHeldWrite<ConversationAsk, ConversationStarted>(
     props.held,
     props.onHeld,
-    (key, ask) => startConversation(identity.token, projectId, key, ask),
+    (key, ask) =>
+      startConversation(identity.token, projectId, key, ask).catch((error: unknown) => {
+        if (ask.artifactVersionId) artifact.refresh()
+        throw error
+      }),
     { words: props.refused, onWords: props.onRefused, say: writeFailure },
+    isAddressedWrite(props.held),
   )
   const asked = askOf(fields)
-  const ready = write.unknown !== null || startable(fields)
+  const ready =
+    props.writer === true && (write.unknown !== null || (artifact.ready && mentions.ready && startable(fields)))
   const go = async () => {
     if (write.busy || !ready) return
     const ask = write.unknown ?? asked
-    const started = await write.run(asked)
-    if (started) props.onStarted(started, ask)
+    const started = await write.run(
+      addressed
+        ? {
+            ...asked,
+            askSophia: false,
+            addressingVersion: 1,
+            mentions: mentions.ids,
+            ...(artifact.versionId ? { artifactVersionId: artifact.versionId } : {}),
+          }
+        : asked,
+    )
+    if (started) {
+      if (addressed) mentions.clearIf(mentions.ids)
+      props.onStarted(started, ask)
+    }
   }
   const words = write.unknown
-    ? `Not confirmed: “${firstWords(write.unknown.title)}”. Start sends it again; it won’t be started twice.`
+    ? artifact.versionId && !artifact.version
+      ? 'Not confirmed. Start retries the same request.'
+      : `Not confirmed: “${firstWords(write.unknown.title)}”. Start sends it again; it won’t be started twice.`
     : write.refused
   // With no reply, the words are the held intent's: shown as sent, and not to be changed.
   const shown = write.unknown ?? fields
-  return { busy: write.busy, fixed: write.busy || write.unknown !== null, shown, ready, go, words }
+  return {
+    busy: write.busy,
+    fixed: write.busy || write.unknown !== null,
+    shown,
+    ready,
+    go,
+    words,
+    mentions: mentions.controls,
+  }
 }
 
 /**
@@ -91,47 +156,44 @@ function useStarters(props: Props): string[] {
   return startersOf(briefNow(brief.data, kept)?.pending, props.fields.title, QUESTION_MAX)
 }
 
+function useStartArtifact(props: Props, addressed: boolean) {
+  const versionId = props.held?.ask.artifactVersionId ?? props.artifactVersionId
+  return useConversationArtifact(props, versionId, addressed && props.writer === true)
+}
+
 export function NewConversation(props: Props) {
-  const { fields, onFields } = props
-  const question = useRef<HTMLInputElement>(null)
-  const starters = useStarters(props)
-  useEffect(() => question.current?.focus(), [])
-  const { busy, fixed, shown, ready, go, words } = useStartWrite(props)
-  // On its way past a few seconds, the Studio's slow note.
-  const slow = useSlow(busy)
-  const said = words ?? (slow ? SLOW_NOTE : null)
-  // Not while held: its words are on their way, and the conversation they start is not «another» yet.
-  const same = fixed ? null : sameQuestion(shown.title, props.conversations)
+  const addressed = usesAddressedInput(props.held)
+  const artifact = useStartArtifact(props, addressed)
+  const write = useStartWrite(props, addressed, artifact)
+  const slow = useSlow(write.busy)
+  const said = write.words ?? (slow ? SLOW_NOTE : null)
   return (
     <form
       className="conv-new"
       aria-label="New conversation"
       onSubmit={(e) => {
         e.preventDefault()
-        void go()
+        void write.go()
       }}
     >
       <h3>New conversation</h3>
       {props.notice && <p className="conv-note conv-notice">{props.notice}</p>}
-      <Fields
-        question={question}
-        shown={shown}
-        fixed={fixed}
-        starters={fixed ? [] : starters}
-        onChange={(change) => onFields({ ...fields, ...change })}
-        same={same && { title: same.title, open: () => props.onOpenExisting(same.id) }}
-        answers={props.answers}
-        unanswered={props.unanswered}
-      />
+      <StartArtifact artifact={artifact} fixed={write.fixed} onClear={props.onClearArtifact} />
+      {visibleArtifact(artifact) && (
+        <>
+          <StartFields {...props} addressed={addressed} shown={write.shown} fixed={write.fixed} />
+          {write.mentions}
+        </>
+      )}
       <div className="conv-compose-acts">
-        <button type="submit" className="pill" aria-disabled={!ready || busy || undefined}>
-          {busy ? 'Starting…' : 'Start'}
+        <button type="submit" className="pill" aria-disabled={!write.ready || write.busy || undefined}>
+          {write.busy ? 'Starting…' : 'Start'}
         </button>
         <button
           type="button"
           className="text-button"
-          aria-disabled={busy || undefined}
-          onClick={() => !busy && props.onCancel()}
+          aria-disabled={write.busy || undefined}
+          onClick={() => !write.busy && props.onCancel()}
         >
           Cancel
         </button>
@@ -145,6 +207,47 @@ export function NewConversation(props: Props) {
   )
 }
 
+function StartArtifact({
+  artifact,
+  fixed,
+  onClear,
+}: {
+  artifact: ReturnType<typeof useConversationArtifact>
+  fixed: boolean
+  onClear: () => void
+}) {
+  if (!artifact.versionId) return null
+  const words = artifactWords(artifact)
+  return (
+    <div className="conv-artifact">
+      <p className="conv-note" role="status">
+        {words}
+      </p>
+      {!fixed && (
+        <button className="text-button" type="button" onClick={onClear}>
+          Clear version
+        </button>
+      )}
+    </div>
+  )
+}
+
+function StartFields(props: Props & { addressed: boolean; shown: ConversationAsk; fixed: boolean }) {
+  const { addressed, shown, fixed, fields, onFields, answers, unanswered } = props
+  const question = useRef<HTMLInputElement>(null)
+  const starters = useStarters(props)
+  useEffect(() => question.current?.focus(), [])
+  const same = fixed || props.artifactVersionId ? null : sameQuestion(shown.title, props.conversations)
+  return (
+    <Fields
+      {...{ question, shown, fixed, addressed, answers, unanswered }}
+      starters={fixed ? [] : starters}
+      onChange={(change) => onFields({ ...fields, ...change })}
+      same={same && { title: same.title, open: () => props.onOpenExisting(same.id) }}
+    />
+  )
+}
+
 /**
  * The question (with the proposals waiting to start from under it), context if it helps, and «Ask Sophia»: as sent, and
  * not to be changed, while they are held.
@@ -153,6 +256,7 @@ function Fields(props: {
   question: RefObject<HTMLInputElement | null>
   shown: ConversationAsk
   fixed: boolean
+  addressed: boolean
   starters: readonly string[]
   onChange: (change: Partial<ConversationAsk>) => void
   /** A conversation here that already asks it, and the press that opens it. */
@@ -197,6 +301,7 @@ function Fields(props: {
         <textarea rows={3} value={shown.text} readOnly={fixed} onChange={(e) => onChange({ text: e.target.value })} />
       </label>
       <AskSophia
+        addressed={props.addressed}
         asked={shown.askSophia}
         fixed={fixed}
         answers={props.answers}
@@ -209,6 +314,7 @@ function Fields(props: {
 
 /** «Ask Sophia», and where she doesn't answer here, saying so and why before Start (as the open composer's hint does). */
 function AskSophia(props: {
+  addressed: boolean
   asked: boolean
   fixed: boolean
   answers: boolean
@@ -217,6 +323,7 @@ function AskSophia(props: {
 }) {
   const unanswered = props.asked && !props.answers
   const note = useId()
+  if (props.addressed) return <p className="conv-note">Visible to project members</p>
   return (
     <>
       <label className="conv-ask">

@@ -10,9 +10,12 @@ import type { ConversationAsk, ConversationStarted, ConversationSummary, Message
 import { DRAFT_MOST, keepHeld, keepTabDrafts, readHeld, readTabDrafts, type HeldAt } from '../../app/held-in-tab.ts'
 import type { DecisionAsk, ProposedMark } from './decide.ts'
 import type { Held } from './held-write.ts'
+import { keptMentions } from '../conversation/mention-view.ts'
 
 export interface Kept {
   drafts: Readonly<Record<string, string>>
+  replyDrafts: Readonly<Record<string, ReplyDrafts>>
+  mentionDrafts: Readonly<Record<string, MentionDrafts>>
   /** Whether each draft asks Sophia (on unless the person turned it off), kept with its words. */
   asks: Readonly<Record<string, boolean>>
   holds: Readonly<Record<string, Held<MessageAsk> | null>>
@@ -20,6 +23,7 @@ export interface Kept {
   refusals: Readonly<Record<string, string | null>>
   /** When Sophia was asked to answer there, by conversation. */
   asked: Readonly<Record<string, Asked | null>>
+  startArtifact: StartArtifactDrafts
   start: {
     fields: ConversationAsk
     held: Held<ConversationAsk> | null
@@ -108,6 +112,19 @@ export interface Kept {
   refusedAt: number | null
 }
 
+interface ReplyDrafts {
+  selected: string | null
+  artifactVersionId?: string
+  drafts: Readonly<Record<string, string>>
+}
+
+interface StartArtifactDrafts {
+  versionId: string | null
+  drafts: Readonly<Record<string, ConversationAsk>>
+}
+
+type MentionDrafts = Readonly<Record<string, readonly string[]>>
+
 /**
  * Sophia asked here: the reply request the API recorded and the message that asked (only that request's own state, or
  * her answer naming it, ends the wait), and this page's own time then (how long she has been waiting, by its clock).
@@ -130,8 +147,13 @@ export const START = '#start'
 
 export const NO_WORDS: ConversationAsk = { title: '', text: '', askSophia: true }
 
+const EMPTY_ARTIFACT_DRAFTS: StartArtifactDrafts = { versionId: null, drafts: {} }
+
 const EMPTY: Kept = {
+  startArtifact: EMPTY_ARTIFACT_DRAFTS,
   drafts: {},
+  replyDrafts: {},
+  mentionDrafts: {},
   asks: {},
   holds: {},
   refusals: {},
@@ -173,33 +195,80 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 /** A message held as the tab keeps it: its key and its words, whether Sophia is asked. */
 function heldFrom(value: unknown): Held<MessageAsk> | null {
   if (!isRecord(value) || typeof value.key !== 'string' || value.key === '' || !isRecord(value.ask)) return null
-  const { text, askSophia } = value.ask
+  const ask = heldAskFrom(value.ask)
+  return ask ? { key: value.key, ask, sending: false } : null
+}
+
+function heldAskFrom(value: Record<string, unknown>): MessageAsk | null {
+  const { text, askSophia, addressingVersion, replyToMessageId, artifactVersionId } = value
   if (typeof text !== 'string' || typeof askSophia !== 'boolean') return null
-  return { key: value.key, ask: { text, askSophia }, sending: false }
+  if (addressingVersion !== undefined && addressingVersion !== 1) return null
+  const target = heldReplyTarget(addressingVersion, replyToMessageId)
+  if (target === false) return null
+  const ask: MessageAsk = { text, askSophia, ...(addressingVersion === 1 ? { addressingVersion } : {}) }
+  if (target !== undefined) ask.replyToMessageId = target
+  if (artifactVersionId !== undefined) {
+    if (addressingVersion !== 1 || !versionId(artifactVersionId)) return null
+    ask.artifactVersionId = artifactVersionId
+  }
+  return restoreHeldMentions(ask, value.mentions) ? ask : null
+}
+
+function restoreHeldMentions(ask: MessageAsk, stored: unknown): boolean {
+  if (stored === undefined) return true
+  if (ask.addressingVersion !== 1) return false
+  const mentions = keptMentions(stored)
+  if (!mentions) return false
+  ask.mentions = mentions
+  return true
+}
+
+function heldReplyTarget(version: unknown, target: unknown): string | null | undefined | false {
+  if (target === undefined) return undefined
+  if (version !== 1) return false
+  return target === null || typeof target === 'string' ? target : false
+}
+
+/** A held addressed start also carries the exact question sent under its key. */
+function heldStartFrom(value: unknown): Held<ConversationAsk> | null {
+  if (!isRecord(value) || !isRecord(value.ask) || typeof value.ask.title !== 'string') return null
+  const held = heldFrom(value)
+  if (held?.ask.addressingVersion !== 1) return null
+  return { ...held, ask: { ...held.ask, title: value.ask.title } }
 }
 
 /**
  * The messages the tab keeps held for a place (a reload): each as sent with no reply, whether it was on its way when
  * the page went or not, since either way only its key can tell whether it landed. Null for none.
  */
-function heldInTab(place: string): Kept['holds'] | null {
+function heldInTab(place: string): { holds: Kept['holds']; start: Held<ConversationAsk> | null } | null {
   const value = readHeld(tabOf(place))
   if (!isRecord(value)) return null
+  const start = heldStartFrom(value[START])
   const holds = Object.entries(value).flatMap(([id, held]) => {
+    if (id === START) return []
     const back = heldFrom(held)
     return back ? [[id, back] as const] : []
   })
-  return holds.length > 0 ? Object.fromEntries(holds) : null
+  return start || holds.length > 0 ? { holds: Object.fromEntries(holds), start } : null
 }
 
 /** The messages held for a place, kept in the tab as they are now (their key and words); none, and the tab keeps none. */
-function keepInTab(place: string, holds: Kept['holds']): void {
-  const now = Object.entries(holds).flatMap(([id, held]) => (held ? [[id, { key: held.key, ask: held.ask }]] : []))
+function keepInTab(place: string, state: Kept): void {
+  const now = Object.entries(state.holds).flatMap(([id, held]) =>
+    held ? [[id, { key: held.key, ask: held.ask }]] : [],
+  )
+  const start = state.start.held
+  if (start?.ask.addressingVersion === 1) now.push([START, { key: start.key, ask: start.ask }])
   keepHeld(tabOf(place), now.length > 0 ? Object.fromEntries(now) : null)
 }
 
 /** The most conversations whose drafts a place keeps in the tab: the first with words, in the order first written. */
 const DRAFTS_MOST = 20
+const REPLY_DRAFTS = '#replies'
+const MENTION_DRAFTS = '#mentions'
+const ARTIFACT_DRAFTS = '#start-artifact'
+const GENERAL = '#general'
 
 /** A draft as the tab keeps it: its words, and whether Sophia is asked. */
 function tabDraftFrom(value: unknown): { text: string; askSophia: boolean } | null {
@@ -208,18 +277,95 @@ function tabDraftFrom(value: unknown): { text: string; askSophia: boolean } | nu
 }
 
 /** The drafts the tab keeps for a place (a reload), each with its «Ask Sophia»; null for none. */
-function draftsInTab(place: string): Pick<Kept, 'drafts' | 'asks'> | null {
+function draftsInTab(
+  place: string,
+): Pick<Kept, 'drafts' | 'asks' | 'replyDrafts' | 'mentionDrafts' | 'startArtifact'> | null {
   const value = readTabDrafts(tabOf(place))
   if (!isRecord(value)) return null
   const back = Object.entries(value).flatMap(([id, draft]) => {
     const words = tabDraftFrom(draft)
     return words ? [[id, words] as const] : []
   })
-  if (back.length === 0) return null
+  const replyDrafts = readReplyDrafts(value[REPLY_DRAFTS])
+  const mentionDrafts = readMentionDrafts(value[MENTION_DRAFTS])
+  const startArtifact = readStartArtifact(value[ARTIFACT_DRAFTS])
+  const hasStartDraft = startArtifact.versionId !== null || Object.keys(startArtifact.drafts).length > 0
+  if (
+    !hasStartDraft &&
+    back.length === 0 &&
+    Object.keys(replyDrafts).length === 0 &&
+    Object.keys(mentionDrafts).length === 0
+  )
+    return null
   return {
     drafts: Object.fromEntries(back.map(([id, d]) => [id, d.text])),
     asks: Object.fromEntries(back.map(([id, d]) => [id, d.askSophia])),
+    replyDrafts,
+    mentionDrafts,
+    startArtifact,
   }
+}
+
+const versionId = (value: unknown): value is string =>
+  typeof value === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value)
+
+function readStartArtifact(value: unknown): StartArtifactDrafts {
+  if (!isRecord(value) || !isRecord(value.drafts)) return EMPTY_ARTIFACT_DRAFTS
+  const drafts = Object.entries(value.drafts).flatMap(([scope, fields]) => {
+    if ((scope !== GENERAL && !versionId(scope)) || !isRecord(fields)) return []
+    const { title, text, askSophia } = fields
+    if (typeof title !== 'string' || typeof text !== 'string' || typeof askSophia !== 'boolean') return []
+    if (title.length > DRAFT_MOST || text.length > DRAFT_MOST) return []
+    return [[scope, { title, text, askSophia }] as const]
+  })
+  return {
+    versionId: versionId(value.versionId) ? value.versionId : null,
+    drafts: Object.fromEntries(drafts.slice(0, DRAFTS_MOST)),
+  }
+}
+
+function readMentionDrafts(value: unknown): Kept['mentionDrafts'] {
+  if (!isRecord(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([conversation, drafts]) => {
+      if (!isRecord(drafts)) return []
+      const scoped = Object.entries(drafts).flatMap(([target, stored]) => {
+        const ids = keptMentions(stored)
+        return ids?.length ? [[target, ids]] : []
+      })
+      return scoped.length ? [[conversation, Object.fromEntries(scoped)]] : []
+    }),
+  )
+}
+
+function readReplyDrafts(value: unknown): Kept['replyDrafts'] {
+  if (!isRecord(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([id, state]) => {
+      if (!isRecord(state) || !isRecord(state.drafts)) return []
+      const drafts = Object.fromEntries(
+        Object.entries(state.drafts).flatMap(([target, text]) => (typeof text === 'string' ? [[target, text]] : [])),
+      )
+      const artifact = state.artifactVersionId
+      const selected = typeof state.selected === 'string' ? state.selected : null
+      return [[id, { selected, drafts, ...(versionId(artifact) ? { artifactVersionId: artifact } : {}) }]]
+    }),
+  )
+}
+
+function keptReplyDrafts(k: Kept): Kept['replyDrafts'] {
+  let remaining = DRAFTS_MOST
+  return Object.fromEntries(
+    Object.entries(k.replyDrafts)
+      .slice(0, DRAFTS_MOST)
+      .map(([id, state]) => {
+        const drafts = Object.entries(state.drafts)
+          .filter(([, text]) => text.trim() !== '' && text.length <= DRAFT_MOST)
+          .slice(0, remaining)
+        remaining -= drafts.length
+        return [id, { ...state, drafts: Object.fromEntries(drafts) }]
+      }),
+  )
 }
 
 /** A place's drafts with words, none too long, kept in the tab with their «Ask Sophia»; none, and the tab keeps none. */
@@ -228,7 +374,44 @@ function keepDraftsInTab(place: string, k: Kept): void {
     .filter(([, text]) => text.trim() !== '' && text.length <= DRAFT_MOST)
     .slice(0, DRAFTS_MOST)
     .map(([id, text]) => [id, { text, askSophia: k.asks[id] ?? true }] as const)
-  keepTabDrafts(tabOf(place), now.length > 0 ? Object.fromEntries(now) : null)
+  const replies = keptReplyDrafts(k)
+  const mentions = Object.fromEntries(
+    Object.entries(k.mentionDrafts)
+      .slice(0, DRAFTS_MOST)
+      .map(([id, scopes]) => [id, Object.fromEntries(Object.entries(scopes).slice(0, DRAFTS_MOST))]),
+  )
+  const scope = k.startArtifact.versionId
+  const artifactDrafts = k.startArtifact.drafts
+  const stored = {
+    ...Object.fromEntries(now),
+    ...(scope || Object.keys(artifactDrafts).length
+      ? {
+          [ARTIFACT_DRAFTS]: {
+            versionId: scope,
+            drafts: Object.fromEntries(
+              [
+                [scope ?? GENERAL, k.start.fields] as const,
+                ...Object.entries(withoutEntry(artifactDrafts, scope ?? GENERAL)),
+              ]
+                .filter(([, fields]) => fields.title.length <= DRAFT_MOST && fields.text.length <= DRAFT_MOST)
+                .slice(0, DRAFTS_MOST),
+            ),
+          },
+        }
+      : {}),
+    ...(Object.keys(replies).length ? { [REPLY_DRAFTS]: replies } : {}),
+    ...(Object.keys(mentions).length ? { [MENTION_DRAFTS]: mentions } : {}),
+  }
+  keepTabDrafts(tabOf(place), Object.keys(stored).length ? stored : null)
+}
+
+function restoreStart(stored: StartArtifactDrafts, held: Held<ConversationAsk> | null) {
+  const selected = held ? (held.ask.artifactVersionId ?? null) : stored.versionId
+  const fields = held?.ask ?? stored.drafts[selected ?? GENERAL] ?? NO_WORDS
+  return {
+    start: { fields, held, heldBack: null },
+    startArtifact: { ...stored, versionId: selected },
+  }
 }
 
 /** What is kept for a place: in this page's memory, or what the tab kept for it (held messages, drafts), read once. */
@@ -236,10 +419,11 @@ function placeAt(place: string): Kept | undefined {
   const was = kept.get(place)
   if (was || looked.has(place)) return was
   looked.add(place)
-  const holds = heldInTab(place)
+  const writes = heldInTab(place)
   const drafts = draftsInTab(place)
-  if (!holds && !drafts) return undefined
-  const back = { ...EMPTY, ...drafts, holds: holds ?? EMPTY.holds }
+  if (!writes && !drafts) return undefined
+  const savedStart = restoreStart(drafts?.startArtifact ?? EMPTY_ARTIFACT_DRAFTS, writes?.start ?? null)
+  const back = { ...EMPTY, ...drafts, ...savedStart, holds: writes?.holds ?? EMPTY.holds }
   kept.set(place, back)
   return back
 }
@@ -259,10 +443,18 @@ export function changeKept(place: string, change: (was: Kept) => Kept): void {
   const was = placeAt(place) ?? EMPTY
   const now = retired(change(was))
   kept.set(place, now)
-  if (now.holds !== was.holds) keepInTab(place, now.holds)
-  if (now.drafts !== was.drafts || now.asks !== was.asks) keepDraftsInTab(place, now)
+  if (now.holds !== was.holds || now.start.held !== was.start.held) keepInTab(place, now)
+  if (draftsChanged(was, now)) keepDraftsInTab(place, now)
   for (const listener of listeners) listener()
 }
+
+const draftsChanged = (was: Kept, now: Kept): boolean =>
+  now.drafts !== was.drafts ||
+  now.asks !== was.asks ||
+  now.replyDrafts !== was.replyDrafts ||
+  now.mentionDrafts !== was.mentionDrafts ||
+  now.startArtifact !== was.startArtifact ||
+  (now.startArtifact !== EMPTY_ARTIFACT_DRAFTS && now.start.fields !== was.start.fields)
 
 /** The forgetting this reader was born after: a change it makes counts only while no forgetting came since. */
 export const currentGeneration = (): number => generation
@@ -314,6 +506,67 @@ export const withEntry = <T>(was: Readonly<Record<string, T>>, key: string, valu
   [key]: value,
 })
 
+/** Selecting a version puts aside the current words and restores only that version's draft. */
+export function withStartArtifact(k: Kept, version: string | null): Kept {
+  const current = k.startArtifact.versionId
+  if (current === version || k.start.held || k.start.heldBack) return k
+  const drafts = k.startArtifact.drafts
+  const chosen = version ?? GENERAL
+  const previous = current ?? GENERAL
+  const fields = k.start.fields
+  const archived =
+    fields.title || fields.text || !fields.askSophia
+      ? withEntry(drafts, previous, fields)
+      : withoutEntry(drafts, previous)
+  return {
+    ...k,
+    startArtifact: { versionId: version, drafts: withoutEntry(archived, chosen) },
+    start: { ...k.start, fields: drafts[chosen] ?? NO_WORDS },
+    refusals: withoutEntry(k.refusals, START),
+  }
+}
+
+const EMPTY_REPLIES: ReplyDrafts = { selected: null, drafts: {} }
+const NO_MENTIONS: readonly string[] = []
+
+export const mentionsAt = (k: Kept, conversation: string, target: string | null): readonly string[] =>
+  k.mentionDrafts[conversation]?.[target ?? GENERAL] ?? NO_MENTIONS
+
+export function withDraftMentions(k: Kept, conversation: string, target: string | null, ids: readonly string[]): Kept {
+  const prior = k.mentionDrafts[conversation] ?? {}
+  const slot = target ?? GENERAL
+  const scopes = ids.length ? withEntry(prior, slot, ids) : withoutEntry(prior, slot)
+  const mentionDrafts = Object.keys(scopes).length
+    ? withEntry(k.mentionDrafts, conversation, scopes)
+    : withoutEntry(k.mentionDrafts, conversation)
+  return { ...k, mentionDrafts }
+}
+
+export function withReplyTarget(k: Kept, conversationId: string, selected: string | null): Kept {
+  const prior = k.replyDrafts[conversationId] ?? EMPTY_REPLIES
+  return { ...k, replyDrafts: withEntry(k.replyDrafts, conversationId, { ...prior, selected }) }
+}
+
+/** A report attachment is independent of the message being replied to. */
+export function replySlot(target: string | null, artifact: string | null): string | null {
+  return artifact ? `#artifact/${artifact}/${target ?? GENERAL}` : target
+}
+
+export function withReplyArtifact(k: Kept, conversationId: string, version: string | null): Kept {
+  if (k.holds[conversationId]) return k
+  const prior = k.replyDrafts[conversationId] ?? EMPTY_REPLIES
+  const { selected, drafts } = prior
+  const state = { selected, drafts, ...(version ? { artifactVersionId: version } : {}) }
+  const refusals = withoutEntry(k.refusals, conversationId)
+  return { ...k, replyDrafts: withEntry(k.replyDrafts, conversationId, state), refusals }
+}
+
+export function withReplyDraft(k: Kept, conversationId: string, slot: string, text: string): Kept {
+  const prior = k.replyDrafts[conversationId] ?? EMPTY_REPLIES
+  const drafts = text ? withEntry(prior.drafts, slot, text) : withoutEntry(prior.drafts, slot)
+  return { ...k, replyDrafts: withEntry(k.replyDrafts, conversationId, { ...prior, drafts }) }
+}
+
 /** A record without one entry. */
 const withoutEntry = <T>(was: Readonly<Record<string, T>>, key: string): Readonly<Record<string, T>> =>
   Object.fromEntries(Object.entries(was).filter(([k]) => k !== key))
@@ -336,6 +589,8 @@ const holdsAny = (out: Readonly<Record<string, true>>) => (r: Readonly<Record<st
  */
 export function retired(k: Kept): Kept {
   const { gone, erased } = k
+  const replyDrafts = retireReplyDrafts(k.replyDrafts, erased, gone)
+  const mentionDrafts = retireMentionDrafts(k.mentionDrafts, erased, gone)
   const messages = [k.proposals, k.proposalRefusals, k.proposed, k.withdrawals, k.homes]
   const conversations = [
     k.drafts,
@@ -351,11 +606,14 @@ export function retired(k: Kept): Kept {
   ]
   const back = k.start.heldBack
   const backErased = back !== null && erased[back.receipt.conversation.id] === true
-  if (!messages.some(holdsAny(gone)) && !conversations.some(holdsAny(erased)) && !backErased) return k
+  if (!messages.some(holdsAny(gone)) && !conversations.some(holdsAny(erased)) && !backErased)
+    return replyDrafts === k.replyDrafts && mentionDrafts === k.mentionDrafts ? k : { ...k, replyDrafts, mentionDrafts }
   return {
     ...k,
     start: backErased ? { ...k.start, heldBack: null } : k.start,
     drafts: without(k.drafts, erased),
+    replyDrafts,
+    mentionDrafts,
     asks: without(k.asks, erased),
     holds: without(k.holds, erased),
     refusals: without(k.refusals, erased),
@@ -373,6 +631,43 @@ export function retired(k: Kept): Kept {
   }
 }
 
+const targetOfSlot = (slot: string): string =>
+  slot.startsWith('#artifact/') ? slot.slice(slot.lastIndexOf('/') + 1) : slot
+
+const holdsGoneTarget = (gone: Kept['gone']) => (drafts: Readonly<Record<string, unknown>>) =>
+  Object.keys(drafts).some((slot) => gone[targetOfSlot(slot)])
+
+function withoutGoneTarget<T>(drafts: Readonly<Record<string, T>>, gone: Kept['gone']): Readonly<Record<string, T>> {
+  return Object.fromEntries(Object.entries(drafts).filter(([slot]) => !gone[targetOfSlot(slot)]))
+}
+
+function retireMentionDrafts(
+  state: Kept['mentionDrafts'],
+  erased: Kept['erased'],
+  gone: Kept['gone'],
+): Kept['mentionDrafts'] {
+  const remaining = holdsAny(erased)(state) ? without(state, erased) : state
+  if (!Object.values(remaining).some(holdsGoneTarget(gone))) return remaining
+  return Object.fromEntries(
+    Object.entries(remaining).flatMap(([id, drafts]) => {
+      const scoped = withoutGoneTarget(drafts, gone)
+      return Object.keys(scoped).length ? [[id, scoped]] : []
+    }),
+  )
+}
+
+function retireReplyDrafts(
+  state: Kept['replyDrafts'],
+  erased: Kept['erased'],
+  gone: Kept['gone'],
+): Kept['replyDrafts'] {
+  const remaining = holdsAny(erased)(state) ? without(state, erased) : state
+  if (!Object.values(remaining).some((reply) => holdsGoneTarget(gone)(reply.drafts))) return remaining
+  return Object.fromEntries(
+    Object.entries(remaining).map(([id, reply]) => [id, { ...reply, drafts: withoutGoneTarget(reply.drafts, gone) }]),
+  )
+}
+
 /** What is kept with these messages gone (withdrawn, or their conversation erased): nothing of theirs, ever again. */
 const withGone = (k: Kept, messages: readonly string[]): Kept =>
   retired({ ...k, gone: { ...k.gone, ...Object.fromEntries(messages.map((m) => [m, true as const])) } })
@@ -380,9 +675,14 @@ const withGone = (k: Kept, messages: readonly string[]): Kept =>
 /** What is kept once a message is withdrawn here: its proposal and its withdrawal held go, and never come back. */
 export const withoutMessage = (k: Kept, messageId: string): Kept => withGone(k, [messageId])
 
-/** Whether something is kept for this message: a proposal held, refused or recorded, a withdrawal held, its home. */
+const hasTarget = (drafts: Readonly<Record<string, unknown>>, id: string): boolean =>
+  Object.keys(drafts).some((slot) => targetOfSlot(slot) === id)
+
+/** Whether something is kept for this message: its own activity or a draft or mention scoped to it. */
 const keepsMessage = (k: Kept, messageId: string) =>
-  [k.proposals, k.proposalRefusals, k.proposed, k.withdrawals, k.homes].some((r) => messageId in r)
+  [k.proposals, k.proposalRefusals, k.proposed, k.withdrawals, k.homes].some((r) => messageId in r) ||
+  Object.values(k.replyDrafts).some((reply) => reply.selected === messageId || hasTarget(reply.drafts, messageId)) ||
+  Object.values(k.mentionDrafts).some((drafts) => hasTarget(drafts, messageId))
 
 /**
  * Messages a thread read of this account's holds withdrawn, whoever withdrew them (another tab, an admin): gone, as
@@ -432,6 +732,23 @@ export const withHome = (k: Kept, messageId: string, conversationId: string): Ke
 /** The conversation a start's receipt is held back for (talk-store `heldBack`), if any. */
 const heldBackFor = (k: Kept): string[] => (k.start.heldBack ? [k.start.heldBack.receipt.conversation.id] : [])
 
+/** A conversation can have only scoped draft state after a reload. Start has its own scope. */
+function hasDraftFor(k: Kept, id: string): boolean {
+  if (id === START) return false
+  const reply = k.replyDrafts[id]
+  return (
+    (k.drafts[id] ?? '').trim() !== '' ||
+    Boolean(reply?.selected || reply?.artifactVersionId) ||
+    Object.values(reply?.drafts ?? {}).some((words) => words.trim() !== '') ||
+    Object.values(k.mentionDrafts[id] ?? {}).some((ids) => ids.length > 0)
+  )
+}
+
+function draftConversations(k: Kept): string[] {
+  const ids = new Set([...Object.keys(k.drafts), ...Object.keys(k.replyDrafts), ...Object.keys(k.mentionDrafts)])
+  return [...ids].filter((id) => hasDraftFor(k, id))
+}
+
 /**
  * The conversations a whole list read now no longer holds, of those seen listed here or with a draft, with an erasure
  * held here or in doubt, with a start's receipt held back for them or landed after it (`reached`): gone (erased, here
@@ -441,8 +758,7 @@ export function goneFrom(k: Kept, now: readonly string[]): string[] {
   const here = new Set(now)
   const knew = new Set([
     ...Object.keys(k.listed),
-    // A draft with words, read back after a reload before any list was seen (drafts-survive-reload.md).
-    ...Object.keys(k.drafts).filter((id) => (k.drafts[id] ?? '').trim() !== ''),
+    ...draftConversations(k),
     ...Object.keys(k.erasures),
     ...Object.keys(k.doubted),
     ...Object.keys(k.reached),
@@ -497,12 +813,12 @@ const held = (v: unknown) => v !== null && v !== undefined
 
 /**
  * Whether anything is kept here for this conversation, by what is kept, not by an entry left empty (PR #199
- * r4235731017): a draft with words; a message held, its refusal or its wait; its erasure held (its key) or in doubt; a
+ * r4235731017): a draft with words or selected context; a message held, its refusal or its wait; its erasure held or in doubt; a
  * start's receipt held back for it, or landed after it (`reached`); or a message of it with a proposal held, refused or
  * recorded, or a withdrawal held.
  */
 export function keepsFor(k: Kept, id: string): boolean {
-  if ((k.drafts[id] ?? '').trim() !== '' || id in k.doubted || id in k.reached || id in k.denied) return true
+  if (hasDraftFor(k, id) || id in k.doubted || id in k.reached || id in k.denied) return true
   if (heldBackFor(k).includes(id)) return true
   if ([k.holds[id], k.refusals[id], k.asked[id], k.erasures[id]].some(held)) return true
   const messages = Object.keys(k.homes).filter((m) => k.homes[m] === id)

@@ -4,7 +4,11 @@
 // never a cast. Served by the API only where conversations are on (SOPHIA_CONVERSATIONS); the fixture pages answer
 // the same shapes.
 import type {
+  AddressedConversationInputSend,
+  AddressedConversationInputStart,
   ConversationErasure,
+  ConversationInputRecorded,
+  ConversationInputStarted,
   ConversationList,
   ConversationMessage,
   ConversationMessagePage,
@@ -12,12 +16,15 @@ import type {
   ConversationReply,
   ConversationSend,
   ConversationStart,
-  ConversationStarted,
+  ConversationStarted as LegacyConversationStarted,
   ConversationSummary,
   ConversationWithdrawal,
 } from '@sophia/contracts'
 import {
+  parseConversationArtifactVersion,
   parseConversationErasure,
+  parseConversationInputRecorded,
+  parseConversationInputStarted,
   parseConversationList,
   parseConversationMessagePage,
   parseConversationMessageSent,
@@ -31,17 +38,21 @@ export type {
   ConversationList,
   ConversationMessage,
   ConversationReply,
-  ConversationStarted,
   ConversationSummary,
   ConversationWithdrawal,
 }
 
-/** What starting a conversation sends: its question, its first message, and whether Sophia is asked. */
-export type ConversationAsk = ConversationStart
-/** What a message sends: its words, and whether Sophia is asked. */
-export type MessageAsk = ConversationSend
-/** A message recorded: the message, whether Sophia was asked, and the request her answer will settle. */
-export type MessageSent = ConversationMessageSent
+/** A held write keeps its selected contract through retries and reloads. */
+interface WriteAddressing {
+  addressingVersion?: 1
+  mentions?: readonly string[]
+  artifactVersionId?: string
+}
+
+export type ConversationAsk = ConversationStart & WriteAddressing
+export type MessageAsk = ConversationSend & WriteAddressing & { replyToMessageId?: string | null }
+export type ConversationStarted = LegacyConversationStarted | (ConversationInputStarted & { reply: null })
+export type MessageSent = ConversationMessageSent | (ConversationInputRecorded & { reply: null })
 /** A page of a conversation's messages, oldest first; `before` reads the page before it. */
 export type MessagePage = ConversationMessagePage
 
@@ -72,13 +83,72 @@ export const getConversationMessages = (
     parseConversationMessagePage,
   )
 
+/** The exact published version a project member can attach to a new conversation. */
+export const getConversationArtifactVersion = (
+  token: string,
+  projectId: string,
+  versionId: string,
+  signal: AbortSignal,
+) =>
+  callApi(
+    `/api/v1/projects/${projectId}/conversation-artifact-versions/${versionId}`,
+    { token, method: 'GET', protectedRead: true, signal },
+    parseConversationArtifactVersion,
+  )
+
 /** Start a conversation (writers), once per key. */
-export const startConversation = (token: string, projectId: string, key: string, body: ConversationAsk) =>
-  callApi(`/api/v1/projects/${projectId}/conversations`, { token, key, body }, parseConversationStarted)
+export async function startConversation(
+  token: string,
+  projectId: string,
+  key: string,
+  { title, text, askSophia, addressingVersion, mentions = [], artifactVersionId }: ConversationAsk,
+): Promise<ConversationStarted> {
+  const project = `/api/v1/projects/${projectId}` as const
+  if (addressingVersion === 1) {
+    const body = {
+      interactionContract: 'automatic_v1',
+      addressingVersion,
+      title,
+      text,
+      mentions,
+      ...(artifactVersionId ? { artifactVersionId } : {}),
+    } satisfies AddressedConversationInputStart
+    const saved = await callApi(
+      `${project}/conversation-inputs/addressed`,
+      { token, key, body },
+      parseConversationInputStarted,
+    )
+    return { ...saved, reply: null }
+  }
+  return callApi(`${project}/conversations`, { token, key, body: { title, text, askSophia } }, parseConversationStarted)
+}
 
 /** A message in a conversation (writers), once per key. */
-export const sendConversationMessage = (token: string, conversationId: string, key: string, body: MessageAsk) =>
-  callApi(`/api/v1/conversations/${conversationId}/messages`, { token, key, body }, parseConversationMessageSent)
+export async function sendConversationMessage(
+  token: string,
+  conversationId: string,
+  key: string,
+  { text, askSophia, addressingVersion, replyToMessageId = null, mentions = [], artifactVersionId }: MessageAsk,
+): Promise<MessageSent> {
+  const conversation = `/api/v1/conversations/${conversationId}` as const
+  if (addressingVersion === 1) {
+    const body = {
+      interactionContract: 'automatic_v1',
+      addressingVersion,
+      text,
+      mentions,
+      replyToMessageId,
+      ...(artifactVersionId ? { artifactVersionId } : {}),
+    } satisfies AddressedConversationInputSend
+    const saved = await callApi(
+      `${conversation}/inputs/addressed`,
+      { token, key, body },
+      parseConversationInputRecorded,
+    )
+    return { ...saved, reply: null }
+  }
+  return callApi(`${conversation}/messages`, { token, key, body: { text, askSophia } }, parseConversationMessageSent)
+}
 
 /** Withdraw a message (its author, or an admin), once per key. */
 export const withdrawConversationMessage = (token: string, conversationId: string, messageId: string, key: string) =>

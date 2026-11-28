@@ -17,6 +17,7 @@ interface ImportMetaEnv {
   readonly VITE_SOPHIA_MANAGED_EXPLORE?: string
   readonly VITE_SOPHIA_PREVIEW_ORIGIN?: string
   readonly VITE_SOPHIA_CONVERSATIONS?: string
+  readonly VITE_SOPHIA_CONVERSATION_INPUT_ADDRESSING?: string
   /** "1" where A15's needs and A34's Updates are served: they show without the vision flag (app/attention.ts). */
   readonly VITE_SOPHIA_ATTENTION?: string
   /** "1" once A36's message corrections and withdrawals are deployed: the chat offers them (app/message-acts.ts). */
