@@ -98,7 +98,7 @@ function TitleField({ title, status, limit, onClose }: TitleProps) {
   return (
     <div className="field">
       <label className="sr-only" htmlFor="c-newproj">
-        Project title
+        Project name
       </label>
       <input
         ref={field}

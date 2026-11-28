@@ -1119,7 +1119,7 @@ test('reliability · a new project answered by a proxy’s 504 page is sent agai
   await expect(work.locator('.c3-proj h3')).toHaveCount(7)
   await work.getByRole('button', { name: 'New project' }).click()
   const form = work.locator('form.c3-newproj')
-  await form.getByLabel('Project title').fill('Harbour pilot')
+  await form.getByLabel('Project name').fill('Harbour pilot')
   const start = form.locator('button[type="submit"]')
   await start.click()
   await expect.poll(() => keys.length).toBe(1)
