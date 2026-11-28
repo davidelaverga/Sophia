@@ -361,10 +361,11 @@ export function StudioShell(props: Props) {
   const captions = useStageCaptions(held, room, chatOpen, who)
   const stageExtras = { snapshot, room, made, panel, common, spoken: latestSpoken(held), catchUp, background }
   const { present, under, showing } = useUnderTheLine(stageExtras, chatOpen)
-  // The page's main part, unless out of sight for its call: then another page has it.
-  const Main = background ? 'div' : 'main'
+  // The page's main part, unless out of sight for its call: then another page has it. The element itself stays the
+  // same, so going Home and back keeps everything under it (a brief being written, the chat's place): only its role
+  // follows (Codex on #569).
   return (
-    <Main className="studio" data-content>
+    <div className="studio" data-content role={background ? undefined : 'main'}>
       <RoomStage
         room={room}
         snapshot={snapshot}
@@ -398,7 +399,7 @@ export function StudioShell(props: Props) {
         call={call}
         note={panelNote(panel.panel, room.mediaError, room.error)}
       />
-    </Main>
+    </div>
   )
 }
 

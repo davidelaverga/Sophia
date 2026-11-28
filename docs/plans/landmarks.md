@@ -20,8 +20,10 @@ A project's other views already had their `main` (ProjectShell's page), and sign
 - Home's view (`.c-home`, Places), Personal's and Work's (`.c3-space`) are `main` rather than `div` / `section`. Only
   the place on screen lacks `hidden`. For the moment a place hands over to another (usePlaceMotion, under 1.5 s), both
   show, as they did before.
-- The room's root (`.studio`, StudioShell) is `main` too, except in a shell kept out of sight for its call
-  (`background`): there it stays a `div`, so the page on screen keeps the only main part.
+- The room's root (`.studio`, StudioShell) has the `main` role, except in a shell kept out of sight for its call
+  (`background`), so the page on screen keeps the only main part. It stays a `div` either way: switching its element
+  would make React rebuild the room on every visit Home and back, losing a brief being written and the chat's place
+  (Codex on #569).
 - Home's greeting, Personal's «You and Sophia» and Work's «Your projects» are `h1`. Their rules in personal.css follow
   the tag (`.c3-head h1`). Sizes measured before and after: the same at 1280 × 800 and 390 × 844 (greeting 46.08 / 38 px,
   «You and Sophia» 12 px, «Your projects» 20 px).
