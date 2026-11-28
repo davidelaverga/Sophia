@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { mutedSpeech, mutedWatch } from './muted-speech.ts'
+import { hearsMuted, mutedSpeech, mutedWatch } from './muted-speech.ts'
 
 /** Feed levels a tenth of a second apart from `start`; the times the watch spoke up. */
 function run(levels: readonly number[], watch = mutedSpeech(), start = 0): number[] {
@@ -70,5 +70,26 @@ describe('listening while muted, on the right microphone (Codex P2s on #357)', (
     watch.end()
     watch.end()
     assert.deepEqual(r.heard, ['on:default', 'off:default'])
+  })
+})
+
+describe('when the room listens with the microphone off (text-chat-no-mic.md)', () => {
+  const call = { connected: true, micOn: false }
+
+  it('by voice, with the microphone off, it listens', () => {
+    assert.equal(hearsMuted({ ...call, textMode: false }), true)
+  })
+
+  it('in text mode it never does: a chat with Sophia asks for no microphone', () => {
+    assert.equal(hearsMuted({ ...call, textMode: true }), false)
+  })
+
+  it('before the call is told its mode it waits, so a text join never asks first', () => {
+    assert.equal(hearsMuted({ ...call, textMode: null }), false)
+  })
+
+  it('a microphone on, or a call not connected, is not listened to', () => {
+    assert.equal(hearsMuted({ connected: true, micOn: true, textMode: false }), false)
+    assert.equal(hearsMuted({ connected: false, micOn: false, textMode: false }), false)
   })
 })

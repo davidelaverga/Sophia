@@ -43,7 +43,7 @@ import { cameraBackground } from './camera-background.ts'
 import { deviceChange } from './device-change.ts'
 import { incomingCameras } from './incoming-cameras.ts'
 import { micWhileConnected } from './mic-while-connected.ts'
-import { hearWhileMuted, mutedWatch } from './muted-speech.ts'
+import { hearsMuted, hearWhileMuted, mutedWatch } from './muted-speech.ts'
 import { chosenDevices, deviceName, type DeviceKind, type MediaDevice } from './device-preference.ts'
 import { followingSignal } from './following-signal.ts'
 import { HAND_TOPIC, handSignal, type Publish } from './hand-signal.ts'
@@ -463,11 +463,15 @@ type DeviceControls = Pick<
  * While this person's microphone is off in the call, listen for speech on it, to say «You're muted»
  * (muted-speech.md): on any change of the microphone, a host's mute included, and never once the call is over.
  */
-function mutedMicrophone(room: Room, onSpeaking: () => void): () => void {
+function mutedMicrophone(room: Room, onSpeaking: () => void, textMode: () => boolean | null): () => void {
   const watch = mutedWatch((deviceId) => hearWhileMuted(deviceId, onSpeaking))
   const sync = () =>
     watch.set(
-      room.state === ConnectionState.Connected && !room.localParticipant.isMicrophoneEnabled,
+      hearsMuted({
+        connected: room.state === ConnectionState.Connected,
+        micOn: room.localParticipant.isMicrophoneEnabled,
+        textMode: textMode(),
+      }),
       room.getActiveDevice('audioinput'),
     )
   // A switched microphone is a new one to listen on; a call that begins muted listens from the start (Codex on #357).
@@ -549,19 +553,25 @@ export async function connectRoom(
   const mic = micWhileConnected(room, CHANGES)
   room.on(RoomEvent.Reconnecting, () => cb.onStatus('reconnecting'))
   room.on(RoomEvent.Reconnected, () => cb.onStatus('live'))
-  let textOnly = false
+  // Text mode, null until the call is told its mode: until then the microphone isn't listened to (hearsMuted).
+  let textMode: boolean | null = null
   const audio = remoteAudio(room)
   watchQualification(room, qualification)
   stopsWhenHostStops(room, cb)
   endsWith(room, audio, cb)
   listenToSophia(room, cb)
   listenToReactions(room, (heard) => cb.onReaction?.(heard))
-  const signalMode = modeSignal(room, () => textOnly)
+  const signalMode = modeSignal(room, () => textMode === true)
   const signals = peopleSignals(room, cb)
   const sound = await connectWithLevels(room, serverUrl, token)
   const feedsOf = videoFeeds()
   const after = thenChanged(cb)
   const people = () => remotePeople(room)
+  const hearMuted = mutedMicrophone(
+    room,
+    () => cb.onSpeakingMuted?.(),
+    () => textMode,
+  )
   return {
     sendChat: (packet) =>
       room.localParticipant.publishData(encodeChatPacket(packet), {
@@ -570,22 +580,19 @@ export async function connectRoom(
         topic: CHAT_INPUT_TOPIC,
       }),
     setTextMode: (on) => {
-      textOnly = on
+      textMode = on
       audio.setRead(on)
       signalMode()
+      hearMuted()
     },
-    textMode: () => textOnly,
+    textMode: () => textMode === true,
     ...signals,
     sophia: () => sophiaSignal([...room.remoteParticipants.values()].find(isSophia)),
     audioBlocked: () => !room.canPlaybackAudio,
     ...sound.levels,
     startAudio: () => after(sound.startAudio()),
     feeds: () => [...feedsOf(room.localParticipant, true), ...people().flatMap((p) => feedsOf(p, false))],
-    ...deviceControls(
-      room,
-      after,
-      mutedMicrophone(room, () => cb.onSpeakingMuted?.()),
-    ),
+    ...deviceControls(room, after, hearMuted),
     sendReaction: (emoji) =>
       room.localParticipant.publishData(encodeReaction(emoji), { reliable: true, topic: REACTION_TOPIC }),
     setVolume: (identity, level) =>
