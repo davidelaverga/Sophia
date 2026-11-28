@@ -12,6 +12,7 @@ import { chosenBackground, type BackgroundId } from '../src/features/voice/backg
 import { chosenDevices, type DeviceKind, type MediaDevice } from '../src/features/voice/device-preference.ts'
 import type { RoomCallbacks, RoomConnection } from '../src/features/voice/livekit-room.ts'
 import type { RoomParticipant } from '../src/features/voice/room-view.ts'
+import { hearsMuted } from '../src/features/voice/muted-speech.ts'
 import { listenToReactions } from '../src/features/voice/reaction-channel.ts'
 import { HAND_TOPIC, decodeHand, handSignal, type HandSignal } from '../src/features/voice/hand-signal.ts'
 import { REACTION_TOPIC } from '../src/features/voice/reactions.ts'
@@ -491,13 +492,22 @@ function deviceSwitch(me: RoomParticipant, changed: () => void, micPublished: ()
   }
 }
 
+/** Text mode, null until the call is told its mode just after it connects (enterCall), as the room is. */
+type CallMode = { text: boolean | null }
+
 /**
- * What reaches this viewer while the connection is open: speech heard on a muted microphone, an admin's mute, an
- * admin's stop of their screen, and the browser's own end of it.
+ * What reaches this viewer while the connection is open: speech heard on a muted microphone (only where the room
+ * listens: hearsMuted), an admin's mute, an admin's stop of their screen, and the browser's own end of it.
  */
-function fromTheServer(me: RoomParticipant, cb: RoomCallbacks, open: () => boolean, changed: () => void): void {
+function fromTheServer(
+  me: RoomParticipant,
+  cb: RoomCallbacks,
+  open: () => boolean,
+  changed: () => void,
+  mode: CallMode,
+): void {
   mutedSpeech = () => {
-    if (open() && !me.micOn) cb.onSpeakingMuted?.()
+    if (hearsMuted({ connected: open(), micOn: me.micOn, textMode: mode.text })) cb.onSpeakingMuted?.()
   }
   hostMute = () => {
     if (!open()) return
@@ -572,7 +582,7 @@ export function connectRoom(_url: string, _token: string, cb: RoomCallbacks, gra
   connected(cb)
   said = null // a new connection has said nothing yet, as following-signal.ts starts each one
   const me = viewer()
-  let textOnly = false
+  const mode: CallMode = { text: null }
   let open = true
   const hands = listenAnew(cb, grant)
   const tracks = callTracks()
@@ -581,7 +591,7 @@ export function connectRoom(_url: string, _token: string, cb: RoomCallbacks, gra
     if (open) cb.onChange()
   })
   const mic = keptMic(me, cb)
-  fromTheServer(me, cb, () => open, mic.changed)
+  fromTheServer(me, cb, () => open, mic.changed, mode)
   const close = () => {
     open = false
     tracks.end()
@@ -596,9 +606,9 @@ export function connectRoom(_url: string, _token: string, cb: RoomCallbacks, gra
     sendChat,
     setTextMode: (on) => {
       asked.push(`text:${on ? 'on' : 'off'}`)
-      textOnly = on
+      mode.text = on
     },
-    textMode: () => textOnly,
+    textMode: () => mode.text === true,
     micWas: mic.micWas,
     connected: () => open && !linkDown,
     participants: everyone(me, hands),

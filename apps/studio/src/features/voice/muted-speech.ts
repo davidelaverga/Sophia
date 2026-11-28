@@ -32,6 +32,15 @@ export function mutedSpeech(): (level: number, at: number) => boolean {
 }
 
 /**
+ * Whether the room listens for speech with the microphone off. Not in text mode: there the person types, and a chat
+ * started from the panel must not open the microphone (P1-2 of the independent evaluation). Nor before the call has
+ * been told its mode (`textMode` null): a text join is told just after it connects, too late once the stream is asked.
+ */
+export function hearsMuted(call: { connected: boolean; micOn: boolean; textMode: boolean | null }): boolean {
+  return call.connected && !call.micOn && call.textMode === false
+}
+
+/**
  * When to listen (Codex P2s on #357): from any moment the microphone is off, a call that begins muted included; on the
  * microphone in use, so one switched while muted is listened to instead; never past the call's end. `listen` opens the
  * listening on a device and returns the way to let it go.

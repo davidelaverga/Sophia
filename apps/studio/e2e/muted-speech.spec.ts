@@ -37,3 +37,12 @@ test('muted · the hint goes with its call (Codex P2 on #357)', async ({ page })
   await page.evaluate(() => window.fixture?.drop())
   await expect(hint(page)).toHaveCount(0)
 })
+
+test('muted · in text mode nothing is listened to, so nothing is said (text-chat-no-mic.md)', async ({ page }) => {
+  await page.getByRole('button', { name: 'Chat', exact: true }).click()
+  await page.getByRole('button', { name: 'Chat with Sophia' }).click()
+  await expect(page.getByRole('button', { name: /^Text mode/ })).toHaveAttribute('aria-pressed', 'true')
+  await expect(mic(page)).toHaveAttribute('aria-pressed', 'false')
+  await page.evaluate(() => window.fixture?.speakMuted())
+  await expect(hint(page)).toHaveCount(0)
+})
