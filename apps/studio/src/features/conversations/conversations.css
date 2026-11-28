@@ -1539,3 +1539,245 @@
     animation: none;
   }
 }
+
+/* The addressed draft keeps its independent references inside the writing surface. */
+.conv-compose-surface {
+  min-width: 0;
+}
+.conv-compose-surface[data-addressed] {
+  padding: 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-4);
+  background: var(--plane-2);
+  box-shadow: var(--elev-composer);
+}
+.conv-compose-surface[data-addressed]:focus-within {
+  border-color: rgb(var(--halo-rgb) / 0.45);
+}
+.conv-compose-surface[data-addressed] .conv-field-box {
+  padding: 6px;
+  background: none;
+  box-shadow: none;
+}
+.conv-compose-context:empty,
+.conv-compose-tools:empty {
+  display: none;
+}
+.conv-compose-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.conv-report-controls,
+.conv-mention-controls {
+  display: contents;
+}
+.conv-compose-surface .conv-reply-target {
+  align-items: center;
+  padding: 6px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--line-2);
+}
+.conv-compose-surface .conv-reply-target p {
+  max-height: 4.5em;
+  overflow: auto;
+}
+.conv-report-attachment {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 0 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  font-size: var(--type-small);
+}
+.conv-report-attachment > svg {
+  flex: none;
+  color: var(--text-2);
+}
+.conv-report-open,
+.conv-report-attachment > p {
+  min-width: 0;
+  flex: 1;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.conv-report-open {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  padding: 3px 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.conv-report-open:hover > span:first-child {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.conv-report-version {
+  flex: none;
+  color: var(--text-2);
+}
+.conv-context-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 8px;
+  font-size: var(--type-small);
+}
+.conv-context-remove {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.conv-context-remove:hover {
+  background: var(--raise-2);
+  color: var(--text);
+}
+.conv-mention-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1 0 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.conv-mention-chips li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 4px 2px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--raise-2);
+  font-size: var(--type-small);
+}
+.conv-mention-chips li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.conv-context-panel {
+  flex: 1 0 100%;
+  min-width: 0;
+  max-height: min(36vh, 300px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--plane-2);
+  font-size: var(--type-small);
+}
+.conv-context-panel .conv-report-picker {
+  padding: 0;
+  border: 0;
+  margin-bottom: 10px;
+}
+.conv-mention-panel fieldset {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.conv-mention-panel legend {
+  padding: 0 0 6px;
+  color: var(--text-2);
+}
+.conv-mention-panel label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  overflow-wrap: anywhere;
+}
+.conv-mention-panel p {
+  margin: 8px 0;
+  color: var(--text-2);
+}
+.conv-mention-unavailable {
+  color: var(--text-2);
+}
+.conv-context-status {
+  flex-basis: 100%;
+}
+@media (pointer: coarse) {
+  .conv-context-remove {
+    width: 40px;
+    height: 40px;
+  }
+  .conv-context-action,
+  .conv-report-open,
+  .conv-mention-panel label {
+    min-height: 36px;
+  }
+}
+@media (width <= 520px) {
+  .conv-compose-surface[data-addressed] {
+    padding: 6px;
+  }
+  .conv-report-open {
+    display: grid;
+    gap: 2px;
+  }
+}
+
+.conv-compose-tools :is(.conv-report-attachment, .conv-mention-chips) {
+  order: -1;
+}
+.conv-compose-tools .conv-context-panel {
+  order: 1;
+}
+
+/* The form-field defaults are full-width; mention choices remain native, compact checkboxes. */
+.conv-mention-panel input[type='checkbox'] {
+  appearance: auto;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.conv-mention-panel input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--halo-text);
+  outline-offset: 3px;
+  box-shadow: none;
+}
+.conv-mention-panel label {
+  min-height: 36px;
+  padding: 4px 2px;
+  cursor: pointer;
+}
+.conv-mention-panel label:has(input:disabled) {
+  cursor: default;
+}
+@media (pointer: coarse) {
+  .conv-mention-panel label {
+    min-height: 40px;
+  }
+}

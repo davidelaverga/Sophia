@@ -346,7 +346,7 @@ function ReplyContext({ reply }: Pick<Props['context'], 'reply'>) {
       <p role="status">{reply.label ?? 'This reply target is unavailable.'}</p>
       {reply.remove && (
         <button type="button" className="text-button" onClick={reply.remove}>
-          Clear reply target
+          Cancel reply
         </button>
       )}
     </div>
@@ -366,11 +366,18 @@ const contextReadOnly = ({ context, held }: Props) =>
 function ComposeContext({ props, mentions }: { props: Props; mentions: ReactNode }) {
   const { reply, artifact, onArtifact } = props.context
   return (
-    <>
+    <div className="conv-compose-context">
       <ReplyContext reply={reply} />
-      <ReplyArtifact projectId={props.projectId} identity={props.identity} artifact={artifact} onSelect={onArtifact} />
-      {visibleArtifact(artifact) && mentions}
-    </>
+      <div className="conv-compose-tools" role="group" aria-label="Message context">
+        <ReplyArtifact
+          projectId={props.projectId}
+          identity={props.identity}
+          artifact={artifact}
+          onSelect={onArtifact}
+        />
+        {visibleArtifact(artifact) && mentions}
+      </div>
+    </div>
   )
 }
 
@@ -403,28 +410,30 @@ export function ConversationComposer(props: Props) {
       }}
     >
       {props.notice && <p className="conv-note conv-notice">{props.notice}</p>}
-      <ComposeContext props={props} mentions={mentions} />
-      <FieldBox draft={draft} onDraft={onDraft} grows={grows} readOnly={contextReadOnly(props)} next={next}>
-        <AskSophia
-          addressed={addressed}
-          answers={props.answers}
-          on={asks}
-          held={held !== null}
-          why={why}
-          onChange={props.onAskSophia}
-        />
-        <SendButton ready={ready} busy={busy} />
-      </FieldBox>
-      {props.canSend && explicitAsks && (
-        <QuickAsks
-          asks={next.quick}
-          // Offline, too: a quick ask could only wait, as words in the field do.
-          away={draft.trim() !== '' || held !== null || offline}
-          busy={busy}
-          onAsk={(w) => void ask(w)}
-        />
-      )}
-      <Hint addressed={addressed} asks={asks} answers={props.answers} unanswered={props.unanswered} why={why} />
+      <div className="conv-compose-surface" data-addressed={addressed || undefined}>
+        <ComposeContext props={props} mentions={mentions} />
+        <FieldBox draft={draft} onDraft={onDraft} grows={grows} readOnly={contextReadOnly(props)} next={next}>
+          <AskSophia
+            addressed={addressed}
+            answers={props.answers}
+            on={asks}
+            held={held !== null}
+            why={why}
+            onChange={props.onAskSophia}
+          />
+          <SendButton ready={ready} busy={busy} />
+        </FieldBox>
+        {props.canSend && explicitAsks && (
+          <QuickAsks
+            asks={next.quick}
+            // Offline, too: a quick ask could only wait, as words in the field do.
+            away={draft.trim() !== '' || held !== null || offline}
+            busy={busy}
+            onAsk={(w) => void ask(w)}
+          />
+        )}
+        <Hint addressed={addressed} asks={asks} answers={props.answers} unanswered={props.unanswered} why={why} />
+      </div>
       <Note words={words} slow={slow} polite={polite} />
     </form>
   )

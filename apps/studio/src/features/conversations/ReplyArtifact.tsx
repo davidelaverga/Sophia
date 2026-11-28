@@ -1,5 +1,7 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
+import { Icon, usePopover } from '@sophia/ui'
+import { useDocumentViewer } from '../artifacts/viewer-context.ts'
 import { listArtifactVersions, listReports } from '../../api/artifacts.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -15,35 +17,47 @@ interface Props {
 export function ReplyArtifact({ projectId, identity, artifact, onSelect }: Props) {
   const pickerId = useId()
   const [open, setOpen] = useState(false)
+  const popover = usePopover(open, () => setOpen(false))
+  // This popover starts with a native select, which the shared menu-first focus selector does not include.
+  useEffect(() => {
+    if (open) popover.panel.current?.querySelector<HTMLSelectElement>('select')?.focus()
+  }, [open, popover.panel])
   const choose = (version: string | null) => {
     setOpen(false)
     onSelect?.(version)
   }
   return (
-    <>
-      {artifact.versionId && (
-        <div className="conv-reply-target">
-          <p role="status">{artifactWords(artifact)}</p>
-          {onSelect && (
-            <button type="button" className="text-button" onClick={() => choose(null)}>
-              Clear version
-            </button>
-          )}
-        </div>
-      )}
+    <div className="conv-report-controls" ref={popover.wrap} onKeyDown={popover.onKeyDown}>
+      <AttachedReport artifact={artifact} remove={onSelect ? () => choose(null) : undefined} />
       {onSelect && (
         <button
           type="button"
-          className="text-button conv-report-toggle"
+          ref={popover.opener}
+          className="ghost conv-context-action conv-report-toggle"
           aria-expanded={open}
           aria-controls={open ? pickerId : undefined}
           onClick={() => setOpen(!open)}
         >
-          {artifact.versionId ? 'Change report version' : 'Attach report version'}
+          <Icon name="brief" />
+          {artifact.versionId ? 'Change version' : 'Attach report'}
         </button>
       )}
-      {open && onSelect && <ReportPicker id={pickerId} projectId={projectId} identity={identity} choose={choose} />}
-    </>
+      {open && onSelect && (
+        <div ref={popover.panel} className="conv-context-panel">
+          <ReportPicker id={pickerId} projectId={projectId} identity={identity} choose={choose} />
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => {
+              setOpen(false)
+              popover.opener.current?.focus()
+            }}
+          >
+            Done
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -141,5 +155,46 @@ function ReadFailed({ words, retry }: { words: string; retry: () => void }) {
         Try again
       </button>
     </p>
+  )
+}
+
+function AttachedReport({ artifact, remove }: { artifact: Props['artifact']; remove: (() => void) | undefined }) {
+  const viewer = useDocumentViewer()
+  return (
+    <>
+      {artifact.versionId && (
+        <div className="conv-report-attachment">
+          <Icon name="brief" />
+          {artifact.version && viewer ? (
+            <button
+              type="button"
+              className="conv-report-open"
+              aria-label={`Open ${artifactWords(artifact)}`}
+              onClick={() =>
+                artifact.version &&
+                viewer.open({ artifactId: artifact.version.artifactId, versionId: artifact.version.versionId })
+              }
+            >
+              <span>{artifact.version.title}</span>
+              <span className="conv-report-version">
+                {artifact.version.versionNumber === null ? 'Report' : `Version ${artifact.version.versionNumber}`}
+              </span>
+            </button>
+          ) : (
+            <p role="status">{artifactWords(artifact)}</p>
+          )}
+          {remove && (
+            <button type="button" className="conv-context-remove" aria-label="Remove attachment" onClick={remove}>
+              <Icon name="close" />
+            </button>
+          )}
+        </div>
+      )}
+      {artifact.version && !artifact.ready && (
+        <p className="conv-note conv-context-status" role="status">
+          Checking this version…
+        </p>
+      )}
+    </>
   )
 }
