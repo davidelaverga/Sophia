@@ -1748,6 +1748,53 @@ async function inCallAtHome(context: BrowserContext) {
   return page
 }
 
+test('places · going Home during a call keeps the unsaved Brief direction on return', async ({ context }) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/p/${WORK_PROJECT}/studio?work=lost`)
+  const dock = page.getByRole('navigation', { name: 'Room controls' })
+  await dock.getByRole('button', { name: 'Join the room' }).click()
+  await expect(dock.getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  const brief = page.locator('.panel-toggles [data-panel="brief"]')
+  await brief.click()
+  await page.getByRole('button', { name: /^(Add|Edit) direction$/ }).click()
+  const direction = page.getByRole('textbox', { name: 'Direction', exact: true })
+  const draft = 'Fictional unsaved direction'
+  await direction.fill(draft)
+
+  await page.locator('header.topbar').getByRole('button', { name: 'Home', exact: true }).click()
+  const call = page.getByRole('group', { name: 'Your call', exact: true })
+  await expect(call).toBeVisible()
+  await expect(page.getByRole('main')).toHaveCount(1)
+  await call.getByRole('button', { name: 'In Fixture project', exact: true }).click()
+
+  await expect(dock.getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  if ((await brief.getAttribute('aria-pressed')) !== 'true') await brief.click()
+  await expect(direction).toHaveValue(draft)
+  await expect(page.getByRole('main')).toHaveCount(1)
+})
+
+test('places · Back during a call closes the room’s portaled attendance sheet', async ({ context }) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}?work=lost&people=9&video=screen`)
+  await page.getByRole('button', { name: /^Fixture project.*Open$/ }).click()
+  const dock = page.getByRole('navigation', { name: 'Room controls' })
+  await expect(dock).toBeVisible()
+  await dock.getByRole('button', { name: 'Join the room' }).click()
+  await page.getByRole('button', { name: /more in the call/ }).click()
+  const attendance = page.getByRole('dialog', { name: 'In the call', exact: true })
+  await expect(attendance).toBeVisible()
+
+  await page.goBack()
+  const call = page.getByRole('group', { name: 'Your call', exact: true })
+  await expect(call).toBeVisible()
+  await expect(attendance).toHaveCount(0)
+  await call.getByRole('button', { name: 'In Fixture project', exact: true }).click()
+  await expect(dock.getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  await expect(attendance).toHaveCount(0)
+})
+
 /** From the places, ⌘K «Open <title>»; its project is on screen once any call before it has gone. */
 async function openFromPlaces(page: Page, title: string, projectId: string) {
   await page.keyboard.press('ControlOrMeta+k')

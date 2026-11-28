@@ -2,11 +2,12 @@
 // keeps a tile of her own: it is transparent, and her light shines in it from behind. A report shown to everyone takes
 // the shared screen's place (PresentedReport, docs/plans/room-present.md). Past a few people the tiles stop, and «+N»
 // opens everyone in the call (tile-view.ts, docs/plans/room-tiles-overflow.md).
-import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useContext, useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon, Tip } from '@sophia/ui'
 import type { VideoFeed } from './livekit-room.ts'
 import { Sheet } from '../../app/Sheet.tsx'
+import { ShortcutScope } from '../../app/shortcuts.ts'
 import {
   mutedMic,
   presenceRole,
@@ -401,9 +402,14 @@ function useEveryone(
   floor: FloorView,
   mine: { kept: readonly RoomParticipant[]; flip: (() => void) | null | undefined },
 ) {
+  const foreground = useContext(ShortcutScope)
   const [open, setOpen] = useState(false)
+  // This sheet is portaled to the page, beyond the hidden background room.
+  if (!foreground && open) setOpen(false)
   const flip = mine.kept.some((p) => p.local) ? null : mine.flip
-  const sheet = open && <InTheCall people={people} floor={floor} flip={flip} onClose={() => setOpen(false)} />
+  const sheet = foreground && open && (
+    <InTheCall people={people} floor={floor} flip={flip} onClose={() => setOpen(false)} />
+  )
   return { sheet, show: () => setOpen(true) }
 }
 
