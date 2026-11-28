@@ -6186,6 +6186,11 @@ button.contribution-quote:hover {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+/* An empty state straight in the panel (People before anyone is in the call) starts where the tabs and its rows do,
+   not at the panel's edge (docs/plans/panel-empty-edge.md). */
+.side-panel-body > .empty {
+  padding-inline: var(--panel-pad);
+}
 .side-panel-body .mission {
   padding: var(--panel-pad);
   border-radius: 0;
